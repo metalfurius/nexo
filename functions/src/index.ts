@@ -6,7 +6,6 @@ initializeApp()
 
 const tmdbToken = defineSecret('TMDB_TOKEN')
 const rawgApiKey = defineSecret('RAWG_API_KEY')
-const allowedEmailsSecret = defineSecret('ALLOWED_EMAILS')
 
 type SearchType = 'watch' | 'game' | 'book' | 'anime' | 'manga' | 'manhwa' | 'any'
 
@@ -27,16 +26,10 @@ interface ExternalCandidate {
 export const searchExternal = onCall(
   {
     cors: true,
-    secrets: [tmdbToken, rawgApiKey, allowedEmailsSecret],
+    secrets: [tmdbToken, rawgApiKey],
   },
   async (request) => {
-    const email = request.auth?.token.email?.toString().toLowerCase()
-    const allowedEmails = (allowedEmailsSecret.value() || process.env.ALLOWED_EMAILS || '')
-      .split(',')
-      .map((entry) => entry.trim().toLowerCase())
-      .filter(Boolean)
-
-    if (!request.auth || (allowedEmails.length > 0 && (!email || !allowedEmails.includes(email)))) {
+    if (!request.auth) {
       throw new HttpsError('permission-denied', 'Usuario no autorizado.')
     }
 

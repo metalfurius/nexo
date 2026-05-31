@@ -21,17 +21,15 @@ maybeDescribe('firestore.rules emulator', () => {
     await env.cleanup()
   })
 
-  it('allows only authorized users to read app collections', async () => {
+  it('allows signed-in users to read app collections', async () => {
     await env.withSecurityRulesDisabled(async (context) => {
-      await setDoc(doc(context.firestore(), 'authorizedUsers', 'owner'), { email: 'owner@example.com' })
       await setDoc(doc(context.firestore(), 'items', 'outer-wilds'), { title: 'Outer Wilds' })
     })
 
     const ownerDb = env.authenticatedContext('owner').firestore()
-    const strangerDb = env.authenticatedContext('stranger').firestore()
+    const anonymousDb = env.unauthenticatedContext().firestore()
 
     await expect(getDoc(doc(ownerDb, 'items', 'outer-wilds'))).resolves.toBeTruthy()
-    await expect(getDoc(doc(strangerDb, 'items', 'outer-wilds'))).rejects.toThrow()
+    await expect(getDoc(doc(anonymousDb, 'items', 'outer-wilds'))).rejects.toThrow()
   })
 })
-

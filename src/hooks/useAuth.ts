@@ -1,8 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { User } from 'firebase/auth'
 import {
-  allowedEmail,
-  isAllowedUser,
   isFirebaseConfigured,
   signInWithGoogle,
   signOutCurrentUser,
@@ -21,13 +19,9 @@ export function useAuth() {
     })
   }, [])
 
-  const allowed = useMemo(() => isAllowedUser(user), [user])
-
   return {
     user,
     loading,
-    allowed,
-    allowedEmail,
     isFirebaseConfigured,
     error,
     signIn: async () => {
@@ -41,4 +35,3 @@ export function useAuth() {
     signOut: signOutCurrentUser,
   }
 }
-

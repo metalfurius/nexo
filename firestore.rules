@@ -6,11 +6,6 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isAuthorized() {
-      return isSignedIn()
-        && exists(/databases/$(database)/documents/authorizedUsers/$(request.auth.uid));
-    }
-
     function isAppCollection(collectionName) {
       return collectionName in [
         'items',
@@ -21,13 +16,8 @@ service cloud.firestore {
       ];
     }
 
-    match /authorizedUsers/{uid} {
-      allow read: if request.auth != null && request.auth.uid == uid;
-      allow write: if false;
-    }
-
     match /{collectionName}/{documentId} {
-      allow read, write: if isAuthorized() && isAppCollection(collectionName);
+      allow read, write: if isSignedIn() && isAppCollection(collectionName);
     }
 
     match /{document=**} {
@@ -35,4 +25,3 @@ service cloud.firestore {
     }
   }
 }
-

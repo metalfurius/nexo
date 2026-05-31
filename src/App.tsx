@@ -86,7 +86,7 @@ const blankItem = (): ListItem => ({
 
 function App() {
   const auth = useAuth()
-  const library = useLibrary(!auth.isFirebaseConfigured || auth.allowed)
+  const library = useLibrary(!auth.isFirebaseConfigured || Boolean(auth.user))
   const [query, setQuery] = useState('')
   const [typeFilter, setTypeFilter] = useState<ItemType | 'all'>('all')
   const [statusFilter, setStatusFilter] = useState<ItemStatus | 'all'>('all')
@@ -143,21 +143,6 @@ function App() {
           </button>
         }
         detail={auth.error}
-      />
-    )
-  }
-
-  if (auth.isFirebaseConfigured && !auth.allowed) {
-    return (
-      <ShellState
-        title="Acceso no autorizado"
-        detail={`Esta app solo acepta ${auth.allowedEmail ?? 'el usuario configurado'}.`}
-        action={
-          <button className="ghost-button" type="button" onClick={auth.signOut}>
-            <LogOut size={18} />
-            Salir
-          </button>
-        }
       />
     )
   }

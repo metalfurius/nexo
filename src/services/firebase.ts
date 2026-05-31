@@ -6,7 +6,6 @@ import {
   onAuthStateChanged,
   signInWithPopup,
   signOut,
-  type User,
 } from 'firebase/auth'
 import { connectFunctionsEmulator, getFunctions } from 'firebase/functions'
 import { connectFirestoreEmulator, getFirestore } from 'firebase/firestore'
@@ -21,7 +20,6 @@ const firebaseConfig = {
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 }
 
-export const allowedEmail = import.meta.env.VITE_ALLOWED_EMAIL?.trim().toLowerCase()
 export const forceDemoMode = import.meta.env.VITE_DEMO_MODE === 'true'
 
 export const isFirebaseConfigured = Boolean(
@@ -67,7 +65,7 @@ export function getFirebaseServices() {
   return { auth, db, functions }
 }
 
-export function watchAuth(callback: (user: User | null) => void) {
+export function watchAuth(callback: (user: ReturnType<typeof getAuth>['currentUser']) => void) {
   const services = getFirebaseServices()
   if (!services) {
     callback(null)
@@ -88,10 +86,4 @@ export async function signOutCurrentUser() {
   const services = getFirebaseServices()
   if (!services) return
   await signOut(services.auth)
-}
-
-export function isAllowedUser(user: User | null) {
-  if (!user) return false
-  if (!allowedEmail) return true
-  return user.email?.toLowerCase() === allowedEmail
 }

@@ -31,7 +31,6 @@ VITE_FIREBASE_STORAGE_BUCKET=
 VITE_FIREBASE_MESSAGING_SENDER_ID=
 VITE_FIREBASE_APP_ID=
 VITE_FIREBASE_MEASUREMENT_ID=
-VITE_ALLOWED_EMAIL=tu-email@example.com
 VITE_DEMO_MODE=false
 ```
 
@@ -40,16 +39,12 @@ VITE_DEMO_MODE=false
 1. Usa el proyecto Firebase `recomendaciones-78eb7` o cambia `.firebaserc`.
 2. Activa Authentication con Google.
 3. Activa Firestore.
-4. Crea el documento `authorizedUsers/{uid}` del usuario permitido.
-5. Configura secretos para Functions:
+4. Configura secretos para Functions:
 
 ```bash
 firebase functions:secrets:set TMDB_TOKEN
 firebase functions:secrets:set RAWG_API_KEY
-firebase functions:secrets:set ALLOWED_EMAILS
 ```
-
-`ALLOWED_EMAILS` acepta uno o varios correos separados por comas.
 
 ## Importar las listas actuales
 
