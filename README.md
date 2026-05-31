@@ -39,11 +39,18 @@ VITE_DEMO_MODE=false
 1. Usa el proyecto Firebase `recomendaciones-78eb7` o cambia `.firebaserc`.
 2. Activa Authentication con Google.
 3. Activa Firestore.
-4. Configura secretos para Functions:
+4. En Authentication > Settings > Authorized domains, anade `localhost` para desarrollo local. Si abres la app con `127.0.0.1`, anade tambien `127.0.0.1`.
+5. Configura secretos para Functions:
 
 ```bash
 firebase functions:secrets:set TMDB_TOKEN
 firebase functions:secrets:set RAWG_API_KEY
+```
+
+Para login local usa preferiblemente:
+
+```text
+http://localhost:5173
 ```
 
 ## Importar las listas actuales
