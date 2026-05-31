@@ -1,4 +1,5 @@
 import { initializeApp, type FirebaseApp } from 'firebase/app'
+import { getAnalytics, isSupported, type Analytics } from 'firebase/analytics'
 import {
   getAuth,
   GoogleAuthProvider,
@@ -17,21 +18,36 @@ const firebaseConfig = {
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 }
 
 export const allowedEmail = import.meta.env.VITE_ALLOWED_EMAIL?.trim().toLowerCase()
+export const forceDemoMode = import.meta.env.VITE_DEMO_MODE === 'true'
 
 export const isFirebaseConfigured = Boolean(
-  firebaseConfig.apiKey && firebaseConfig.authDomain && firebaseConfig.projectId && firebaseConfig.appId,
+  !forceDemoMode &&
+    firebaseConfig.apiKey &&
+    firebaseConfig.authDomain &&
+    firebaseConfig.projectId &&
+    firebaseConfig.appId,
 )
 
 let app: FirebaseApp | undefined
+let analytics: Analytics | undefined
 let emulatorsConnected = false
 
 export function getFirebaseApp() {
   if (!isFirebaseConfigured) return undefined
   app ??= initializeApp(firebaseConfig)
   return app
+}
+
+export async function initializeAnalytics() {
+  const firebaseApp = getFirebaseApp()
+  if (!firebaseApp || !firebaseConfig.measurementId || analytics) return analytics
+  if (!(await isSupported())) return undefined
+  analytics = getAnalytics(firebaseApp)
+  return analytics
 }
 
 export function getFirebaseServices() {
@@ -79,4 +95,3 @@ export function isAllowedUser(user: User | null) {
   if (!allowedEmail) return true
   return user.email?.toLowerCase() === allowedEmail
 }
-

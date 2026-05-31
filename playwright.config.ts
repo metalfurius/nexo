@@ -7,12 +7,15 @@ export default defineConfig({
     timeout: 5_000,
   },
   use: {
-    baseURL: 'http://127.0.0.1:5173',
+    baseURL: 'http://127.0.0.1:5174',
     trace: 'on-first-retry',
   },
   webServer: {
-    command: 'npm run dev -- --host 127.0.0.1',
-    url: 'http://127.0.0.1:5173',
+    command: 'npm run dev -- --host 127.0.0.1 --port 5174',
+    env: {
+      VITE_DEMO_MODE: 'true',
+    },
+    url: 'http://127.0.0.1:5174',
     reuseExistingServer: !process.env.CI,
   },
   projects: [
@@ -26,4 +29,3 @@ export default defineConfig({
     },
   ],
 })
-

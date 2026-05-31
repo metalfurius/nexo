@@ -30,12 +30,14 @@ VITE_FIREBASE_PROJECT_ID=
 VITE_FIREBASE_STORAGE_BUCKET=
 VITE_FIREBASE_MESSAGING_SENDER_ID=
 VITE_FIREBASE_APP_ID=
+VITE_FIREBASE_MEASUREMENT_ID=
 VITE_ALLOWED_EMAIL=tu-email@example.com
+VITE_DEMO_MODE=false
 ```
 
 ## Firebase
 
-1. Crea un proyecto Firebase.
+1. Usa el proyecto Firebase `recomendaciones-78eb7` o cambia `.firebaserc`.
 2. Activa Authentication con Google.
 3. Activa Firestore.
 4. Crea el documento `authorizedUsers/{uid}` del usuario permitido.

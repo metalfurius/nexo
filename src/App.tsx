@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
   BookOpen,
   Check,
@@ -33,6 +33,7 @@ import { useAuth } from './hooks/useAuth'
 import { useLibrary } from './hooks/useLibrary'
 import { recommendItem } from './lib/recommendations'
 import { slugify, uniqueValues } from './lib/strings'
+import { initializeAnalytics } from './services/firebase'
 
 const typeLabels: Record<ItemType | 'any' | 'watch', string> = {
   any: 'Todo',
@@ -105,6 +106,10 @@ function App() {
     seed: 'listas-web',
   })
   const [recommendation, setRecommendation] = useState<ReturnType<typeof recommendItem>>()
+
+  useEffect(() => {
+    void initializeAnalytics().catch(() => undefined)
+  }, [])
 
   const filteredItems = useMemo(() => {
     return library.items
