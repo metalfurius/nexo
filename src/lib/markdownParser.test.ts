@@ -26,6 +26,10 @@ describe('markdownParser', () => {
     expect(parsed.items.find((item) => item.title === 'Portal 2 CO-OP')?.rating).toBe(8)
     expect(parsed.items.find((item) => item.title.includes('Pokemon'))?.status).toBe('paused')
     expect(parsed.items.find((item) => item.title === 'Katana ZERO')?.durationMaxHours).toBe(6)
+    expect(parsed.items.find((item) => item.title === 'Katana ZERO')?.tags).toEqual(
+      expect.arrayContaining(['accion', 'rapido', 'intenso']),
+    )
+    expect(parsed.items.find((item) => item.title === 'Katana ZERO')?.tags).not.toContain('juego')
     expect(parsed.items.find((item) => item.title === 'Mass Effect Legendary Edition')?.status).toBe('dropped')
   })
 
@@ -41,6 +45,39 @@ describe('markdownParser', () => {
     expect(merged.items[0].rating).toBe(7.5)
   })
 
+  it('ignores dice instructions and merges current-state duplicates into rich items', () => {
+    const book = parseMarkdownFile('Libros.md', '## Proximos\n1. 1984 - George Orwell `(Distopia clasica)`')
+    const dice = parseMarkdownFile(
+      'Recomendaciones.md',
+      [
+        '## ¿Que Categoria? (Tira 1d6)',
+        '| d6 | Categoria |',
+        '| --- | --- |',
+        '| 1-2 | Juegos |',
+        '',
+        '## Estado Actual',
+        'En progreso -',
+        '1984',
+        '',
+        '## ¿No te convence el resultado? (Tira 1d6)',
+        '| d6 | Accion |',
+        '| --- | --- |',
+        '| 1-2 | Acepta el destino - El dado ha hablado |',
+      ].join('\n'),
+    )
+
+    const merged = mergeParsedItems([book, dice])
+
+    expect(merged.items).toHaveLength(1)
+    expect(merged.items[0]).toMatchObject({
+      title: '1984 - George Orwell',
+      type: 'book',
+      status: 'in_progress',
+    })
+    expect(merged.items[0].tags).not.toContain('libro')
+    expect(merged.items[0].tags.some((tag) => tag.includes('Tira'))).toBe(false)
+  })
+
   it('can parse the sibling legacy Listas repo when present', () => {
     const legacyDir = resolve(process.cwd(), '..', 'Listas')
     if (!existsSync(legacyDir)) return
@@ -51,8 +88,10 @@ describe('markdownParser', () => {
     const merged = mergeParsedItems(parsed)
 
     expect(merged.items.length).toBeGreaterThan(40)
+    expect(merged.items.length).toBeLessThan(130)
     expect(merged.items.some((item) => item.title.includes('Outer Wilds'))).toBe(true)
     expect(merged.items.some((item) => item.status === 'dropped')).toBe(true)
+    expect(merged.items.some((item) => item.title.includes('El dado ha hablado'))).toBe(false)
+    expect(merged.items.flatMap((item) => item.tags).some((tag) => tag.includes('Tabla'))).toBe(false)
   })
 })
-

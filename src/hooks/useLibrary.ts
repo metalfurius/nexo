@@ -56,6 +56,14 @@ export function useLibrary(enabled: boolean) {
     }
   }
 
+  async function deleteAllItems() {
+    if (repository) {
+      await repository.deleteAllItems()
+    } else {
+      setItems([])
+    }
+  }
+
   async function setStatus(id: string, status: ItemStatus) {
     if (repository) {
       await repository.setStatus(id, status)
@@ -116,6 +124,7 @@ export function useLibrary(enabled: boolean) {
     error,
     saveItem,
     deleteItem,
+    deleteAllItems,
     setStatus,
     snoozeRecommendation,
     recordRecommendation,

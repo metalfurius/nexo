@@ -107,6 +107,8 @@ function App() {
   const [externalCandidates, setExternalCandidates] = useState<ExternalCandidate[]>([])
   const [externalLoading, setExternalLoading] = useState(false)
   const [importStatus, setImportStatus] = useState<string | undefined>()
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [deleteConfirmText, setDeleteConfirmText] = useState('')
   const [preferences, setPreferences] = useState<RecommendationPreferences>({
     medium: 'any',
     timeBudgetHours: 15,
@@ -205,6 +207,15 @@ function App() {
     }
   }
 
+  async function deleteEntireLibrary() {
+    setImportStatus('Borrando biblioteca...')
+    await library.deleteAllItems()
+    setRecommendation(undefined)
+    setDeleteDialogOpen(false)
+    setDeleteConfirmText('')
+    setImportStatus('Biblioteca borrada')
+  }
+
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -255,6 +266,15 @@ function App() {
               <button className="primary-button" type="button" onClick={() => setEditingItem(blankItem())}>
                 <Plus size={18} />
                 Añadir
+              </button>
+              <button
+                className="danger-button"
+                disabled={library.items.length === 0}
+                type="button"
+                onClick={() => setDeleteDialogOpen(true)}
+              >
+                <Trash2 size={18} />
+                Borrar todo
               </button>
             </div>
           </div>
@@ -539,6 +559,48 @@ function App() {
             setEditingItem(undefined)
           }}
         />
+      )}
+
+      {deleteDialogOpen && (
+        <div className="modal-backdrop" role="presentation">
+          <form
+            className="confirm-dialog"
+            onSubmit={(event) => {
+              event.preventDefault()
+              if (deleteConfirmText === 'BORRAR') void deleteEntireLibrary()
+            }}
+          >
+            <div>
+              <h2>Borrar toda la biblioteca</h2>
+              <p>Esto elimina las entradas actuales de Firestore. Escribe BORRAR para confirmar.</p>
+            </div>
+            <label>
+              Confirmacion
+              <input
+                autoFocus
+                value={deleteConfirmText}
+                onChange={(event) => setDeleteConfirmText(event.target.value)}
+                placeholder="BORRAR"
+              />
+            </label>
+            <div className="action-row end">
+              <button
+                className="ghost-button"
+                type="button"
+                onClick={() => {
+                  setDeleteDialogOpen(false)
+                  setDeleteConfirmText('')
+                }}
+              >
+                Cancelar
+              </button>
+              <button className="danger-button" disabled={deleteConfirmText !== 'BORRAR'} type="submit">
+                <Trash2 size={16} />
+                Borrar todo
+              </button>
+            </div>
+          </form>
+        </div>
       )}
     </main>
   )

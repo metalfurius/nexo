@@ -3,11 +3,13 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDocs,
   onSnapshot,
   orderBy,
   query,
   setDoc,
   type Firestore,
+  writeBatch,
 } from 'firebase/firestore'
 import { httpsCallable } from 'firebase/functions'
 import {
@@ -22,6 +24,7 @@ export interface LibraryRepository {
   subscribeItems: (onItems: (items: ListItem[]) => void, onError: (error: Error) => void) => () => void
   saveItem: (item: ListItem) => Promise<void>
   deleteItem: (id: string) => Promise<void>
+  deleteAllItems: () => Promise<void>
   setStatus: (id: string, status: ItemStatus) => Promise<void>
   snoozeRecommendation: (id: string) => Promise<void>
   recordRecommendation: (itemId: string, reasons: string[]) => Promise<void>
@@ -51,6 +54,16 @@ export function createFirestoreRepository(): LibraryRepository | undefined {
     },
     deleteItem(id) {
       return deleteDoc(doc(services.db, 'items', id))
+    },
+    async deleteAllItems() {
+      const snapshot = await getDocs(collection(services.db, 'items'))
+      for (const docsChunk of chunk(snapshot.docs, 450)) {
+        const batch = writeBatch(services.db)
+        for (const itemDoc of docsChunk) {
+          batch.delete(itemDoc.ref)
+        }
+        await batch.commit()
+      }
     },
     setStatus(id, status) {
       return setDoc(
@@ -90,6 +103,14 @@ export function createFirestoreRepository(): LibraryRepository | undefined {
       return result.data.candidates
     },
   }
+}
+
+function chunk<Value>(values: Value[], size: number) {
+  const chunks: Value[][] = []
+  for (let index = 0; index < values.length; index += size) {
+    chunks.push(values.slice(index, index + size))
+  }
+  return chunks
 }
 
 export function createItemId(db: Firestore, title: string) {

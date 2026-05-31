@@ -204,6 +204,7 @@ label {
 .external-panel,
 .recommendation-result,
 .candidate-row,
+.confirm-dialog,
 .item-editor {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -294,6 +295,7 @@ label {
 .dice-button,
 .primary-button,
 .secondary-button,
+.danger-button,
 .ghost-button,
 .small-button {
   align-items: center;
@@ -333,6 +335,19 @@ label {
   color: var(--text);
   font-weight: 700;
   padding: 0 14px;
+}
+
+.danger-button {
+  background: var(--danger-bg);
+  border-color: var(--danger-border);
+  color: var(--danger-text);
+  font-weight: 700;
+  padding: 0 14px;
+}
+
+.danger-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .file-button input {
@@ -480,6 +495,25 @@ label {
   overflow: auto;
   padding: 18px;
   width: min(640px, 100%);
+}
+
+.confirm-dialog {
+  display: grid;
+  gap: 16px;
+  max-width: 440px;
+  padding: 18px;
+  width: min(440px, 100%);
+}
+
+.confirm-dialog h2 {
+  color: var(--text-strong);
+  font-size: 20px;
+  margin: 0 0 6px;
+}
+
+.confirm-dialog p {
+  color: var(--muted);
+  margin: 0;
 }
 
 .form-grid {

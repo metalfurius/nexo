@@ -54,6 +54,8 @@ export function parseMarkdownFile(fileName: string, content: string): ParsedMark
       continue
     }
 
+    if (isIgnoredContentLine(line) || isIgnoredSection(section)) continue
+
     if (section.normalized.includes('estado actual')) {
       const inProgress = parseCurrentLine(line, section)
       if (inProgress) items.push(inProgress)
@@ -84,54 +86,199 @@ export function parseMarkdownFile(fileName: string, content: string): ParsedMark
 }
 
 export function mergeParsedItems(files: ParsedMarkdownFile[]) {
-  const byKey = new Map<string, ListItem>()
+  const byPrimaryKey = new Map<string, ListItem>()
+  const aliasToPrimaryKey = new Map<string, string>()
   const notes = files.flatMap((file) => file.notes)
 
   for (const file of files) {
     for (const item of file.items) {
-      const key = `${item.type}:${normalizeKey(item.title)}`
-      const existing = byKey.get(key)
-      if (!existing) {
-        byKey.set(key, item)
+      const lookupKeys = canonicalLookupKeys(item)
+      const primaryKey = lookupKeys
+        .map((key) => aliasToPrimaryKey.get(key))
+        .find((key): key is string => Boolean(key))
+
+      if (!primaryKey) {
+        const newPrimaryKey = lookupKeys[0]
+        byPrimaryKey.set(newPrimaryKey, item)
+        for (const alias of canonicalAliasKeys(item)) {
+          aliasToPrimaryKey.set(alias, newPrimaryKey)
+        }
         continue
       }
 
-      const status =
-        STATUS_PRIORITY[item.status] > STATUS_PRIORITY[existing.status]
-          ? item.status
-          : existing.status
+      const existing = byPrimaryKey.get(primaryKey)
+      if (!existing) continue
 
-      byKey.set(key, {
-        ...existing,
-        status,
-        rating: item.rating ?? existing.rating,
-        durationMinHours: existing.durationMinHours ?? item.durationMinHours,
-        durationMaxHours: existing.durationMaxHours ?? item.durationMaxHours,
-        progress: existing.progress ?? item.progress,
-        genres: uniqueValues([...existing.genres, ...item.genres]),
-        tags: uniqueValues([...existing.tags, ...item.tags]),
-        moodTags: uniqueValues([...existing.moodTags, ...item.moodTags]),
-        notes: uniqueValues([existing.notes, item.notes]).join(' | ') || undefined,
-        rawText: uniqueValues([existing.rawText, item.rawText]).join('\n'),
-        importNotes: uniqueValues([
-          ...(existing.importNotes ?? []),
-          ...(item.importNotes ?? []),
-          `Duplicado fusionado desde ${file.fileName}`,
-        ]),
-        updatedAt: nowIso(),
-      })
+      const merged = mergeItems(existing, item, file.fileName)
+      byPrimaryKey.set(primaryKey, merged)
+      for (const alias of canonicalAliasKeys(merged)) {
+        aliasToPrimaryKey.set(alias, primaryKey)
+      }
+      for (const alias of canonicalAliasKeys(item)) {
+        aliasToPrimaryKey.set(alias, primaryKey)
+      }
     }
   }
 
   return {
-    items: [...byKey.values()].sort((a, b) => a.title.localeCompare(b.title, 'es')),
+    items: [...byPrimaryKey.values()].sort((a, b) => a.title.localeCompare(b.title, 'es')),
     notes,
   }
 }
 
+function mergeItems(existing: ListItem, item: ListItem, fileName: string): ListItem {
+  const type = chooseType(existing, item)
+  const status =
+    STATUS_PRIORITY[item.status] > STATUS_PRIORITY[existing.status]
+      ? item.status
+      : existing.status
+  const genres = uniqueValues([...existing.genres, ...item.genres])
+  const moodTags = uniqueValues([...existing.moodTags, ...item.moodTags])
+  const title = chooseTitle(existing, item)
+
+  return {
+    ...existing,
+    id: `${slugify(type)}-${slugify(title)}`.slice(0, 120),
+    title,
+    type,
+    status,
+    rating: item.rating ?? existing.rating,
+    durationMinHours: existing.durationMinHours ?? item.durationMinHours,
+    durationMaxHours: existing.durationMaxHours ?? item.durationMaxHours,
+    progress: status === 'in_progress' ? 'En progreso' : existing.progress ?? item.progress,
+    genres,
+    tags: cleanTags([...existing.tags, ...item.tags, ...genres, ...moodTags], title),
+    moodTags,
+    notes: uniqueValues([existing.notes, item.notes]).join(' | ') || undefined,
+    rawText: uniqueValues([existing.rawText, item.rawText]).join('\n'),
+    importNotes: uniqueValues([
+      ...(existing.importNotes ?? []),
+      ...(item.importNotes ?? []),
+      `Duplicado fusionado desde ${fileName}`,
+    ]),
+    updatedAt: nowIso(),
+  }
+}
+
+function chooseType(existing: ListItem, item: ListItem) {
+  if (existing.type === 'other' && item.type !== 'other') return item.type
+  return existing.type
+}
+
+function chooseTitle(existing: ListItem, item: ListItem) {
+  const existingScore = titleQualityScore(existing)
+  const itemScore = titleQualityScore(item)
+  return itemScore > existingScore ? item.title : existing.title
+}
+
+function titleQualityScore(item: ListItem) {
+  const normalized = normalizeKey(item.title)
+  let score = item.title.length
+  if (item.type !== 'other') score += 50
+  if (!normalized.includes('retomar cuando')) score += 10
+  if (item.title.includes(' - ') || item.title.includes(' – ')) score += item.type === 'book' ? 20 : 4
+  return score
+}
+
+function canonicalLookupKeys(item: ListItem) {
+  if (item.type === 'other') {
+    return canonicalTitleAliases(item.title).map((title) => `any:${title}`)
+  }
+
+  return canonicalTitleAliases(item.title).map((title) => `${item.type}:${title}`)
+}
+
+function canonicalAliasKeys(item: ListItem) {
+  const titleAliases = canonicalTitleAliases(item.title)
+  if (item.type === 'other') {
+    return titleAliases.map((title) => `any:${title}`)
+  }
+
+  return uniqueValues([
+    ...titleAliases.map((title) => `${item.type}:${title}`),
+    ...titleAliases.map((title) => `any:${title}`),
+  ])
+}
+
+function canonicalTitleAliases(title: string) {
+  return uniqueValues([
+    normalizeKey(title),
+    normalizeBookBaseTitle(title),
+    normalizeEditionBaseTitle(title),
+  ])
+}
+
+function normalizeBookBaseTitle(title: string) {
+  return normalizeKey(title.replace(/\s+[-–]\s+.+$/u, ''))
+}
+
+function normalizeEditionBaseTitle(title: string) {
+  return normalizeKey(
+    title
+      .replace(/\s+[-–]\s+the final cut$/iu, '')
+      .replace(/\s+director'?s cut$/iu, '')
+      .replace(/\s+special edition$/iu, '')
+      .replace(/\s+remake intergrade$/iu, ' remake')
+      .replace(/\s*\((?:director'?s cut|dmc1)\)\s*$/iu, ''),
+  )
+}
+
+function isIgnoredContentLine(line: string) {
+  const normalized = normalizeKey(line)
+  return normalized === '' || normalized === '-' || /^-+$/.test(line)
+}
+
+function isIgnoredSection(section: SectionContext) {
+  return (
+    section.normalized.includes('que categoria') ||
+    section.normalized.includes('no te convence') ||
+    section.normalized.includes('tiradas especiales') ||
+    section.normalized.includes('retomar algo pausado')
+  )
+}
+
+function isTableHeaderCell(value: string) {
+  return ['accion', 'categoria', 'juego', 'libro', 'resultado', 'titulo'].includes(normalizeKey(value))
+}
+
+function cleanTags(tags: string[], title: string) {
+  const titleKey = normalizeKey(title)
+  const blocked = new Set([
+    'anime',
+    'comic',
+    'juego',
+    'libro',
+    'manga',
+    'manhwa',
+    'otro',
+    'pelicula',
+    'serie',
+  ])
+
+  return uniqueValues(tags).filter((tag) => {
+    const key = normalizeKey(tag)
+    if (!key || key === titleKey || blocked.has(key)) return false
+    return ![
+      'categoria',
+      'droppeado',
+      'duracion media',
+      'estado actual',
+      'maestra',
+      'no recomendar',
+      'proximo',
+      'retomar',
+      'tabla',
+      'tira',
+      'ya jugado',
+      'ya leido',
+      'ya visto',
+    ].some((noise) => key.includes(noise))
+  })
+}
+
 function parseCurrentLine(line: string, section: SectionContext) {
-  const ignored = ['en progreso', '-']
-  if (ignored.includes(normalizeKey(line))) return undefined
+  const normalized = normalizeKey(line)
+  if (normalized === '-' || normalized.startsWith('en progreso')) return undefined
   const text = line.replace(/^[-*]\s+/, '').trim()
   if (!text || text.startsWith('>')) return undefined
   return createItem(text, { ...section, status: 'in_progress' })
@@ -153,7 +300,7 @@ function parseTableLine(line: string, section: SectionContext) {
   if (cells.length < 2) return undefined
   const first = normalizeKey(cells[0])
   const titleCell = cells[1]
-  if (first === 'd6' || first === 'd20' || first === 'd100' || normalizeKey(titleCell) === 'categoria') {
+  if (first === 'd6' || first === 'd20' || first === 'd100' || isTableHeaderCell(titleCell)) {
     return undefined
   }
   if (normalizeKey(titleCell).includes('critico')) return undefined
@@ -166,7 +313,7 @@ function createItem(rawValue: string, section: SectionContext): ListItem | undef
   const rawText = cleanInlineText(rawValue)
   const rating = extractRating(rawText)
   const duration = extractDuration(rawText)
-  const note = extractNote(rawText)
+  const note = extractNote(rawValue)
   const type = inferTypeFromLine(rawText) ?? section.type ?? 'other'
   const status = inferStatusFromLine(rawText) ?? section.status
   const title = extractTitle(rawText, type)
@@ -180,11 +327,9 @@ function createItem(rawValue: string, section: SectionContext): ListItem | undef
     importNotes.push('Tipo inferido como other')
   }
 
-  const tags = uniqueValues([
-    section.title,
-    typeToSpanish(type),
-    ...extractTags(rawText, section.title),
-  ]).filter((tag) => normalizeKey(tag) !== normalizeKey(title))
+  const genres = inferGenres(rawText, section.title)
+  const moodTags = inferMoodTags(rawText, section.title)
+  const tags = cleanTags([...genres, ...moodTags], title)
 
   return {
     id: `${slugify(type)}-${slugify(title || rawText)}`.slice(0, 120),
@@ -195,9 +340,9 @@ function createItem(rawValue: string, section: SectionContext): ListItem | undef
     durationMinHours: duration?.min,
     durationMaxHours: duration?.max,
     progress: status === 'in_progress' ? 'En progreso' : undefined,
-    genres: inferGenres(rawText, section.title),
+    genres,
     tags,
-    moodTags: inferMoodTags(rawText, section.title),
+    moodTags,
     weights: DEFAULT_WEIGHTS,
     notes: note,
     source: 'markdown',
@@ -219,12 +364,14 @@ function cleanInlineText(value: string) {
 
 function extractTitle(value: string, type: ItemType) {
   let title = value
-    .replace(/(?:⭐|★)?\s*\d+(?:[,.]\d+)?\s*\/\s*10/gu, '')
+    .replace(/\s*\d+(?:[,.]\d+)?\s*\/\s*10/gu, '')
+    .replace(/[⭐★]/gu, '')
     .replace(/Droppeado\s*/iu, '')
     .replace(/\([^)]*(Pel[ií]cula|Serie|Anime|Libro|Juego|Manga|Manhwa)[^)]*\)/giu, '')
     .replace(/\([^)]*\)/g, '')
     .replace(/\d+(?:[,.]\d+)?\s*[-–]\s*\d+(?:[,.]\d+)?\s*(?:horas|h)\.?/giu, '')
     .replace(/<\s*\d+(?:[,.]\d+)?\s*(?:horas|h)\.?/giu, '')
+    .replace(/\s*:?\s*Retomar cuando.*$/iu, '')
     .replace(/\s+-\s*$/, '')
     .trim()
 
@@ -314,8 +461,22 @@ function inferTypeFromCell(value?: string): ItemType | undefined {
 function inferTypeFromLine(value: string): ItemType | undefined {
   const normalized = normalizeKey(value)
   if (normalized.includes('anime pelicula')) return 'anime'
+  if (
+    [
+      'banished court magician',
+      'chainsaw man',
+      'gachiakuta',
+      'isekai',
+      'jujutsu kaisen',
+      'nageki no bourei',
+      'one punch man',
+    ].some((hint) => normalized.includes(hint))
+  ) {
+    return 'anime'
+  }
   if (normalized.includes('pelicula')) return 'movie'
   if (normalized.includes('serie')) return 'series'
+  if (normalized.includes('temporada') || /\bs\d+\b/u.test(normalized)) return 'series'
   if (normalized.includes('anime')) return 'anime'
   if (normalized.includes('manga')) return 'manga'
   if (normalized.includes('manhwa')) return 'manhwa'
@@ -358,23 +519,4 @@ function inferMoodTags(value: string, sectionTitle: string) {
   if (normalized.includes('emocion')) tags.push('emocional')
   if (normalized.includes('unica') || normalized.includes('raro')) tags.push('raro')
   return uniqueValues(tags)
-}
-
-function extractTags(value: string, sectionTitle: string) {
-  return uniqueValues([...inferGenres(value, sectionTitle), ...inferMoodTags(value, sectionTitle)])
-}
-
-function typeToSpanish(type: ItemType) {
-  const labels: Record<ItemType, string> = {
-    game: 'juego',
-    book: 'libro',
-    movie: 'pelicula',
-    series: 'serie',
-    anime: 'anime',
-    manga: 'manga',
-    manhwa: 'manhwa',
-    comic: 'comic',
-    other: 'otro',
-  }
-  return labels[type]
 }
