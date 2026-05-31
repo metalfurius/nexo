@@ -1,6 +1,6 @@
 # Nexo
 
-Web privada para gestionar cosas que ver, leer y jugar, con biblioteca, busqueda externa y un recomendador tipo dado ponderado.
+Biblioteca personal para organizar cosas que ver, leer y jugar, con busqueda externa y un recomendador tipo dado ponderado.
 
 ## Stack
 
@@ -36,7 +36,7 @@ VITE_DEMO_MODE=false
 
 ## Firebase
 
-1. Usa el proyecto Firebase `recomendaciones-78eb7` o cambia `.firebaserc`.
+1. Crea o selecciona un proyecto Firebase y copia `.firebaserc.example` a `.firebaserc`.
 2. Activa Authentication con Google.
 3. Activa Firestore.
 4. En Authentication > Settings > Authorized domains, anade `localhost` para desarrollo local. Si abres la app con `127.0.0.1`, anade tambien `127.0.0.1`.
@@ -55,16 +55,10 @@ http://localhost:5173
 
 ## Importar las listas actuales
 
-El importador lee el repo hermano `../Listas`, genera JSON y conserva notas de importacion cuando una linea no se puede clasificar con seguridad.
+El importador puede leer Markdown local, generar un JSON de seed y conservar notas de importacion cuando una linea no se puede clasificar con seguridad. Los JSON generados en `seed/` estan ignorados para no publicar listas personales.
 
 ```bash
 npm run import:markdown
-```
-
-Resultado:
-
-```text
-seed/listas-import.json
 ```
 
 Para escribir a Firestore desde una cuenta con permisos:
