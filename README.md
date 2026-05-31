@@ -78,3 +78,21 @@ npm run test:e2e
 ```
 
 Los tests de reglas Firestore se saltan si `FIRESTORE_EMULATOR_HOST` no esta activo.
+
+## GitHub Pages
+
+El repo publica con GitHub Actions. En Settings > Pages, usa `Source: GitHub Actions`.
+
+El build de Pages necesita estas repository variables:
+
+```text
+VITE_FIREBASE_API_KEY
+VITE_FIREBASE_AUTH_DOMAIN
+VITE_FIREBASE_PROJECT_ID
+VITE_FIREBASE_STORAGE_BUCKET
+VITE_FIREBASE_MESSAGING_SENDER_ID
+VITE_FIREBASE_APP_ID
+VITE_FIREBASE_MEASUREMENT_ID
+```
+
+Para Firebase Auth, anade el dominio de Pages en Authentication > Settings > Authorized domains.
