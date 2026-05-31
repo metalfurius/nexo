@@ -1,4 +1,4 @@
-# Listas Web
+# Nexo
 
 Web privada para gestionar cosas que ver, leer y jugar, con biblioteca, busqueda externa y un recomendador tipo dado ponderado.
 

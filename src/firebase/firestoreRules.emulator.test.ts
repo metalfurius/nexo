@@ -10,7 +10,7 @@ maybeDescribe('firestore.rules emulator', () => {
 
   beforeAll(async () => {
     env = await initializeTestEnvironment({
-      projectId: 'listas-web-test',
+      projectId: 'nexo-test',
       firestore: {
         rules: readFileSync('firestore.rules', 'utf8'),
       },

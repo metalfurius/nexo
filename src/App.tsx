@@ -103,7 +103,7 @@ function App() {
     novelty: 'balanced',
     includePaused: false,
     surprisePercent: 30,
-    seed: 'listas-web',
+    seed: 'nexo',
   })
   const [recommendation, setRecommendation] = useState<ReturnType<typeof recommendItem>>()
 
@@ -135,7 +135,7 @@ function App() {
   if (auth.isFirebaseConfigured && !auth.user) {
     return (
       <ShellState
-        title="Listas privadas"
+        title="Nexo privado"
         action={
           <button className="primary-button" type="button" onClick={auth.signIn}>
             <LogIn size={18} />
@@ -169,7 +169,7 @@ function App() {
     <main className="app-shell">
       <header className="topbar">
         <div>
-          <span className="eyebrow">Listas Web</span>
+          <span className="eyebrow">Nexo</span>
           <h1>Biblioteca privada</h1>
         </div>
         <div className="topbar-actions">
