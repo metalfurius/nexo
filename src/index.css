@@ -1,16 +1,29 @@
 :root {
-  --accent: #256f72;
-  --accent-dark: #184f52;
-  --accent-soft: #e4f4f2;
-  --border: #dfe3e6;
-  --focus: #cb6f2a;
-  --muted: #69737d;
-  --surface: #fbfcfb;
-  --surface-raised: #f2f5f3;
-  --text: #313942;
-  --text-strong: #111820;
+  --accent: #2fb7a6;
+  --accent-dark: #87e3d6;
+  --accent-soft: rgba(47, 183, 166, 0.16);
+  --border: #2c3936;
+  --danger-bg: #331817;
+  --danger-border: #7f332d;
+  --danger-text: #ffb7ae;
+  --focus: #e0a85c;
+  --mark-book-bg: #352816;
+  --mark-book-text: #f0bc55;
+  --mark-game-bg: #143026;
+  --mark-game-text: #5ed79d;
+  --mark-other-bg: #2d2439;
+  --mark-other-text: #c6a3ee;
+  --mark-watch-bg: #1b2b3e;
+  --mark-watch-text: #8db8ff;
+  --modal-backdrop: rgba(0, 0, 0, 0.62);
+  --muted: #a5b1ac;
+  --surface: #101513;
+  --surface-raised: #171d1b;
+  --text: #d8e1dc;
+  --text-strong: #f4f7f3;
   color: var(--text);
   background: var(--surface);
+  color-scheme: dark;
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 16px;
@@ -19,6 +32,32 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+[data-theme='light'] {
+  --accent: #256f72;
+  --accent-dark: #184f52;
+  --accent-soft: #e4f4f2;
+  --border: #dfe3e6;
+  --danger-bg: #fff1f0;
+  --danger-border: #ffc9c4;
+  --danger-text: #a3261a;
+  --focus: #cb6f2a;
+  --mark-book-bg: #fff4d6;
+  --mark-book-text: #8f5c00;
+  --mark-game-bg: #e8f5ee;
+  --mark-game-text: #18794e;
+  --mark-other-bg: #f4ecff;
+  --mark-other-text: #7b3eb6;
+  --mark-watch-bg: #e8f0ff;
+  --mark-watch-text: #315bb5;
+  --modal-backdrop: rgba(22, 24, 29, 0.32);
+  --muted: #69737d;
+  --surface: #fbfcfb;
+  --surface-raised: #f2f5f3;
+  --text: #313942;
+  --text-strong: #111820;
+  color-scheme: light;
 }
 
 * {
@@ -40,4 +79,3 @@ textarea {
 button {
   -webkit-tap-highlight-color: transparent;
 }
-

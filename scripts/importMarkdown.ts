@@ -44,16 +44,29 @@ await writeFile(outPath, `${JSON.stringify(payload, null, 2)}\n`, 'utf8')
 console.log(`Imported ${payload.itemCount} items into ${outPath}`)
 
 if (writeToFirestore) {
+  const projectId = String(
+    args.get('project') ??
+      process.env.FIREBASE_PROJECT_ID ??
+      process.env.GOOGLE_CLOUD_PROJECT ??
+      (await readFirebaseProjectId()) ??
+      '',
+  )
+
+  if (!projectId) {
+    throw new Error('No Firebase project configured. Use --project <project-id> or add .firebaserc.')
+  }
+
   initializeApp({
     credential: applicationDefault(),
-    projectId: process.env.FIREBASE_PROJECT_ID,
+    projectId,
   })
   const db = getFirestore()
+  db.settings({ ignoreUndefinedProperties: true })
   let batch = db.batch()
   let batchSize = 0
 
   for (const item of merged.items) {
-    batch.set(db.collection('items').doc(item.id), item, { merge: true })
+    batch.set(db.collection('items').doc(item.id), withoutUndefined(item), { merge: true })
     batchSize += 1
     if (batchSize >= 400) {
       await batch.commit()
@@ -62,6 +75,32 @@ if (writeToFirestore) {
     }
   }
   if (batchSize > 0) await batch.commit()
-  console.log(`Wrote ${merged.items.length} items to Firestore`)
+  console.log(`Wrote ${merged.items.length} items to Firestore project ${projectId}`)
 }
 
+function withoutUndefined<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map((entry) => withoutUndefined(entry)) as T
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).flatMap(([key, entry]) =>
+        entry === undefined ? [] : [[key, withoutUndefined(entry)]],
+      ),
+    ) as T
+  }
+
+  return value
+}
+
+async function readFirebaseProjectId() {
+  try {
+    const firebaseRc = JSON.parse(await readFile(resolve('.firebaserc'), 'utf8')) as {
+      projects?: { default?: string }
+    }
+    return firebaseRc.projects?.default
+  } catch {
+    return undefined
+  }
+}

@@ -8,12 +8,15 @@ import {
   Library,
   LogIn,
   LogOut,
+  Moon,
   Pause,
   Play,
   Plus,
   Search,
   Sparkles,
+  Sun,
   Trash2,
+  Upload,
   X,
 } from 'lucide-react'
 import './App.css'
@@ -70,6 +73,10 @@ const typeIcons: Record<ItemType, typeof Film> = {
   other: Library,
 }
 
+type ThemeMode = 'dark' | 'light'
+
+const themeStorageKey = 'nexo-theme'
+
 const blankItem = (): ListItem => ({
   id: `manual-${Date.now()}`,
   title: '',
@@ -87,6 +94,10 @@ const blankItem = (): ListItem => ({
 function App() {
   const auth = useAuth()
   const library = useLibrary(!auth.isFirebaseConfigured || Boolean(auth.user))
+  const [theme, setTheme] = useState<ThemeMode>(() => {
+    const stored = window.localStorage.getItem(themeStorageKey)
+    return stored === 'light' || stored === 'dark' ? stored : 'dark'
+  })
   const [query, setQuery] = useState('')
   const [typeFilter, setTypeFilter] = useState<ItemType | 'all'>('all')
   const [statusFilter, setStatusFilter] = useState<ItemStatus | 'all'>('all')
@@ -95,6 +106,7 @@ function App() {
   const [externalType, setExternalType] = useState<ItemType | 'watch' | 'any'>('watch')
   const [externalCandidates, setExternalCandidates] = useState<ExternalCandidate[]>([])
   const [externalLoading, setExternalLoading] = useState(false)
+  const [importStatus, setImportStatus] = useState<string | undefined>()
   const [preferences, setPreferences] = useState<RecommendationPreferences>({
     medium: 'any',
     timeBudgetHours: 15,
@@ -110,6 +122,11 @@ function App() {
   useEffect(() => {
     void initializeAnalytics().catch(() => undefined)
   }, [])
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+    window.localStorage.setItem(themeStorageKey, theme)
+  }, [theme])
 
   const filteredItems = useMemo(() => {
     return library.items
@@ -165,6 +182,29 @@ function App() {
     }
   }
 
+  async function importLibraryFile(file?: File) {
+    if (!file) return
+
+    setImportStatus('Importando biblioteca...')
+    try {
+      const payload = JSON.parse(await file.text()) as { items?: ListItem[] }
+      if (!Array.isArray(payload.items)) {
+        throw new Error('El archivo no tiene una lista de items valida')
+      }
+
+      for (const item of payload.items) {
+        await library.saveItem({
+          ...item,
+          updatedAt: nowIso(),
+        })
+      }
+
+      setImportStatus(`Importadas ${payload.items.length} entradas`)
+    } catch (reason) {
+      setImportStatus(reason instanceof Error ? reason.message : 'No se pudo importar el archivo')
+    }
+  }
+
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -174,6 +214,15 @@ function App() {
         </div>
         <div className="topbar-actions">
           {!auth.isFirebaseConfigured && <span className="mode-pill">Demo local</span>}
+          <button
+            aria-label={theme === 'dark' ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'}
+            className="icon-button"
+            type="button"
+            onClick={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
+            title={theme === 'dark' ? 'Tema claro' : 'Tema oscuro'}
+          >
+            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
           {auth.user && (
             <button className="icon-button" type="button" onClick={auth.signOut} title="Salir">
               <LogOut size={18} />
@@ -189,10 +238,25 @@ function App() {
               <h2>Biblioteca</h2>
               <p>{library.items.length} entradas</p>
             </div>
-            <button className="primary-button" type="button" onClick={() => setEditingItem(blankItem())}>
-              <Plus size={18} />
-              Añadir
-            </button>
+            <div className="panel-actions">
+              <label className="secondary-button file-button">
+                <Upload size={18} />
+                Importar
+                <input
+                  accept="application/json,.json"
+                  aria-label="Importar biblioteca desde JSON"
+                  type="file"
+                  onChange={(event) => {
+                    void importLibraryFile(event.target.files?.[0])
+                    event.target.value = ''
+                  }}
+                />
+              </label>
+              <button className="primary-button" type="button" onClick={() => setEditingItem(blankItem())}>
+                <Plus size={18} />
+                Añadir
+              </button>
+            </div>
           </div>
 
           <div className="stats-row">
@@ -247,6 +311,7 @@ function App() {
 
           {library.loading && <p className="muted-line">Cargando biblioteca...</p>}
           {library.error && <p className="error-line">{library.error}</p>}
+          {importStatus && <p className="muted-line">{importStatus}</p>}
 
           <div className="item-grid" data-testid="library-grid">
             {filteredItems.map((item) => (

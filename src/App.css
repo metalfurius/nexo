@@ -34,6 +34,14 @@
   gap: 10px;
 }
 
+.panel-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
 .mode-pill,
 .stat-chip,
 .tag-row span,
@@ -239,28 +247,28 @@ label {
 }
 
 .type-mark.game {
-  background: #e8f5ee;
-  color: #18794e;
+  background: var(--mark-game-bg);
+  color: var(--mark-game-text);
 }
 
 .type-mark.book,
 .type-mark.manga,
 .type-mark.manhwa,
 .type-mark.comic {
-  background: #fff4d6;
-  color: #8f5c00;
+  background: var(--mark-book-bg);
+  color: var(--mark-book-text);
 }
 
 .type-mark.movie,
 .type-mark.series,
 .type-mark.anime {
-  background: #e8f0ff;
-  color: #315bb5;
+  background: var(--mark-watch-bg);
+  color: var(--mark-watch-text);
 }
 
 .type-mark.other {
-  background: #f4ecff;
-  color: #7b3eb6;
+  background: var(--mark-other-bg);
+  color: var(--mark-other-text);
 }
 
 .tag-row {
@@ -285,6 +293,7 @@ label {
 .icon-button,
 .dice-button,
 .primary-button,
+.secondary-button,
 .ghost-button,
 .small-button {
   align-items: center;
@@ -317,6 +326,17 @@ label {
   color: #fff;
   font-weight: 700;
   padding: 0 14px;
+}
+
+.secondary-button {
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 700;
+  padding: 0 14px;
+}
+
+.file-button input {
+  display: none;
 }
 
 .ghost-button,
@@ -410,10 +430,10 @@ label {
 }
 
 .error-line {
-  background: #fff1f0;
-  border: 1px solid #ffc9c4;
+  background: var(--danger-bg);
+  border: 1px solid var(--danger-border);
   border-radius: 8px;
-  color: #a3261a;
+  color: var(--danger-text);
   padding: 12px;
 }
 
@@ -443,7 +463,7 @@ label {
 
 .modal-backdrop {
   align-items: center;
-  background: rgba(22, 24, 29, 0.32);
+  background: var(--modal-backdrop);
   display: flex;
   inset: 0;
   justify-content: center;
@@ -514,4 +534,3 @@ textarea:focus-visible {
     flex-direction: column;
   }
 }
-

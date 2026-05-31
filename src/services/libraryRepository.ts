@@ -45,7 +45,7 @@ export function createFirestoreRepository(): LibraryRepository | undefined {
     },
     saveItem(item) {
       return setDoc(doc(services.db, 'items', item.id), {
-        ...item,
+        ...withoutUndefined(item),
         updatedAt: nowIso(),
       })
     },
@@ -96,3 +96,18 @@ export function createItemId(db: Firestore, title: string) {
   return doc(collection(db, 'items')).id || title
 }
 
+function withoutUndefined<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map((entry) => withoutUndefined(entry)) as T
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).flatMap(([key, entry]) =>
+        entry === undefined ? [] : [[key, withoutUndefined(entry)]],
+      ),
+    ) as T
+  }
+
+  return value
+}

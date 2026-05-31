@@ -9,8 +9,10 @@
     "build:functions": "npm --prefix functions run build",
     "emulators": "firebase emulators:start",
     "import:markdown": "tsx scripts/importMarkdown.ts --source ../Listas --out seed/listas-import.json",
+    "import:markdown:write": "tsx scripts/importMarkdown.ts --source ../Listas --out seed/listas-import.json --write",
     "lint": "eslint .",
     "preview": "vite preview",
+    "deploy:firestore": "firebase deploy --only firestore:rules,firestore:indexes",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "test:watch": "vitest"
