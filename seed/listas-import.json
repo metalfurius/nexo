@@ -1,0 +1,3592 @@
+{
+  "generatedAt": "2026-05-31T21:49:59.060Z",
+  "sourceDir": "C:\\Users\\Fran\\Documents\\GitHub\\Listas",
+  "itemCount": 137,
+  "notes": [],
+  "items": [
+    {
+      "id": "other-",
+      "title": "---",
+      "type": "other",
+      "status": "in_progress",
+      "progress": "En progreso",
+      "genres": [],
+      "tags": [
+        "📍 Estado Actual",
+        "otro"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "---",
+      "importNotes": [
+        "No se pudo extraer titulo con confianza",
+        "Tipo inferido como other"
+      ],
+      "createdAt": "2026-05-31T21:49:59.047Z",
+      "updatedAt": "2026-05-31T21:49:59.047Z"
+    },
+    {
+      "id": "other-ver",
+      "title": "🎬 Ver",
+      "type": "other",
+      "status": "wishlist",
+      "genres": [],
+      "tags": [
+        "🎯 ¿Qué Categoría? (Tira 1d6)",
+        "otro"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "🎬 Ver",
+      "importNotes": [
+        "Tipo inferido como other"
+      ],
+      "createdAt": "2026-05-31T21:49:59.039Z",
+      "updatedAt": "2026-05-31T21:49:59.039Z"
+    },
+    {
+      "id": "other-juegos",
+      "title": "🎮 Juegos",
+      "type": "other",
+      "status": "wishlist",
+      "genres": [],
+      "tags": [
+        "🎯 ¿Qué Categoría? (Tira 1d6)",
+        "otro"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "🎮 Juegos",
+      "importNotes": [
+        "Tipo inferido como other"
+      ],
+      "createdAt": "2026-05-31T21:49:59.039Z",
+      "updatedAt": "2026-05-31T21:49:59.039Z"
+    },
+    {
+      "id": "other-libros",
+      "title": "📚 Libros",
+      "type": "other",
+      "status": "wishlist",
+      "genres": [],
+      "tags": [
+        "🎯 ¿Qué Categoría? (Tira 1d6)",
+        "otro"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "📚 Libros",
+      "importNotes": [
+        "Tipo inferido como other"
+      ],
+      "createdAt": "2026-05-31T21:49:59.039Z",
+      "updatedAt": "2026-05-31T21:49:59.039Z"
+    },
+    {
+      "id": "game-13-sentinels-aegis-rim",
+      "title": "13 Sentinels: Aegis Rim",
+      "type": "game",
+      "status": "wishlist",
+      "durationMinHours": 30,
+      "durationMaxHours": 35,
+      "genres": [],
+      "tags": [
+        "🌟 Grandes Aventuras (30-50 horas)",
+        "juego",
+        "🎮 Tabla de Juegos (Tira 1d20)"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "13 Sentinels: Aegis Rim: 30 - 35 horas.\n13 Sentinels: Aegis Rim",
+      "importNotes": [
+        "Duplicado fusionado desde Recomendaciones.md"
+      ],
+      "createdAt": "2026-05-31T21:49:59.034Z",
+      "updatedAt": "2026-05-31T21:49:59.048Z"
+    },
+    {
+      "id": "book-1984",
+      "title": "1984",
+      "type": "book",
+      "status": "wishlist",
+      "genres": [],
+      "tags": [
+        "🎰 Tabla Maestra d100 - Todo Mezclado",
+        "libro"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "1984",
+      "createdAt": "2026-05-31T21:49:59.044Z",
+      "updatedAt": "2026-05-31T21:49:59.044Z"
+    },
+    {
+      "id": "other-1984",
+      "title": "1984",
+      "type": "other",
+      "status": "in_progress",
+      "progress": "En progreso",
+      "genres": [],
+      "tags": [
+        "📍 Estado Actual",
+        "otro"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "1984",
+      "importNotes": [
+        "Tipo inferido como other"
+      ],
+      "createdAt": "2026-05-31T21:49:59.047Z",
+      "updatedAt": "2026-05-31T21:49:59.047Z"
+    },
+    {
+      "id": "book-1984-george-orwell",
+      "title": "1984 - George Orwell",
+      "type": "book",
+      "status": "wishlist",
+      "genres": [
+        "distopia"
+      ],
+      "tags": [
+        "🎯 Próximos: Ligeros y Adictivos",
+        "libro",
+        "distopia",
+        "📚 Tabla de Libros (Tira 1d20)"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "Distopía clásica, lectura esencial",
+      "source": "markdown",
+      "rawText": "1984 - George Orwell (Distopía clásica, lectura esencial)\n1984 - George Orwell",
+      "importNotes": [
+        "Duplicado fusionado desde Recomendaciones.md"
+      ],
+      "createdAt": "2026-05-31T21:49:59.027Z",
+      "updatedAt": "2026-05-31T21:49:59.048Z"
+    },
+    {
+      "id": "game-a-short-hike",
+      "title": "A Short Hike",
+      "type": "game",
+      "status": "completed",
+      "rating": 7,
+      "durationMinHours": 1.5,
+      "durationMaxHours": 3,
+      "genres": [],
+      "tags": [
+        "✅ Ya Jugados",
+        "juego"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "A Short Hike: 1.5 - 3 horas. ⭐ 7/10",
+      "createdAt": "2026-05-31T21:49:59.031Z",
+      "updatedAt": "2026-05-31T21:49:59.031Z"
+    },
+    {
+      "id": "other-acepta-el-destino-el-dado-ha-hablado",
+      "title": "Acepta el destino - El dado ha hablado",
+      "type": "other",
+      "status": "wishlist",
+      "genres": [],
+      "tags": [
+        "🎭 ¿No te convence el resultado? (Tira 1d6)",
+        "otro"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "Acepta el destino - El dado ha hablado",
+      "importNotes": [
+        "Tipo inferido como other"
+      ],
+      "createdAt": "2026-05-31T21:49:59.046Z",
+      "updatedAt": "2026-05-31T21:49:59.046Z"
+    },
+    {
+      "id": "game-ai-the-somnium-files",
+      "title": "AI: The Somnium Files",
+      "type": "game",
+      "status": "wishlist",
+      "durationMinHours": 20,
+      "durationMaxHours": 25,
+      "genres": [],
+      "tags": [
+        "🎯 Experiencias de Duración Media (15-30 horas)",
+        "juego",
+        "🎮 Tabla de Juegos (Tira 1d20)"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "AI: The Somnium Files: 20 - 25 horas.\nAI: The Somnium Files",
+      "importNotes": [
+        "Duplicado fusionado desde Recomendaciones.md"
+      ],
+      "createdAt": "2026-05-31T21:49:59.033Z",
+      "updatedAt": "2026-05-31T21:49:59.048Z"
+    },
+    {
+      "id": "anime-akira",
+      "title": "Akira",
+      "type": "anime",
+      "status": "wishlist",
+      "genres": [],
+      "tags": [
+        "🍿 Próximo: Películas Cortas (Fácil de Empezar)",
+        "anime",
+        "rapido",
+        "ligero",
+        "🎬 Tabla de Ver (Tira 1d20)",
+        "🎰 Tabla Maestra d100 - Todo Mezclado"
+      ],
+      "moodTags": [
+        "rapido",
+        "ligero"
+      ],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "Anime - Película",
+      "source": "markdown",
+      "rawText": "Akira (Anime - Película)\nAkira\nAkira",
+      "importNotes": [
+        "Duplicado fusionado desde Recomendaciones.md"
+      ],
+      "createdAt": "2026-05-31T21:49:59.037Z",
+      "updatedAt": "2026-05-31T21:49:59.049Z"
+    },
+    {
+      "id": "movie-arcane",
+      "title": "Arcane",
+      "type": "movie",
+      "status": "completed",
+      "rating": 8.5,
+      "genres": [],
+      "tags": [
+        "🎬 Ya Visto",
+        "pelicula"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "S1 and S2",
+      "source": "markdown",
+      "rawText": "Arcane (S1 and S2) - ⭐ 8.5/10",
+      "createdAt": "2026-05-31T21:49:59.036Z",
+      "updatedAt": "2026-05-31T21:49:59.036Z"
+    },
+    {
+      "id": "movie-arrival",
+      "title": "Arrival",
+      "type": "movie",
+      "status": "wishlist",
+      "genres": [
+        "sci-fi"
+      ],
+      "tags": [
+        "🍿 Próximo: Películas Cortas (Fácil de Empezar)",
+        "pelicula",
+        "sci-fi",
+        "rapido",
+        "ligero",
+        "🎬 Tabla de Ver (Tira 1d20)",
+        "🎰 Tabla Maestra d100 - Todo Mezclado"
+      ],
+      "moodTags": [
+        "rapido",
+        "ligero"
+      ],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "Película",
+      "source": "markdown",
+      "rawText": "Arrival (Película) (Ciencia ficción inteligente, muy emotiva)\nArrival\nArrival",
+      "importNotes": [
+        "Duplicado fusionado desde Recomendaciones.md"
+      ],
+      "createdAt": "2026-05-31T21:49:59.037Z",
+      "updatedAt": "2026-05-31T21:49:59.049Z"
+    },
+    {
+      "id": "book-asi-hablo-zaratustra-friedrich-nietzsche",
+      "title": "Así habló Zaratustra - Friedrich Nietzsche",
+      "type": "book",
+      "status": "wishlist",
+      "genres": [
+        "filosofia"
+      ],
+      "tags": [
+        "🏛️ Filosofía: Progresión Natural",
+        "libro",
+        "filosofia"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "El \"jefe final\" de la lista",
+      "source": "markdown",
+      "rawText": "Así habló Zaratustra - Friedrich Nietzsche (El \"jefe final\" de la lista)",
+      "createdAt": "2026-05-31T21:49:59.030Z",
+      "updatedAt": "2026-05-31T21:49:59.030Z"
+    },
+    {
+      "id": "book-asi-hablo-zaratustra-nietzsche",
+      "title": "Así habló Zaratustra - Nietzsche",
+      "type": "book",
+      "status": "wishlist",
+      "genres": [],
+      "tags": [
+        "📚 Tabla de Libros (Tira 1d20)",
+        "libro"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "Así habló Zaratustra - Nietzsche",
+      "createdAt": "2026-05-31T21:49:59.042Z",
+      "updatedAt": "2026-05-31T21:49:59.042Z"
+    },
+    {
+      "id": "anime-attack-on-titan",
+      "title": "Attack on Titan",
+      "type": "anime",
+      "status": "wishlist",
+      "genres": [],
+      "tags": [
+        "🎭 Anime: Para Maratonear",
+        "anime",
+        "maraton",
+        "🎬 Tabla de Ver (Tira 1d20)",
+        "🎰 Tabla Maestra d100 - Todo Mezclado"
+      ],
+      "moodTags": [
+        "maraton"
+      ],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "Attack on Titan",
+      "importNotes": [
+        "Duplicado fusionado desde Recomendaciones.md"
+      ],
+      "createdAt": "2026-05-31T21:49:59.038Z",
+      "updatedAt": "2026-05-31T21:49:59.049Z"
+    },
+    {
+      "id": "anime-bakemonogatari",
+      "title": "Bakemonogatari",
+      "type": "anime",
+      "status": "wishlist",
+      "genres": [],
+      "tags": [
+        "🎭 Anime: Para Maratonear",
+        "anime",
+        "maraton"
+      ],
+      "moodTags": [
+        "maraton"
+      ],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "Bakemonogatari",
+      "createdAt": "2026-05-31T21:49:59.038Z",
+      "updatedAt": "2026-05-31T21:49:59.038Z"
+    },
+    {
+      "id": "game-baldur-s-gate-3",
+      "title": "Baldur's Gate 3",
+      "type": "game",
+      "status": "wishlist",
+      "genres": [],
+      "tags": [
+        "🏔️ Épicos: El Reto Grande (50+ horas)",
+        "juego",
+        "denso",
+        "🎮 Tabla de Juegos (Tira 1d20)",
+        "🎰 Tabla Maestra d100 - Todo Mezclado"
+      ],
+      "moodTags": [
+        "denso"
+      ],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "Baldur's Gate 3: 72 - 116+ horas.\nBaldur's Gate 3\nBaldur's Gate 3",
+      "importNotes": [
+        "Duplicado fusionado desde Recomendaciones.md"
+      ],
+      "createdAt": "2026-05-31T21:49:59.035Z",
+      "updatedAt": "2026-05-31T21:49:59.049Z"
+    },
+    {
+      "id": "series-black-mirror",
+      "title": "Black Mirror",
+      "type": "series",
+      "status": "wishlist",
+      "genres": [],
+      "tags": [
+        "📺 Series Cortas y Accesibles",
+        "serie",
+        "rapido",
+        "ligero",
+        "🎬 Tabla de Ver (Tira 1d20)"
+      ],
+      "moodTags": [
+        "rapido",
+        "ligero"
+      ],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "Serie - Antología",
+      "source": "markdown",
+      "rawText": "Black Mirror (Serie - Antología)\nBlack Mirror",
+      "importNotes": [
+        "Duplicado fusionado desde Recomendaciones.md"
+      ],
+      "createdAt": "2026-05-31T21:49:59.037Z",
+      "updatedAt": "2026-05-31T21:49:59.048Z"
+    },
+    {
+      "id": "movie-blade-runner-2049",
+      "title": "Blade Runner 2049",
+      "type": "movie",
+      "status": "wishlist",
+      "genres": [],
+      "tags": [
+        "🍿 Próximo: Películas Cortas (Fácil de Empezar)",
+        "pelicula",
+        "rapido",
+        "ligero",
+        "🎬 Tabla de Ver (Tira 1d20)",
+        "🎰 Tabla Maestra d100 - Todo Mezclado"
+      ],
+      "moodTags": [
+        "rapido",
+        "ligero"
+      ],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "Película",
+      "source": "markdown",
+      "rawText": "Blade Runner 2049 (Película)\nBlade Runner 2049\nBlade Runner 2049",
+      "importNotes": [
+        "Duplicado fusionado desde Recomendaciones.md"
+      ],
+      "createdAt": "2026-05-31T21:49:59.037Z",
+      "updatedAt": "2026-05-31T21:49:59.049Z"
+    },
+    {
+      "id": "game-buckshot-roulette",
+      "title": "Buckshot Roulette",
+      "type": "game",
+      "status": "completed",
+      "rating": 6,
+      "genres": [],
+      "tags": [
+        "✅ Ya Jugados",
+        "juego"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "Buckshot Roulette ⭐ 6/10",
+      "createdAt": "2026-05-31T21:49:59.031Z",
+      "updatedAt": "2026-05-31T21:49:59.031Z"
+    },
+    {
+      "id": "book-cartas-a-lucilio-seneca",
+      "title": "Cartas a Lucilio - Séneca",
+      "type": "book",
+      "status": "wishlist",
+      "genres": [
+        "filosofia"
+      ],
+      "tags": [
+        "🏛️ Filosofía: Progresión Natural",
+        "libro",
+        "filosofia",
+        "📚 Tabla de Libros (Tira 1d20)"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "Tu siguiente paso en la filosofía",
+      "source": "markdown",
+      "rawText": "Cartas a Lucilio - Séneca (Tu siguiente paso en la filosofía)\nCartas a Lucilio - Séneca",
+      "importNotes": [
+        "Duplicado fusionado desde Recomendaciones.md"
+      ],
+      "createdAt": "2026-05-31T21:49:59.029Z",
+      "updatedAt": "2026-05-31T21:49:59.048Z"
+    },
+    {
+      "id": "anime-chainsaw-man",
+      "title": "Chainsaw Man",
+      "type": "anime",
+      "status": "completed",
+      "rating": 8,
+      "genres": [],
+      "tags": [
+        "🎬 Ya Visto",
+        "anime"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "Chainsaw Man (Anime) - ⭐ 8/10",
+      "createdAt": "2026-05-31T21:49:59.036Z",
+      "updatedAt": "2026-05-31T21:49:59.036Z"
+    },
+    {
+      "id": "game-chrono-trigger",
+      "title": "Chrono Trigger",
+      "type": "game",
+      "status": "dropped",
+      "rating": 5.5,
+      "genres": [],
+      "tags": [
+        "❌ Droppeados (No Recomendar)",
+        "juego"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "Chrono Trigger Droppeado 5.5/10",
+      "createdAt": "2026-05-31T21:49:59.035Z",
+      "updatedAt": "2026-05-31T21:49:59.035Z"
+    },
+    {
+      "id": "game-clair-obscur-expedition-33",
+      "title": "Clair Obscur: Expedition 33",
+      "type": "game",
+      "status": "wishlist",
+      "durationMinHours": 28,
+      "durationMaxHours": 44,
+      "genres": [],
+      "tags": [
+        "🎯 Experiencias de Duración Media (15-30 horas)",
+        "juego"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "Clair Obscur: Expedition 33: 28 - 44 horas",
+      "createdAt": "2026-05-31T21:49:59.033Z",
+      "updatedAt": "2026-05-31T21:49:59.033Z"
+    },
+    {
+      "id": "book-clean-code",
+      "title": "Clean Code",
+      "type": "book",
+      "status": "wishlist",
+      "genres": [],
+      "tags": [
+        "🎰 Tabla Maestra d100 - Todo Mezclado",
+        "libro"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "Clean Code",
+      "createdAt": "2026-05-31T21:49:59.045Z",
+      "updatedAt": "2026-05-31T21:49:59.045Z"
+    },
+    {
+      "id": "book-clean-code-robert-c-martin",
+      "title": "Clean Code - Robert C. Martin",
+      "type": "book",
+      "status": "wishlist",
+      "genres": [
+        "tecnico"
+      ],
+      "tags": [
+        "🎮 Técnicos: Para Desarrolladores",
+        "libro",
+        "tecnico",
+        "📚 Tabla de Libros (Tira 1d20)"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "Técnico, para cambiar de tercio",
+      "source": "markdown",
+      "rawText": "Clean Code - Robert C. Martin (Técnico, para cambiar de tercio)\nClean Code - Robert C. Martin",
+      "importNotes": [
+        "Duplicado fusionado desde Recomendaciones.md"
+      ],
+      "createdAt": "2026-05-31T21:49:59.028Z",
+      "updatedAt": "2026-05-31T21:49:59.048Z"
+    },
+    {
+      "id": "book-code-the-hidden-language-charles-petzold",
+      "title": "Code: The Hidden Language... - Charles Petzold",
+      "type": "book",
+      "status": "wishlist",
+      "genres": [
+        "tecnico"
+      ],
+      "tags": [
+        "🎮 Técnicos: Para Desarrolladores",
+        "libro",
+        "tecnico"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "Code: The Hidden Language... - Charles Petzold (Técnico)",
+      "createdAt": "2026-05-31T21:49:59.029Z",
+      "updatedAt": "2026-05-31T21:49:59.029Z"
+    },
+    {
+      "id": "book-critica-de-la-razon-pura-kant",
+      "title": "Crítica de la razón pura - Kant",
+      "type": "book",
+      "status": "wishlist",
+      "genres": [
+        "filosofia"
+      ],
+      "tags": [
+        "🧠 Filosofía Densa: Reto Final",
+        "libro",
+        "filosofia",
+        "denso"
+      ],
+      "moodTags": [
+        "denso"
+      ],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "Filosofía, extremadamente denso",
+      "source": "markdown",
+      "rawText": "Crítica de la razón pura - Kant (Filosofía, extremadamente denso)",
+      "createdAt": "2026-05-31T21:49:59.031Z",
+      "updatedAt": "2026-05-31T21:49:59.031Z"
+    },
+    {
+      "id": "anime-cyberpunk-edgerunners",
+      "title": "Cyberpunk: Edgerunners",
+      "type": "anime",
+      "status": "wishlist",
+      "genres": [],
+      "tags": [
+        "🎭 Anime: Para Maratonear",
+        "anime",
+        "maraton",
+        "🎬 Tabla de Ver (Tira 1d20)",
+        "🎰 Tabla Maestra d100 - Todo Mezclado"
+      ],
+      "moodTags": [
+        "maraton"
+      ],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "Cyberpunk: Edgerunners",
+      "importNotes": [
+        "Duplicado fusionado desde Recomendaciones.md"
+      ],
+      "createdAt": "2026-05-31T21:49:59.038Z",
+      "updatedAt": "2026-05-31T21:49:59.049Z"
+    },
+    {
+      "id": "game-danganronpa-v3-killing-harmony",
+      "title": "Danganronpa V3: Killing Harmony",
+      "type": "game",
+      "status": "completed",
+      "rating": 8.2,
+      "genres": [],
+      "tags": [
+        "✅ Ya Jugados",
+        "juego"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "Danganronpa V3: Killing Harmony ⭐ 8.2/10",
+      "createdAt": "2026-05-31T21:49:59.031Z",
+      "updatedAt": "2026-05-31T21:49:59.031Z"
+    },
+    {
+      "id": "anime-demon-slayer",
+      "title": "Demon Slayer",
+      "type": "anime",
+      "status": "wishlist",
+      "genres": [],
+      "tags": [
+        "🎭 Anime: Para Maratonear",
+        "anime",
+        "maraton",
+        "🎬 Tabla de Ver (Tira 1d20)"
+      ],
+      "moodTags": [
+        "maraton"
+      ],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "Demon Slayer",
+      "importNotes": [
+        "Duplicado fusionado desde Recomendaciones.md"
+      ],
+      "createdAt": "2026-05-31T21:49:59.038Z",
+      "updatedAt": "2026-05-31T21:49:59.048Z"
+    },
+    {
+      "id": "book-design-patterns-gang-of-four",
+      "title": "Design Patterns - Gang of Four",
+      "type": "book",
+      "status": "wishlist",
+      "genres": [
+        "tecnico"
+      ],
+      "tags": [
+        "🎮 Técnicos: Para Desarrolladores",
+        "libro",
+        "tecnico"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "Técnico, patrones fundamentales",
+      "source": "markdown",
+      "rawText": "Design Patterns - Gang of Four (Técnico, patrones fundamentales)",
+      "createdAt": "2026-05-31T21:49:59.029Z",
+      "updatedAt": "2026-05-31T21:49:59.029Z"
+    },
+    {
+      "id": "game-deus-ex-human-revolution",
+      "title": "Deus Ex: Human Revolution",
+      "type": "game",
+      "status": "wishlist",
+      "durationMinHours": 25,
+      "durationMaxHours": 40,
+      "genres": [],
+      "tags": [
+        "🎯 Experiencias de Duración Media (15-30 horas)",
+        "juego"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "Director's Cut",
+      "source": "markdown",
+      "rawText": "Deus Ex: Human Revolution (Director's Cut): 25 - 40 horas.",
+      "createdAt": "2026-05-31T21:49:59.033Z",
+      "updatedAt": "2026-05-31T21:49:59.033Z"
+    },
+    {
+      "id": "game-devil-may-cry-3-special-edition",
+      "title": "Devil May Cry 3: Special Edition",
+      "type": "game",
+      "status": "wishlist",
+      "durationMinHours": 10,
+      "durationMaxHours": 12,
+      "genres": [],
+      "tags": [
+        "🚀 Próximos: Rápidos y Directos (< 15 horas)",
+        "juego",
+        "rapido",
+        "🎮 Tabla de Juegos (Tira 1d20)"
+      ],
+      "moodTags": [
+        "rapido"
+      ],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "🎮 DMC Orden: 1/4 - Precuela, el mejor para empezar",
+      "source": "markdown",
+      "rawText": "Devil May Cry 3: Special Edition: 10 - 12 horas. (🎮 DMC Orden: 1/4 - Precuela, el mejor para empezar)\nDevil May Cry 3: Special Edition",
+      "importNotes": [
+        "Duplicado fusionado desde Recomendaciones.md"
+      ],
+      "createdAt": "2026-05-31T21:49:59.033Z",
+      "updatedAt": "2026-05-31T21:49:59.048Z"
+    },
+    {
+      "id": "game-devil-may-cry-4-special-edition",
+      "title": "Devil May Cry 4: Special Edition",
+      "type": "game",
+      "status": "wishlist",
+      "durationMinHours": 15,
+      "durationMaxHours": 20,
+      "genres": [],
+      "tags": [
+        "🎯 Experiencias de Duración Media (15-30 horas)",
+        "juego"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "🎮 DMC Orden: 3/4 - Introducción a Nero",
+      "source": "markdown",
+      "rawText": "Devil May Cry 4: Special Edition: 15 - 20 horas. (🎮 DMC Orden: 3/4 - Introducción a Nero)",
+      "createdAt": "2026-05-31T21:49:59.034Z",
+      "updatedAt": "2026-05-31T21:49:59.034Z"
+    },
+    {
+      "id": "game-devil-may-cry-5",
+      "title": "Devil May Cry 5",
+      "type": "game",
+      "status": "wishlist",
+      "durationMinHours": 15,
+      "durationMaxHours": 20,
+      "genres": [],
+      "tags": [
+        "🎯 Experiencias de Duración Media (15-30 horas)",
+        "juego"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "🎮 DMC Orden: 4/4 - El mejor de la saga, épico final",
+      "source": "markdown",
+      "rawText": "Devil May Cry 5: 15 - 20 horas. (🎮 DMC Orden: 4/4 - El mejor de la saga, épico final)",
+      "createdAt": "2026-05-31T21:49:59.034Z",
+      "updatedAt": "2026-05-31T21:49:59.034Z"
+    },
+    {
+      "id": "game-devil-may-cry-hd-collection",
+      "title": "Devil May Cry HD Collection",
+      "type": "game",
+      "status": "wishlist",
+      "durationMinHours": 8,
+      "durationMaxHours": 10,
+      "genres": [],
+      "tags": [
+        "🚀 Próximos: Rápidos y Directos (< 15 horas)",
+        "juego",
+        "rapido"
+      ],
+      "moodTags": [
+        "rapido"
+      ],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "🎮 DMC Orden: 2/4 - El clásico original",
+      "source": "markdown",
+      "rawText": "Devil May Cry HD Collection (DMC1): 8 - 10 horas. (🎮 DMC Orden: 2/4 - El clásico original)",
+      "createdAt": "2026-05-31T21:49:59.033Z",
+      "updatedAt": "2026-05-31T21:49:59.033Z"
+    },
+    {
+      "id": "game-disco-elysium",
+      "title": "Disco Elysium",
+      "type": "game",
+      "status": "wishlist",
+      "genres": [],
+      "tags": [
+        "🎰 Tabla Maestra d100 - Todo Mezclado",
+        "juego"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "Disco Elysium",
+      "createdAt": "2026-05-31T21:49:59.044Z",
+      "updatedAt": "2026-05-31T21:49:59.044Z"
+    },
+    {
+      "id": "game-disco-elysium-the-final-cut",
+      "title": "Disco Elysium - The Final Cut",
+      "type": "game",
+      "status": "wishlist",
+      "durationMinHours": 22,
+      "durationMaxHours": 45,
+      "genres": [],
+      "tags": [
+        "🎯 Experiencias de Duración Media (15-30 horas)",
+        "juego",
+        "🎮 Tabla de Juegos (Tira 1d20)"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "Disco Elysium - The Final Cut: 22 - 45 horas.\nDisco Elysium - The Final Cut",
+      "importNotes": [
+        "Duplicado fusionado desde Recomendaciones.md"
+      ],
+      "createdAt": "2026-05-31T21:49:59.033Z",
+      "updatedAt": "2026-05-31T21:49:59.048Z"
+    },
+    {
+      "id": "movie-district-9",
+      "title": "District 9",
+      "type": "movie",
+      "status": "wishlist",
+      "genres": [],
+      "tags": [
+        "🍿 Próximo: Películas Cortas (Fácil de Empezar)",
+        "pelicula",
+        "rapido",
+        "ligero",
+        "🎬 Tabla de Ver (Tira 1d20)"
+      ],
+      "moodTags": [
+        "rapido",
+        "ligero"
+      ],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "Película",
+      "source": "markdown",
+      "rawText": "District 9 (Película)\nDistrict 9",
+      "importNotes": [
+        "Duplicado fusionado desde Recomendaciones.md"
+      ],
+      "createdAt": "2026-05-31T21:49:59.037Z",
+      "updatedAt": "2026-05-31T21:49:59.048Z"
+    },
+    {
+      "id": "book-dune",
+      "title": "Dune",
+      "type": "book",
+      "status": "wishlist",
+      "genres": [],
+      "tags": [
+        "🎰 Tabla Maestra d100 - Todo Mezclado",
+        "libro"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "Dune",
+      "createdAt": "2026-05-31T21:49:59.044Z",
+      "updatedAt": "2026-05-31T21:49:59.044Z"
+    },
+    {
+      "id": "book-dune-frank-herbert",
+      "title": "Dune - Frank Herbert",
+      "type": "book",
+      "status": "wishlist",
+      "genres": [
+        "sci-fi",
+        "epica"
+      ],
+      "tags": [
+        "🎯 Próximos: Ligeros y Adictivos",
+        "libro",
+        "sci-fi",
+        "epica",
+        "📚 Tabla de Libros (Tira 1d20)"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "Ciencia ficción épica, muy influyente",
+      "source": "markdown",
+      "rawText": "Dune - Frank Herbert (Ciencia ficción épica, muy influyente)\nDune - Frank Herbert",
+      "importNotes": [
+        "Duplicado fusionado desde Recomendaciones.md"
+      ],
+      "createdAt": "2026-05-31T21:49:59.027Z",
+      "updatedAt": "2026-05-31T21:49:59.048Z"
+    },
+    {
+      "id": "movie-edge-of-tomorrow",
+      "title": "Edge of Tomorrow",
+      "type": "movie",
+      "status": "wishlist",
+      "genres": [],
+      "tags": [
+        "🍿 Próximo: Películas Cortas (Fácil de Empezar)",
+        "pelicula",
+        "rapido",
+        "ligero",
+        "🎬 Tabla de Ver (Tira 1d20)"
+      ],
+      "moodTags": [
+        "rapido",
+        "ligero"
+      ],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "Película",
+      "source": "markdown",
+      "rawText": "Edge of Tomorrow (Película)\nEdge of Tomorrow",
+      "importNotes": [
+        "Duplicado fusionado desde Recomendaciones.md"
+      ],
+      "createdAt": "2026-05-31T21:49:59.036Z",
+      "updatedAt": "2026-05-31T21:49:59.048Z"
+    },
+    {
+      "id": "book-el-arte-de-la-guerra-sun-tzu",
+      "title": "El Arte de la Guerra - Sun Tzu",
+      "type": "book",
+      "status": "completed",
+      "rating": 8,
+      "genres": [],
+      "tags": [
+        "📚 Ya Leídos",
+        "libro"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "El Arte de la Guerra - Sun Tzu ⭐ 8/10",
+      "createdAt": "2026-05-31T21:49:59.026Z",
+      "updatedAt": "2026-05-31T21:49:59.026Z"
+    },
+    {
+      "id": "game-el-escudero-valiente",
+      "title": "El Escudero Valiente",
+      "type": "game",
+      "status": "wishlist",
+      "durationMinHours": 8,
+      "durationMaxHours": 12,
+      "genres": [],
+      "tags": [
+        "🚀 Próximos: Rápidos y Directos (< 15 horas)",
+        "juego",
+        "rapido",
+        "🎮 Tabla de Juegos (Tira 1d20)",
+        "🎰 Tabla Maestra d100 - Todo Mezclado"
+      ],
+      "moodTags": [
+        "rapido"
+      ],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "El Escudero Valiente: 8 - 12 horas.\nEl Escudero Valiente\nEl Escudero Valiente",
+      "importNotes": [
+        "Duplicado fusionado desde Recomendaciones.md"
+      ],
+      "createdAt": "2026-05-31T21:49:59.032Z",
+      "updatedAt": "2026-05-31T21:49:59.048Z"
+    },
+    {
+      "id": "book-el-marciano-andy-weir",
+      "title": "El Marciano - Andy Weir",
+      "type": "book",
+      "status": "wishlist",
+      "genres": [
+        "sci-fi"
+      ],
+      "tags": [
+        "🎯 Próximos: Ligeros y Adictivos",
+        "libro",
+        "sci-fi",
+        "ligero",
+        "📚 Tabla de Libros (Tira 1d20)",
+        "🎰 Tabla Maestra d100 - Todo Mezclado"
+      ],
+      "moodTags": [
+        "ligero"
+      ],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "Ciencia ficción ligera y adictiva",
+      "source": "markdown",
+      "rawText": "El Marciano - Andy Weir (Ciencia ficción ligera y adictiva)\nEl Marciano - Andy Weir\nEl Marciano - Andy Weir",
+      "importNotes": [
+        "Duplicado fusionado desde Recomendaciones.md"
+      ],
+      "createdAt": "2026-05-31T21:49:59.027Z",
+      "updatedAt": "2026-05-31T21:49:59.049Z"
+    },
+    {
+      "id": "book-el-mundo-de-sofia-jostein-gaarder",
+      "title": "El mundo de Sofía - Jostein Gaarder",
+      "type": "book",
+      "status": "wishlist",
+      "genres": [
+        "filosofia"
+      ],
+      "tags": [
+        "🏛️ Filosofía: Progresión Natural",
+        "libro",
+        "filosofia",
+        "📚 Tabla de Libros (Tira 1d20)"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "Historia de la filosofía en novela",
+      "source": "markdown",
+      "rawText": "El mundo de Sofía - Jostein Gaarder (Historia de la filosofía en novela)\nEl mundo de Sofía - Jostein Gaarder",
+      "importNotes": [
+        "Duplicado fusionado desde Recomendaciones.md"
+      ],
+      "createdAt": "2026-05-31T21:49:59.030Z",
+      "updatedAt": "2026-05-31T21:49:59.048Z"
+    },
+    {
+      "id": "book-el-senor-de-los-anillos",
+      "title": "El Señor de los Anillos",
+      "type": "book",
+      "status": "wishlist",
+      "genres": [],
+      "tags": [
+        "🎰 Tabla Maestra d100 - Todo Mezclado",
+        "libro"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "El Señor de los Anillos",
+      "createdAt": "2026-05-31T21:49:59.045Z",
+      "updatedAt": "2026-05-31T21:49:59.045Z"
+    },
+    {
+      "id": "book-el-senor-de-los-anillos-j-r-r-tolkien",
+      "title": "El Señor de los Anillos - J.R.R. Tolkien",
+      "type": "book",
+      "status": "wishlist",
+      "genres": [
+        "fantasia",
+        "epica"
+      ],
+      "tags": [
+        "📖 Clásicos y Épica",
+        "libro",
+        "fantasia",
+        "epica",
+        "📚 Tabla de Libros (Tira 1d20)"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "Fantasía épica, el estándar del género",
+      "source": "markdown",
+      "rawText": "El Señor de los Anillos - J.R.R. Tolkien (Fantasía épica, el estándar del género)\nEl Señor de los Anillos - J.R.R. Tolkien",
+      "importNotes": [
+        "Duplicado fusionado desde Recomendaciones.md"
+      ],
+      "createdAt": "2026-05-31T21:49:59.030Z",
+      "updatedAt": "2026-05-31T21:49:59.048Z"
+    },
+    {
+      "id": "game-elden-ring",
+      "title": "Elden Ring",
+      "type": "game",
+      "status": "completed",
+      "rating": 7.4,
+      "genres": [],
+      "tags": [
+        "✅ Ya Jugados",
+        "juego"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "Elden Ring ⭐ 7.4/10",
+      "createdAt": "2026-05-31T21:49:59.031Z",
+      "updatedAt": "2026-05-31T21:49:59.031Z"
+    },
+    {
+      "id": "other-elige-entre-el-resultado-y-tu-segunda-opcion",
+      "title": "Elige entre el resultado y tu segunda opción",
+      "type": "other",
+      "status": "wishlist",
+      "genres": [],
+      "tags": [
+        "🎭 ¿No te convence el resultado? (Tira 1d6)",
+        "otro"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "Elige entre el resultado y tu segunda opción",
+      "importNotes": [
+        "Tipo inferido como other"
+      ],
+      "createdAt": "2026-05-31T21:49:59.046Z",
+      "updatedAt": "2026-05-31T21:49:59.046Z"
+    },
+    {
+      "id": "book-etica-a-nicomaco-aristoteles",
+      "title": "Ética a Nicómaco - Aristóteles",
+      "type": "book",
+      "status": "wishlist",
+      "genres": [
+        "filosofia"
+      ],
+      "tags": [
+        "🧠 Filosofía Densa: Reto Final",
+        "libro",
+        "filosofia",
+        "denso"
+      ],
+      "moodTags": [
+        "denso"
+      ],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "Filosofía, muy denso y sistemático",
+      "source": "markdown",
+      "rawText": "Ética a Nicómaco - Aristóteles (Filosofía, muy denso y sistemático)",
+      "createdAt": "2026-05-31T21:49:59.031Z",
+      "updatedAt": "2026-05-31T21:49:59.031Z"
+    },
+    {
+      "id": "movie-ex-machina",
+      "title": "Ex Machina",
+      "type": "movie",
+      "status": "wishlist",
+      "genres": [],
+      "tags": [
+        "🍿 Próximo: Películas Cortas (Fácil de Empezar)",
+        "pelicula",
+        "rapido",
+        "ligero",
+        "🎬 Tabla de Ver (Tira 1d20)",
+        "🎰 Tabla Maestra d100 - Todo Mezclado"
+      ],
+      "moodTags": [
+        "rapido",
+        "ligero"
+      ],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "Película",
+      "source": "markdown",
+      "rawText": "Ex Machina (Película)\nEx Machina\nEx Machina",
+      "importNotes": [
+        "Duplicado fusionado desde Recomendaciones.md"
+      ],
+      "createdAt": "2026-05-31T21:49:59.036Z",
+      "updatedAt": "2026-05-31T21:49:59.049Z"
+    },
+    {
+      "id": "book-fahrenheit-451",
+      "title": "Fahrenheit 451",
+      "type": "book",
+      "status": "wishlist",
+      "genres": [],
+      "tags": [
+        "🎰 Tabla Maestra d100 - Todo Mezclado",
+        "libro"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "Fahrenheit 451",
+      "createdAt": "2026-05-31T21:49:59.045Z",
+      "updatedAt": "2026-05-31T21:49:59.045Z"
+    },
+    {
+      "id": "book-fahrenheit-451-ray-bradbury",
+      "title": "Fahrenheit 451 - Ray Bradbury",
+      "type": "book",
+      "status": "wishlist",
+      "genres": [
+        "distopia",
+        "epica"
+      ],
+      "tags": [
+        "📖 Clásicos y Épica",
+        "libro",
+        "distopia",
+        "epica",
+        "📚 Tabla de Libros (Tira 1d20)"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "Distopía sobre censura y conocimiento",
+      "source": "markdown",
+      "rawText": "Fahrenheit 451 - Ray Bradbury (Distopía sobre censura y conocimiento)\nFahrenheit 451 - Ray Bradbury",
+      "importNotes": [
+        "Duplicado fusionado desde Recomendaciones.md"
+      ],
+      "createdAt": "2026-05-31T21:49:59.030Z",
+      "updatedAt": "2026-05-31T21:49:59.048Z"
+    },
+    {
+      "id": "game-final-fantasy-vii-remake-intergrade",
+      "title": "Final Fantasy VII Remake Intergrade",
+      "type": "game",
+      "status": "wishlist",
+      "durationMinHours": 33,
+      "durationMaxHours": 50,
+      "genres": [],
+      "tags": [
+        "🌟 Grandes Aventuras (30-50 horas)",
+        "juego",
+        "🎮 Tabla de Juegos (Tira 1d20)"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "Final Fantasy VII Remake Intergrade: 33 - 50 horas.\nFinal Fantasy VII Remake Intergrade",
+      "importNotes": [
+        "Duplicado fusionado desde Recomendaciones.md"
+      ],
+      "createdAt": "2026-05-31T21:49:59.034Z",
+      "updatedAt": "2026-05-31T21:49:59.048Z"
+    },
+    {
+      "id": "game-fire-emblem-three-houses",
+      "title": "Fire Emblem: Three Houses:",
+      "type": "game",
+      "status": "wishlist",
+      "durationMinHours": 50,
+      "durationMaxHours": 90,
+      "genres": [],
+      "tags": [
+        "🏔️ Épicos: El Reto Grande (50+ horas)",
+        "juego",
+        "denso",
+        "🎮 Tabla de Juegos (Tira 1d20)"
+      ],
+      "moodTags": [
+        "denso"
+      ],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "por ruta",
+      "source": "markdown",
+      "rawText": "Fire Emblem: Three Houses: 50 - 90 horas (por ruta).\nFire Emblem: Three Houses",
+      "importNotes": [
+        "Duplicado fusionado desde Recomendaciones.md"
+      ],
+      "createdAt": "2026-05-31T21:49:59.035Z",
+      "updatedAt": "2026-05-31T21:49:59.048Z"
+    },
+    {
+      "id": "movie-gachiakuta",
+      "title": "Gachiakuta",
+      "type": "movie",
+      "status": "completed",
+      "rating": 8,
+      "genres": [],
+      "tags": [
+        "🎬 Ya Visto",
+        "pelicula"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "Gachiakuta ⭐ 8/10",
+      "createdAt": "2026-05-31T21:49:59.036Z",
+      "updatedAt": "2026-05-31T21:49:59.036Z"
+    },
+    {
+      "id": "game-ghost-of-tsushima",
+      "title": "Ghost of Tsushima",
+      "type": "game",
+      "status": "wishlist",
+      "genres": [],
+      "tags": [
+        "🎰 Tabla Maestra d100 - Todo Mezclado",
+        "juego"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "Ghost of Tsushima",
+      "createdAt": "2026-05-31T21:49:59.044Z",
+      "updatedAt": "2026-05-31T21:49:59.044Z"
+    },
+    {
+      "id": "game-ghost-of-tsushima-director-s-cut",
+      "title": "Ghost of Tsushima Director's Cut",
+      "type": "game",
+      "status": "wishlist",
+      "durationMinHours": 30,
+      "durationMaxHours": 60,
+      "genres": [],
+      "tags": [
+        "🌟 Grandes Aventuras (30-50 horas)",
+        "juego",
+        "🎮 Tabla de Juegos (Tira 1d20)"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "Ghost of Tsushima Director's Cut: 30 - 60 horas.\nGhost of Tsushima Director's Cut",
+      "importNotes": [
+        "Duplicado fusionado desde Recomendaciones.md"
+      ],
+      "createdAt": "2026-05-31T21:49:59.034Z",
+      "updatedAt": "2026-05-31T21:49:59.048Z"
+    },
+    {
+      "id": "game-ghost-trick-phantom-detective",
+      "title": "Ghost Trick: Phantom Detective",
+      "type": "game",
+      "status": "wishlist",
+      "durationMinHours": 12,
+      "durationMaxHours": 14,
+      "genres": [],
+      "tags": [
+        "🚀 Próximos: Rápidos y Directos (< 15 horas)",
+        "juego",
+        "rapido",
+        "🎮 Tabla de Juegos (Tira 1d20)",
+        "🎰 Tabla Maestra d100 - Todo Mezclado"
+      ],
+      "moodTags": [
+        "rapido"
+      ],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "Ghost Trick: Phantom Detective: 12 - 14 horas.\nGhost Trick: Phantom Detective\nGhost Trick: Phantom Detective",
+      "importNotes": [
+        "Duplicado fusionado desde Recomendaciones.md"
+      ],
+      "createdAt": "2026-05-31T21:49:59.032Z",
+      "updatedAt": "2026-05-31T21:49:59.048Z"
+    },
+    {
+      "id": "anime-hunter-x-hunter",
+      "title": "Hunter x Hunter",
+      "type": "anime",
+      "status": "wishlist",
+      "genres": [],
+      "tags": [
+        "🎭 Anime: Para Maratonear",
+        "anime",
+        "maraton",
+        "🎬 Tabla de Ver (Tira 1d20)",
+        "🎰 Tabla Maestra d100 - Todo Mezclado"
+      ],
+      "moodTags": [
+        "maraton"
+      ],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "Hunter x Hunter",
+      "importNotes": [
+        "Duplicado fusionado desde Recomendaciones.md"
+      ],
+      "createdAt": "2026-05-31T21:49:59.038Z",
+      "updatedAt": "2026-05-31T21:49:59.049Z"
+    },
+    {
+      "id": "movie-inception",
+      "title": "Inception",
+      "type": "movie",
+      "status": "wishlist",
+      "genres": [
+        "sci-fi",
+        "thriller"
+      ],
+      "tags": [
+        "🍿 Próximo: Películas Cortas (Fácil de Empezar)",
+        "pelicula",
+        "sci-fi",
+        "thriller",
+        "rapido",
+        "ligero",
+        "🎬 Tabla de Ver (Tira 1d20)",
+        "🎰 Tabla Maestra d100 - Todo Mezclado"
+      ],
+      "moodTags": [
+        "rapido",
+        "ligero"
+      ],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "Película",
+      "source": "markdown",
+      "rawText": "Inception (Película) (Thriller de ciencia ficción, visualmente impresionante)\nInception\nInception",
+      "importNotes": [
+        "Duplicado fusionado desde Recomendaciones.md"
+      ],
+      "createdAt": "2026-05-31T21:49:59.037Z",
+      "updatedAt": "2026-05-31T21:49:59.049Z"
+    },
+    {
+      "id": "other-inception",
+      "title": "Inception",
+      "type": "other",
+      "status": "in_progress",
+      "progress": "En progreso",
+      "genres": [],
+      "tags": [
+        "📍 Estado Actual",
+        "otro"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "Inception",
+      "importNotes": [
+        "Tipo inferido como other"
+      ],
+      "createdAt": "2026-05-31T21:49:59.047Z",
+      "updatedAt": "2026-05-31T21:49:59.047Z"
+    },
+    {
+      "id": "movie-interstellar",
+      "title": "Interstellar",
+      "type": "movie",
+      "status": "completed",
+      "rating": 8,
+      "genres": [],
+      "tags": [
+        "🎬 Ya Visto",
+        "pelicula"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "Película",
+      "source": "markdown",
+      "rawText": "Interstellar (Película) - ⭐ 8/10",
+      "createdAt": "2026-05-31T21:49:59.036Z",
+      "updatedAt": "2026-05-31T21:49:59.036Z"
+    },
+    {
+      "id": "game-it-takes-two",
+      "title": "It takes two",
+      "type": "game",
+      "status": "completed",
+      "rating": 7.6,
+      "genres": [],
+      "tags": [
+        "✅ Ya Jugados",
+        "juego"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "It takes two⭐ 7.6/10",
+      "createdAt": "2026-05-31T21:49:59.031Z",
+      "updatedAt": "2026-05-31T21:49:59.031Z"
+    },
+    {
+      "id": "anime-jojo-s-bizarre-adventure-stone-ocean",
+      "title": "JoJo's Bizarre Adventure: Stone Ocean",
+      "type": "anime",
+      "status": "wishlist",
+      "genres": [],
+      "tags": [
+        "🎭 Anime: Para Maratonear",
+        "anime",
+        "maraton"
+      ],
+      "moodTags": [
+        "maraton"
+      ],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "JoJo's Bizarre Adventure: Stone Ocean",
+      "createdAt": "2026-05-31T21:49:59.038Z",
+      "updatedAt": "2026-05-31T21:49:59.038Z"
+    },
+    {
+      "id": "game-judgment",
+      "title": "Judgment",
+      "type": "game",
+      "status": "wishlist",
+      "durationMinHours": 35,
+      "durationMaxHours": 50,
+      "genres": [],
+      "tags": [
+        "🌟 Grandes Aventuras (30-50 horas)",
+        "juego"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "Judgment: 35 - 50 horas.",
+      "createdAt": "2026-05-31T21:49:59.034Z",
+      "updatedAt": "2026-05-31T21:49:59.034Z"
+    },
+    {
+      "id": "movie-jujutsu-kaisen-s1",
+      "title": "Jujutsu Kaisen S1",
+      "type": "movie",
+      "status": "completed",
+      "rating": 8.5,
+      "genres": [],
+      "tags": [
+        "🎬 Ya Visto",
+        "pelicula"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "Jujutsu Kaisen S1 - ⭐ 8.5/10",
+      "createdAt": "2026-05-31T21:49:59.036Z",
+      "updatedAt": "2026-05-31T21:49:59.036Z"
+    },
+    {
+      "id": "game-katana-zero",
+      "title": "Katana ZERO",
+      "type": "game",
+      "status": "wishlist",
+      "durationMinHours": 4,
+      "durationMaxHours": 6,
+      "genres": [
+        "accion"
+      ],
+      "tags": [
+        "🚀 Próximos: Rápidos y Directos (< 15 horas)",
+        "juego",
+        "accion",
+        "rapido",
+        "intenso",
+        "🎮 Tabla de Juegos (Tira 1d20)",
+        "🎰 Tabla Maestra d100 - Todo Mezclado"
+      ],
+      "moodTags": [
+        "rapido",
+        "intenso"
+      ],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "Acción frenética, historia intrigante",
+      "source": "markdown",
+      "rawText": "Katana ZERO: 4 - 6 horas. (Acción frenética, historia intrigante)\nKatana ZERO\nKatana ZERO",
+      "importNotes": [
+        "Duplicado fusionado desde Recomendaciones.md"
+      ],
+      "createdAt": "2026-05-31T21:49:59.032Z",
+      "updatedAt": "2026-05-31T21:49:59.048Z"
+    },
+    {
+      "id": "book-la-iliada-homero",
+      "title": "La Ilíada - Homero",
+      "type": "book",
+      "status": "wishlist",
+      "genres": [
+        "epica"
+      ],
+      "tags": [
+        "📖 Clásicos y Épica",
+        "libro",
+        "epica"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "Épica clásica, más bélico que la Odisea",
+      "source": "markdown",
+      "rawText": "La Ilíada - Homero (Épica clásica, más bélico que la Odisea)",
+      "createdAt": "2026-05-31T21:49:59.030Z",
+      "updatedAt": "2026-05-31T21:49:59.030Z"
+    },
+    {
+      "id": "book-la-odisea",
+      "title": "La Odisea",
+      "type": "book",
+      "status": "wishlist",
+      "genres": [],
+      "tags": [
+        "🎰 Tabla Maestra d100 - Todo Mezclado",
+        "libro"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "La Odisea",
+      "createdAt": "2026-05-31T21:49:59.045Z",
+      "updatedAt": "2026-05-31T21:49:59.045Z"
+    },
+    {
+      "id": "book-la-odisea-homero",
+      "title": "La Odisea - Homero",
+      "type": "book",
+      "status": "wishlist",
+      "genres": [
+        "epica"
+      ],
+      "tags": [
+        "📖 Clásicos y Épica",
+        "libro",
+        "epica",
+        "📚 Tabla de Libros (Tira 1d20)"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "Épica clásica, una gran aventura",
+      "source": "markdown",
+      "rawText": "La Odisea - Homero (Épica clásica, una gran aventura)\nLa Odisea - Homero",
+      "importNotes": [
+        "Duplicado fusionado desde Recomendaciones.md"
+      ],
+      "createdAt": "2026-05-31T21:49:59.030Z",
+      "updatedAt": "2026-05-31T21:49:59.048Z"
+    },
+    {
+      "id": "book-la-republica-platon",
+      "title": "La República - Platón",
+      "type": "book",
+      "status": "wishlist",
+      "genres": [
+        "filosofia"
+      ],
+      "tags": [
+        "🧠 Filosofía Densa: Reto Final",
+        "libro",
+        "filosofia",
+        "denso",
+        "📚 Tabla de Libros (Tira 1d20)"
+      ],
+      "moodTags": [
+        "denso"
+      ],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "Filosofía, uno de los más densos",
+      "source": "markdown",
+      "rawText": "La República - Platón (Filosofía, uno de los más densos)\nLa República - Platón",
+      "importNotes": [
+        "Duplicado fusionado desde Recomendaciones.md"
+      ],
+      "createdAt": "2026-05-31T21:49:59.030Z",
+      "updatedAt": "2026-05-31T21:49:59.048Z"
+    },
+    {
+      "id": "series-love-death-robots",
+      "title": "Love, Death & Robots",
+      "type": "series",
+      "status": "wishlist",
+      "genres": [],
+      "tags": [
+        "📺 Series Cortas y Accesibles",
+        "serie",
+        "rapido",
+        "ligero",
+        "🎬 Tabla de Ver (Tira 1d20)",
+        "🎰 Tabla Maestra d100 - Todo Mezclado"
+      ],
+      "moodTags": [
+        "rapido",
+        "ligero"
+      ],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "Serie - Antología Animada",
+      "source": "markdown",
+      "rawText": "Love, Death & Robots (Serie - Antología Animada)\nLove, Death & Robots\nLove, Death & Robots",
+      "importNotes": [
+        "Duplicado fusionado desde Recomendaciones.md"
+      ],
+      "createdAt": "2026-05-31T21:49:59.037Z",
+      "updatedAt": "2026-05-31T21:49:59.049Z"
+    },
+    {
+      "id": "movie-mad-max-fury-road",
+      "title": "Mad Max: Fury Road",
+      "type": "movie",
+      "status": "completed",
+      "rating": 7,
+      "genres": [],
+      "tags": [
+        "🎬 Ya Visto",
+        "pelicula"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "Película",
+      "source": "markdown",
+      "rawText": "Mad Max: Fury Road (Película) - ⭐ 7/10",
+      "createdAt": "2026-05-31T21:49:59.036Z",
+      "updatedAt": "2026-05-31T21:49:59.036Z"
+    },
+    {
+      "id": "book-manual-estoico-epicteto",
+      "title": "Manual Estoico - Epicteto",
+      "type": "book",
+      "status": "completed",
+      "rating": 7,
+      "genres": [],
+      "tags": [
+        "📚 Ya Leídos",
+        "libro"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "Enchiridion",
+      "source": "markdown",
+      "rawText": "Manual Estoico (Enchiridion) - Epicteto ⭐ 7/10",
+      "createdAt": "2026-05-31T21:49:59.026Z",
+      "updatedAt": "2026-05-31T21:49:59.026Z"
+    },
+    {
+      "id": "game-marvel-s-guardians-of-the-galaxy",
+      "title": "Marvel's Guardians of the Galaxy",
+      "type": "game",
+      "status": "wishlist",
+      "durationMinHours": 17,
+      "durationMaxHours": 21,
+      "genres": [],
+      "tags": [
+        "🎯 Experiencias de Duración Media (15-30 horas)",
+        "juego",
+        "🎮 Tabla de Juegos (Tira 1d20)"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "Marvel's Guardians of the Galaxy: 17 - 21 horas.\nMarvel's Guardians of the Galaxy",
+      "importNotes": [
+        "Duplicado fusionado desde Recomendaciones.md"
+      ],
+      "createdAt": "2026-05-31T21:49:59.033Z",
+      "updatedAt": "2026-05-31T21:49:59.048Z"
+    },
+    {
+      "id": "other-marvel-s-guardians-of-the-galaxy",
+      "title": "Marvel's Guardians of the Galaxy",
+      "type": "other",
+      "status": "in_progress",
+      "progress": "En progreso",
+      "genres": [],
+      "tags": [
+        "📍 Estado Actual",
+        "otro"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "Marvel's Guardians of the Galaxy",
+      "importNotes": [
+        "Tipo inferido como other"
+      ],
+      "createdAt": "2026-05-31T21:49:59.047Z",
+      "updatedAt": "2026-05-31T21:49:59.047Z"
+    },
+    {
+      "id": "book-mas-alla-del-bien-y-del-mal-friedrich-nietzsche",
+      "title": "Más allá del bien y del mal – Friedrich Nietzsche",
+      "type": "book",
+      "status": "wishlist",
+      "genres": [
+        "filosofia"
+      ],
+      "tags": [
+        "🏛️ Filosofía: Progresión Natural",
+        "libro",
+        "filosofia"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "Filosofía, muy desafiante",
+      "source": "markdown",
+      "rawText": "Más allá del bien y del mal – Friedrich Nietzsche (Filosofía, muy desafiante)",
+      "createdAt": "2026-05-31T21:49:59.029Z",
+      "updatedAt": "2026-05-31T21:49:59.029Z"
+    },
+    {
+      "id": "game-mass-effect-legendary-edition",
+      "title": "Mass Effect Legendary Edition",
+      "type": "game",
+      "status": "dropped",
+      "rating": 3,
+      "genres": [],
+      "tags": [
+        "❌ Droppeados (No Recomendar)",
+        "juego"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "Mass Effect Legendary Edition Droppeado 3/10",
+      "createdAt": "2026-05-31T21:49:59.035Z",
+      "updatedAt": "2026-05-31T21:49:59.035Z"
+    },
+    {
+      "id": "book-masters-of-doom",
+      "title": "Masters of Doom",
+      "type": "book",
+      "status": "wishlist",
+      "genres": [],
+      "tags": [
+        "🎰 Tabla Maestra d100 - Todo Mezclado",
+        "libro"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "Masters of Doom",
+      "createdAt": "2026-05-31T21:49:59.044Z",
+      "updatedAt": "2026-05-31T21:49:59.044Z"
+    },
+    {
+      "id": "book-masters-of-doom-david-kushner",
+      "title": "Masters of Doom - David Kushner",
+      "type": "book",
+      "status": "wishlist",
+      "genres": [],
+      "tags": [
+        "🎯 Próximos: Ligeros y Adictivos",
+        "libro",
+        "📚 Tabla de Libros (Tira 1d20)"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "Narrativa de no-ficción, muy ameno",
+      "source": "markdown",
+      "rawText": "Masters of Doom - David Kushner (Narrativa de no-ficción, muy ameno)\nMasters of Doom - David Kushner",
+      "importNotes": [
+        "Duplicado fusionado desde Recomendaciones.md"
+      ],
+      "createdAt": "2026-05-31T21:49:59.027Z",
+      "updatedAt": "2026-05-31T21:49:59.048Z"
+    },
+    {
+      "id": "book-meditaciones-marco-aurelio",
+      "title": "Meditaciones - Marco Aurelio",
+      "type": "book",
+      "status": "wishlist",
+      "genres": [
+        "filosofia"
+      ],
+      "tags": [
+        "🏛️ Filosofía: Progresión Natural",
+        "libro",
+        "filosofia",
+        "📚 Tabla de Libros (Tira 1d20)",
+        "🎰 Tabla Maestra d100 - Todo Mezclado"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "Filosofía más personal",
+      "source": "markdown",
+      "rawText": "Meditaciones - Marco Aurelio (Filosofía más personal)\nMeditaciones - Marco Aurelio\nMeditaciones - Marco Aurelio",
+      "importNotes": [
+        "Duplicado fusionado desde Recomendaciones.md"
+      ],
+      "createdAt": "2026-05-31T21:49:59.029Z",
+      "updatedAt": "2026-05-31T21:49:59.049Z"
+    },
+    {
+      "id": "game-megabonk",
+      "title": "Megabonk",
+      "type": "game",
+      "status": "completed",
+      "rating": 7.8,
+      "genres": [],
+      "tags": [
+        "✅ Ya Jugados",
+        "juego"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "Megabonk ⭐ 7.8/10",
+      "createdAt": "2026-05-31T21:49:59.031Z",
+      "updatedAt": "2026-05-31T21:49:59.031Z"
+    },
+    {
+      "id": "anime-mob-psycho-100",
+      "title": "Mob Psycho 100",
+      "type": "anime",
+      "status": "wishlist",
+      "genres": [],
+      "tags": [
+        "🎭 Anime: Para Maratonear",
+        "anime",
+        "maraton",
+        "🎬 Tabla de Ver (Tira 1d20)"
+      ],
+      "moodTags": [
+        "maraton"
+      ],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "Mob Psycho 100",
+      "importNotes": [
+        "Duplicado fusionado desde Recomendaciones.md"
+      ],
+      "createdAt": "2026-05-31T21:49:59.038Z",
+      "updatedAt": "2026-05-31T21:49:59.048Z"
+    },
+    {
+      "id": "movie-nageki-no-bourei-wa-intai-shitai-2",
+      "title": "Nageki no Bourei wa Intai Shitai 2",
+      "type": "movie",
+      "status": "completed",
+      "rating": 7.5,
+      "genres": [],
+      "tags": [
+        "🎬 Ya Visto",
+        "pelicula"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "Nageki no Bourei wa Intai Shitai 2 - ⭐ 7.5/10",
+      "createdAt": "2026-05-31T21:49:59.036Z",
+      "updatedAt": "2026-05-31T21:49:59.036Z"
+    },
+    {
+      "id": "book-neuromante",
+      "title": "Neuromante",
+      "type": "book",
+      "status": "wishlist",
+      "genres": [],
+      "tags": [
+        "🎰 Tabla Maestra d100 - Todo Mezclado",
+        "libro"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "Neuromante",
+      "createdAt": "2026-05-31T21:49:59.045Z",
+      "updatedAt": "2026-05-31T21:49:59.045Z"
+    },
+    {
+      "id": "book-neuromante-william-gibson",
+      "title": "Neuromante - William Gibson",
+      "type": "book",
+      "status": "wishlist",
+      "genres": [
+        "sci-fi",
+        "epica"
+      ],
+      "tags": [
+        "📖 Clásicos y Épica",
+        "libro",
+        "sci-fi",
+        "epica",
+        "denso",
+        "📚 Tabla de Libros (Tira 1d20)"
+      ],
+      "moodTags": [
+        "denso"
+      ],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "Ciencia ficción, un clásico denso pero narrativo",
+      "source": "markdown",
+      "rawText": "Neuromante - William Gibson (Ciencia ficción, un clásico denso pero narrativo)\nNeuromante - William Gibson",
+      "importNotes": [
+        "Duplicado fusionado desde Recomendaciones.md"
+      ],
+      "createdAt": "2026-05-31T21:49:59.030Z",
+      "updatedAt": "2026-05-31T21:49:59.048Z"
+    },
+    {
+      "id": "game-nier-automata",
+      "title": "NieR: Automata",
+      "type": "game",
+      "status": "completed",
+      "rating": 5,
+      "genres": [],
+      "tags": [
+        "✅ Ya Jugados",
+        "juego"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "NieR: Automata ⭐ 5/10",
+      "createdAt": "2026-05-31T21:49:59.031Z",
+      "updatedAt": "2026-05-31T21:49:59.031Z"
+    },
+    {
+      "id": "game-one-piece-odyssey",
+      "title": "One Piece Odyssey",
+      "type": "game",
+      "status": "wishlist",
+      "durationMinHours": 35,
+      "durationMaxHours": 50,
+      "genres": [
+        "rpg",
+        "jrpg"
+      ],
+      "tags": [
+        "🌟 Grandes Aventuras (30-50 horas)",
+        "juego",
+        "rpg",
+        "jrpg"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "🏴‍☠️ JRPG de One Piece, historia original",
+      "source": "markdown",
+      "rawText": "One Piece Odyssey: 35 - 50 horas. (🏴‍☠️ JRPG de One Piece, historia original)",
+      "createdAt": "2026-05-31T21:49:59.034Z",
+      "updatedAt": "2026-05-31T21:49:59.034Z"
+    },
+    {
+      "id": "game-one-piece-pirate-warriors-4",
+      "title": "One Piece: Pirate Warriors 4",
+      "type": "game",
+      "status": "wishlist",
+      "durationMinHours": 15,
+      "durationMaxHours": 25,
+      "genres": [
+        "accion"
+      ],
+      "tags": [
+        "🎯 Experiencias de Duración Media (15-30 horas)",
+        "juego",
+        "accion",
+        "intenso"
+      ],
+      "moodTags": [
+        "intenso"
+      ],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "🏴‍☠️ Musou de One Piece, acción caótica",
+      "source": "markdown",
+      "rawText": "One Piece: Pirate Warriors 4: 15 - 25 horas. (🏴‍☠️ Musou de One Piece, acción caótica)",
+      "createdAt": "2026-05-31T21:49:59.034Z",
+      "updatedAt": "2026-05-31T21:49:59.034Z"
+    },
+    {
+      "id": "movie-one-punch-man-3",
+      "title": "One punch man 3",
+      "type": "movie",
+      "status": "completed",
+      "rating": 7.7,
+      "genres": [],
+      "tags": [
+        "🎬 Ya Visto",
+        "pelicula"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "One punch man 3 - ⭐ 7.7/10",
+      "createdAt": "2026-05-31T21:49:59.036Z",
+      "updatedAt": "2026-05-31T21:49:59.036Z"
+    },
+    {
+      "id": "game-outer-wilds",
+      "title": "Outer Wilds",
+      "type": "game",
+      "status": "wishlist",
+      "durationMinHours": 12,
+      "durationMaxHours": 20,
+      "genres": [],
+      "tags": [
+        "🎯 Experiencias de Duración Media (15-30 horas)",
+        "juego",
+        "raro",
+        "🎮 Tabla de Juegos (Tira 1d20)",
+        "🎰 Tabla Maestra d100 - Todo Mezclado"
+      ],
+      "moodTags": [
+        "raro"
+      ],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "Exploración espacial única, no busques spoilers",
+      "source": "markdown",
+      "rawText": "Outer Wilds: 12 - 20 horas. (Exploración espacial única, no busques spoilers)\nOuter Wilds\nOuter Wilds",
+      "importNotes": [
+        "Duplicado fusionado desde Recomendaciones.md"
+      ],
+      "createdAt": "2026-05-31T21:49:59.033Z",
+      "updatedAt": "2026-05-31T21:49:59.048Z"
+    },
+    {
+      "id": "movie-parasite",
+      "title": "Parasite",
+      "type": "movie",
+      "status": "wishlist",
+      "genres": [],
+      "tags": [
+        "🍿 Próximo: Películas Cortas (Fácil de Empezar)",
+        "pelicula",
+        "rapido",
+        "ligero",
+        "🎬 Tabla de Ver (Tira 1d20)",
+        "🎰 Tabla Maestra d100 - Todo Mezclado"
+      ],
+      "moodTags": [
+        "rapido",
+        "ligero"
+      ],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "Película",
+      "source": "markdown",
+      "rawText": "Parasite (Película)\nParasite\nParasite",
+      "importNotes": [
+        "Duplicado fusionado desde Recomendaciones.md"
+      ],
+      "createdAt": "2026-05-31T21:49:59.037Z",
+      "updatedAt": "2026-05-31T21:49:59.049Z"
+    },
+    {
+      "id": "game-persona-5-royal",
+      "title": "Persona 5 Royal",
+      "type": "game",
+      "status": "wishlist",
+      "genres": [],
+      "tags": [
+        "🏔️ Épicos: El Reto Grande (50+ horas)",
+        "juego",
+        "denso",
+        "🎮 Tabla de Juegos (Tira 1d20)",
+        "🎰 Tabla Maestra d100 - Todo Mezclado"
+      ],
+      "moodTags": [
+        "denso"
+      ],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "Persona 5 Royal: 101 - 123+ horas.\nPersona 5 Royal\nPersona 5 Royal",
+      "importNotes": [
+        "Duplicado fusionado desde Recomendaciones.md"
+      ],
+      "createdAt": "2026-05-31T21:49:59.035Z",
+      "updatedAt": "2026-05-31T21:49:59.049Z"
+    },
+    {
+      "id": "book-pixel-art-for-game-developers",
+      "title": "Pixel Art for Game Developers",
+      "type": "book",
+      "status": "wishlist",
+      "genres": [],
+      "tags": [
+        "📚 Tabla de Libros (Tira 1d20)",
+        "libro"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "Pixel Art for Game Developers",
+      "createdAt": "2026-05-31T21:49:59.041Z",
+      "updatedAt": "2026-05-31T21:49:59.041Z"
+    },
+    {
+      "id": "book-pixel-art-for-game-developers-daniel-silber",
+      "title": "Pixel Art for Game Developers - Daniel Silber",
+      "type": "book",
+      "status": "wishlist",
+      "genres": [
+        "tecnico"
+      ],
+      "tags": [
+        "🎮 Técnicos: Para Desarrolladores",
+        "libro",
+        "tecnico"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "Técnico y práctico, un buen descanso",
+      "source": "markdown",
+      "rawText": "Pixel Art for Game Developers - Daniel Silber (Técnico y práctico, un buen descanso)",
+      "createdAt": "2026-05-31T21:49:59.028Z",
+      "updatedAt": "2026-05-31T21:49:59.028Z"
+    },
+    {
+      "id": "game-pokemon-esmeralda-retomar-cuando-tengas-ganas",
+      "title": "Pokémon Esmeralda : Retomar cuando tengas ganas",
+      "type": "game",
+      "status": "paused",
+      "genres": [],
+      "tags": [
+        "⏸️ Pausado (Retomar Cuando Quieras)",
+        "juego",
+        "denso"
+      ],
+      "moodTags": [
+        "denso"
+      ],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "Nuzlocke",
+      "source": "markdown",
+      "rawText": "Pokémon Esmeralda (Nuzlocke): Retomar cuando tengas ganas",
+      "createdAt": "2026-05-31T21:49:59.032Z",
+      "updatedAt": "2026-05-31T21:49:59.032Z"
+    },
+    {
+      "id": "game-pokemon-legends-arceus",
+      "title": "Pokémon Legends: Arceus",
+      "type": "game",
+      "status": "wishlist",
+      "durationMinHours": 25,
+      "durationMaxHours": 35,
+      "genres": [],
+      "tags": [
+        "🎯 Experiencias de Duración Media (15-30 horas)",
+        "juego"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "Pokémon Legends: Arceus: 25 - 35 horas.",
+      "createdAt": "2026-05-31T21:49:59.033Z",
+      "updatedAt": "2026-05-31T21:49:59.033Z"
+    },
+    {
+      "id": "game-portal-2-co-op",
+      "title": "Portal 2 CO-OP",
+      "type": "game",
+      "status": "completed",
+      "rating": 8,
+      "genres": [],
+      "tags": [
+        "✅ Ya Jugados",
+        "juego"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "Portal 2 CO-OP ⭐ 8/10",
+      "createdAt": "2026-05-31T21:49:59.032Z",
+      "updatedAt": "2026-05-31T21:49:59.032Z"
+    },
+    {
+      "id": "book-project-hail-mary-andy-weir",
+      "title": "Project Hail Mary - Andy Weir",
+      "type": "book",
+      "status": "wishlist",
+      "genres": [
+        "sci-fi"
+      ],
+      "tags": [
+        "🎯 Próximos: Ligeros y Adictivos",
+        "libro",
+        "sci-fi",
+        "📚 Tabla de Libros (Tira 1d20)"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "Ciencia ficción, del autor de El Marciano",
+      "source": "markdown",
+      "rawText": "Project Hail Mary - Andy Weir (Ciencia ficción, del autor de El Marciano)\nProject Hail Mary - Andy Weir",
+      "importNotes": [
+        "Duplicado fusionado desde Recomendaciones.md"
+      ],
+      "createdAt": "2026-05-31T21:49:59.028Z",
+      "updatedAt": "2026-05-31T21:49:59.048Z"
+    },
+    {
+      "id": "book-ready-player-one-ernest-cline",
+      "title": "Ready Player One - Ernest Cline",
+      "type": "book",
+      "status": "completed",
+      "rating": 10,
+      "genres": [],
+      "tags": [
+        "📚 Ya Leídos",
+        "libro"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "Ready Player One - Ernest Cline ⭐ 10/10",
+      "createdAt": "2026-05-31T21:49:59.024Z",
+      "updatedAt": "2026-05-31T21:49:59.025Z"
+    },
+    {
+      "id": "game-red-dead-redemption-2",
+      "title": "Red Dead Redemption 2",
+      "type": "game",
+      "status": "wishlist",
+      "durationMinHours": 50,
+      "durationMaxHours": 80,
+      "genres": [],
+      "tags": [
+        "🏔️ Épicos: El Reto Grande (50+ horas)",
+        "juego",
+        "denso"
+      ],
+      "moodTags": [
+        "denso"
+      ],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "Western cinematográfico, mundo vivo",
+      "source": "markdown",
+      "rawText": "Red Dead Redemption 2: 50 - 80 horas. (Western cinematográfico, mundo vivo)",
+      "createdAt": "2026-05-31T21:49:59.035Z",
+      "updatedAt": "2026-05-31T21:49:59.035Z"
+    },
+    {
+      "id": "game-return-of-the-obra-dinn",
+      "title": "Return of the Obra Dinn",
+      "type": "game",
+      "status": "wishlist",
+      "durationMinHours": 8,
+      "durationMaxHours": 12,
+      "genres": [
+        "misterio"
+      ],
+      "tags": [
+        "🚀 Próximos: Rápidos y Directos (< 15 horas)",
+        "juego",
+        "misterio",
+        "rapido",
+        "raro",
+        "🎮 Tabla de Juegos (Tira 1d20)",
+        "🎰 Tabla Maestra d100 - Todo Mezclado"
+      ],
+      "moodTags": [
+        "rapido",
+        "raro"
+      ],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "Misterio detectivesco, estética única",
+      "source": "markdown",
+      "rawText": "Return of the Obra Dinn: 8 - 12 horas. (Misterio detectivesco, estética única)\nReturn of the Obra Dinn\nReturn of the Obra Dinn",
+      "importNotes": [
+        "Duplicado fusionado desde Recomendaciones.md"
+      ],
+      "createdAt": "2026-05-31T21:49:59.032Z",
+      "updatedAt": "2026-05-31T21:49:59.048Z"
+    },
+    {
+      "id": "game-satisfactory",
+      "title": "Satisfactory",
+      "type": "game",
+      "status": "completed",
+      "rating": 8,
+      "genres": [],
+      "tags": [
+        "✅ Ya Jugados",
+        "juego"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "Satisfactory ⭐ 8/10",
+      "createdAt": "2026-05-31T21:49:59.031Z",
+      "updatedAt": "2026-05-31T21:49:59.031Z"
+    },
+    {
+      "id": "game-sea-of-stars",
+      "title": "Sea of Stars",
+      "type": "game",
+      "status": "wishlist",
+      "durationMinHours": 28,
+      "durationMaxHours": 35,
+      "genres": [],
+      "tags": [
+        "🎯 Experiencias de Duración Media (15-30 horas)",
+        "juego"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "Sea of Stars: 28 - 35 horas.",
+      "createdAt": "2026-05-31T21:49:59.033Z",
+      "updatedAt": "2026-05-31T21:49:59.033Z"
+    },
+    {
+      "id": "book-siddhartha",
+      "title": "Siddhartha",
+      "type": "book",
+      "status": "wishlist",
+      "genres": [],
+      "tags": [
+        "🎰 Tabla Maestra d100 - Todo Mezclado",
+        "libro"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "Siddhartha",
+      "createdAt": "2026-05-31T21:49:59.044Z",
+      "updatedAt": "2026-05-31T21:49:59.044Z"
+    },
+    {
+      "id": "book-siddhartha-hermann-hesse",
+      "title": "Siddhartha - Hermann Hesse",
+      "type": "book",
+      "status": "wishlist",
+      "genres": [],
+      "tags": [
+        "🎯 Próximos: Ligeros y Adictivos",
+        "libro",
+        "ligero",
+        "📚 Tabla de Libros (Tira 1d20)"
+      ],
+      "moodTags": [
+        "ligero"
+      ],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "Novela filosófica, más accesible",
+      "source": "markdown",
+      "rawText": "Siddhartha - Hermann Hesse (Novela filosófica, más accesible)\nSiddhartha - Hermann Hesse",
+      "importNotes": [
+        "Duplicado fusionado desde Recomendaciones.md"
+      ],
+      "createdAt": "2026-05-31T21:49:59.027Z",
+      "updatedAt": "2026-05-31T21:49:59.048Z"
+    },
+    {
+      "id": "movie-snowpiercer",
+      "title": "Snowpiercer",
+      "type": "movie",
+      "status": "wishlist",
+      "genres": [],
+      "tags": [
+        "🍿 Próximo: Películas Cortas (Fácil de Empezar)",
+        "pelicula",
+        "rapido",
+        "ligero",
+        "🎬 Tabla de Ver (Tira 1d20)"
+      ],
+      "moodTags": [
+        "rapido",
+        "ligero"
+      ],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "Película",
+      "source": "markdown",
+      "rawText": "Snowpiercer (Película)\nSnowpiercer",
+      "importNotes": [
+        "Duplicado fusionado desde Recomendaciones.md"
+      ],
+      "createdAt": "2026-05-31T21:49:59.036Z",
+      "updatedAt": "2026-05-31T21:49:59.048Z"
+    },
+    {
+      "id": "game-steins-gate",
+      "title": "STEINS;GATE",
+      "type": "game",
+      "status": "wishlist",
+      "durationMinHours": 30,
+      "durationMaxHours": 50,
+      "genres": [],
+      "tags": [
+        "🌟 Grandes Aventuras (30-50 horas)",
+        "juego"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "STEINS;GATE: 30 - 50 horas.",
+      "createdAt": "2026-05-31T21:49:59.034Z",
+      "updatedAt": "2026-05-31T21:49:59.034Z"
+    },
+    {
+      "id": "game-terraria",
+      "title": "Terraria",
+      "type": "game",
+      "status": "wishlist",
+      "genres": [],
+      "tags": [
+        "🏔️ Épicos: El Reto Grande (50+ horas)",
+        "juego",
+        "denso"
+      ],
+      "moodTags": [
+        "denso"
+      ],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "Terraria: 50 - 150+ horas.",
+      "createdAt": "2026-05-31T21:49:59.035Z",
+      "updatedAt": "2026-05-31T21:49:59.035Z"
+    },
+    {
+      "id": "book-the-art-of-game-design-a-book-of-lenses",
+      "title": "The Art of Game Design: A Book of Lenses",
+      "type": "book",
+      "status": "wishlist",
+      "genres": [],
+      "tags": [
+        "📚 Tabla de Libros (Tira 1d20)",
+        "libro"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "The Art of Game Design: A Book of Lenses",
+      "createdAt": "2026-05-31T21:49:59.041Z",
+      "updatedAt": "2026-05-31T21:49:59.041Z"
+    },
+    {
+      "id": "book-the-art-of-game-design-a-book-of-lenses-jesse-schell",
+      "title": "The Art of Game Design: A Book of Lenses - Jesse Schell",
+      "type": "book",
+      "status": "wishlist",
+      "genres": [
+        "tecnico"
+      ],
+      "tags": [
+        "🎮 Técnicos: Para Desarrolladores",
+        "libro",
+        "tecnico"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "Técnico/Creativo",
+      "source": "markdown",
+      "rawText": "The Art of Game Design: A Book of Lenses - Jesse Schell (Técnico/Creativo)",
+      "createdAt": "2026-05-31T21:49:59.028Z",
+      "updatedAt": "2026-05-31T21:49:59.028Z"
+    },
+    {
+      "id": "movie-the-banished-court-magician-aims-to-become-the-strongest",
+      "title": "The Banished Court Magician Aims to Become the Strongest",
+      "type": "movie",
+      "status": "completed",
+      "rating": 7,
+      "genres": [],
+      "tags": [
+        "🎬 Ya Visto",
+        "pelicula"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "The Banished Court Magician Aims to Become the Strongest - ⭐ 7/10",
+      "createdAt": "2026-05-31T21:49:59.036Z",
+      "updatedAt": "2026-05-31T21:49:59.036Z"
+    },
+    {
+      "id": "movie-the-boys-primera-temporada",
+      "title": "The boys primera temporada",
+      "type": "movie",
+      "status": "completed",
+      "rating": 8,
+      "genres": [],
+      "tags": [
+        "🎬 Ya Visto",
+        "pelicula"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "The boys primera temporada ⭐ 8/10",
+      "createdAt": "2026-05-31T21:49:59.036Z",
+      "updatedAt": "2026-05-31T21:49:59.036Z"
+    },
+    {
+      "id": "book-the-c-players-guide-5th-edition",
+      "title": "The C# players guide 5th edition",
+      "type": "book",
+      "status": "wishlist",
+      "genres": [
+        "tecnico"
+      ],
+      "tags": [
+        "🎮 Técnicos: Para Desarrolladores",
+        "libro",
+        "tecnico"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "The C# players guide 5th edition",
+      "createdAt": "2026-05-31T21:49:59.028Z",
+      "updatedAt": "2026-05-31T21:49:59.028Z"
+    },
+    {
+      "id": "game-the-elder-scrolls-v-skyrim-special-edition",
+      "title": "The Elder Scrolls V: Skyrim Special Edition",
+      "type": "game",
+      "status": "wishlist",
+      "genres": [],
+      "tags": [
+        "🏔️ Épicos: El Reto Grande (50+ horas)",
+        "juego",
+        "denso"
+      ],
+      "moodTags": [
+        "denso"
+      ],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "The Elder Scrolls V: Skyrim Special Edition: 50 - 150+ horas.",
+      "createdAt": "2026-05-31T21:49:59.035Z",
+      "updatedAt": "2026-05-31T21:49:59.035Z"
+    },
+    {
+      "id": "game-the-great-ace-attorney-chronicles",
+      "title": "The Great Ace Attorney Chronicles",
+      "type": "game",
+      "status": "wishlist",
+      "durationMinHours": 50,
+      "durationMaxHours": 60,
+      "genres": [],
+      "tags": [
+        "🏔️ Épicos: El Reto Grande (50+ horas)",
+        "juego",
+        "denso"
+      ],
+      "moodTags": [
+        "denso"
+      ],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "The Great Ace Attorney Chronicles: 50 - 60 horas.",
+      "createdAt": "2026-05-31T21:49:59.034Z",
+      "updatedAt": "2026-05-31T21:49:59.034Z"
+    },
+    {
+      "id": "series-the-mandalorian",
+      "title": "The Mandalorian",
+      "type": "series",
+      "status": "wishlist",
+      "genres": [],
+      "tags": [
+        "📺 Series Cortas y Accesibles",
+        "serie",
+        "rapido",
+        "ligero"
+      ],
+      "moodTags": [
+        "rapido",
+        "ligero"
+      ],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "Star Wars, episódica y accesible",
+      "source": "markdown",
+      "rawText": "The Mandalorian (Serie) (Star Wars, episódica y accesible)",
+      "createdAt": "2026-05-31T21:49:59.037Z",
+      "updatedAt": "2026-05-31T21:49:59.037Z"
+    },
+    {
+      "id": "movie-the-matrix",
+      "title": "The Matrix",
+      "type": "movie",
+      "status": "completed",
+      "rating": 7.5,
+      "genres": [],
+      "tags": [
+        "🎬 Ya Visto",
+        "pelicula"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "Película",
+      "source": "markdown",
+      "rawText": "The Matrix (Película) - ⭐ 7.5/10",
+      "createdAt": "2026-05-31T21:49:59.036Z",
+      "updatedAt": "2026-05-31T21:49:59.036Z"
+    },
+    {
+      "id": "book-the-pragmatic-programmer",
+      "title": "The Pragmatic Programmer",
+      "type": "book",
+      "status": "wishlist",
+      "genres": [],
+      "tags": [
+        "📚 Tabla de Libros (Tira 1d20)",
+        "libro"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "The Pragmatic Programmer",
+      "createdAt": "2026-05-31T21:49:59.042Z",
+      "updatedAt": "2026-05-31T21:49:59.042Z"
+    },
+    {
+      "id": "book-the-pragmatic-programmer-andrew-hunt-david-thomas",
+      "title": "The Pragmatic Programmer - Andrew Hunt & David Thomas",
+      "type": "book",
+      "status": "wishlist",
+      "genres": [
+        "tecnico"
+      ],
+      "tags": [
+        "🎮 Técnicos: Para Desarrolladores",
+        "libro",
+        "tecnico"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "The Pragmatic Programmer - Andrew Hunt & David Thomas (Técnico)",
+      "createdAt": "2026-05-31T21:49:59.029Z",
+      "updatedAt": "2026-05-31T21:49:59.029Z"
+    },
+    {
+      "id": "movie-the-prestige",
+      "title": "The Prestige",
+      "type": "movie",
+      "status": "wishlist",
+      "genres": [
+        "thriller"
+      ],
+      "tags": [
+        "🍿 Próximo: Películas Cortas (Fácil de Empezar)",
+        "pelicula",
+        "thriller",
+        "rapido",
+        "ligero",
+        "🎬 Tabla de Ver (Tira 1d20)"
+      ],
+      "moodTags": [
+        "rapido",
+        "ligero"
+      ],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "Película",
+      "source": "markdown",
+      "rawText": "The Prestige (Película) (Thriller sobre magos, giros impredecibles)\nThe Prestige",
+      "importNotes": [
+        "Duplicado fusionado desde Recomendaciones.md"
+      ],
+      "createdAt": "2026-05-31T21:49:59.037Z",
+      "updatedAt": "2026-05-31T21:49:59.048Z"
+    },
+    {
+      "id": "game-the-talos-principle",
+      "title": "The Talos Principle",
+      "type": "game",
+      "status": "wishlist",
+      "durationMinHours": 15,
+      "durationMaxHours": 20,
+      "genres": [],
+      "tags": [
+        "🎯 Experiencias de Duración Media (15-30 horas)",
+        "juego",
+        "🎮 Tabla de Juegos (Tira 1d20)"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "The Talos Principle: 15 - 20 horas.\nThe Talos Principle",
+      "importNotes": [
+        "Duplicado fusionado desde Recomendaciones.md"
+      ],
+      "createdAt": "2026-05-31T21:49:59.033Z",
+      "updatedAt": "2026-05-31T21:49:59.048Z"
+    },
+    {
+      "id": "game-the-witcher-3-wild-hunt",
+      "title": "The Witcher 3: Wild Hunt",
+      "type": "game",
+      "status": "wishlist",
+      "genres": [
+        "rpg"
+      ],
+      "tags": [
+        "🏔️ Épicos: El Reto Grande (50+ horas)",
+        "juego",
+        "rpg",
+        "denso"
+      ],
+      "moodTags": [
+        "denso"
+      ],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "RPG épico, narrativa excepcional",
+      "source": "markdown",
+      "rawText": "The Witcher 3: Wild Hunt: 50 - 100+ horas. (RPG épico, narrativa excepcional)",
+      "createdAt": "2026-05-31T21:49:59.035Z",
+      "updatedAt": "2026-05-31T21:49:59.035Z"
+    },
+    {
+      "id": "game-the-witness",
+      "title": "The Witness",
+      "type": "game",
+      "status": "wishlist",
+      "durationMinHours": 20,
+      "durationMaxHours": 35,
+      "genres": [
+        "puzzles"
+      ],
+      "tags": [
+        "🎯 Experiencias de Duración Media (15-30 horas)",
+        "juego",
+        "puzzles",
+        "🎮 Tabla de Juegos (Tira 1d20)"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "Puzzles de líneas, mundo hermoso",
+      "source": "markdown",
+      "rawText": "The Witness: 20 - 35 horas. (Puzzles de líneas, mundo hermoso)\nThe Witness",
+      "importNotes": [
+        "Duplicado fusionado desde Recomendaciones.md"
+      ],
+      "createdAt": "2026-05-31T21:49:59.033Z",
+      "updatedAt": "2026-05-31T21:49:59.048Z"
+    },
+    {
+      "id": "movie-tondemo-skill-de-isekai-hourou-meshi-2",
+      "title": "Tondemo Skill de Isekai Hourou Meshi 2",
+      "type": "movie",
+      "status": "completed",
+      "rating": 7.8,
+      "genres": [],
+      "tags": [
+        "🎬 Ya Visto",
+        "pelicula"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "Tondemo Skill de Isekai Hourou Meshi 2 - ⭐ 7.8/10",
+      "createdAt": "2026-05-31T21:49:59.036Z",
+      "updatedAt": "2026-05-31T21:49:59.036Z"
+    },
+    {
+      "id": "game-undertale",
+      "title": "Undertale",
+      "type": "game",
+      "status": "wishlist",
+      "durationMinHours": 6,
+      "durationMaxHours": 8,
+      "genres": [
+        "rpg"
+      ],
+      "tags": [
+        "🚀 Próximos: Rápidos y Directos (< 15 horas)",
+        "juego",
+        "rpg",
+        "rapido",
+        "🎮 Tabla de Juegos (Tira 1d20)",
+        "🎰 Tabla Maestra d100 - Todo Mezclado"
+      ],
+      "moodTags": [
+        "rapido"
+      ],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "RPG único, múltiples rutas",
+      "source": "markdown",
+      "rawText": "Undertale: 6 - 8 horas. (RPG único, múltiples rutas)\nUndertale\nUndertale",
+      "importNotes": [
+        "Duplicado fusionado desde Recomendaciones.md"
+      ],
+      "createdAt": "2026-05-31T21:49:59.032Z",
+      "updatedAt": "2026-05-31T21:49:59.048Z"
+    },
+    {
+      "id": "movie-upgrade",
+      "title": "Upgrade",
+      "type": "movie",
+      "status": "wishlist",
+      "genres": [],
+      "tags": [
+        "🍿 Próximo: Películas Cortas (Fácil de Empezar)",
+        "pelicula",
+        "rapido",
+        "ligero",
+        "🎬 Tabla de Ver (Tira 1d20)"
+      ],
+      "moodTags": [
+        "rapido",
+        "ligero"
+      ],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "Película",
+      "source": "markdown",
+      "rawText": "Upgrade (Película)\nUpgrade",
+      "importNotes": [
+        "Duplicado fusionado desde Recomendaciones.md"
+      ],
+      "createdAt": "2026-05-31T21:49:59.036Z",
+      "updatedAt": "2026-05-31T21:49:59.048Z"
+    },
+    {
+      "id": "game-v-rising",
+      "title": "V Rising",
+      "type": "game",
+      "status": "wishlist",
+      "durationMinHours": 47,
+      "durationMaxHours": 65,
+      "genres": [],
+      "tags": [
+        "🌟 Grandes Aventuras (30-50 horas)",
+        "juego"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "V Rising: 47 - 65 horas.",
+      "createdAt": "2026-05-31T21:49:59.034Z",
+      "updatedAt": "2026-05-31T21:49:59.034Z"
+    },
+    {
+      "id": "anime-vinland-saga",
+      "title": "Vinland Saga",
+      "type": "anime",
+      "status": "wishlist",
+      "genres": [],
+      "tags": [
+        "🎭 Anime: Para Maratonear",
+        "anime",
+        "maraton",
+        "🎬 Tabla de Ver (Tira 1d20)",
+        "🎰 Tabla Maestra d100 - Todo Mezclado"
+      ],
+      "moodTags": [
+        "maraton"
+      ],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "Vinland Saga",
+      "importNotes": [
+        "Duplicado fusionado desde Recomendaciones.md"
+      ],
+      "createdAt": "2026-05-31T21:49:59.038Z",
+      "updatedAt": "2026-05-31T21:49:59.049Z"
+    },
+    {
+      "id": "other-vuelve-a-tirar-una-vez-mas",
+      "title": "Vuelve a tirar UNA vez más",
+      "type": "other",
+      "status": "wishlist",
+      "genres": [],
+      "tags": [
+        "🎭 ¿No te convence el resultado? (Tira 1d6)",
+        "otro"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "Vuelve a tirar UNA vez más",
+      "importNotes": [
+        "Tipo inferido como other"
+      ],
+      "createdAt": "2026-05-31T21:49:59.046Z",
+      "updatedAt": "2026-05-31T21:49:59.046Z"
+    },
+    {
+      "id": "series-westworld",
+      "title": "Westworld",
+      "type": "series",
+      "status": "wishlist",
+      "genres": [],
+      "tags": [
+        "📺 Series Cortas y Accesibles",
+        "serie",
+        "rapido",
+        "ligero"
+      ],
+      "moodTags": [
+        "rapido",
+        "ligero"
+      ],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "notes": "Temporada 1",
+      "source": "markdown",
+      "rawText": "Westworld (Temporada 1) (Serie)",
+      "createdAt": "2026-05-31T21:49:59.037Z",
+      "updatedAt": "2026-05-31T21:49:59.037Z"
+    },
+    {
+      "id": "game-yakuza-0",
+      "title": "Yakuza 0",
+      "type": "game",
+      "status": "wishlist",
+      "durationMinHours": 31,
+      "durationMaxHours": 64,
+      "genres": [],
+      "tags": [
+        "🌟 Grandes Aventuras (30-50 horas)",
+        "juego",
+        "🎮 Tabla de Juegos (Tira 1d20)",
+        "🎰 Tabla Maestra d100 - Todo Mezclado"
+      ],
+      "moodTags": [],
+      "weights": {
+        "priority": 1,
+        "surprise": 0.35,
+        "challenge": 0.5
+      },
+      "source": "markdown",
+      "rawText": "Yakuza 0: 31 - 64 horas.\nYakuza 0\nYakuza 0",
+      "importNotes": [
+        "Duplicado fusionado desde Recomendaciones.md"
+      ],
+      "createdAt": "2026-05-31T21:49:59.034Z",
+      "updatedAt": "2026-05-31T21:49:59.049Z"
+    }
+  ]
+}

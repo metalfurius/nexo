@@ -1,0 +1,38 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAuthorized() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/authorizedUsers/$(request.auth.uid));
+    }
+
+    function isAppCollection(collectionName) {
+      return collectionName in [
+        'items',
+        'tags',
+        'recommendationRuns',
+        'externalCandidates',
+        'userSettings'
+      ];
+    }
+
+    match /authorizedUsers/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    match /{collectionName}/{documentId} {
+      allow read, write: if isAuthorized() && isAppCollection(collectionName);
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+
