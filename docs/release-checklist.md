@@ -20,6 +20,7 @@
 - Confirm Firestore rules and indexes are deployed.
 - Bootstrap the first admin manually by setting `users/{uid}.role` to `admin`.
 - Confirm normal sign-in creates `users/{uid}` profiles with `role: "user"`.
+- Run `npm run catalog:normalize` and review `seed/public-catalog.normalized.json`.
 - Seed or curate initial `publicItems` entries before sharing beta access.
 
 Functions are optional for a Blaze-backed provider upgrade. The 1.0 Spark-compatible path should not require Firebase Functions.

@@ -1,0 +1,406 @@
+{
+  "sourceName": "Nexo curated open seed",
+  "license": "Metadata seed curated from public/open references. Keep external provider terms under review before bulk expansion.",
+  "notes": [
+    "Use this file as a reviewed starter catalog, not as an unchecked scrape.",
+    "Run npm run catalog:normalize before writing to Firestore."
+  ],
+  "items": [
+    {
+      "title": "Outer Wilds",
+      "type": "game",
+      "description": "Exploracion espacial de misterio, tiempo y descubrimiento sin spoilers.",
+      "releaseYear": 2019,
+      "genres": ["exploracion", "misterio", "sci-fi"],
+      "tags": ["juego", "indie", "curiosidad"],
+      "moodTags": ["sorpresa", "contemplativo"],
+      "externalRefs": {
+        "sourceUrl": "https://www.wikidata.org/w/index.php?search=Outer+Wilds"
+      }
+    },
+    {
+      "title": "Hades",
+      "type": "game",
+      "description": "Roguelite de accion mitologica con ritmo alto, escritura afilada y progresion elegante.",
+      "releaseYear": 2020,
+      "genres": ["accion", "roguelite", "mitologia"],
+      "tags": ["juego", "indie", "combate"],
+      "moodTags": ["intenso", "fluido"],
+      "externalRefs": {
+        "sourceUrl": "https://www.wikidata.org/w/index.php?search=Hades+video+game"
+      }
+    },
+    {
+      "title": "Hollow Knight",
+      "type": "game",
+      "description": "Metroidvania sombrio de exploracion precisa, combate limpio y mundo melancolico.",
+      "releaseYear": 2017,
+      "genres": ["metroidvania", "accion", "exploracion"],
+      "tags": ["juego", "indie", "dificil"],
+      "moodTags": ["denso", "inmersivo"],
+      "externalRefs": {
+        "sourceUrl": "https://www.wikidata.org/w/index.php?search=Hollow+Knight"
+      }
+    },
+    {
+      "title": "Disco Elysium",
+      "type": "game",
+      "description": "RPG narrativo sobre memoria, politica, identidad y una investigacion muy rota.",
+      "releaseYear": 2019,
+      "genres": ["rpg", "narrativo", "detective"],
+      "tags": ["juego", "texto", "adulto"],
+      "moodTags": ["denso", "extrano"],
+      "externalRefs": {
+        "sourceUrl": "https://www.wikidata.org/w/index.php?search=Disco+Elysium"
+      }
+    },
+    {
+      "title": "Celeste",
+      "type": "game",
+      "description": "Plataformas preciso sobre ansiedad, superacion y una montana que no perdona.",
+      "releaseYear": 2018,
+      "genres": ["plataformas", "indie"],
+      "tags": ["juego", "precision", "corto"],
+      "moodTags": ["intenso", "emocional"],
+      "externalRefs": {
+        "sourceUrl": "https://www.wikidata.org/w/index.php?search=Celeste+video+game"
+      }
+    },
+    {
+      "title": "V Rising",
+      "type": "game",
+      "description": "Supervivencia vampirica con construccion de castillo, accion y progresion online.",
+      "releaseYear": 2024,
+      "genres": ["supervivencia", "accion", "vampiros"],
+      "tags": ["juego", "cooperativo", "base building"],
+      "moodTags": ["intenso", "gotico"],
+      "externalRefs": {
+        "sourceUrl": "https://www.wikidata.org/w/index.php?search=V+Rising"
+      }
+    },
+    {
+      "title": "Slay the Spire",
+      "type": "game",
+      "description": "Construccion de mazos y roguelike tactico con decisiones rapidas y partidas limpias.",
+      "releaseYear": 2019,
+      "genres": ["cartas", "roguelike", "estrategia"],
+      "tags": ["juego", "deckbuilder", "rejugable"],
+      "moodTags": ["tactico", "absorvente"],
+      "externalRefs": {
+        "sourceUrl": "https://www.wikidata.org/w/index.php?search=Slay+the+Spire"
+      }
+    },
+    {
+      "title": "Return of the Obra Dinn",
+      "type": "game",
+      "description": "Investigacion logica en un barco fantasma con estetica monocroma y deduccion pura.",
+      "releaseYear": 2018,
+      "genres": ["puzzle", "detective", "misterio"],
+      "tags": ["juego", "deduccion", "indie"],
+      "moodTags": ["cerebral", "raro"],
+      "externalRefs": {
+        "sourceUrl": "https://www.wikidata.org/w/index.php?search=Return+of+the+Obra+Dinn"
+      }
+    },
+    {
+      "title": "The Odyssey",
+      "type": "book",
+      "description": "Regreso imposible, monstruos, dioses y uno de los viajes fundacionales de la literatura.",
+      "releaseYear": -700,
+      "genres": ["clasico", "aventura", "mitologia"],
+      "tags": ["epico", "grecia", "poesia"],
+      "moodTags": ["clasico", "denso"],
+      "externalRefs": {
+        "sourceUrl": "https://openlibrary.org/search?q=The+Odyssey+Homer"
+      }
+    },
+    {
+      "title": "Dune",
+      "type": "book",
+      "description": "Politica, ecologia, mesianismo y poder en una de las sagas clave de la ciencia ficcion.",
+      "releaseYear": 1965,
+      "genres": ["sci-fi", "politica", "aventura"],
+      "tags": ["novela", "desierto", "saga"],
+      "moodTags": ["denso", "epico"],
+      "externalRefs": {
+        "sourceUrl": "https://openlibrary.org/search?q=Dune+Frank+Herbert"
+      }
+    },
+    {
+      "title": "The Left Hand of Darkness",
+      "type": "book",
+      "description": "Ciencia ficcion antropologica sobre genero, diplomacia y extranjeria.",
+      "releaseYear": 1969,
+      "genres": ["sci-fi", "antropologia", "politica"],
+      "tags": ["novela", "ursula le guin", "clasico moderno"],
+      "moodTags": ["contemplativo", "denso"],
+      "externalRefs": {
+        "sourceUrl": "https://openlibrary.org/search?q=The+Left+Hand+of+Darkness"
+      }
+    },
+    {
+      "title": "Neuromancer",
+      "type": "book",
+      "description": "Cyberpunk fundacional de hackers, megacorporaciones y conciencia digital.",
+      "releaseYear": 1984,
+      "genres": ["cyberpunk", "sci-fi", "noir"],
+      "tags": ["novela", "tecnologia", "clasico"],
+      "moodTags": ["oscuro", "rapido"],
+      "externalRefs": {
+        "sourceUrl": "https://openlibrary.org/search?q=Neuromancer"
+      }
+    },
+    {
+      "title": "House of Leaves",
+      "type": "book",
+      "description": "Novela laberintica, experimental y obsesiva sobre una casa imposible.",
+      "releaseYear": 2000,
+      "genres": ["terror", "experimental", "misterio"],
+      "tags": ["novela", "raro", "meta"],
+      "moodTags": ["inquietante", "denso"],
+      "externalRefs": {
+        "sourceUrl": "https://openlibrary.org/search?q=House+of+Leaves"
+      }
+    },
+    {
+      "title": "Arrival",
+      "type": "movie",
+      "description": "Ciencia ficcion contemplativa sobre lenguaje, duelo y percepcion del tiempo.",
+      "releaseYear": 2016,
+      "genres": ["sci-fi", "drama"],
+      "tags": ["pelicula", "lenguaje", "contacto"],
+      "moodTags": ["contemplativo", "emocional"],
+      "externalRefs": {
+        "sourceUrl": "https://www.wikidata.org/w/index.php?search=Arrival+2016+film"
+      }
+    },
+    {
+      "title": "Parasite",
+      "type": "movie",
+      "description": "Thriller social de clases, espacios y tensiones que cambian de forma sin pedir permiso.",
+      "releaseYear": 2019,
+      "genres": ["thriller", "drama", "satira"],
+      "tags": ["pelicula", "corea", "clase social"],
+      "moodTags": ["tenso", "afilado"],
+      "externalRefs": {
+        "sourceUrl": "https://www.wikidata.org/w/index.php?search=Parasite+2019+film"
+      }
+    },
+    {
+      "title": "Blade Runner 2049",
+      "type": "movie",
+      "description": "Neo-noir contemplativo de identidad, memoria y ruinas luminosas.",
+      "releaseYear": 2017,
+      "genres": ["sci-fi", "neo-noir", "drama"],
+      "tags": ["pelicula", "androides", "visual"],
+      "moodTags": ["lento", "hipnotico"],
+      "externalRefs": {
+        "sourceUrl": "https://www.wikidata.org/w/index.php?search=Blade+Runner+2049"
+      }
+    },
+    {
+      "title": "The Matrix",
+      "type": "movie",
+      "description": "Accion cyberpunk, simulacion y filosofia pop con iconografia total.",
+      "releaseYear": 1999,
+      "genres": ["sci-fi", "accion", "cyberpunk"],
+      "tags": ["pelicula", "simulacion", "clasico"],
+      "moodTags": ["intenso", "estilizado"],
+      "externalRefs": {
+        "sourceUrl": "https://www.wikidata.org/w/index.php?search=The+Matrix"
+      }
+    },
+    {
+      "title": "Spirited Away",
+      "type": "movie",
+      "description": "Fantasia animada sobre perdida, trabajo, identidad y un mundo espiritual desbordante.",
+      "releaseYear": 2001,
+      "genres": ["fantasia", "animacion", "aventura"],
+      "tags": ["pelicula", "ghibli", "anime"],
+      "moodTags": ["magico", "emocional"],
+      "externalRefs": {
+        "sourceUrl": "https://www.wikidata.org/w/index.php?search=Spirited+Away"
+      }
+    },
+    {
+      "title": "Severance",
+      "type": "series",
+      "description": "Distopia laboral de identidad partida, oficinas limpias y paranoia creciente.",
+      "releaseYear": 2022,
+      "genres": ["sci-fi", "thriller", "drama"],
+      "tags": ["serie", "trabajo", "misterio"],
+      "moodTags": ["inquietante", "lento"],
+      "externalRefs": {
+        "sourceUrl": "https://www.wikidata.org/w/index.php?search=Severance+TV+series"
+      }
+    },
+    {
+      "title": "Dark",
+      "type": "series",
+      "description": "Puzzle temporal familiar, tragico y circular con estructura muy cerrada.",
+      "releaseYear": 2017,
+      "genres": ["sci-fi", "misterio", "drama"],
+      "tags": ["serie", "tiempo", "alemania"],
+      "moodTags": ["denso", "oscuro"],
+      "externalRefs": {
+        "sourceUrl": "https://www.wikidata.org/w/index.php?search=Dark+TV+series"
+      }
+    },
+    {
+      "title": "The Expanse",
+      "type": "series",
+      "description": "Space opera politica con facciones, fisica dura y conflicto interplanetario.",
+      "releaseYear": 2015,
+      "genres": ["sci-fi", "politica", "aventura"],
+      "tags": ["serie", "space opera", "adaptacion"],
+      "moodTags": ["epico", "tactico"],
+      "externalRefs": {
+        "sourceUrl": "https://www.wikidata.org/w/index.php?search=The+Expanse+TV+series"
+      }
+    },
+    {
+      "title": "Arcane",
+      "type": "series",
+      "description": "Animacion de fantasia industrial sobre hermanas, poder y ciudades fracturadas.",
+      "releaseYear": 2021,
+      "genres": ["animacion", "fantasia", "drama"],
+      "tags": ["serie", "videojuegos", "visual"],
+      "moodTags": ["intenso", "emocional"],
+      "externalRefs": {
+        "sourceUrl": "https://www.wikidata.org/w/index.php?search=Arcane+TV+series"
+      }
+    },
+    {
+      "title": "Cowboy Bebop",
+      "type": "anime",
+      "description": "Space western melancolico de cazadores de recompensas, jazz y pasado pendiente.",
+      "releaseYear": 1998,
+      "genres": ["sci-fi", "noir", "accion"],
+      "tags": ["anime", "clasico", "episodico"],
+      "moodTags": ["melancolico", "estilizado"],
+      "externalRefs": {
+        "sourceUrl": "https://anilist.co/search/anime?search=Cowboy%20Bebop"
+      }
+    },
+    {
+      "title": "Frieren: Beyond Journey's End",
+      "type": "anime",
+      "description": "Fantasia contemplativa sobre memoria, duelo y el tiempo despues de la aventura.",
+      "releaseYear": 2023,
+      "genres": ["fantasia", "aventura", "drama"],
+      "tags": ["anime", "viaje", "magia"],
+      "moodTags": ["contemplativo", "calido"],
+      "externalRefs": {
+        "sourceUrl": "https://anilist.co/search/anime?search=Frieren"
+      }
+    },
+    {
+      "title": "Neon Genesis Evangelion",
+      "type": "anime",
+      "description": "Mechas, trauma adolescente, simbolismo religioso y crisis psicologica.",
+      "releaseYear": 1995,
+      "genres": ["mecha", "drama", "sci-fi"],
+      "tags": ["anime", "clasico", "psicologico"],
+      "moodTags": ["denso", "inquietante"],
+      "externalRefs": {
+        "sourceUrl": "https://anilist.co/search/anime?search=Neon%20Genesis%20Evangelion"
+      }
+    },
+    {
+      "title": "Fullmetal Alchemist: Brotherhood",
+      "type": "anime",
+      "description": "Aventura de alquimia, guerra, culpa y hermandad con estructura muy redonda.",
+      "releaseYear": 2009,
+      "genres": ["fantasia", "aventura", "accion"],
+      "tags": ["anime", "shonen", "alquimia"],
+      "moodTags": ["epico", "emocional"],
+      "externalRefs": {
+        "sourceUrl": "https://anilist.co/search/anime?search=Fullmetal%20Alchemist%20Brotherhood"
+      }
+    },
+    {
+      "title": "Berserk",
+      "type": "manga",
+      "description": "Fantasia oscura de violencia, trauma, ambicion y voluntad extrema.",
+      "releaseYear": 1989,
+      "genres": ["fantasia oscura", "accion", "drama"],
+      "tags": ["manga", "seinen", "clasico"],
+      "moodTags": ["oscuro", "intenso"],
+      "externalRefs": {
+        "sourceUrl": "https://anilist.co/search/manga?search=Berserk"
+      }
+    },
+    {
+      "title": "Monster",
+      "type": "manga",
+      "description": "Thriller psicologico de identidad, culpa y persecucion moral.",
+      "releaseYear": 1994,
+      "genres": ["thriller", "psicologico", "misterio"],
+      "tags": ["manga", "seinen", "crimen"],
+      "moodTags": ["tenso", "denso"],
+      "externalRefs": {
+        "sourceUrl": "https://anilist.co/search/manga?search=Monster"
+      }
+    },
+    {
+      "title": "Chainsaw Man",
+      "type": "manga",
+      "description": "Accion brutal, humor absurdo y deseo humano bajo una superficie caotica.",
+      "releaseYear": 2018,
+      "genres": ["accion", "terror", "sobrenatural"],
+      "tags": ["manga", "shonen", "demonios"],
+      "moodTags": ["salvaje", "rapido"],
+      "externalRefs": {
+        "sourceUrl": "https://anilist.co/search/manga?search=Chainsaw%20Man"
+      }
+    },
+    {
+      "title": "Saga",
+      "type": "comic",
+      "description": "Space opera familiar, romantica y violenta con imaginacion desbordada.",
+      "releaseYear": 2012,
+      "genres": ["sci-fi", "fantasia", "aventura"],
+      "tags": ["comic", "space opera", "familia"],
+      "moodTags": ["epico", "emocional"],
+      "externalRefs": {
+        "sourceUrl": "https://www.wikidata.org/w/index.php?search=Saga+comic"
+      }
+    },
+    {
+      "title": "Watchmen",
+      "type": "comic",
+      "description": "Deconstruccion superheroica de paranoia, poder, moralidad y guerra fria.",
+      "releaseYear": 1986,
+      "genres": ["superheroes", "drama", "politica"],
+      "tags": ["comic", "clasico", "deconstruccion"],
+      "moodTags": ["denso", "oscuro"],
+      "externalRefs": {
+        "sourceUrl": "https://www.wikidata.org/w/index.php?search=Watchmen"
+      }
+    },
+    {
+      "title": "Solo Leveling",
+      "type": "manhwa",
+      "description": "Fantasia de progresion, mazmorras y ascenso de poder muy directo.",
+      "releaseYear": 2018,
+      "genres": ["fantasia", "accion", "progresion"],
+      "tags": ["manhwa", "mazmorras", "power fantasy"],
+      "moodTags": ["rapido", "intenso"],
+      "externalRefs": {
+        "sourceUrl": "https://anilist.co/search/manga?search=Solo%20Leveling"
+      }
+    },
+    {
+      "title": "Omniscient Reader's Viewpoint",
+      "type": "manhwa",
+      "description": "Apocalipsis literario, meta-narrativa y supervivencia a traves de una historia conocida.",
+      "releaseYear": 2020,
+      "genres": ["fantasia", "accion", "meta"],
+      "tags": ["manhwa", "webtoon", "apocalipsis"],
+      "moodTags": ["tactico", "rapido"],
+      "externalRefs": {
+        "sourceUrl": "https://anilist.co/search/manga?search=Omniscient%20Reader"
+      }
+    }
+  ]
+}

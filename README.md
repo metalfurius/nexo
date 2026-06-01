@@ -11,6 +11,7 @@ Version 1.0 is a soft beta behind Google login. Every signed-in user gets a priv
 - `Explorador`: searches the curated Nexo catalog and external providers, then queues candidates to save or dismiss.
 - `Ajustes`: private taste signals, default explorer type and theme.
 - `Curacion`: moderator-only public catalog editing.
+- `Catalog seed`: admin-side import of reviewed public catalog entries from `seed/public-catalog.seed.json`.
 
 ## Local Development
 
@@ -35,7 +36,16 @@ Nexo's default production path is Spark-compatible: Auth, Firestore and GitHub P
 
 Bootstrap the first admin manually from Firebase Console or Admin SDK by setting `users/{uid}.role` to `admin`. After that, admins can manage roles by editing user profile documents, while `admin` and `moderator` users can curate `publicItems`.
 
-Firebase Functions are optional for a future Blaze-backed upgrade if server-side API keys are needed for providers like TMDB or RAWG. The Spark-compatible explorer uses the public Nexo catalog plus browser-callable providers such as Open Library and AniList.
+Firebase Functions are optional for a future Blaze-backed upgrade if server-side API keys are needed for providers like TMDB or RAWG. The Spark-compatible explorer uses the public Nexo catalog plus browser-callable providers such as Open Library, AniList and Wikidata.
+
+## Public Catalog Seed
+
+```sh
+npm run catalog:normalize
+npm run catalog:write -- --project recomendaciones-78eb7 --actor <admin-uid>
+```
+
+The seed workflow validates and normalizes reviewed entries before writing to `publicItems` with Firebase Admin SDK credentials. See `docs/public-catalog-import.md`.
 
 ## Verification
 
