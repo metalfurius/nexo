@@ -33,11 +33,15 @@ import {
   ITEM_TYPES,
   type DiscoveryCandidate,
   type DiscoveryStatus,
+  type EnergyLevel,
+  type IntensityLevel,
   type ItemStatus,
   type ItemType,
   type ListItem,
+  type NoveltyLevel,
   type PublicCatalogItem,
   type RecommendationPreferences,
+  type RecommendationResult,
   type ThemeMode,
   type UserRole,
   type UserSettings,
@@ -46,7 +50,7 @@ import {
 import { useAuth } from './hooks/useAuth'
 import { useLibrary } from './hooks/useLibrary'
 import { buildPublicCatalogItem, promptToDiscovery } from './lib/catalog'
-import { recommendItem } from './lib/recommendations'
+import { recommendItem, scoreCandidates } from './lib/recommendations'
 import { slugify, uniqueValues } from './lib/strings'
 import { initializeAnalytics } from './services/firebase'
 
@@ -71,6 +75,24 @@ const statusLabels: Record<ItemStatus | 'all', string> = {
   paused: 'Pausado',
   completed: 'Completado',
   dropped: 'Droppeado',
+}
+
+const energyLabels: Record<EnergyLevel, string> = {
+  low: 'Baja',
+  medium: 'Media',
+  high: 'Alta',
+}
+
+const intensityLabels: Record<IntensityLevel, string> = {
+  soft: 'Suave',
+  balanced: 'Equilibrada',
+  intense: 'Intensa',
+}
+
+const noveltyLabels: Record<NoveltyLevel, string> = {
+  comfort: 'Confort',
+  balanced: 'Balance',
+  surprise: 'Sorpresa',
 }
 
 const sourceLabels: Record<DiscoveryCandidate['source'], string> = {
@@ -542,10 +564,17 @@ function LibraryTab({ library }: { library: LibrarySurface }) {
 
 function DiceTab({ library }: { library: LibrarySurface }) {
   const [draftPreferences, setDraftPreferences] = useState<RecommendationPreferences | undefined>()
-  const [recommendation, setRecommendation] = useState<ReturnType<typeof recommendItem>>()
+  const [recommendation, setRecommendation] = useState<RecommendationResult | undefined>()
   const [isRolling, setIsRolling] = useState(false)
   const [status, setStatus] = useState<string | undefined>()
   const preferences = draftPreferences ?? library.settings.recommendationPreferences ?? DEFAULT_RECOMMENDATION_PREFERENCES
+  const scoredCandidates = useMemo(
+    () => scoreCandidates(library.items, preferences, library.settings),
+    [library.items, library.settings, preferences],
+  )
+  const candidatePreview = scoredCandidates.slice(0, 4)
+  const unavailableCount = Math.max(0, library.items.length - scoredCandidates.length)
+  const hasCandidates = scoredCandidates.length > 0
   const setPreferences = (
     update: RecommendationPreferences | ((current: RecommendationPreferences) => RecommendationPreferences),
   ) => {
@@ -553,8 +582,15 @@ function DiceTab({ library }: { library: LibrarySurface }) {
   }
 
   async function rollRecommendation() {
+    if (!hasCandidates) {
+      setRecommendation(undefined)
+      setStatus('No hay candidatas disponibles con estos filtros.')
+      return
+    }
+
     setIsRolling(true)
     setStatus(undefined)
+    setRecommendation(undefined)
     const next = recommendItem(
       library.items,
       {
@@ -563,8 +599,10 @@ function DiceTab({ library }: { library: LibrarySurface }) {
       },
       library.settings,
     )
-    window.setTimeout(() => setIsRolling(false), 420)
-    setRecommendation(next)
+    window.setTimeout(() => {
+      setIsRolling(false)
+      setRecommendation(next)
+    }, 420)
     if (next) await library.recordRecommendation(next.item.id, next.reasons)
   }
 
@@ -578,6 +616,27 @@ function DiceTab({ library }: { library: LibrarySurface }) {
     setStatus('Ajustes del dado guardados')
   }
 
+  async function startRecommendation() {
+    if (!recommendation) return
+    try {
+      await library.setStatus(recommendation.item.id, 'in_progress')
+      setStatus(`${recommendation.item.title} marcado como en progreso.`)
+    } catch (reason) {
+      setStatus(reason instanceof Error ? reason.message : 'No se pudo actualizar el estado.')
+    }
+  }
+
+  async function skipRecommendation() {
+    if (!recommendation) return
+    try {
+      await library.snoozeRecommendation(recommendation.item.id)
+      setStatus(`${recommendation.item.title} queda fuera hasta manana.`)
+      setRecommendation(undefined)
+    } catch (reason) {
+      setStatus(reason instanceof Error ? reason.message : 'No se pudo apartar la recomendacion.')
+    }
+  }
+
   return (
     <section className="dice-layout">
       <section className="workspace-panel dice-hero" aria-label="Dado ponderado">
@@ -585,9 +644,16 @@ function DiceTab({ library }: { library: LibrarySurface }) {
           <span className="eyebrow">Dado ponderado</span>
           <h2>Elige el siguiente hilo</h2>
           <p className="hero-copy">Una tirada con memoria: filtra por tiempo, energia y novedad sin perder sorpresa.</p>
+          <div className="dice-context">
+            <span>{typeLabels[preferences.medium]}</span>
+            <span>{preferences.timeBudgetHours ? `${preferences.timeBudgetHours}h` : 'Sin limite'}</span>
+            <span>Energia {energyLabels[preferences.energy]}</span>
+            <span>{noveltyLabels[preferences.novelty]}</span>
+          </div>
         </div>
         <button
           className={isRolling ? 'dice-orb rolling' : 'dice-orb'}
+          disabled={isRolling || !hasCandidates}
           type="button"
           onClick={rollRecommendation}
           data-testid="roll-button"
@@ -597,11 +663,40 @@ function DiceTab({ library }: { library: LibrarySurface }) {
         </button>
       </section>
 
-      <section className="workspace-panel">
+      <section className="workspace-panel dice-queue">
+        <div className="panel-heading compact">
+          <div>
+            <h2>En la mesa</h2>
+            <p>{scoredCandidates.length ? `${scoredCandidates.length} opciones pueden salir` : 'Sin candidatas con estos filtros'}</p>
+          </div>
+        </div>
+        {candidatePreview.length ? (
+          <ol className="dice-candidate-list">
+            {candidatePreview.map((candidate) => (
+              <li key={candidate.item.id}>
+                <span>{candidate.item.title}</span>
+                <strong>{candidate.score}</strong>
+                <small>{candidate.reasons[0]}</small>
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <EmptyState
+            title="Sin candidatas"
+            detail="Afloja filtros, incluye pausados o anade pendientes desde Biblioteca y Explorador."
+          />
+        )}
+        <div className="dice-footnotes">
+          <span>{unavailableCount} fuera por estado, cooldown o filtros</span>
+          <span>Pool maximo {Math.min(scoredCandidates.length, Math.max(3, Math.ceil(3 + preferences.surprisePercent / 8)))}</span>
+        </div>
+      </section>
+
+      <section className="workspace-panel dice-settings">
         <div className="panel-heading">
           <div>
             <h2>Preferencias</h2>
-            <p>{preferences.surprisePercent}% sorpresa</p>
+            <p>{preferences.surprisePercent}% sorpresa / {intensityLabels[preferences.intensity]}</p>
           </div>
           <button className="secondary-button" type="button" onClick={savePreferences}>
             <Save size={17} />
@@ -616,17 +711,28 @@ function DiceTab({ library }: { library: LibrarySurface }) {
         <div className="panel-heading compact">
           <div>
             <h2>Resultado</h2>
-            <p>{recommendation ? `Score ${recommendation.score}` : 'Sin tirada todavia'}</p>
+            <p>{recommendation ? `Score ${recommendation.score}` : isRolling ? 'Tirada en curso' : 'Sin tirada todavia'}</p>
           </div>
         </div>
 
-        {recommendation ? (
+        {isRolling ? (
+          <div className="recommendation-result rolling-result" data-testid="recommendation-result">
+            <Dice5 size={30} />
+            <strong>El dado esta eligiendo...</strong>
+            <p className="muted-line">Barajando {scoredCandidates.length} opciones disponibles.</p>
+          </div>
+        ) : recommendation ? (
           <div className="recommendation-result" data-testid="recommendation-result">
-            <ItemIdentity item={recommendation.item} />
-            <div className="score-line">
-              <span>Score {recommendation.score}</span>
-              <span>Pool {recommendation.poolSize}</span>
-              <span>Roll {Math.round(recommendation.roll * 100)}%</span>
+            <div className="recommendation-head">
+              <CoverArt title={recommendation.item.title} type={recommendation.item.type} posterUrl={recommendation.item.posterUrl} />
+              <div>
+                <ItemIdentity item={recommendation.item} />
+                <div className="score-line">
+                  <span>Score {recommendation.score}</span>
+                  <span>Pool {recommendation.poolSize}</span>
+                  <span>Roll {Math.round(recommendation.roll * 100)}%</span>
+                </div>
+              </div>
             </div>
             <ul>
               {recommendation.reasons.map((reason) => (
@@ -637,7 +743,7 @@ function DiceTab({ library }: { library: LibrarySurface }) {
               <button
                 className="small-button"
                 type="button"
-                onClick={() => library.setStatus(recommendation.item.id, 'in_progress')}
+                onClick={startRecommendation}
               >
                 <Play size={16} />
                 Empezar
@@ -645,13 +751,15 @@ function DiceTab({ library }: { library: LibrarySurface }) {
               <button
                 className="small-button"
                 type="button"
-                onClick={() => library.snoozeRecommendation(recommendation.item.id)}
+                onClick={skipRecommendation}
               >
                 <X size={16} />
                 No hoy
               </button>
             </div>
           </div>
+        ) : !hasCandidates ? (
+          <EmptyState title="No hay tirada posible" detail="Cambia medio, tiempo, tags bloqueados o incluye pausados para abrir el abanico." />
         ) : (
           <EmptyState title="El dado espera" detail="Ajusta el clima de la sesion y tira cuando quieras una recomendacion." />
         )}

@@ -8,8 +8,10 @@ test('library and weighted dice work in demo mode', async ({ page }) => {
 
   await page.getByRole('button', { name: 'Dado' }).click()
   await expect(page.getByRole('heading', { name: 'Elige el siguiente hilo' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'En la mesa' })).toBeVisible()
   await page.getByTestId('roll-button').click()
   await expect(page.getByTestId('recommendation-result')).toBeVisible()
+  await expect(page.getByTestId('recommendation-result')).toContainText('Score')
 })
 
 test('mobile layout keeps the core controls reachable', async ({ page }) => {

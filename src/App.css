@@ -190,12 +190,28 @@
   grid-template-columns: minmax(320px, 0.9fr) minmax(340px, 1.1fr);
 }
 
-.dice-layout .result-panel {
-  grid-column: 1 / -1;
-}
-
 .settings-grid {
   grid-template-columns: minmax(0, 1fr) minmax(300px, 420px);
+}
+
+.dice-hero {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.dice-layout .result-panel {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.dice-settings {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.dice-queue {
+  grid-column: 2;
+  grid-row: 2;
 }
 
 .workspace-panel,
@@ -719,6 +735,25 @@ button:hover:not(:disabled),
   max-width: 440px;
 }
 
+.dice-context,
+.dice-footnotes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 14px;
+}
+
+.dice-context span,
+.dice-footnotes span {
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1;
+  padding: 7px 9px;
+}
+
 .dice-orb {
   align-items: center;
   aspect-ratio: 1;
@@ -743,10 +778,75 @@ button:hover:not(:disabled),
   animation: dice-roll 420ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
+.dice-queue {
+  align-content: start;
+}
+
+.dice-candidate-list {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.dice-candidate-list li {
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: grid;
+  gap: 4px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 11px;
+}
+
+.dice-candidate-list span {
+  color: var(--text-strong);
+  font-weight: 800;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dice-candidate-list strong {
+  color: var(--accent-dark);
+}
+
+.dice-candidate-list small {
+  color: var(--muted);
+  grid-column: 1 / -1;
+  line-height: 1.3;
+}
+
 .recommendation-result {
   background: var(--surface-muted);
   margin-top: 12px;
   padding: 16px;
+}
+
+.recommendation-head {
+  align-items: stretch;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(160px, 260px) minmax(0, 1fr);
+}
+
+.recommendation-head .cover-art {
+  border-radius: 8px;
+}
+
+.rolling-result {
+  align-items: center;
+  display: grid;
+  justify-items: center;
+  min-height: 170px;
+  text-align: center;
+}
+
+.rolling-result svg {
+  animation: dice-roll 420ms cubic-bezier(0.2, 0.8, 0.2, 1) infinite;
+  color: var(--accent-dark);
 }
 
 .score-line {
@@ -1009,6 +1109,30 @@ textarea:focus-visible {
     grid-template-columns: 1fr;
   }
 
+  .dice-hero,
+  .dice-layout .result-panel,
+  .dice-settings,
+  .dice-queue {
+    grid-column: auto;
+    grid-row: auto;
+  }
+
+  .dice-hero {
+    order: 1;
+  }
+
+  .dice-layout .result-panel {
+    order: 2;
+  }
+
+  .dice-queue {
+    order: 3;
+  }
+
+  .dice-settings {
+    order: 4;
+  }
+
   .insight-rail {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -1058,7 +1182,8 @@ textarea:focus-visible {
   .explorer-search.two,
   .controls-grid,
   .form-grid,
-  .detail-dialog {
+  .detail-dialog,
+  .recommendation-head {
     grid-template-columns: 1fr;
   }
 
