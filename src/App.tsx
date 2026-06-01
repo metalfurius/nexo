@@ -3,6 +3,7 @@ import {
   Archive,
   BookOpen,
   Check,
+  Copy,
   Dice5,
   Film,
   Gamepad2,
@@ -93,6 +94,12 @@ const typeIcons: Record<ItemType, typeof Film> = {
 }
 
 type AppTab = 'library' | 'dice' | 'explorer' | 'settings' | 'curation'
+
+interface AuthUserSummary {
+  uid: string
+  email: string | null
+  displayName: string | null
+}
 
 const themeStorageKey = 'nexo-theme'
 const promptDeck = [
@@ -216,7 +223,9 @@ function App() {
         {activeTab === 'library' && <LibraryTab library={library} />}
         {activeTab === 'dice' && <DiceTab library={library} />}
         {activeTab === 'explorer' && <ExplorerTab library={library} />}
-        {activeTab === 'settings' && <SettingsTab library={library} setTheme={setTheme} theme={theme} />}
+        {activeTab === 'settings' && (
+          <SettingsTab library={library} setTheme={setTheme} theme={theme} user={auth.user} />
+        )}
         {activeTab === 'curation' && library.isModerator && <CurationTab library={library} />}
       </section>
     </main>
@@ -727,10 +736,12 @@ function SettingsTab({
   library,
   setTheme,
   theme,
+  user,
 }: {
   library: LibrarySurface
   setTheme: (theme: ThemeMode) => void
   theme: ThemeMode
+  user: AuthUserSummary | null
 }) {
   const [draft, setDraft] = useState({
     theme,
@@ -752,6 +763,12 @@ function SettingsTab({
     setTheme(draft.theme)
     await library.saveSettings(nextSettings)
     setStatus('Ajustes guardados')
+  }
+
+  async function copyUserId() {
+    if (!user) return
+    await navigator.clipboard?.writeText(user.uid)
+    setStatus('UID copiado')
   }
 
   return (
@@ -809,6 +826,33 @@ function SettingsTab({
           <input value={draft.blockedTags} onChange={(event) => setDraft((current) => ({ ...current, blockedTags: event.target.value }))} />
         </label>
         {status && <p className="muted-line">{status}</p>}
+      </section>
+
+      <section className="workspace-panel">
+        <div className="panel-heading compact">
+          <div>
+            <h2>Cuenta</h2>
+            <p className="muted-line">{user?.displayName ?? user?.email ?? 'Sesion activa'}</p>
+          </div>
+          <span className={library.isModerator ? 'mode-pill moderator' : 'mode-pill'}>
+            {library.isModerator ? 'Moderador' : 'Usuario'}
+          </span>
+        </div>
+        <div className="account-panel">
+          <label>
+            Email
+            <input readOnly value={user?.email ?? 'Sin email'} />
+          </label>
+          <label>
+            UID
+            <div className="inline-control">
+              <input readOnly value={user?.uid ?? 'Demo local'} />
+              <button className="icon-button" disabled={!user} type="button" onClick={copyUserId} title="Copiar UID">
+                <Copy size={17} />
+              </button>
+            </div>
+          </label>
+        </div>
       </section>
 
       <section className="workspace-panel">
