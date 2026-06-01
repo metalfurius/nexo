@@ -25,7 +25,7 @@ import {
 } from '../domain/types'
 import { buildPublicCatalogItem } from '../lib/catalog'
 import { normalizeKey } from '../lib/strings'
-import { getFirebaseServices } from './firebase'
+import { getFirebaseServices } from './firebaseDb'
 
 export interface LibraryRepository {
   subscribeItems: (onItems: (items: ListItem[]) => void, onError: (error: Error) => void) => () => void

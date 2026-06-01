@@ -52,7 +52,6 @@ import { useLibrary } from './hooks/useLibrary'
 import { buildPublicCatalogItem, promptToDiscovery } from './lib/catalog'
 import { recommendItem, scoreCandidates } from './lib/recommendations'
 import { slugify, uniqueValues } from './lib/strings'
-import { initializeAnalytics } from './services/firebase'
 
 const typeLabels: Record<ItemType | 'any' | 'watch', string> = {
   any: 'Todo',
@@ -185,8 +184,11 @@ function App() {
   })
 
   useEffect(() => {
-    void initializeAnalytics().catch(() => undefined)
-  }, [])
+    if (!auth.isFirebaseConfigured) return
+    void import('./services/firebaseAnalytics')
+      .then(({ initializeAnalytics }) => initializeAnalytics())
+      .catch(() => undefined)
+  }, [auth.isFirebaseConfigured])
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme

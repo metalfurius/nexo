@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   DEFAULT_RECOMMENDATION_PREFERENCES,
   DEFAULT_SETTINGS,
@@ -22,7 +22,8 @@ import {
   publicItemToDiscovery,
 } from '../lib/catalog'
 import { slugify, uniqueValues } from '../lib/strings'
-import { createFirestoreRepository } from '../services/libraryRepository'
+import { isFirebaseConfigured } from '../services/firebaseConfig'
+import type { LibraryRepository } from '../services/libraryRepository'
 
 interface SignedInUserProfile {
   uid: string
@@ -33,7 +34,8 @@ interface SignedInUserProfile {
 
 export function useLibrary(user?: SignedInUserProfile | null) {
   const userId = user?.uid
-  const repository = useMemo(() => (userId ? createFirestoreRepository(userId) : undefined), [userId])
+  const [repositoryState, setRepositoryState] = useState<{ repository?: LibraryRepository; userId?: string }>({})
+  const repository = repositoryState.userId === userId ? repositoryState.repository : undefined
   const [remoteItems, setRemoteItems] = useState<ListItem[]>([])
   const [remoteUserId, setRemoteUserId] = useState<string | undefined>()
   const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS)
@@ -42,12 +44,41 @@ export function useLibrary(user?: SignedInUserProfile | null) {
   const [profileRole, setProfileRole] = useState<{ role: UserRole; userId?: string }>({ role: 'user' })
   const [demoLibrary, setDemoLibrary] = useState<ListItem[]>(demoItems)
   const [error, setError] = useState<string | undefined>()
+  const expectsRemote = Boolean(isFirebaseConfigured && userId)
+  const repositoryLoading = Boolean(expectsRemote && repositoryState.userId !== userId)
   const remoteReady = Boolean(repository && userId && remoteUserId === userId)
-  const loading = Boolean(repository && !remoteReady)
-  const items = repository ? (remoteReady ? remoteItems : []) : demoLibrary
-  const activeError = remoteReady ? error : undefined
-  const userRole = repository ? (profileRole.userId === userId ? profileRole.role : 'user') : 'admin'
+  const loading = Boolean(repositoryLoading || (repository && !remoteReady))
+  const items = expectsRemote ? (remoteReady ? remoteItems : []) : demoLibrary
+  const activeError = expectsRemote ? error : undefined
+  const userRole = expectsRemote ? (profileRole.userId === userId ? profileRole.role : 'user') : 'admin'
   const isModerator = userRole === 'admin' || userRole === 'moderator'
+
+  useEffect(() => {
+    if (!userId || !isFirebaseConfigured) {
+      return undefined
+    }
+
+    let disposed = false
+
+    void import('../services/libraryRepository')
+      .then(({ createFirestoreRepository }) => {
+        if (disposed) return
+        setRemoteItems([])
+        setRemoteUserId(undefined)
+        setDiscoveryCandidates([])
+        setProfileRole({ role: 'user', userId })
+        setRepositoryState({ repository: createFirestoreRepository(userId), userId })
+      })
+      .catch((reason) => {
+        if (disposed) return
+        setError(reason instanceof Error ? reason.message : 'No se pudo cargar Firestore.')
+        setRepositoryState({ userId })
+      })
+
+    return () => {
+      disposed = true
+    }
+  }, [userId])
 
   useEffect(() => {
     if (!repository || !userId) return undefined

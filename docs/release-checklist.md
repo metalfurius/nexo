@@ -37,5 +37,5 @@ Functions are optional for a Blaze-backed provider upgrade. The 1.0 Spark-compat
 
 ## Known Launch Notes
 
-- The production bundle currently crosses Vite's 500 kB warning because Firebase, React and the single-screen app shell are bundled together. This is accepted for 1.0 beta, but the next performance task should split Firebase/auth and moderator curation code behind lazy imports.
+- Firebase Auth, Firestore and Analytics are split behind lazy imports. `npm run build` should not emit Vite's 500 kB chunk warning; if it returns, inspect the initial `index-*.js` chunk before tagging.
 - `npm audit --audit-level=moderate` reports transitive `uuid` advisories through Firebase Admin/Tools dependency chains. High severity audit is clean-gated for 1.0; revisit after Firebase packages publish non-breaking patched dependency trees.

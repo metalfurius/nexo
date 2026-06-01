@@ -1,4 +1,4 @@
-import { act, renderHook } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DiscoveryCandidate } from '../domain/types'
 import { useLibrary } from './useLibrary'
@@ -27,6 +27,10 @@ const repositoryMock = vi.hoisted(() => ({
 
 vi.mock('../services/libraryRepository', () => ({
   createFirestoreRepository: vi.fn(() => repositoryMock),
+}))
+
+vi.mock('../services/firebaseConfig', () => ({
+  isFirebaseConfigured: true,
 }))
 
 const candidate: DiscoveryCandidate = {
@@ -75,6 +79,8 @@ describe('useLibrary', () => {
       displayName: null,
     }
     const { result } = renderHook(() => useLibrary(user))
+
+    await waitFor(() => expect(repositoryMock.subscribeItems).toHaveBeenCalled())
 
     await act(async () => {
       await result.current.queueDiscoveryCandidates([candidate])

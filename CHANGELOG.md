@@ -8,5 +8,6 @@
 - Added discovery candidates under each user with queued, saved and dismissed states.
 - Added persisted user settings for theme, taste signals, explorer defaults and dice preferences.
 - Added a polished responsive UI with cover-forward cards, dice animation and reduced-motion support.
+- Split Firebase Auth, Firestore and Analytics into lazy chunks so the initial app bundle stays below Vite's 500 kB warning threshold.
 - Added JSON export with `schemaVersion: 1`.
 - Added release scripts, CI verification, README and release checklist.

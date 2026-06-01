@@ -19,7 +19,7 @@ const firebaseServices = vi.hoisted(() => ({
 
 const sdkPath = vi.hoisted(() => (args: unknown[]) => args.slice(1).map(String).join('/'))
 
-vi.mock('./firebase', () => ({
+vi.mock('./firebaseDb', () => ({
   getFirebaseServices: vi.fn(() => firebaseServices),
 }))
 

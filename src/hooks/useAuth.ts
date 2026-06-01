@@ -1,22 +1,38 @@
 import { useEffect, useState } from 'react'
-import type { User } from 'firebase/auth'
-import {
-  isFirebaseConfigured,
-  signInWithGoogle,
-  signOutCurrentUser,
-  watchAuth,
-} from '../services/firebase'
+import type { FirebaseUser } from '../services/firebaseAuth'
+import { isFirebaseConfigured } from '../services/firebaseConfig'
 
 export function useAuth() {
-  const [user, setUser] = useState<User | null>(null)
+  const [user, setUser] = useState<FirebaseUser | null>(null)
   const [loading, setLoading] = useState(isFirebaseConfigured)
   const [error, setError] = useState<string | undefined>()
 
   useEffect(() => {
-    return watchAuth((nextUser) => {
-      setUser(nextUser)
-      setLoading(false)
-    })
+    if (!isFirebaseConfigured) {
+      return undefined
+    }
+
+    let disposed = false
+    let unsubscribe: (() => void) | undefined
+
+    void import('../services/firebaseAuth')
+      .then(({ watchAuth }) => {
+        if (disposed) return
+        unsubscribe = watchAuth((nextUser) => {
+          setUser(nextUser)
+          setLoading(false)
+        })
+      })
+      .catch((reason) => {
+        if (disposed) return
+        setError(reason instanceof Error ? reason.message : 'No se pudo cargar Firebase Auth')
+        setLoading(false)
+      })
+
+    return () => {
+      disposed = true
+      unsubscribe?.()
+    }
   }, [])
 
   return {
@@ -27,11 +43,15 @@ export function useAuth() {
     signIn: async () => {
       try {
         setError(undefined)
+        const { signInWithGoogle } = await import('../services/firebaseAuth')
         await signInWithGoogle()
       } catch (reason) {
         setError(reason instanceof Error ? reason.message : 'No se pudo iniciar sesion')
       }
     },
-    signOut: signOutCurrentUser,
+    signOut: async () => {
+      const { signOutCurrentUser } = await import('../services/firebaseAuth')
+      await signOutCurrentUser()
+    },
   }
 }
