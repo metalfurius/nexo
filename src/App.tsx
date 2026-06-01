@@ -168,13 +168,14 @@ function App() {
     )
   }
 
-  const navItems: Array<{ id: AppTab; label: string; icon: typeof Library; hidden?: boolean }> = [
-    { id: 'library', label: 'Biblioteca', icon: Library },
-    { id: 'dice', label: 'Dado', icon: Dice5 },
-    { id: 'explorer', label: 'Explorador', icon: Sparkles },
-    { id: 'settings', label: 'Ajustes', icon: Sun },
-    { id: 'curation', label: 'Curacion', icon: ShieldCheck, hidden: !library.isModerator },
+  const navItems: Array<{ id: AppTab; label: string; description: string; icon: typeof Library; hidden?: boolean }> = [
+    { id: 'library', label: 'Biblioteca', description: 'Tus pendientes privados', icon: Library },
+    { id: 'dice', label: 'Dado', description: 'Decision ponderada', icon: Dice5 },
+    { id: 'explorer', label: 'Explorador', description: 'Catalogo y hallazgos', icon: Sparkles },
+    { id: 'settings', label: 'Ajustes', description: 'Preferencias y cuenta', icon: Sun },
+    { id: 'curation', label: 'Curacion', description: 'Catalogo Nexo', icon: ShieldCheck, hidden: !library.isModerator },
   ]
+  const activeNavItem = navItems.find((item) => item.id === activeTab) ?? navItems[0]
 
   return (
     <main className="app-shell">
@@ -182,6 +183,7 @@ function App() {
         <div>
           <span className="eyebrow">Nexo 1.0 beta</span>
           <h1>Biblioteca privada</h1>
+          <p className="topbar-subtitle">{activeNavItem.description}</p>
         </div>
         <div className="topbar-actions">
           {!auth.isFirebaseConfigured && <span className="mode-pill">Demo local</span>}
@@ -215,13 +217,17 @@ function App() {
             return (
               <button
                 aria-current={activeTab === item.id ? 'page' : undefined}
+                aria-label={item.label}
                 className={activeTab === item.id ? 'tab-button active' : 'tab-button'}
                 key={item.id}
                 type="button"
                 onClick={() => setActiveTab(item.id)}
               >
                 <Icon size={17} />
-                {item.label}
+                <span className="tab-label">
+                  <span>{item.label}</span>
+                  <small>{item.description}</small>
+                </span>
               </button>
             )
           })}
@@ -342,36 +348,39 @@ function LibraryTab({ library }: { library: LibrarySurface }) {
             <p>{library.items.length} entradas privadas</p>
           </div>
           <div className="panel-actions">
-            <label className="secondary-button file-button">
-              <Upload size={18} />
-              Importar
-              <input
-                accept="application/json,.json"
-                aria-label="Importar biblioteca desde JSON"
-                type="file"
-                onChange={(event) => {
-                  void importLibraryFile(event.target.files?.[0])
-                  event.target.value = ''
-                }}
-              />
-            </label>
-            <button className="secondary-button" type="button" onClick={exportLibrary}>
-              <Archive size={18} />
-              Exportar
-            </button>
             <button className="primary-button" type="button" onClick={() => setEditingItem(blankItem())}>
               <Plus size={18} />
               Anadir
             </button>
-            <button
-              className="danger-button"
-              disabled={library.items.length === 0}
-              type="button"
-              onClick={() => setDeleteDialogOpen(true)}
-            >
-              <Trash2 size={18} />
-              Borrar todo
-            </button>
+            <div className="utility-actions" aria-label="Herramientas de biblioteca">
+              <label className="icon-button file-button" title="Importar">
+                <Upload size={18} />
+                <span className="sr-only">Importar</span>
+                <input
+                  accept="application/json,.json"
+                  aria-label="Importar biblioteca desde JSON"
+                  type="file"
+                  onChange={(event) => {
+                    void importLibraryFile(event.target.files?.[0])
+                    event.target.value = ''
+                  }}
+                />
+              </label>
+              <button className="icon-button" type="button" onClick={exportLibrary} title="Exportar">
+                <Archive size={18} />
+                <span className="sr-only">Exportar</span>
+              </button>
+              <button
+                className="icon-button danger-icon"
+                disabled={library.items.length === 0}
+                type="button"
+                onClick={() => setDeleteDialogOpen(true)}
+                title="Borrar todo"
+              >
+                <Trash2 size={18} />
+                <span className="sr-only">Borrar todo</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -1150,17 +1159,21 @@ function ItemCard({
         </div>
       </button>
       <div className="card-actions">
-        <button type="button" title="Empezar" onClick={() => onStatus(item.id, 'in_progress')}>
+        <button className="card-primary-action" type="button" title="Empezar" onClick={() => onStatus(item.id, 'in_progress')}>
           <Play size={16} />
+          <span>Empezar</span>
         </button>
-        <button type="button" title="Pausar" onClick={() => onStatus(item.id, 'paused')}>
+        <button className="card-secondary-action" type="button" title="Pausar" onClick={() => onStatus(item.id, 'paused')}>
           <Pause size={16} />
+          <span className="sr-only">Pausar</span>
         </button>
-        <button type="button" title="Completar" onClick={() => onStatus(item.id, 'completed')}>
+        <button className="card-secondary-action" type="button" title="Completar" onClick={() => onStatus(item.id, 'completed')}>
           <Check size={16} />
+          <span className="sr-only">Completar</span>
         </button>
-        <button type="button" title="Borrar" onClick={() => onDelete(item.id)}>
+        <button className="card-secondary-action danger-icon" type="button" title="Borrar" onClick={() => onDelete(item.id)}>
           <Trash2 size={16} />
+          <span className="sr-only">Borrar</span>
         </button>
       </div>
     </article>
