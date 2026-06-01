@@ -579,7 +579,9 @@ function DiceTab({ library }: { library: LibrarySurface }) {
   const [recommendation, setRecommendation] = useState<RecommendationResult | undefined>()
   const [isRolling, setIsRolling] = useState(false)
   const [status, setStatus] = useState<string | undefined>()
-  const preferences = draftPreferences ?? library.settings.recommendationPreferences ?? DEFAULT_RECOMMENDATION_PREFERENCES
+  const persistedPreferences = library.settings.recommendationPreferences ?? DEFAULT_RECOMMENDATION_PREFERENCES
+  const preferences = draftPreferences ?? persistedPreferences
+  const hasUnsavedDicePreferences = !sameRecommendationPreferences(preferences, persistedPreferences)
   const scoredCandidates = useMemo(
     () => scoreCandidates(library.items, preferences, library.settings),
     [library.items, library.settings, preferences],
@@ -590,6 +592,7 @@ function DiceTab({ library }: { library: LibrarySurface }) {
   const setPreferences = (
     update: RecommendationPreferences | ((current: RecommendationPreferences) => RecommendationPreferences),
   ) => {
+    setStatus(undefined)
     setDraftPreferences((current) => (typeof update === 'function' ? update(current ?? preferences) : update))
   }
 
@@ -619,6 +622,7 @@ function DiceTab({ library }: { library: LibrarySurface }) {
   }
 
   async function savePreferences() {
+    if (!hasUnsavedDicePreferences) return
     await library.saveSettings({
       recommendationPreferences: preferences,
       surprisePercent: preferences.surprisePercent,
@@ -710,10 +714,14 @@ function DiceTab({ library }: { library: LibrarySurface }) {
             <h2>Preferencias</h2>
             <p>{preferences.surprisePercent}% sorpresa / {intensityLabels[preferences.intensity]}</p>
           </div>
-          <button className="secondary-button" type="button" onClick={savePreferences}>
+          <button className="secondary-button" disabled={!hasUnsavedDicePreferences} type="button" onClick={savePreferences}>
             <Save size={17} />
-            Guardar ajustes
+            {hasUnsavedDicePreferences ? 'Guardar ajustes' : 'Ajustes guardados'}
           </button>
+        </div>
+        <div className={hasUnsavedDicePreferences ? 'settings-status pending' : 'settings-status'}>
+          <span>{hasUnsavedDicePreferences ? 'Cambios pendientes' : 'Sin cambios pendientes'}</span>
+          <strong>{scoredCandidates.length} candidatas</strong>
         </div>
         <PreferenceControls preferences={preferences} setPreferences={setPreferences} />
         {status && <p className="muted-line">{status}</p>}
@@ -2057,6 +2065,19 @@ function upsertVisibleCatalogItem(items: PublicCatalogItem[], nextItem: PublicCa
 function sameList(left: string[], right: string[]) {
   if (left.length !== right.length) return false
   return left.every((value, index) => value === right[index])
+}
+
+function sameRecommendationPreferences(left: RecommendationPreferences, right: RecommendationPreferences) {
+  return (
+    left.medium === right.medium &&
+    left.timeBudgetHours === right.timeBudgetHours &&
+    left.energy === right.energy &&
+    left.intensity === right.intensity &&
+    left.novelty === right.novelty &&
+    left.includePaused === right.includePaused &&
+    left.surprisePercent === right.surprisePercent &&
+    left.seed === right.seed
+  )
 }
 
 function splitList(value: string) {
