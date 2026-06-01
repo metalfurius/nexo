@@ -44,6 +44,11 @@ await writeFile(outPath, `${JSON.stringify(payload, null, 2)}\n`, 'utf8')
 console.log(`Imported ${payload.itemCount} items into ${outPath}`)
 
 if (writeToFirestore) {
+  const userId = String(args.get('user') ?? process.env.NEXO_IMPORT_USER_ID ?? '').trim()
+  if (!userId) {
+    throw new Error('Firestore writes need a user owner. Use --user <uid> or NEXO_IMPORT_USER_ID.')
+  }
+
   const projectId = String(
     args.get('project') ??
       process.env.FIREBASE_PROJECT_ID ??
@@ -66,7 +71,9 @@ if (writeToFirestore) {
   let batchSize = 0
 
   for (const item of merged.items) {
-    batch.set(db.collection('items').doc(item.id), withoutUndefined(item), { merge: true })
+    batch.set(db.collection('users').doc(userId).collection('items').doc(item.id), withoutUndefined(item), {
+      merge: true,
+    })
     batchSize += 1
     if (batchSize >= 400) {
       await batch.commit()
@@ -75,7 +82,7 @@ if (writeToFirestore) {
     }
   }
   if (batchSize > 0) await batch.commit()
-  console.log(`Wrote ${merged.items.length} items to Firestore project ${projectId}`)
+  console.log(`Wrote ${merged.items.length} items to users/${userId}/items in project ${projectId}`)
 }
 
 function withoutUndefined<T>(value: T): T {

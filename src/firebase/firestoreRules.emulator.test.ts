@@ -59,4 +59,45 @@ maybeDescribe('firestore.rules emulator', () => {
     await expect(setDoc(doc(ownerDb, 'items', 'outer-wilds'), { title: 'Outer Wilds' })).rejects.toThrow()
     await expect(getDoc(doc(ownerDb, 'items', 'outer-wilds'))).rejects.toThrow()
   })
+
+  it('lets signed-in users read active public catalog items but not write them', async () => {
+    await env.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'publicItems', 'book-odisea'), {
+        title: 'Odisea',
+        type: 'book',
+      })
+    })
+
+    const ownerDb = env.authenticatedContext('owner').firestore()
+
+    await expect(getDoc(doc(ownerDb, 'publicItems', 'book-odisea'))).resolves.toBeTruthy()
+    await expect(setDoc(doc(ownerDb, 'publicItems', 'book-odisea'), { title: 'Nope' })).rejects.toThrow()
+  })
+
+  it('blocks anonymous and archived public catalog reads', async () => {
+    await env.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'publicItems', 'archived'), {
+        title: 'Archived',
+        archivedAt: '2026-01-01T00:00:00.000Z',
+      })
+    })
+
+    const ownerDb = env.authenticatedContext('owner').firestore()
+    const anonymousDb = env.unauthenticatedContext().firestore()
+
+    await expect(getDoc(doc(ownerDb, 'publicItems', 'archived'))).rejects.toThrow()
+    await expect(getDoc(doc(anonymousDb, 'publicItems', 'archived'))).rejects.toThrow()
+  })
+
+  it('allows users to read only their own moderator marker', async () => {
+    await env.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'moderators', 'owner'), { createdAt: '2026-01-01T00:00:00.000Z' })
+    })
+
+    const ownerDb = env.authenticatedContext('owner').firestore()
+    const otherDb = env.authenticatedContext('other').firestore()
+
+    await expect(getDoc(doc(ownerDb, 'moderators', 'owner'))).resolves.toBeTruthy()
+    await expect(getDoc(doc(otherDb, 'moderators', 'owner'))).rejects.toThrow()
+  })
 })

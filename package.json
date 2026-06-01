@@ -1,7 +1,7 @@
 {
   "name": "nexo",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite --host localhost",
@@ -14,6 +14,9 @@
     "preview": "vite preview",
     "deploy:firestore": "firebase deploy --only firestore:rules,firestore:indexes",
     "delete:legacy": "tsx scripts/deleteLegacyFirestore.ts",
+    "check": "npm run lint && npm run test && npm run test:rules && npm run build:functions && npm run build",
+    "release:check": "npm run check && npm run test:e2e && npm audit --audit-level=high",
+    "test:rules": "firebase emulators:exec --only firestore \"vitest run src/firebase/firestoreRules.emulator.test.ts\"",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "test:watch": "vitest"
@@ -25,6 +28,7 @@
     "react-dom": "^19.2.6"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.11.3",
     "@emnapi/core": "^1.10.0",
     "@emnapi/runtime": "^1.10.0",
     "@eslint/js": "^10.0.1",

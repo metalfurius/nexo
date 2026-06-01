@@ -40,11 +40,41 @@ jobs:
           node-version: 24
           cache: npm
 
+      - name: Setup Java for Firebase emulators
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
       - name: Install dependencies
         run: npm ci
 
+      - name: Install Functions dependencies
+        run: npm --prefix functions ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm run test
+
+      - name: Firestore rules tests
+        run: npm run test:rules
+
+      - name: Functions build
+        run: npm run build:functions
+
       - name: Build
         run: npm run build
+
+      - name: E2E smoke
+        run: npm run test:e2e
+
+      - name: High severity audit gate
+        run: npm audit --audit-level=high
 
       - name: Configure Pages
         uses: actions/configure-pages@v5

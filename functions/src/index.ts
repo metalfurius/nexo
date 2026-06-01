@@ -1,4 +1,5 @@
 import { initializeApp } from 'firebase-admin/app'
+import { getFirestore } from 'firebase-admin/firestore'
 import { HttpsError, onCall } from 'firebase-functions/v2/https'
 import { defineSecret } from 'firebase-functions/params'
 
@@ -8,6 +9,7 @@ const tmdbToken = defineSecret('TMDB_TOKEN')
 const rawgApiKey = defineSecret('RAWG_API_KEY')
 
 type SearchType = 'watch' | 'game' | 'book' | 'anime' | 'manga' | 'manhwa' | 'any'
+type ItemType = SearchType | 'movie' | 'series' | 'comic' | 'other'
 
 interface ExternalCandidate {
   id: string
@@ -23,6 +25,26 @@ interface ExternalCandidate {
   createdAt: string
 }
 
+interface PublicCatalogItem {
+  id: string
+  title: string
+  type: ItemType
+  description?: string
+  releaseYear?: number
+  genres: string[]
+  tags: string[]
+  moodTags: string[]
+  externalRefs: Record<string, string>
+  posterUrl?: string
+  searchTokens: string[]
+  canonicalKey: string
+  createdAt: string
+  updatedAt: string
+  createdBy: string
+  updatedBy: string
+  archivedAt?: string
+}
+
 export const searchExternal = onCall(
   {
     cors: true,
@@ -32,6 +54,7 @@ export const searchExternal = onCall(
     if (!request.auth) {
       throw new HttpsError('permission-denied', 'Usuario no autorizado.')
     }
+    await assertWithinRateLimit(request.auth.uid, 'searchExternal', 30)
 
     const query = String(request.data?.query ?? '').trim()
     const type = String(request.data?.type ?? 'any') as SearchType
@@ -41,6 +64,90 @@ export const searchExternal = onCall(
 
     const candidates = await searchByType(query, type)
     return { candidates: candidates.slice(0, 8) }
+  },
+)
+
+export const searchPublicCatalog = onCall(
+  {
+    cors: true,
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('permission-denied', 'Usuario no autorizado.')
+    }
+    await assertWithinRateLimit(request.auth.uid, 'searchPublicCatalog', 90)
+
+    const query = String(request.data?.query ?? '').trim()
+    const type = String(request.data?.type ?? 'any') as SearchType
+    const tokens = createSearchTokens({ title: query })
+    const snapshot = await getFirestore().collection('publicItems').limit(250).get()
+    const items = snapshot.docs
+      .map((docSnapshot) => docSnapshot.data() as PublicCatalogItem)
+      .filter((item) => !item.archivedAt)
+      .filter((item) => matchesSearchType(item.type, type))
+      .map((item) => ({ item, score: scorePublicItem(item, tokens, query) }))
+      .filter((entry) => !query || entry.score > 0)
+      .sort((left, right) => right.score - left.score || left.item.title.localeCompare(right.item.title, 'es'))
+      .slice(0, 12)
+      .map((entry) => entry.item)
+
+    return { items }
+  },
+)
+
+export const getModeratorStatus = onCall(
+  {
+    cors: true,
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('permission-denied', 'Usuario no autorizado.')
+    }
+    return { isModerator: await isModerator(request.auth.uid) }
+  },
+)
+
+export const upsertPublicItem = onCall(
+  {
+    cors: true,
+  },
+  async (request) => {
+    if (!request.auth || !(await isModerator(request.auth.uid))) {
+      throw new HttpsError('permission-denied', 'Solo moderadores pueden editar el catalogo.')
+    }
+
+    const incoming = request.data?.item as Partial<PublicCatalogItem> | undefined
+    if (!incoming?.title || !incoming.type) {
+      throw new HttpsError('invalid-argument', 'Titulo y tipo son obligatorios.')
+    }
+
+    const item = await buildPublicCatalogItem(incoming, request.auth.uid)
+    await getFirestore().collection('publicItems').doc(item.id).set(stripUndefined(item), { merge: true })
+    return { item }
+  },
+)
+
+export const archivePublicItem = onCall(
+  {
+    cors: true,
+  },
+  async (request) => {
+    if (!request.auth || !(await isModerator(request.auth.uid))) {
+      throw new HttpsError('permission-denied', 'Solo moderadores pueden archivar el catalogo.')
+    }
+
+    const id = String(request.data?.id ?? '').trim()
+    if (!id) throw new HttpsError('invalid-argument', 'Falta el id de la entrada.')
+
+    await getFirestore().collection('publicItems').doc(id).set(
+      {
+        archivedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        updatedBy: request.auth.uid,
+      },
+      { merge: true },
+    )
+    return { ok: true }
   },
 )
 
@@ -216,4 +323,168 @@ async function searchAniList(query: string, requestedType: 'anime' | 'manga' | '
       createdAt: new Date().toISOString(),
     } satisfies ExternalCandidate
   })
+}
+
+async function isModerator(uid: string) {
+  const snapshot = await getFirestore().collection('moderators').doc(uid).get()
+  return snapshot.exists
+}
+
+async function assertWithinRateLimit(uid: string, key: string, maxPerMinute: number) {
+  const db = getFirestore()
+  const ref = db.collection('users').doc(uid).collection('rateLimits').doc(key)
+  const now = Date.now()
+  const windowMs = 60_000
+
+  await db.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(ref)
+    const current = snapshot.exists ? (snapshot.data() as { count?: number; windowStartedAt?: number }) : {}
+    const windowStartedAt = current.windowStartedAt ?? now
+    const count = now - windowStartedAt > windowMs ? 0 : current.count ?? 0
+
+    if (count >= maxPerMinute) {
+      throw new HttpsError('resource-exhausted', 'Demasiadas busquedas seguidas. Prueba en un minuto.')
+    }
+
+    transaction.set(
+      ref,
+      {
+        count: count + 1,
+        windowStartedAt: count === 0 ? now : windowStartedAt,
+        updatedAt: new Date(now).toISOString(),
+      },
+      { merge: true },
+    )
+  })
+}
+
+async function buildPublicCatalogItem(incoming: Partial<PublicCatalogItem>, uid: string): Promise<PublicCatalogItem> {
+  const db = getFirestore()
+  const title = String(incoming.title ?? '').trim()
+  const type = normalizeCatalogType(String(incoming.type ?? 'other'))
+  const id = String(incoming.id ?? `${type}-${slugify(title)}`).slice(0, 120)
+  const existing = await db.collection('publicItems').doc(id).get()
+  const existingData = existing.exists ? (existing.data() as Partial<PublicCatalogItem>) : {}
+  const createdAt = existingData.createdAt ?? incoming.createdAt ?? new Date().toISOString()
+  const createdBy = existingData.createdBy ?? incoming.createdBy ?? uid
+  const genres = uniqueValues(asStringArray(incoming.genres))
+  const tags = uniqueValues(asStringArray(incoming.tags))
+
+  return {
+    id,
+    title,
+    type,
+    description: optionalString(incoming.description),
+    releaseYear: typeof incoming.releaseYear === 'number' ? incoming.releaseYear : undefined,
+    genres,
+    tags,
+    moodTags: uniqueValues(asStringArray(incoming.moodTags)),
+    externalRefs: asExternalRefs(incoming.externalRefs),
+    posterUrl: optionalString(incoming.posterUrl),
+    searchTokens: createSearchTokens({ title, type, genres, tags, releaseYear: incoming.releaseYear }),
+    canonicalKey: `${type}:${normalizeKey(title)}`,
+    createdAt,
+    updatedAt: new Date().toISOString(),
+    createdBy,
+    updatedBy: uid,
+    archivedAt: optionalString(incoming.archivedAt),
+  }
+}
+
+function scorePublicItem(item: PublicCatalogItem, queryTokens: string[], rawQuery: string) {
+  if (!rawQuery.trim()) return 1
+  const titleKey = normalizeKey(item.title)
+  const queryKey = normalizeKey(rawQuery)
+  let score = 0
+
+  if (titleKey === queryKey) score += 100
+  if (titleKey.includes(queryKey)) score += 45
+  for (const token of queryTokens) {
+    if (item.searchTokens.includes(token)) score += 12
+    if (titleKey.includes(token)) score += 8
+  }
+  return score
+}
+
+function createSearchTokens(value: {
+  title: string
+  type?: string
+  genres?: string[]
+  tags?: string[]
+  releaseYear?: number
+}) {
+  return uniqueValues(
+    [
+      value.title,
+      value.type,
+      value.releaseYear ? String(value.releaseYear) : undefined,
+      ...(value.genres ?? []),
+      ...(value.tags ?? []),
+    ]
+      .filter(Boolean)
+      .flatMap((entry) => normalizeKey(String(entry)).split(/\s+/))
+      .filter((entry) => entry.length >= 2),
+  ).slice(0, 30)
+}
+
+function normalizeCatalogType(type: string): ItemType {
+  const allowed = ['game', 'book', 'movie', 'series', 'anime', 'manga', 'manhwa', 'comic', 'other']
+  return allowed.includes(type) ? (type as ItemType) : 'other'
+}
+
+function matchesSearchType(itemType: string, requestedType: SearchType) {
+  if (requestedType === 'any') return true
+  if (requestedType === 'watch') return ['movie', 'series', 'anime', 'manga', 'manhwa', 'comic'].includes(itemType)
+  return itemType === requestedType
+}
+
+function asStringArray(value: unknown) {
+  return Array.isArray(value) ? value.map(String).map((entry) => entry.trim()).filter(Boolean) : []
+}
+
+function asExternalRefs(value: unknown) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .map(([key, entry]) => [key, String(entry ?? '').trim()])
+      .filter(([, entry]) => entry),
+  )
+}
+
+function optionalString(value: unknown) {
+  const text = typeof value === 'string' ? value.trim() : ''
+  return text || undefined
+}
+
+function normalizeKey(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+}
+
+function slugify(value: string) {
+  return normalizeKey(value).replace(/\s+/g, '-')
+}
+
+function uniqueValues(values: string[]) {
+  return [...new Set(values.map((value) => value.trim()).filter(Boolean))]
+}
+
+function stripUndefined<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map((entry) => stripUndefined(entry)) as T
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).flatMap(([key, entry]) =>
+        entry === undefined ? [] : [[key, stripUndefined(entry)]],
+      ),
+    ) as T
+  }
+
+  return value
 }

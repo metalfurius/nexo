@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   batchDelete: vi.fn(),
   callable: vi.fn(),
   deleteDoc: vi.fn(),
+  getDoc: vi.fn(),
   getDocs: vi.fn(),
   httpsCallable: vi.fn(),
   onSnapshot: vi.fn(),
@@ -34,6 +35,7 @@ vi.mock('firebase/firestore', () => ({
   collection: vi.fn((...args: unknown[]) => ({ kind: 'collection', path: sdkPath(args) })),
   deleteDoc: mocks.deleteDoc,
   doc: vi.fn((...args: unknown[]) => ({ kind: 'doc', path: sdkPath(args) })),
+  getDoc: mocks.getDoc,
   getDocs: mocks.getDocs,
   onSnapshot: mocks.onSnapshot,
   orderBy: vi.fn((field: string, direction: string) => ({ direction, field })),
@@ -66,6 +68,7 @@ describe('createFirestoreRepository', () => {
     mocks.batchCommit.mockResolvedValue(undefined)
     mocks.callable.mockResolvedValue({ data: { candidates: [] } })
     mocks.deleteDoc.mockResolvedValue(undefined)
+    mocks.getDoc.mockResolvedValue({ exists: () => false })
     mocks.getDocs.mockResolvedValue({ docs: [] })
     mocks.httpsCallable.mockReturnValue(mocks.callable)
     mocks.setDoc.mockResolvedValue(undefined)
@@ -137,5 +140,60 @@ describe('createFirestoreRepository', () => {
       expect.objectContaining({ path: 'users/user-1/recommendationRuns' }),
       expect.objectContaining({ itemId: item.id, reasons: ['encaja'] }),
     )
+  })
+
+  it('persists settings and discovery candidates under the signed-in user', async () => {
+    const repository = createFirestoreRepository('user-1')
+
+    await repository?.saveSettings({ favoriteTags: ['sci-fi'] })
+    await repository?.saveDiscoveryCandidate({
+      id: 'public-book-odisea',
+      title: 'Odisea',
+      type: 'book',
+      status: 'queued',
+      origin: 'publicCatalog',
+      source: 'nexo',
+      sourceId: 'book-odisea',
+      genres: ['clasico'],
+      tags: ['epico'],
+      moodTags: [],
+      externalRefs: {},
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    })
+
+    expect(mocks.setDoc).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ path: 'users/user-1/userSettings/preferences' }),
+      expect.objectContaining({ favoriteTags: ['sci-fi'] }),
+      { merge: true },
+    )
+    expect(mocks.setDoc).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ path: 'users/user-1/externalCandidates/public-book-odisea' }),
+      expect.objectContaining({ title: 'Odisea', origin: 'publicCatalog' }),
+    )
+  })
+
+  it('uses callables for public catalog search and moderator writes', async () => {
+    const repository = createFirestoreRepository('user-1')
+    mocks.callable.mockResolvedValueOnce({ data: { items: [item] } })
+    mocks.callable.mockResolvedValueOnce({ data: { item } })
+    mocks.callable.mockResolvedValueOnce({ data: { ok: true } })
+
+    await repository?.searchPublicCatalog('arrival', 'movie')
+    await repository?.upsertPublicItem({
+      title: 'Arrival',
+      type: 'movie',
+      genres: [],
+      tags: [],
+      moodTags: [],
+      externalRefs: {},
+    })
+    await repository?.archivePublicItem('movie-arrival')
+
+    expect(mocks.httpsCallable).toHaveBeenCalledWith(firebaseServices.functions, 'searchPublicCatalog')
+    expect(mocks.httpsCallable).toHaveBeenCalledWith(firebaseServices.functions, 'upsertPublicItem')
+    expect(mocks.httpsCallable).toHaveBeenCalledWith(firebaseServices.functions, 'archivePublicItem')
   })
 })

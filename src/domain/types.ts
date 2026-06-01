@@ -24,6 +24,9 @@ export type ItemStatus = (typeof ITEM_STATUSES)[number]
 export type EnergyLevel = 'low' | 'medium' | 'high'
 export type IntensityLevel = 'soft' | 'balanced' | 'intense'
 export type NoveltyLevel = 'comfort' | 'balanced' | 'surprise'
+export type ThemeMode = 'dark' | 'light'
+export type DiscoveryOrigin = 'publicCatalog' | 'externalSearch' | 'prompt' | 'roll'
+export type DiscoveryStatus = 'queued' | 'saved' | 'dismissed'
 
 export interface ExternalRefs {
   tmdbId?: string
@@ -53,11 +56,13 @@ export interface ListItem {
   moodTags: string[]
   weights: ItemWeights
   notes?: string
-  source: 'manual' | 'markdown' | 'external'
+  source: 'manual' | 'markdown' | 'external' | 'public'
   rawText?: string
   importNotes?: string[]
   externalRefs?: ExternalRefs
   posterUrl?: string
+  publicItemId?: string
+  publicSnapshot?: PublicCatalogSnapshot
   createdAt: string
   updatedAt: string
   lastRecommendedAt?: string
@@ -78,12 +83,74 @@ export interface ExternalCandidate {
   createdAt: string
 }
 
+export interface PublicCatalogItem {
+  id: string
+  title: string
+  type: ItemType
+  description?: string
+  releaseYear?: number
+  genres: string[]
+  tags: string[]
+  moodTags: string[]
+  externalRefs: ExternalRefs
+  posterUrl?: string
+  searchTokens: string[]
+  canonicalKey: string
+  createdAt: string
+  updatedAt: string
+  createdBy: string
+  updatedBy: string
+  archivedAt?: string
+}
+
+export type PublicCatalogSnapshot = Pick<
+  PublicCatalogItem,
+  | 'id'
+  | 'title'
+  | 'type'
+  | 'description'
+  | 'releaseYear'
+  | 'genres'
+  | 'tags'
+  | 'moodTags'
+  | 'externalRefs'
+  | 'posterUrl'
+  | 'canonicalKey'
+  | 'updatedAt'
+>
+
+export interface DiscoveryCandidate {
+  id: string
+  title: string
+  type: ItemType
+  status: DiscoveryStatus
+  origin: DiscoveryOrigin
+  source: 'nexo' | ExternalCandidate['source'] | 'prompt'
+  sourceId: string
+  overview?: string
+  posterUrl?: string
+  releaseYear?: number
+  genres: string[]
+  tags: string[]
+  moodTags: string[]
+  externalRefs: ExternalRefs
+  publicItemId?: string
+  publicSnapshot?: PublicCatalogSnapshot
+  savedItemId?: string
+  dismissedAt?: string
+  createdAt: string
+  updatedAt: string
+}
+
 export interface UserSettings {
   surprisePercent: number
   favoriteTags: string[]
   favoriteGenres: string[]
   blockedTags: string[]
   allowPausedByDefault: boolean
+  theme: ThemeMode
+  recommendationPreferences: RecommendationPreferences
+  explorerDefaultType: ItemType | 'watch' | 'any'
 }
 
 export interface RecommendationPreferences {
@@ -111,13 +178,26 @@ export const DEFAULT_WEIGHTS: ItemWeights = {
   challenge: 0.5,
 }
 
+export const DEFAULT_RECOMMENDATION_PREFERENCES: RecommendationPreferences = {
+  medium: 'any',
+  timeBudgetHours: 15,
+  energy: 'medium',
+  intensity: 'balanced',
+  novelty: 'balanced',
+  includePaused: false,
+  surprisePercent: 30,
+  seed: 'nexo',
+}
+
 export const DEFAULT_SETTINGS: UserSettings = {
   surprisePercent: 25,
   favoriteTags: [],
   favoriteGenres: [],
   blockedTags: [],
   allowPausedByDefault: false,
+  theme: 'dark',
+  recommendationPreferences: DEFAULT_RECOMMENDATION_PREFERENCES,
+  explorerDefaultType: 'watch',
 }
 
 export const nowIso = () => new Date().toISOString()
-

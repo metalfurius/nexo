@@ -24,6 +24,16 @@ service cloud.firestore {
       allow read, write: if isOwner(userId) && isUserCollection(collectionName);
     }
 
+    match /publicItems/{publicItemId} {
+      allow read: if isSignedIn() && !('archivedAt' in resource.data);
+      allow write: if false;
+    }
+
+    match /moderators/{userId} {
+      allow read: if isOwner(userId);
+      allow write: if false;
+    }
+
     match /users/{userId} {
       allow read, write: if false;
     }

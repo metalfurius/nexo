@@ -1,12 +1,24 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
+  DEFAULT_RECOMMENDATION_PREFERENCES,
+  DEFAULT_SETTINGS,
   DEFAULT_WEIGHTS,
+  type DiscoveryCandidate,
   type ExternalCandidate,
   type ItemStatus,
   type ListItem,
+  type PublicCatalogItem,
+  type UserSettings,
   nowIso,
 } from '../domain/types'
 import { demoItems } from '../data/demoItems'
+import { demoPublicCatalog } from '../data/demoCatalog'
+import {
+  buildPublicCatalogItem,
+  discoveryToListItem,
+  externalCandidateToDiscovery,
+  publicItemToDiscovery,
+} from '../lib/catalog'
 import { slugify, uniqueValues } from '../lib/strings'
 import { createFirestoreRepository } from '../services/libraryRepository'
 
@@ -14,6 +26,10 @@ export function useLibrary(userId?: string) {
   const repository = useMemo(() => (userId ? createFirestoreRepository(userId) : undefined), [userId])
   const [remoteItems, setRemoteItems] = useState<ListItem[]>([])
   const [remoteUserId, setRemoteUserId] = useState<string | undefined>()
+  const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS)
+  const [discoveryCandidates, setDiscoveryCandidates] = useState<DiscoveryCandidate[]>([])
+  const [publicCatalog, setPublicCatalog] = useState<PublicCatalogItem[]>(demoPublicCatalog)
+  const [isModerator, setIsModerator] = useState(!repository)
   const [demoLibrary, setDemoLibrary] = useState<ListItem[]>(demoItems)
   const [error, setError] = useState<string | undefined>()
   const remoteReady = Boolean(repository && userId && remoteUserId === userId)
@@ -36,6 +52,27 @@ export function useLibrary(userId?: string) {
         setError(reason.message)
       },
     )
+  }, [repository, userId])
+
+  useEffect(() => {
+    if (!repository || !userId) {
+      return undefined
+    }
+
+    const unsubscribers = [
+      repository.subscribeSettings(
+        (remoteSettings) => setSettings(mergeSettings(remoteSettings)),
+        (reason) => setError(reason.message),
+      ),
+      repository.subscribeDiscoveryCandidates(
+        (nextCandidates) => setDiscoveryCandidates(nextCandidates),
+        (reason) => setError(reason.message),
+      ),
+    ]
+
+    void repository.getModeratorStatus().then(setIsModerator).catch(() => setIsModerator(false))
+
+    return () => unsubscribers.forEach((unsubscribe) => unsubscribe())
   }, [repository, userId])
 
   async function saveItem(item: ListItem) {
@@ -104,6 +141,85 @@ export function useLibrary(userId?: string) {
     return demoExternalCandidates(query, type)
   }
 
+  async function searchPublicCatalog(query: string, type?: string): Promise<PublicCatalogItem[]> {
+    if (repository) return repository.searchPublicCatalog(query, type)
+
+    const normalized = query.trim().toLowerCase()
+    return publicCatalog
+      .filter((item) => !item.archivedAt)
+      .filter((item) => matchesSearchType(item.type, type))
+      .filter((item) => {
+        const haystack = `${item.title} ${item.genres.join(' ')} ${item.tags.join(' ')}`.toLowerCase()
+        return !normalized || haystack.includes(normalized)
+      })
+  }
+
+  async function saveSettings(nextSettings: Partial<UserSettings>) {
+    const merged = mergeSettings({ ...settings, ...nextSettings })
+    setSettings(merged)
+    if (repository) await repository.saveSettings(nextSettings)
+  }
+
+  async function queueDiscoveryCandidates(candidates: DiscoveryCandidate[]) {
+    const normalized = candidates.map((candidate) => ({
+      ...candidate,
+      status: candidate.status ?? 'queued',
+      updatedAt: nowIso(),
+    }))
+    if (repository) {
+      await Promise.all(normalized.map((candidate) => repository.saveDiscoveryCandidate(candidate)))
+    } else {
+      setDiscoveryCandidates((current) => mergeCandidates(normalized, current))
+    }
+  }
+
+  async function dismissDiscoveryCandidate(candidateId: string) {
+    if (repository) {
+      await repository.dismissDiscoveryCandidate(candidateId)
+    } else {
+      setDiscoveryCandidates((current) =>
+        current.map((candidate) =>
+          candidate.id === candidateId
+            ? { ...candidate, status: 'dismissed', dismissedAt: nowIso(), updatedAt: nowIso() }
+            : candidate,
+        ),
+      )
+    }
+  }
+
+  async function saveDiscoveryToLibrary(candidate: DiscoveryCandidate) {
+    const item = discoveryToListItem(candidate)
+    await saveItem(item)
+    if (repository) {
+      await repository.markDiscoveryCandidateSaved(candidate.id, item.id)
+    } else {
+      setDiscoveryCandidates((current) =>
+        current.map((entry) =>
+          entry.id === candidate.id ? { ...entry, status: 'saved', savedItemId: item.id, updatedAt: nowIso() } : entry,
+        ),
+      )
+    }
+    return item
+  }
+
+  async function upsertPublicItem(item: Partial<PublicCatalogItem> & Pick<PublicCatalogItem, 'title' | 'type'>) {
+    if (repository) return repository.upsertPublicItem(item)
+
+    const nextItem = buildPublicCatalogItem(item, 'demo-moderator')
+    setPublicCatalog((current) => upsertCatalogItem(current, nextItem))
+    return nextItem
+  }
+
+  async function archivePublicItem(id: string) {
+    if (repository) {
+      await repository.archivePublicItem(id)
+    } else {
+      setPublicCatalog((current) =>
+        current.map((item) => (item.id === id ? { ...item, archivedAt: nowIso(), updatedAt: nowIso() } : item)),
+      )
+    }
+  }
+
   function candidateToItem(candidate: ExternalCandidate): ListItem {
     return {
       id: `${candidate.type}-${slugify(candidate.title)}-${candidate.sourceId}`.slice(0, 120),
@@ -125,6 +241,9 @@ export function useLibrary(userId?: string) {
 
   return {
     items,
+    settings,
+    discoveryCandidates,
+    isModerator,
     loading,
     error: activeError,
     saveItem,
@@ -134,14 +253,54 @@ export function useLibrary(userId?: string) {
     snoozeRecommendation,
     recordRecommendation,
     searchExternal,
+    searchPublicCatalog,
+    saveSettings,
+    queueDiscoveryCandidates,
+    dismissDiscoveryCandidate,
+    saveDiscoveryToLibrary,
+    upsertPublicItem,
+    archivePublicItem,
     candidateToItem,
+    publicItemToDiscovery,
+    externalCandidateToDiscovery,
   }
+}
+
+function matchesSearchType(itemType: string, requestedType?: string) {
+  if (!requestedType || requestedType === 'any') return true
+  if (requestedType === 'watch') return ['movie', 'series', 'anime', 'manga', 'manhwa', 'comic'].includes(itemType)
+  return itemType === requestedType
 }
 
 function upsertItem(items: ListItem[], nextItem: ListItem) {
   const exists = items.some((item) => item.id === nextItem.id)
   if (!exists) return [nextItem, ...items]
   return items.map((item) => (item.id === nextItem.id ? nextItem : item))
+}
+
+function upsertCatalogItem(items: PublicCatalogItem[], nextItem: PublicCatalogItem) {
+  const exists = items.some((item) => item.id === nextItem.id)
+  if (!exists) return [nextItem, ...items]
+  return items.map((item) => (item.id === nextItem.id ? nextItem : item))
+}
+
+function mergeCandidates(nextCandidates: DiscoveryCandidate[], currentCandidates: DiscoveryCandidate[]) {
+  const byId = new Map<string, DiscoveryCandidate>()
+  for (const candidate of [...nextCandidates, ...currentCandidates]) {
+    if (!byId.has(candidate.id)) byId.set(candidate.id, candidate)
+  }
+  return [...byId.values()].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+}
+
+function mergeSettings(settings: Partial<UserSettings>): UserSettings {
+  return {
+    ...DEFAULT_SETTINGS,
+    ...settings,
+    recommendationPreferences: {
+      ...DEFAULT_RECOMMENDATION_PREFERENCES,
+      ...settings.recommendationPreferences,
+    },
+  }
 }
 
 function demoExternalCandidates(query: string, type: string): ExternalCandidate[] {
@@ -155,7 +314,7 @@ function demoExternalCandidates(query: string, type: string): ExternalCandidate[
       source: 'tmdb',
       sourceId: `demo-${slugify(cleanedQuery)}`,
       overview: 'Candidato de demostracion hasta configurar Firebase Functions.',
-      genres: [],
+      genres: type === 'book' ? ['clasico'] : [],
       externalRefs: {},
       createdAt: base,
     },
