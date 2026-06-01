@@ -11,6 +11,7 @@ import {
   Library,
   LogIn,
   LogOut,
+  MoreHorizontal,
   Moon,
   Pause,
   Play,
@@ -1600,9 +1601,31 @@ function ItemCard({
 }) {
   const primaryAction = getPrimaryItemAction(item.status)
   const secondaryAction = getSecondaryItemAction(item.status)
+  const [menuOpen, setMenuOpen] = useState(false)
+
+  function applyStatus(status: ItemStatus) {
+    setMenuOpen(false)
+    onStatus(item.id, status)
+  }
+
+  function deleteItem() {
+    setMenuOpen(false)
+    onDelete(item.id)
+  }
 
   return (
-    <article className="item-card">
+    <article
+      className={menuOpen ? 'item-card menu-open' : 'item-card'}
+      onBlur={(event) => {
+        const nextTarget = event.relatedTarget
+        if (!(nextTarget instanceof Node) || !event.currentTarget.contains(nextTarget)) {
+          setMenuOpen(false)
+        }
+      }}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') setMenuOpen(false)
+      }}
+    >
       <button className="item-main" type="button" onClick={onEdit}>
         <CoverArt title={item.title} type={item.type} posterUrl={item.posterUrl} />
         <ItemIdentity item={item} />
@@ -1621,25 +1644,48 @@ function ItemCard({
           type="button"
           aria-label={`${primaryAction.label} ${item.title}`}
           title={primaryAction.label}
-          onClick={() => onStatus(item.id, primaryAction.nextStatus)}
+          onClick={() => applyStatus(primaryAction.nextStatus)}
         >
           <primaryAction.Icon size={16} />
           <span>{primaryAction.label}</span>
         </button>
-        <button
-          className="card-secondary-action"
-          type="button"
-          aria-label={`${secondaryAction.label} ${item.title}`}
-          title={secondaryAction.label}
-          onClick={() => onStatus(item.id, secondaryAction.nextStatus)}
-        >
-          <secondaryAction.Icon size={16} />
-          <span className="sr-only">{secondaryAction.label}</span>
-        </button>
-        <button className="card-secondary-action danger-icon" type="button" aria-label={`Borrar ${item.title}`} title="Borrar" onClick={() => onDelete(item.id)}>
-          <Trash2 size={16} />
-          <span className="sr-only">Borrar</span>
-        </button>
+        <div className="card-menu-wrap">
+          <button
+            aria-expanded={menuOpen}
+            aria-haspopup="menu"
+            aria-label={`Mas acciones ${item.title}`}
+            className="card-menu-trigger"
+            title="Mas acciones"
+            type="button"
+            onClick={() => setMenuOpen((current) => !current)}
+          >
+            <MoreHorizontal size={17} />
+          </button>
+          {menuOpen && (
+            <div aria-label={`Acciones ${item.title}`} className="card-menu" role="menu">
+              <button
+                className="card-menu-item"
+                role="menuitem"
+                type="button"
+                aria-label={`${secondaryAction.label} ${item.title}`}
+                onClick={() => applyStatus(secondaryAction.nextStatus)}
+              >
+                <secondaryAction.Icon size={15} />
+                <span>{secondaryAction.label}</span>
+              </button>
+              <button
+                className="card-menu-item danger"
+                role="menuitem"
+                type="button"
+                aria-label={`Borrar ${item.title}`}
+                onClick={deleteItem}
+              >
+                <Trash2 size={15} />
+                <span>Borrar</span>
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </article>
   )

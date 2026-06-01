@@ -658,12 +658,21 @@ label {
 .catalog-card {
   animation: card-enter 220ms ease both;
   display: grid;
-  overflow: hidden;
   transition:
     border-color 180ms ease,
     transform 180ms ease,
     background 180ms ease,
     box-shadow 180ms ease;
+}
+
+.item-card {
+  overflow: visible;
+  position: relative;
+}
+
+.discovery-card,
+.catalog-card {
+  overflow: hidden;
 }
 
 .item-card:hover,
@@ -801,7 +810,7 @@ label {
   border-top: 1px solid var(--border);
   display: grid;
   gap: 6px;
-  grid-template-columns: minmax(118px, 1fr) repeat(2, 40px);
+  grid-template-columns: minmax(118px, 1fr) 40px;
   padding: 8px;
 }
 
@@ -867,8 +876,62 @@ label {
   white-space: nowrap;
 }
 
-.card-actions .card-secondary-action {
+.card-menu-wrap {
+  position: relative;
+}
+
+.card-menu-trigger {
   color: var(--muted);
+}
+
+.card-menu {
+  animation: menu-enter 140ms ease both;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  bottom: calc(100% + 8px);
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 4px;
+  min-width: 156px;
+  padding: 6px;
+  position: absolute;
+  right: 0;
+  z-index: 20;
+}
+
+.card-menu::after {
+  background: var(--surface-raised);
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  bottom: -5px;
+  content: '';
+  height: 9px;
+  position: absolute;
+  right: 14px;
+  transform: rotate(45deg);
+  width: 9px;
+}
+
+.card-menu-item {
+  background: transparent;
+  border: 0;
+  color: var(--text);
+  gap: 8px;
+  justify-content: flex-start;
+  min-height: 34px;
+  padding: 0 9px;
+  position: relative;
+  width: 100%;
+  z-index: 1;
+}
+
+.card-menu-item:hover {
+  background: var(--surface-muted);
+}
+
+.card-menu-item.danger {
+  color: var(--danger-text);
 }
 
 .primary-button {
@@ -1497,6 +1560,17 @@ textarea:focus-visible {
   }
   to {
     transform: translateY(0);
+  }
+}
+
+@keyframes menu-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
 

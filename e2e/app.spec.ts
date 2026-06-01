@@ -12,6 +12,10 @@ test('library and weighted dice work in demo mode', async ({ page }) => {
   await expect(page.getByLabel('Sorpresa')).toBeVisible()
   await page.getByRole('button', { name: 'Cerrar' }).click()
   await expect(page.getByRole('button', { name: 'Empezar Outer Wilds' })).toBeVisible()
+  await page.getByRole('button', { name: 'Mas acciones Outer Wilds' }).click()
+  await expect(page.getByRole('menu', { name: 'Acciones Outer Wilds' })).toBeVisible()
+  await expect(page.getByRole('menuitem', { name: 'Completar Outer Wilds' })).toBeVisible()
+  await page.getByRole('button', { name: 'Mas acciones Outer Wilds' }).click()
   await page.getByRole('button', { name: 'Empezar Outer Wilds' }).click()
   await expect(page.getByRole('button', { name: 'Completar Outer Wilds' })).toBeVisible()
 
