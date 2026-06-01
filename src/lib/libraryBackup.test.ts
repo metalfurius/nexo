@@ -24,6 +24,7 @@ describe('library backup schema', () => {
     expect(payload.exportedAt).toBe('2026-01-02T00:00:00.000Z')
     expect(payload.items).toEqual([baseItem])
     expect(payload.settings.theme).toBe('dark')
+    expect(payload.settings.libraryViewMode).toBe('cards')
   })
 
   it('parses a valid export and stamps imported items as updated now', () => {
@@ -35,6 +36,20 @@ describe('library backup schema', () => {
     expect(parsed.items).toHaveLength(1)
     expect(parsed.items[0]).toEqual(expect.objectContaining({ title: 'Outer Wilds', updatedAt: '2026-01-03T00:00:00.000Z' }))
     expect(parsed.settings?.explorerDefaultType).toBe('watch')
+    expect(parsed.settings?.libraryViewMode).toBe('cards')
+  })
+
+  it('keeps a list view preference from exported settings', () => {
+    const parsed = parseLibraryImportPayload(
+      createLibraryExportPayload(
+        [baseItem],
+        { ...DEFAULT_SETTINGS, libraryViewMode: 'list' },
+        '2026-01-02T00:00:00.000Z',
+      ),
+      '2026-01-03T00:00:00.000Z',
+    )
+
+    expect(parsed.settings?.libraryViewMode).toBe('list')
   })
 
   it('normalizes missing optional arrays and weights from older backups', () => {

@@ -106,6 +106,7 @@ function normalizeSettings(value: unknown): UserSettings {
     theme: settings.theme === 'light' || settings.theme === 'dark' ? settings.theme : DEFAULT_SETTINGS.theme,
     recommendationPreferences,
     explorerDefaultType: readExplorerDefaultType(settings.explorerDefaultType),
+    libraryViewMode: settings.libraryViewMode === 'list' ? 'list' : DEFAULT_SETTINGS.libraryViewMode,
   }
 }
 

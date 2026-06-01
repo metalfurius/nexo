@@ -47,6 +47,7 @@ import {
   type IntensityLevel,
   type ItemStatus,
   type ItemType,
+  type LibraryViewMode,
   type ListItem,
   type NoveltyLevel,
   type PublicCatalogItem,
@@ -362,12 +363,12 @@ function LibraryTab({ library, setTheme }: { library: LibrarySurface; setTheme: 
   const [query, setQuery] = useState('')
   const [typeFilter, setTypeFilter] = useState<ItemType | 'all'>('all')
   const [statusFilter, setStatusFilter] = useState<ItemStatus | 'all'>('all')
-  const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards')
   const [editingItem, setEditingItem] = useState<ListItem | undefined>()
   const [deleteTarget, setDeleteTarget] = useState<ListItem | undefined>()
   const [importStatus, setImportStatus] = useState<string | undefined>()
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
+  const viewMode = library.settings.libraryViewMode
 
   const filteredItems = useMemo(() => {
     return library.items
@@ -439,6 +440,11 @@ function LibraryTab({ library, setTheme }: { library: LibrarySurface; setTheme: 
     URL.revokeObjectURL(href)
   }
 
+  async function changeViewMode(nextViewMode: LibraryViewMode) {
+    if (viewMode === nextViewMode) return
+    await library.saveSettings({ libraryViewMode: nextViewMode })
+  }
+
   return (
     <section className="content-grid">
       <section className="workspace-panel wide" aria-label="Biblioteca">
@@ -457,7 +463,7 @@ function LibraryTab({ library, setTheme }: { library: LibrarySurface; setTheme: 
                 aria-pressed={viewMode === 'cards'}
                 className={viewMode === 'cards' ? 'segment-option active' : 'segment-option'}
                 type="button"
-                onClick={() => setViewMode('cards')}
+                onClick={() => void changeViewMode('cards')}
               >
                 <LayoutGrid size={16} />
                 <span>Tarjetas</span>
@@ -466,7 +472,7 @@ function LibraryTab({ library, setTheme }: { library: LibrarySurface; setTheme: 
                 aria-pressed={viewMode === 'list'}
                 className={viewMode === 'list' ? 'segment-option active' : 'segment-option'}
                 type="button"
-                onClick={() => setViewMode('list')}
+                onClick={() => void changeViewMode('list')}
               >
                 <List size={16} />
                 <span>Lista</span>

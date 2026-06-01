@@ -28,6 +28,7 @@ export type EnergyLevel = 'low' | 'medium' | 'high'
 export type IntensityLevel = 'soft' | 'balanced' | 'intense'
 export type NoveltyLevel = 'comfort' | 'balanced' | 'surprise'
 export type ThemeMode = 'dark' | 'light'
+export type LibraryViewMode = 'cards' | 'list'
 export type DiscoveryOrigin = 'publicCatalog' | 'externalSearch' | 'prompt' | 'roll'
 export type DiscoveryStatus = 'queued' | 'saved' | 'dismissed'
 
@@ -155,6 +156,7 @@ export interface UserSettings {
   theme: ThemeMode
   recommendationPreferences: RecommendationPreferences
   explorerDefaultType: ItemType | 'watch' | 'any'
+  libraryViewMode: LibraryViewMode
 }
 
 export interface UserProfile {
@@ -213,6 +215,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   theme: 'dark',
   recommendationPreferences: DEFAULT_RECOMMENDATION_PREFERENCES,
   explorerDefaultType: 'watch',
+  libraryViewMode: 'cards',
 }
 
 export const nowIso = () => new Date().toISOString()

@@ -421,6 +421,7 @@ function mergeSettings(settings: Partial<UserSettings>): UserSettings {
   return {
     ...DEFAULT_SETTINGS,
     ...settings,
+    libraryViewMode: settings.libraryViewMode === 'list' ? 'list' : DEFAULT_SETTINGS.libraryViewMode,
     recommendationPreferences: {
       ...DEFAULT_RECOMMENDATION_PREFERENCES,
       ...settings.recommendationPreferences,
