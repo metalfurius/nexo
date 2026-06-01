@@ -1577,17 +1577,21 @@ function ItemIdentity({ item }: { item: ListItem }) {
 function CandidateDialog({ candidate, onClose }: { candidate: DiscoveryCandidate; onClose: () => void }) {
   return (
     <div className="modal-backdrop" role="presentation">
-      <section className="detail-dialog">
+      <section className="detail-dialog" role="dialog" aria-modal="true" aria-labelledby="candidate-detail-title">
         <button className="icon-button dialog-close" type="button" onClick={onClose} title="Cerrar">
           <X size={18} />
         </button>
         <CoverArt title={candidate.title} type={candidate.type} posterUrl={candidate.posterUrl} />
-        <div>
-          <span className="source-pill">{sourceLabels[candidate.source]}</span>
-          <h2>{candidate.title}</h2>
+        <div className="detail-body">
+          <div className="detail-meta">
+            <span className="source-pill">{sourceLabels[candidate.source]}</span>
+            <span className={`candidate-status ${candidate.status}`}>{discoveryStatusLabels[candidate.status]}</span>
+            <span>{typeLabels[candidate.type]}</span>
+            {candidate.releaseYear && <span>{candidate.releaseYear}</span>}
+          </div>
+          <h2 id="candidate-detail-title">{candidate.title}</h2>
           <p>{candidate.overview || 'Sin descripcion todavia.'}</p>
           <div className="tag-row">
-            {candidate.releaseYear && <span>{candidate.releaseYear}</span>}
             {candidate.genres.map((genre) => (
               <span key={genre}>{genre}</span>
             ))}
@@ -1617,13 +1621,20 @@ function ItemEditor({
   const update = <Key extends keyof typeof draft>(key: Key, value: (typeof draft)[Key]) => {
     setDraft((current) => ({ ...current, [key]: value }))
   }
+  const editorTitle = draft.title.trim() || 'Nueva entrada'
 
   return (
     <div className="modal-backdrop" role="presentation">
       <form
         className="item-editor"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="item-editor-title"
         onSubmit={(event) => {
           event.preventDefault()
+          const priorityWeight = Number(draft.weights.priority)
+          const surpriseWeight = Number(draft.weights.surprise)
+          const challengeWeight = Number(draft.weights.challenge)
           const saved: ListItem = {
             ...draft,
             id: draft.id.startsWith('manual-') && draft.title ? `${draft.type}-${slugify(draft.title)}` : draft.id,
@@ -1631,9 +1642,9 @@ function ItemEditor({
             genres: splitList(draft.genresText),
             moodTags: splitList(draft.moodText),
             weights: {
-              priority: Number(draft.weights.priority) || 1,
-              surprise: Number(draft.weights.surprise) || 0,
-              challenge: Number(draft.weights.challenge) || 0,
+              priority: Number.isFinite(priorityWeight) ? priorityWeight : 1,
+              surprise: Number.isFinite(surpriseWeight) ? surpriseWeight : 0,
+              challenge: Number.isFinite(challengeWeight) ? challengeWeight : 0,
             },
             updatedAt: nowIso(),
           }
@@ -1642,82 +1653,150 @@ function ItemEditor({
       >
         <div className="panel-heading">
           <div>
-            <h2>Entrada</h2>
-            <p>{draft.source}</p>
+            <h2 id="item-editor-title">Entrada</h2>
+            <p>
+              {typeLabels[draft.type]} / {statusLabels[draft.status]}
+            </p>
           </div>
           <button className="icon-button" type="button" onClick={onClose} title="Cerrar">
             <X size={18} />
           </button>
         </div>
-        <label>
-          Titulo
-          <input required value={draft.title} onChange={(event) => update('title', event.target.value)} />
-        </label>
-        <div className="form-grid">
-          <label>
-            Tipo
-            <select value={draft.type} onChange={(event) => update('type', event.target.value as ItemType)}>
-              {ITEM_TYPES.map((type) => (
-                <option key={type} value={type}>
-                  {typeLabels[type]}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Estado
-            <select value={draft.status} onChange={(event) => update('status', event.target.value as ItemStatus)}>
-              {ITEM_STATUSES.map((status) => (
-                <option key={status} value={status}>
-                  {statusLabels[status]}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Rating
-            <input
-              max="10"
-              min="0"
-              step="0.1"
-              type="number"
-              value={draft.rating ?? ''}
-              onChange={(event) => update('rating', event.target.value ? Number(event.target.value) : undefined)}
-            />
-          </label>
-          <label>
-            Duracion max.
-            <input
-              min="0"
-              step="0.5"
-              type="number"
-              value={draft.durationMaxHours ?? ''}
-              onChange={(event) =>
-                update('durationMaxHours', event.target.value ? Number(event.target.value) : undefined)
-              }
-            />
-          </label>
+
+        <div className="editor-hero">
+          <CoverArt title={editorTitle} type={draft.type} posterUrl={draft.posterUrl} />
+          <div className="editor-summary">
+            <div className="detail-meta">
+              <span>{draft.source}</span>
+              <span>{statusLabels[draft.status]}</span>
+              {draft.rating && <span>{draft.rating}/10</span>}
+              {draft.publicItemId && <span>Nexo</span>}
+            </div>
+            <h3>{editorTitle}</h3>
+            <p>{draft.notes || 'Sin notas todavia.'}</p>
+          </div>
         </div>
-        <label>
-          Poster o portada
-          <input value={draft.posterUrl ?? ''} onChange={(event) => update('posterUrl', event.target.value || undefined)} />
-        </label>
-        <label>
-          Generos
-          <input value={draft.genresText} onChange={(event) => update('genresText', event.target.value)} />
-        </label>
-        <label>
-          Tags
-          <input value={draft.tagsText} onChange={(event) => update('tagsText', event.target.value)} />
-        </label>
-        <label>
-          Mood tags
-          <input value={draft.moodText} onChange={(event) => update('moodText', event.target.value)} />
-        </label>
-        <label>
-          Notas
-          <textarea value={draft.notes ?? ''} onChange={(event) => update('notes', event.target.value)} />
-        </label>
+
+        <section className="editor-section">
+          <h3>Identidad</h3>
+          <label>
+            Titulo
+            <input required value={draft.title} onChange={(event) => update('title', event.target.value)} />
+          </label>
+          <div className="form-grid">
+            <label>
+              Tipo
+              <select value={draft.type} onChange={(event) => update('type', event.target.value as ItemType)}>
+                {ITEM_TYPES.map((type) => (
+                  <option key={type} value={type}>
+                    {typeLabels[type]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Estado
+              <select value={draft.status} onChange={(event) => update('status', event.target.value as ItemStatus)}>
+                {ITEM_STATUSES.map((status) => (
+                  <option key={status} value={status}>
+                    {statusLabels[status]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Rating
+              <input
+                max="10"
+                min="0"
+                step="0.1"
+                type="number"
+                value={draft.rating ?? ''}
+                onChange={(event) => update('rating', event.target.value ? Number(event.target.value) : undefined)}
+              />
+            </label>
+            <label>
+              Duracion max.
+              <input
+                min="0"
+                step="0.5"
+                type="number"
+                value={draft.durationMaxHours ?? ''}
+                onChange={(event) =>
+                  update('durationMaxHours', event.target.value ? Number(event.target.value) : undefined)
+                }
+              />
+            </label>
+            <label>
+              Progreso
+              <input value={draft.progress ?? ''} onChange={(event) => update('progress', event.target.value || undefined)} />
+            </label>
+            <label>
+              Poster o portada
+              <input value={draft.posterUrl ?? ''} onChange={(event) => update('posterUrl', event.target.value || undefined)} />
+            </label>
+          </div>
+        </section>
+
+        <section className="editor-section">
+          <h3>Taxonomia</h3>
+          <label>
+            Generos
+            <input value={draft.genresText} onChange={(event) => update('genresText', event.target.value)} />
+          </label>
+          <label>
+            Tags
+            <input value={draft.tagsText} onChange={(event) => update('tagsText', event.target.value)} />
+          </label>
+          <label>
+            Mood tags
+            <input value={draft.moodText} onChange={(event) => update('moodText', event.target.value)} />
+          </label>
+        </section>
+
+        <section className="editor-section">
+          <h3>Dado</h3>
+          <div className="form-grid">
+            <label>
+              Prioridad
+              <input
+                min="0"
+                step="0.1"
+                type="number"
+                value={draft.weights.priority}
+                onChange={(event) => update('weights', { ...draft.weights, priority: Number(event.target.value) || 0 })}
+              />
+            </label>
+            <label>
+              Sorpresa
+              <input
+                min="0"
+                step="0.1"
+                type="number"
+                value={draft.weights.surprise}
+                onChange={(event) => update('weights', { ...draft.weights, surprise: Number(event.target.value) || 0 })}
+              />
+            </label>
+            <label>
+              Reto
+              <input
+                min="0"
+                step="0.1"
+                type="number"
+                value={draft.weights.challenge}
+                onChange={(event) => update('weights', { ...draft.weights, challenge: Number(event.target.value) || 0 })}
+              />
+            </label>
+          </div>
+        </section>
+
+        <section className="editor-section">
+          <h3>Notas</h3>
+          <label>
+            Notas
+            <textarea value={draft.notes ?? ''} onChange={(event) => update('notes', event.target.value)} />
+          </label>
+        </section>
         <div className="action-row end">
           <button className="ghost-button" type="button" onClick={onClose}>
             Cancelar
