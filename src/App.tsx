@@ -332,6 +332,7 @@ function LibraryTab({ library, setTheme }: { library: LibrarySurface; setTheme: 
   const [typeFilter, setTypeFilter] = useState<ItemType | 'all'>('all')
   const [statusFilter, setStatusFilter] = useState<ItemStatus | 'all'>('all')
   const [editingItem, setEditingItem] = useState<ListItem | undefined>()
+  const [deleteTarget, setDeleteTarget] = useState<ListItem | undefined>()
   const [importStatus, setImportStatus] = useState<string | undefined>()
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
@@ -383,6 +384,16 @@ function LibraryTab({ library, setTheme }: { library: LibrarySurface; setTheme: 
     setDeleteDialogOpen(false)
     setDeleteConfirmText('')
     setImportStatus('Tu biblioteca ha sido borrada')
+  }
+
+  async function deleteSingleItem() {
+    if (!deleteTarget) return
+
+    const deletedTitle = deleteTarget.title
+    setImportStatus(`Borrando ${deletedTitle}...`)
+    await library.deleteItem(deleteTarget.id)
+    setDeleteTarget(undefined)
+    setImportStatus(`${deletedTitle} borrado`)
   }
 
   function exportLibrary() {
@@ -501,7 +512,7 @@ function LibraryTab({ library, setTheme }: { library: LibrarySurface; setTheme: 
                 key={item.id}
                 onEdit={() => setEditingItem(item)}
                 onStatus={library.setStatus}
-                onDelete={library.deleteItem}
+                onDelete={() => setDeleteTarget(item)}
               />
             ))}
           </div>
@@ -527,17 +538,49 @@ function LibraryTab({ library, setTheme }: { library: LibrarySurface; setTheme: 
         />
       )}
 
+      {deleteTarget && (
+        <div className="modal-backdrop" role="presentation">
+          <form
+            aria-labelledby="delete-item-title"
+            aria-modal="true"
+            className="confirm-dialog"
+            role="dialog"
+            onSubmit={(event) => {
+              event.preventDefault()
+              void deleteSingleItem()
+            }}
+          >
+            <div>
+              <h2 id="delete-item-title">Borrar entrada</h2>
+              <p>Vas a eliminar {deleteTarget.title} de tu biblioteca privada. El catalogo publico no cambia.</p>
+            </div>
+            <div className="action-row end">
+              <button className="ghost-button" type="button" onClick={() => setDeleteTarget(undefined)}>
+                Cancelar
+              </button>
+              <button className="danger-button" type="submit">
+                <Trash2 size={16} />
+                Borrar entrada
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
       {deleteDialogOpen && (
         <div className="modal-backdrop" role="presentation">
           <form
+            aria-labelledby="delete-all-title"
+            aria-modal="true"
             className="confirm-dialog"
+            role="dialog"
             onSubmit={(event) => {
               event.preventDefault()
               if (deleteConfirmText === 'BORRAR') void deleteEntireLibrary()
             }}
           >
             <div>
-              <h2>Borrar toda la biblioteca</h2>
+              <h2 id="delete-all-title">Borrar toda la biblioteca</h2>
               <p>Esto elimina tus entradas privadas. Escribe BORRAR para confirmar.</p>
             </div>
             <label>
@@ -1647,7 +1690,7 @@ function ItemCard({
 }: {
   item: ListItem
   onEdit: () => void
-  onDelete: (id: string) => void
+  onDelete: () => void
   onStatus: (id: string, status: ItemStatus) => void
 }) {
   const primaryAction = getPrimaryItemAction(item.status)
@@ -1661,7 +1704,7 @@ function ItemCard({
 
   function deleteItem() {
     setMenuOpen(false)
-    onDelete(item.id)
+    onDelete()
   }
 
   return (

@@ -15,7 +15,9 @@ test('library and weighted dice work in demo mode', async ({ page }) => {
   await page.getByRole('button', { name: 'Mas acciones Outer Wilds' }).click()
   await expect(page.getByRole('menu', { name: 'Acciones Outer Wilds' })).toBeVisible()
   await expect(page.getByRole('menuitem', { name: 'Completar Outer Wilds' })).toBeVisible()
-  await page.getByRole('button', { name: 'Mas acciones Outer Wilds' }).click()
+  await page.getByRole('menuitem', { name: 'Borrar Outer Wilds' }).click()
+  await expect(page.getByRole('dialog', { name: 'Borrar entrada' })).toContainText('Outer Wilds')
+  await page.getByRole('button', { name: 'Cancelar' }).click()
   await page.getByRole('button', { name: 'Empezar Outer Wilds' }).click()
   await expect(page.getByRole('button', { name: 'Completar Outer Wilds' })).toBeVisible()
 
@@ -116,6 +118,11 @@ test('moderator curation can create a public catalog item in demo mode', async (
 test('delete all requires explicit confirmation', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByTestId('library-grid')).toContainText('Outer Wilds')
+  await page.getByRole('button', { name: 'Mas acciones Mass Effect Legendary Edition' }).click()
+  await page.getByRole('menuitem', { name: 'Borrar Mass Effect Legendary Edition' }).click()
+  await expect(page.getByRole('dialog', { name: 'Borrar entrada' })).toContainText('Mass Effect Legendary Edition')
+  await page.getByRole('button', { name: 'Borrar entrada' }).click()
+  await expect(page.getByTestId('library-grid')).not.toContainText('Mass Effect Legendary Edition')
 
   await page.getByRole('button', { name: 'Borrar todo' }).click()
   await expect(page.getByRole('heading', { name: 'Borrar toda la biblioteca' })).toBeVisible()
