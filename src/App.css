@@ -303,7 +303,7 @@
 }
 
 .toolbar {
-  grid-template-columns: minmax(220px, 1fr) 180px 180px;
+  grid-template-columns: minmax(220px, 1fr) 180px;
   margin-bottom: 20px;
 }
 
@@ -559,13 +559,54 @@ label {
 .stat-chip {
   align-items: center;
   background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
   cursor: pointer;
   display: flex;
   gap: 8px;
+  min-height: 38px;
+  padding: 8px 10px;
   transition:
     background 160ms ease,
     border-color 160ms ease,
     color 160ms ease;
+}
+
+.stat-chip::before {
+  background: var(--muted);
+  border-radius: 999px;
+  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 8%, transparent);
+  content: '';
+  flex: 0 0 auto;
+  height: 8px;
+  width: 8px;
+}
+
+.stat-chip[data-status='all']::before {
+  background: var(--accent-dark);
+}
+
+.stat-chip[data-status='wishlist']::before,
+.stat-chip[data-status='queued']::before {
+  background: var(--mark-watch-text);
+}
+
+.stat-chip[data-status='in_progress']::before,
+.stat-chip[data-status='saved']::before {
+  background: var(--mark-game-text);
+}
+
+.stat-chip[data-status='paused']::before,
+.stat-chip[data-status='dismissed']::before {
+  background: var(--accent-warm);
+}
+
+.stat-chip[data-status='completed']::before {
+  background: var(--accent-dark);
+}
+
+.stat-chip[data-status='dropped']::before {
+  background: var(--danger-text);
 }
 
 .stat-chip strong {
@@ -699,6 +740,49 @@ label {
   font-size: 15px;
   line-height: 1.25;
   margin: 0;
+}
+
+.item-identity {
+  align-items: start;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.item-identity h3 {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.item-status {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 850;
+  line-height: 1;
+  padding: 6px 8px;
+  white-space: nowrap;
+}
+
+.item-status.wishlist,
+.item-status.in_progress,
+.item-status.completed {
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--border));
+  color: var(--accent-dark);
+}
+
+.item-status.paused {
+  background: var(--accent-warm-soft);
+  border-color: color-mix(in srgb, var(--accent-warm) 42%, var(--border));
+  color: var(--text-strong);
+}
+
+.item-status.dropped {
+  background: var(--danger-bg);
+  border-color: var(--danger-border);
+  color: var(--danger-text);
 }
 
 .tag-row {

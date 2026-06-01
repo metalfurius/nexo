@@ -443,6 +443,7 @@ function LibraryTab({ library, setTheme }: { library: LibrarySurface; setTheme: 
         <div className="stats-row">
           <button
             className={statusFilter === 'all' ? 'stat-chip active' : 'stat-chip'}
+            data-status="all"
             type="button"
             onClick={() => setStatusFilter('all')}
           >
@@ -452,6 +453,7 @@ function LibraryTab({ library, setTheme }: { library: LibrarySurface; setTheme: 
           {stats.map((stat) => (
             <button
               className={statusFilter === stat.status ? 'stat-chip active' : 'stat-chip'}
+              data-status={stat.status}
               key={stat.status}
               type="button"
               onClick={() => setStatusFilter(stat.status)}
@@ -481,18 +483,6 @@ function LibraryTab({ library, setTheme }: { library: LibrarySurface; setTheme: 
             {ITEM_TYPES.map((type) => (
               <option key={type} value={type}>
                 {typeLabels[type]}
-              </option>
-            ))}
-          </select>
-          <select
-            aria-label="Filtrar por estado"
-            value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value as ItemStatus | 'all')}
-          >
-            <option value="all">Todos los estados</option>
-            {ITEM_STATUSES.map((status) => (
-              <option key={status} value={status}>
-                {statusLabels[status]}
               </option>
             ))}
           </select>
@@ -925,6 +915,7 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
             <button
               aria-selected={view === status}
               className={view === status ? 'stat-chip active' : 'stat-chip'}
+              data-status={status}
               key={status}
               role="tab"
               type="button"
@@ -1704,10 +1695,9 @@ function ItemIdentity({ item }: { item: ListItem }) {
     <div className="item-identity">
       <div>
         <h3>{item.title}</h3>
-        <p>
-          {typeLabels[item.type]} / {statusLabels[item.status]}
-        </p>
+        <p>{typeLabels[item.type]}</p>
       </div>
+      <span className={`item-status ${item.status}`}>{statusLabels[item.status]}</span>
     </div>
   )
 }
