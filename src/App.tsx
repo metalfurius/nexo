@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
+  AlertTriangle,
   Archive,
   BookOpen,
   Check,
+  CheckCircle2,
   Copy,
   Dice5,
   Eye,
@@ -15,6 +17,8 @@ import {
   Moon,
   Pause,
   Play,
+  Info,
+  LoaderCircle,
   Plus,
   RotateCcw,
   Save,
@@ -147,6 +151,31 @@ const typeIcons: Record<ItemType, typeof Film> = {
   manhwa: BookOpen,
   comic: BookOpen,
   other: Library,
+}
+
+type FeedbackTone = 'info' | 'success' | 'danger' | 'loading'
+
+function feedbackToneFromText(message: string): FeedbackTone {
+  const normalized = message.toLowerCase()
+  if (normalized.includes('no se pudo') || normalized.includes('error')) return 'danger'
+  if (normalized.startsWith('buscando') || normalized.startsWith('borrando') || normalized.startsWith('importando')) {
+    return 'loading'
+  }
+  if (
+    normalized.includes('guardado') ||
+    normalized.includes('borrado') ||
+    normalized.includes('archivado') ||
+    normalized.includes('importadas') ||
+    normalized.includes('copiado') ||
+    normalized.includes('anadida') ||
+    normalized.includes('enviados') ||
+    normalized.includes('marcado') ||
+    normalized.includes('descartado') ||
+    normalized.includes('ahora es')
+  ) {
+    return 'success'
+  }
+  return 'info'
 }
 
 type AppTab = 'library' | 'dice' | 'explorer' | 'settings' | 'curation'
@@ -500,9 +529,9 @@ function LibraryTab({ library, setTheme }: { library: LibrarySurface; setTheme: 
           </select>
         </div>
 
-        {library.loading && <p className="muted-line">Cargando biblioteca...</p>}
-        {library.error && <p className="error-line">{library.error}</p>}
-        {importStatus && <p className="muted-line">{importStatus}</p>}
+        {library.loading && <FeedbackMessage tone="loading">Cargando biblioteca...</FeedbackMessage>}
+        {library.error && <FeedbackMessage tone="danger">{library.error}</FeedbackMessage>}
+        {importStatus && <FeedbackMessage tone={feedbackToneFromText(importStatus)}>{importStatus}</FeedbackMessage>}
 
         {filteredItems.length ? (
           <div className="item-grid" data-testid="library-grid">
@@ -765,7 +794,7 @@ function DiceTab({ library }: { library: LibrarySurface }) {
           <strong>{scoredCandidates.length} candidatas</strong>
         </div>
         <PreferenceControls preferences={preferences} setPreferences={setPreferences} />
-        {status && <p className="muted-line">{status}</p>}
+        {status && <FeedbackMessage tone={feedbackToneFromText(status)}>{status}</FeedbackMessage>}
       </section>
 
       <section className="workspace-panel result-panel">
@@ -780,7 +809,7 @@ function DiceTab({ library }: { library: LibrarySurface }) {
           <div className="recommendation-result rolling-result" data-testid="recommendation-result">
             <Dice5 size={30} />
             <strong>El dado esta eligiendo...</strong>
-            <p className="muted-line">Barajando {scoredCandidates.length} opciones disponibles.</p>
+            <FeedbackMessage>Barajando {scoredCandidates.length} opciones disponibles.</FeedbackMessage>
           </div>
         ) : recommendation ? (
           <div className="recommendation-result" data-testid="recommendation-result">
@@ -951,8 +980,8 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
             {loading ? 'Buscando' : 'Buscar'}
           </button>
         </form>
-        {loading && <p className="muted-line">Buscando en Nexo y fuera...</p>}
-        {message && <p className="muted-line">{message}</p>}
+        {loading && <FeedbackMessage tone="loading">Buscando en Nexo y fuera...</FeedbackMessage>}
+        {message && <FeedbackMessage tone={feedbackToneFromText(message)}>{message}</FeedbackMessage>}
 
         <div className="explorer-status-strip" role="tablist" aria-label="Estado de descubrimiento">
           {(['queued', 'saved', 'dismissed'] as const).map((status) => (
@@ -1145,7 +1174,7 @@ function SettingsTab({
           <PreferencePreview label="Bloqueados" values={draftBlockedTags} tone="danger" />
         </div>
 
-        {status && <p className="muted-line">{status}</p>}
+        {status && <FeedbackMessage tone={feedbackToneFromText(status)}>{status}</FeedbackMessage>}
       </form>
 
       <div className="settings-side">
@@ -1264,7 +1293,7 @@ function AdminRolesPanel({
         <EmptyState title="Sin usuarios" detail="Los perfiles apareceran aqui cuando inicien sesion por primera vez." />
       )}
 
-      {status && <p className="muted-line">{status}</p>}
+      {status && <FeedbackMessage tone={feedbackToneFromText(status)}>{status}</FeedbackMessage>}
     </section>
   )
 }
@@ -1361,7 +1390,7 @@ function CurationTab({ library }: { library: LibrarySurface }) {
             {isLoading ? 'Buscando' : 'Buscar'}
           </button>
         </form>
-        {status && <p className="muted-line">{status}</p>}
+        {status && <FeedbackMessage tone={feedbackToneFromText(status)}>{status}</FeedbackMessage>}
 
         {isLoading && items.length === 0 ? (
           <EmptyState title="Cargando catalogo" detail="Recuperando las entradas publicas curadas." />
@@ -2198,6 +2227,21 @@ function MetricCard({ label, value }: { label: string; value: number | string })
       <span>{label}</span>
       <strong>{value}</strong>
     </div>
+  )
+}
+
+function FeedbackMessage({ children, tone = 'info' }: { children: ReactNode; tone?: FeedbackTone }) {
+  const Icon = tone === 'danger' ? AlertTriangle : tone === 'success' ? CheckCircle2 : tone === 'loading' ? LoaderCircle : Info
+
+  return (
+    <p
+      aria-live={tone === 'danger' ? 'assertive' : 'polite'}
+      className={`feedback-message ${tone}`}
+      role={tone === 'danger' ? 'alert' : 'status'}
+    >
+      <Icon aria-hidden="true" size={16} />
+      <span>{children}</span>
+    </p>
   )
 }
 
