@@ -10,7 +10,9 @@ import {
   Eye,
   Film,
   Gamepad2,
+  LayoutGrid,
   Library,
+  List,
   LogIn,
   LogOut,
   MoreHorizontal,
@@ -360,6 +362,7 @@ function LibraryTab({ library, setTheme }: { library: LibrarySurface; setTheme: 
   const [query, setQuery] = useState('')
   const [typeFilter, setTypeFilter] = useState<ItemType | 'all'>('all')
   const [statusFilter, setStatusFilter] = useState<ItemStatus | 'all'>('all')
+  const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards')
   const [editingItem, setEditingItem] = useState<ListItem | undefined>()
   const [deleteTarget, setDeleteTarget] = useState<ListItem | undefined>()
   const [importStatus, setImportStatus] = useState<string | undefined>()
@@ -449,6 +452,26 @@ function LibraryTab({ library, setTheme }: { library: LibrarySurface; setTheme: 
               <Plus size={18} />
               Anadir
             </button>
+            <div className="view-switch" role="group" aria-label="Vista de biblioteca">
+              <button
+                aria-pressed={viewMode === 'cards'}
+                className={viewMode === 'cards' ? 'segment-option active' : 'segment-option'}
+                type="button"
+                onClick={() => setViewMode('cards')}
+              >
+                <LayoutGrid size={16} />
+                <span>Tarjetas</span>
+              </button>
+              <button
+                aria-pressed={viewMode === 'list'}
+                className={viewMode === 'list' ? 'segment-option active' : 'segment-option'}
+                type="button"
+                onClick={() => setViewMode('list')}
+              >
+                <List size={16} />
+                <span>Lista</span>
+              </button>
+            </div>
             <div className="utility-actions" aria-label="Herramientas de biblioteca">
               <label className="icon-button file-button" title="Importar">
                 <Upload size={18} />
@@ -534,11 +557,12 @@ function LibraryTab({ library, setTheme }: { library: LibrarySurface; setTheme: 
         {importStatus && <FeedbackMessage tone={feedbackToneFromText(importStatus)}>{importStatus}</FeedbackMessage>}
 
         {filteredItems.length ? (
-          <div className="item-grid" data-testid="library-grid">
+          <div className={viewMode === 'list' ? 'item-grid list-view' : 'item-grid'} data-testid="library-grid">
             {filteredItems.map((item) => (
               <ItemCard
                 item={item}
                 key={item.id}
+                layout={viewMode}
                 onEdit={() => setEditingItem(item)}
                 onStatus={library.setStatus}
                 onDelete={() => setDeleteTarget(item)}
@@ -1713,11 +1737,13 @@ function DiscoveryCard({
 
 function ItemCard({
   item,
+  layout = 'cards',
   onDelete,
   onEdit,
   onStatus,
 }: {
   item: ListItem
+  layout?: 'cards' | 'list'
   onEdit: () => void
   onDelete: () => void
   onStatus: (id: string, status: ItemStatus) => void
@@ -1738,7 +1764,7 @@ function ItemCard({
 
   return (
     <article
-      className={menuOpen ? 'item-card menu-open' : 'item-card'}
+      className={`${layout === 'list' ? 'item-card list-card' : 'item-card'}${menuOpen ? ' menu-open' : ''}`}
       onBlur={(event) => {
         const nextTarget = event.relatedTarget
         if (!(nextTarget instanceof Node) || !event.currentTarget.contains(nextTarget)) {

@@ -71,6 +71,29 @@
   padding: 4px;
 }
 
+.view-switch {
+  align-items: center;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+}
+
+.view-switch .segment-option {
+  background: transparent;
+  color: var(--muted);
+  min-height: 34px;
+  padding: 0 10px;
+}
+
+.view-switch .segment-option.active {
+  background: var(--surface-raised);
+  border-color: color-mix(in srgb, var(--accent) 44%, var(--border));
+  color: var(--text-strong);
+}
+
 .tabbar {
   align-self: stretch;
   background: color-mix(in srgb, var(--surface) 86%, var(--surface-raised));
@@ -695,6 +718,10 @@ label {
   grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
 }
 
+.item-grid.list-view {
+  grid-template-columns: 1fr;
+}
+
 .candidate-grid {
   grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
 }
@@ -714,6 +741,11 @@ label {
 .item-card {
   overflow: visible;
   position: relative;
+}
+
+.item-card.list-card {
+  align-items: stretch;
+  grid-template-columns: minmax(0, 1fr) minmax(178px, 220px);
 }
 
 .discovery-card {
@@ -742,6 +774,23 @@ label {
   gap: 12px;
   padding: 12px;
   text-align: left;
+}
+
+.list-card .item-main {
+  align-items: center;
+  gap: 12px;
+  grid-template-columns: 92px minmax(0, 1fr);
+  padding: 10px;
+}
+
+.list-card .cover-art {
+  aspect-ratio: 1;
+  grid-row: 1 / span 2;
+}
+
+.list-card .tag-row {
+  grid-column: 2;
+  margin-top: 0;
 }
 
 .cover-art {
@@ -862,6 +911,13 @@ label {
   gap: 6px;
   grid-template-columns: minmax(118px, 1fr) 40px;
   padding: 8px;
+}
+
+.list-card .card-actions {
+  align-content: center;
+  border-left: 1px solid var(--border);
+  border-top: 0;
+  padding: 10px;
 }
 
 .card-actions button,
@@ -1770,8 +1826,25 @@ textarea:focus-visible {
     width: 100%;
   }
 
+  .view-switch {
+    width: 100%;
+  }
+
+  .view-switch .segment-option {
+    flex: 1;
+  }
+
   .utility-actions {
     margin-left: auto;
+  }
+
+  .item-card.list-card {
+    grid-template-columns: 1fr;
+  }
+
+  .list-card .card-actions {
+    border-left: 0;
+    border-top: 1px solid var(--border);
   }
 
   .dice-hero h2 {
