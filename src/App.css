@@ -565,6 +565,8 @@ label {
 
 .card-actions button,
 .icon-button,
+.candidate-icon-action,
+.candidate-primary-action,
 .dice-button,
 .primary-button,
 .secondary-button,
@@ -972,19 +974,47 @@ button:hover:not(:disabled),
 
 .candidate-card-actions {
   border-top: 1px solid var(--border);
-  justify-content: space-between;
+  display: grid;
   margin-top: 2px;
   padding-top: 10px;
+  grid-template-columns: minmax(116px, 1fr) repeat(2, 40px);
 }
 
-.candidate-card-actions .small-button:first-child {
-  flex: 1;
+.candidate-card-actions.resolved {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.candidate-primary-action {
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+  color: var(--accent-dark);
+  font-size: 13px;
+  font-weight: 850;
+  padding: 0 10px;
+}
+
+.candidate-primary-action.secondary {
+  background: var(--surface-muted);
+  border-color: var(--border);
+  color: var(--text);
+  min-width: 118px;
+}
+
+.candidate-icon-action {
+  aspect-ratio: 1;
+  background: var(--surface);
+  color: var(--muted);
+  padding: 0;
+  width: 40px;
 }
 
 .candidate-footnote {
   color: var(--muted);
   font-size: 12px;
-  margin-right: auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .quality-panel {

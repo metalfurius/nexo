@@ -5,6 +5,7 @@ import {
   Check,
   Copy,
   Dice5,
+  Eye,
   Film,
   Gamepad2,
   Library,
@@ -870,7 +871,13 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
           </button>
         </div>
 
-        <div className="explorer-search">
+        <form
+          className="explorer-search"
+          onSubmit={(event) => {
+            event.preventDefault()
+            void runDiscoverySearch()
+          }}
+        >
           <input
             aria-label="Buscar en explorador"
             value={query}
@@ -890,11 +897,11 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
             <option value="manga">Manga</option>
             <option value="manhwa">Manhwa</option>
           </select>
-          <button className="primary-button" type="button" onClick={runDiscoverySearch}>
+          <button className="primary-button" disabled={loading} type="submit">
             <Search size={18} />
-            Buscar
+            {loading ? 'Buscando' : 'Buscar'}
           </button>
-        </div>
+        </form>
         {loading && <p className="muted-line">Buscando en Nexo y fuera...</p>}
         {message && <p className="muted-line">{message}</p>}
 
@@ -1419,17 +1426,18 @@ function DiscoveryCard({
           ))}
         </div>
       </div>
-      <div className="candidate-card-actions">
+      <div className={isQueued ? 'candidate-card-actions' : 'candidate-card-actions resolved'}>
         {isQueued ? (
           <>
-            <button className="small-button" type="button" onClick={onSave}>
+            <button className="candidate-primary-action" type="button" onClick={onSave} aria-label={`Guardar ${candidate.title}`}>
               <Plus size={16} />
-              Guardar
+              <span>Guardar</span>
             </button>
-            <button className="small-button" type="button" onClick={onDetails}>
-              Ver detalles
+            <button className="candidate-icon-action" type="button" onClick={onDetails} aria-label={`Ver detalles ${candidate.title}`} title="Ver detalles">
+              <Eye size={16} />
+              <span className="sr-only">Ver detalles</span>
             </button>
-            <button className="icon-button" type="button" onClick={onDismiss} title="Descartar">
+            <button className="candidate-icon-action" type="button" onClick={onDismiss} aria-label={`Descartar ${candidate.title}`} title="Descartar">
               <X size={16} />
               <span className="sr-only">Descartar</span>
             </button>
@@ -1439,8 +1447,9 @@ function DiscoveryCard({
             <span className="candidate-footnote">
               {candidate.status === 'saved' ? 'Ya esta en tu biblioteca' : 'Apartado de tus pendientes'}
             </span>
-            <button className="small-button" type="button" onClick={onDetails}>
-              Ver detalles
+            <button className="candidate-primary-action secondary" type="button" onClick={onDetails} aria-label={`Ver detalles ${candidate.title}`}>
+              <Eye size={16} />
+              <span>Detalles</span>
             </button>
           </>
         )}
