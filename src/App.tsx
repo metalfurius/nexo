@@ -369,6 +369,13 @@ function LibraryTab({ library, setTheme }: { library: LibrarySurface; setTheme: 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
   const viewMode = library.settings.libraryViewMode
+  const trimmedQuery = query.trim()
+  const hasActiveLibraryFilters = Boolean(trimmedQuery) || typeFilter !== 'all' || statusFilter !== 'all'
+  const activeLibraryFilters = [
+    trimmedQuery ? `Busqueda: ${trimmedQuery}` : undefined,
+    typeFilter !== 'all' ? `Tipo: ${typeLabels[typeFilter]}` : undefined,
+    statusFilter !== 'all' ? `Estado: ${statusLabels[statusFilter]}` : undefined,
+  ].filter((filter): filter is string => Boolean(filter))
 
   const filteredItems = useMemo(() => {
     return library.items
@@ -443,6 +450,12 @@ function LibraryTab({ library, setTheme }: { library: LibrarySurface; setTheme: 
   async function changeViewMode(nextViewMode: LibraryViewMode) {
     if (viewMode === nextViewMode) return
     await library.saveSettings({ libraryViewMode: nextViewMode })
+  }
+
+  function resetLibraryFilters() {
+    setQuery('')
+    setTypeFilter('all')
+    setStatusFilter('all')
   }
 
   return (
@@ -558,6 +571,21 @@ function LibraryTab({ library, setTheme }: { library: LibrarySurface; setTheme: 
           </select>
         </div>
 
+        {hasActiveLibraryFilters && (
+          <div className="filter-summary" aria-live="polite">
+            <div>
+              <strong>
+                {filteredItems.length} de {library.items.length} entradas
+              </strong>
+              <span>{activeLibraryFilters.join(' / ')}</span>
+            </div>
+            <button className="ghost-button" type="button" onClick={resetLibraryFilters}>
+              <X size={16} />
+              Limpiar filtros
+            </button>
+          </div>
+        )}
+
         {library.loading && <FeedbackMessage tone="loading">Cargando biblioteca...</FeedbackMessage>}
         {library.error && <FeedbackMessage tone="danger">{library.error}</FeedbackMessage>}
         {importStatus && <FeedbackMessage tone={feedbackToneFromText(importStatus)}>{importStatus}</FeedbackMessage>}
@@ -575,8 +603,15 @@ function LibraryTab({ library, setTheme }: { library: LibrarySurface; setTheme: 
               />
             ))}
           </div>
-        ) : (
-          <EmptyState title="Nada por aqui" detail="Importa tu biblioteca, guarda algo desde Explorador o anade una entrada manual." />
+        ) : library.loading ? null : (
+          <EmptyState
+            title={hasActiveLibraryFilters ? 'Sin resultados' : 'Nada por aqui'}
+            detail={
+              hasActiveLibraryFilters
+                ? 'Limpia filtros o prueba una busqueda menos concreta para volver a ver tu biblioteca.'
+                : 'Importa tu biblioteca, guarda algo desde Explorador o anade una entrada manual.'
+            }
+          />
         )}
       </section>
 

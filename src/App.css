@@ -376,6 +376,42 @@
   margin-bottom: 20px;
 }
 
+.filter-summary {
+  align-items: center;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  margin: -6px 0 18px;
+  padding: 10px 12px;
+}
+
+.filter-summary div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.filter-summary strong {
+  color: var(--text-strong);
+  font-size: 13px;
+}
+
+.filter-summary span {
+  color: var(--muted);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.filter-summary .ghost-button {
+  flex: 0 0 auto;
+  min-height: 34px;
+}
+
 .explorer-search {
   grid-template-columns: minmax(0, 1fr) 160px 140px;
   margin-bottom: 16px;
@@ -1836,6 +1872,15 @@ textarea:focus-visible {
 
   .utility-actions {
     margin-left: auto;
+  }
+
+  .filter-summary {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .filter-summary span {
+    white-space: normal;
   }
 
   .item-card.list-card {
