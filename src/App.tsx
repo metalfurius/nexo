@@ -1634,31 +1634,9 @@ function DiscoveryCard({
   onSave: () => void
 }) {
   const isQueued = candidate.status === 'queued'
-  const [menuOpen, setMenuOpen] = useState(false)
-
-  function showDetails() {
-    setMenuOpen(false)
-    onDetails()
-  }
-
-  function dismissCandidate() {
-    setMenuOpen(false)
-    onDismiss()
-  }
 
   return (
-    <article
-      className={`discovery-card ${candidate.status}${menuOpen ? ' menu-open' : ''}`}
-      onBlur={(event) => {
-        const nextTarget = event.relatedTarget
-        if (!(nextTarget instanceof Node) || !event.currentTarget.contains(nextTarget)) {
-          setMenuOpen(false)
-        }
-      }}
-      onKeyDown={(event) => {
-        if (event.key === 'Escape') setMenuOpen(false)
-      }}
-    >
+    <article className={`discovery-card ${candidate.status}`}>
       <CoverArt title={candidate.title} type={candidate.type} posterUrl={candidate.posterUrl} />
       <div className="discovery-body">
         <div className="candidate-meta">
@@ -1681,43 +1659,14 @@ function DiscoveryCard({
               <Plus size={16} />
               <span>Guardar</span>
             </button>
-            <div className="card-menu-wrap">
-              <button
-                aria-expanded={menuOpen}
-                aria-haspopup="menu"
-                aria-label={`Mas acciones ${candidate.title}`}
-                className="candidate-icon-action card-menu-trigger"
-                title="Mas acciones"
-                type="button"
-                onClick={() => setMenuOpen((current) => !current)}
-              >
-                <MoreHorizontal size={17} />
-              </button>
-              {menuOpen && (
-                <div aria-label={`Acciones ${candidate.title}`} className="card-menu" role="menu">
-                  <button
-                    className="card-menu-item"
-                    role="menuitem"
-                    type="button"
-                    aria-label={`Ver detalles ${candidate.title}`}
-                    onClick={showDetails}
-                  >
-                    <Eye size={15} />
-                    <span>Detalles</span>
-                  </button>
-                  <button
-                    className="card-menu-item danger"
-                    role="menuitem"
-                    type="button"
-                    aria-label={`Descartar ${candidate.title}`}
-                    onClick={dismissCandidate}
-                  >
-                    <X size={15} />
-                    <span>Descartar</span>
-                  </button>
-                </div>
-              )}
-            </div>
+            <ActionMenu
+              label={candidate.title}
+              triggerClassName="candidate-icon-action card-menu-trigger"
+              items={[
+                { ariaLabel: `Ver detalles ${candidate.title}`, Icon: Eye, label: 'Detalles', onSelect: onDetails },
+                { ariaLabel: `Descartar ${candidate.title}`, Icon: X, label: 'Descartar', onSelect: onDismiss, tone: 'danger' },
+              ]}
+            />
           </>
         ) : (
           <>
@@ -1750,31 +1699,17 @@ function ItemCard({
 }) {
   const primaryAction = getPrimaryItemAction(item.status)
   const secondaryAction = getSecondaryItemAction(item.status)
-  const [menuOpen, setMenuOpen] = useState(false)
 
   function applyStatus(status: ItemStatus) {
-    setMenuOpen(false)
     onStatus(item.id, status)
   }
 
   function deleteItem() {
-    setMenuOpen(false)
     onDelete()
   }
 
   return (
-    <article
-      className={`${layout === 'list' ? 'item-card list-card' : 'item-card'}${menuOpen ? ' menu-open' : ''}`}
-      onBlur={(event) => {
-        const nextTarget = event.relatedTarget
-        if (!(nextTarget instanceof Node) || !event.currentTarget.contains(nextTarget)) {
-          setMenuOpen(false)
-        }
-      }}
-      onKeyDown={(event) => {
-        if (event.key === 'Escape') setMenuOpen(false)
-      }}
-    >
+    <article className={layout === 'list' ? 'item-card list-card' : 'item-card'}>
       <button className="item-main" type="button" onClick={onEdit}>
         <CoverArt title={item.title} type={item.type} posterUrl={item.posterUrl} />
         <ItemIdentity item={item} />
@@ -1798,45 +1733,86 @@ function ItemCard({
           <primaryAction.Icon size={16} />
           <span>{primaryAction.label}</span>
         </button>
-        <div className="card-menu-wrap">
-          <button
-            aria-expanded={menuOpen}
-            aria-haspopup="menu"
-            aria-label={`Mas acciones ${item.title}`}
-            className="card-menu-trigger"
-            title="Mas acciones"
-            type="button"
-            onClick={() => setMenuOpen((current) => !current)}
-          >
-            <MoreHorizontal size={17} />
-          </button>
-          {menuOpen && (
-            <div aria-label={`Acciones ${item.title}`} className="card-menu" role="menu">
-              <button
-                className="card-menu-item"
-                role="menuitem"
-                type="button"
-                aria-label={`${secondaryAction.label} ${item.title}`}
-                onClick={() => applyStatus(secondaryAction.nextStatus)}
-              >
-                <secondaryAction.Icon size={15} />
-                <span>{secondaryAction.label}</span>
-              </button>
-              <button
-                className="card-menu-item danger"
-                role="menuitem"
-                type="button"
-                aria-label={`Borrar ${item.title}`}
-                onClick={deleteItem}
-              >
-                <Trash2 size={15} />
-                <span>Borrar</span>
-              </button>
-            </div>
-          )}
-        </div>
+        <ActionMenu
+          label={item.title}
+          items={[
+            {
+              Icon: secondaryAction.Icon,
+              label: secondaryAction.label,
+              onSelect: () => applyStatus(secondaryAction.nextStatus),
+            },
+            { Icon: Trash2, label: 'Borrar', onSelect: deleteItem, tone: 'danger' },
+          ]}
+        />
       </div>
     </article>
+  )
+}
+
+function ActionMenu({
+  items,
+  label,
+  triggerClassName = 'card-menu-trigger',
+}: {
+  items: Array<{
+    ariaLabel?: string
+    Icon: typeof MoreHorizontal
+    label: string
+    onSelect: () => void
+    tone?: 'danger'
+  }>
+  label: string
+  triggerClassName?: string
+}) {
+  const [open, setOpen] = useState(false)
+
+  function selectItem(onSelect: () => void) {
+    setOpen(false)
+    onSelect()
+  }
+
+  return (
+    <div
+      className="card-menu-wrap"
+      onBlur={(event) => {
+        const nextTarget = event.relatedTarget
+        if (!(nextTarget instanceof Node) || !event.currentTarget.contains(nextTarget)) {
+          setOpen(false)
+        }
+      }}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') setOpen(false)
+      }}
+    >
+      <button
+        aria-expanded={open}
+        aria-haspopup="menu"
+        aria-label={`Mas acciones ${label}`}
+        className={triggerClassName}
+        title="Mas acciones"
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+      >
+        <MoreHorizontal size={17} />
+      </button>
+      {open && (
+        <div aria-label={`Acciones ${label}`} className="card-menu" role="menu">
+          {items.map((item) => (
+            <button
+              aria-label={item.ariaLabel ?? `${item.label} ${label}`}
+              className={item.tone === 'danger' ? 'card-menu-item danger' : 'card-menu-item'}
+              key={`${label}-${item.label}`}
+              role="menuitem"
+              type="button"
+              onClick={() => selectItem(item.onSelect)}
+            >
+              <item.Icon size={15} />
+              <span>{item.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 
