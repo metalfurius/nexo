@@ -188,6 +188,48 @@ describe('createFirestoreRepository', () => {
     expect(result).toBe(unsubscribe)
   })
 
+  it('subscribes to user profiles and updates roles for admins', async () => {
+    const unsubscribe = vi.fn()
+    const onProfiles = vi.fn()
+    mocks.onSnapshot.mockImplementation((source, onNext) => {
+      onNext({
+        docs: [
+          {
+            id: 'user-2',
+            data: () => ({
+              role: 'user',
+              email: 'user@example.com',
+              createdAt: '2026-01-01T00:00:00.000Z',
+              updatedAt: '2026-01-01T00:00:00.000Z',
+            }),
+          },
+        ],
+      })
+      return unsubscribe
+    })
+
+    const repository = createFirestoreRepository('admin-1')
+    const result = repository?.subscribeUserProfiles(onProfiles, vi.fn())
+    await repository?.updateUserRole('user-2', 'moderator')
+
+    expect(mocks.onSnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collectionRef: expect.objectContaining({ path: 'users' }),
+      }),
+      expect.any(Function),
+      expect.any(Function),
+    )
+    expect(onProfiles).toHaveBeenCalledWith([
+      expect.objectContaining({ email: 'user@example.com', role: 'user', uid: 'user-2' }),
+    ])
+    expect(mocks.setDoc).toHaveBeenCalledWith(
+      expect.objectContaining({ path: 'users/user-2' }),
+      expect.objectContaining({ role: 'moderator' }),
+      { merge: true },
+    )
+    expect(result).toBe(unsubscribe)
+  })
+
   it('persists settings and discovery candidates under the signed-in user', async () => {
     const repository = createFirestoreRepository('user-1')
 

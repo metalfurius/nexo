@@ -33,6 +33,7 @@ import {
   type ExternalCandidate,
   ITEM_STATUSES,
   ITEM_TYPES,
+  USER_ROLES,
   type DiscoveryCandidate,
   type DiscoveryStatus,
   type EnergyLevel,
@@ -45,6 +46,7 @@ import {
   type RecommendationPreferences,
   type RecommendationResult,
   type ThemeMode,
+  type UserProfile,
   type UserRole,
   type UserSettings,
   nowIso,
@@ -300,6 +302,7 @@ interface LibrarySurface {
   items: ListItem[]
   settings: UserSettings
   discoveryCandidates: DiscoveryCandidate[]
+  userProfiles: UserProfile[]
   userRole: UserRole
   isModerator: boolean
   loading: boolean
@@ -318,6 +321,7 @@ interface LibrarySurface {
   saveDiscoveryToLibrary: (candidate: DiscoveryCandidate) => Promise<ListItem>
   upsertPublicItem: (item: Partial<PublicCatalogItem> & Pick<PublicCatalogItem, 'title' | 'type'>) => Promise<PublicCatalogItem>
   archivePublicItem: (id: string) => Promise<void>
+  updateUserRole: (targetUserId: string, role: UserRole) => Promise<void>
   publicItemToDiscovery: (item: PublicCatalogItem) => DiscoveryCandidate
   externalCandidateToDiscovery: (candidate: ExternalCandidate) => DiscoveryCandidate
 }
@@ -1137,6 +1141,14 @@ function SettingsTab({
           </div>
         </section>
 
+        {library.userRole === 'admin' && (
+          <AdminRolesPanel
+            currentUserId={user?.uid}
+            onRoleChange={library.updateUserRole}
+            profiles={library.userProfiles}
+          />
+        )}
+
         <section className="workspace-panel">
           <h2>Beta suave</h2>
           <p className="muted-line">Google login abre una biblioteca privada por usuario. El catalogo Nexo es comun, pero solo moderadores lo editan.</p>
@@ -1147,6 +1159,77 @@ function SettingsTab({
           </div>
         </section>
       </div>
+    </section>
+  )
+}
+
+function AdminRolesPanel({
+  currentUserId,
+  onRoleChange,
+  profiles,
+}: {
+  currentUserId?: string
+  onRoleChange: (targetUserId: string, role: UserRole) => Promise<void>
+  profiles: UserProfile[]
+}) {
+  const [status, setStatus] = useState<string | undefined>()
+
+  async function changeRole(profile: UserProfile, role: UserRole) {
+    if (profile.role === role) return
+
+    setStatus(undefined)
+    try {
+      await onRoleChange(profile.uid, role)
+      setStatus(`${profile.displayName || profile.email || profile.uid} ahora es ${roleLabels[role]}`)
+    } catch (reason) {
+      setStatus(reason instanceof Error ? reason.message : 'No se pudo actualizar el rol.')
+    }
+  }
+
+  return (
+    <section className="workspace-panel">
+      <div className="panel-heading compact">
+        <div>
+          <h2>Roles</h2>
+          <p className="muted-line">
+            {profiles.length ? `${profiles.length} perfiles con acceso` : 'Sin perfiles cargados'}
+          </p>
+        </div>
+        <span className="mode-pill moderator">Admin</span>
+      </div>
+
+      {profiles.length ? (
+        <div className="role-list">
+          {profiles.map((profile) => {
+            const label = profile.displayName || profile.email || profile.uid
+            const isCurrentUser = profile.uid === currentUserId
+            return (
+              <div className="role-row" key={profile.uid}>
+                <div>
+                  <strong>{label}</strong>
+                  <span>{profile.email || profile.uid}</span>
+                </div>
+                <select
+                  aria-label={`Rol de ${label}`}
+                  disabled={isCurrentUser}
+                  value={profile.role}
+                  onChange={(event) => void changeRole(profile, event.target.value as UserRole)}
+                >
+                  {USER_ROLES.map((role) => (
+                    <option key={role} value={role}>
+                      {roleLabels[role]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )
+          })}
+        </div>
+      ) : (
+        <EmptyState title="Sin usuarios" detail="Los perfiles apareceran aqui cuando inicien sesion por primera vez." />
+      )}
+
+      {status && <p className="muted-line">{status}</p>}
     </section>
   )
 }

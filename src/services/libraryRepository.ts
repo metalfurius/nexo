@@ -48,6 +48,8 @@ export interface LibraryRepository {
   markDiscoveryCandidateSaved: (candidateId: string, savedItemId: string) => Promise<void>
   ensureUserProfile: (profile: Partial<UserProfile>) => Promise<void>
   subscribeUserProfile: (onProfile: (profile: UserProfile | undefined) => void, onError: (error: Error) => void) => () => void
+  subscribeUserProfiles: (onProfiles: (profiles: UserProfile[]) => void, onError: (error: Error) => void) => () => void
+  updateUserRole: (targetUserId: string, role: UserRole) => Promise<void>
   upsertPublicItem: (item: Partial<PublicCatalogItem> & Pick<PublicCatalogItem, 'title' | 'type'>) => Promise<PublicCatalogItem>
   archivePublicItem: (id: string) => Promise<void>
 }
@@ -61,6 +63,7 @@ export function createFirestoreRepository(userId: string): LibraryRepository | u
   const settingsDocument = doc(services.db, 'users', userId, 'userSettings', 'preferences')
   const discoveryCandidateCollection = collection(services.db, 'users', userId, 'externalCandidates')
   const discoveryCandidateDocument = (id: string) => doc(services.db, 'users', userId, 'externalCandidates', id)
+  const userProfileCollection = collection(services.db, 'users')
   const userProfileDocument = doc(services.db, 'users', userId)
 
   return {
@@ -222,6 +225,24 @@ export function createFirestoreRepository(userId: string): LibraryRepository | u
         userProfileDocument,
         (snapshot) => onProfile(snapshot.exists() ? normalizeUserProfile(userId, snapshot.data()) : undefined),
         (error) => onError(error),
+      )
+    },
+    subscribeUserProfiles(onProfiles, onError) {
+      const profilesQuery = query(userProfileCollection, orderBy('updatedAt', 'desc'))
+      return onSnapshot(
+        profilesQuery,
+        (snapshot) => onProfiles(snapshot.docs.map((profileDoc) => normalizeUserProfile(profileDoc.id, profileDoc.data()))),
+        (error) => onError(error),
+      )
+    },
+    updateUserRole(targetUserId, role) {
+      return setDoc(
+        doc(services.db, 'users', targetUserId),
+        {
+          role,
+          updatedAt: nowIso(),
+        },
+        { merge: true },
       )
     },
     async upsertPublicItem(item) {

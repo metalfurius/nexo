@@ -326,6 +326,42 @@
   gap: 12px;
 }
 
+.role-list {
+  display: grid;
+  gap: 10px;
+}
+
+.role-row {
+  align-items: center;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) 150px;
+  padding: 12px;
+}
+
+.role-row strong,
+.role-row span {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.role-row strong {
+  color: var(--text-strong);
+  font-size: 13px;
+}
+
+.role-row span {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 3px;
+}
+
 .settings-panel,
 .settings-side {
   display: grid;
@@ -1491,6 +1527,7 @@ textarea:focus-visible {
   .explorer-search.two,
   .controls-grid,
   .form-grid,
+  .role-row,
   .detail-dialog,
   .editor-hero,
   .recommendation-head {

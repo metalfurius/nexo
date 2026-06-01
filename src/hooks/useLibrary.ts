@@ -32,6 +32,33 @@ interface SignedInUserProfile {
   photoURL?: string | null
 }
 
+const demoUserProfiles: UserProfile[] = [
+  {
+    uid: 'demo-admin',
+    role: 'admin',
+    email: 'admin@nexo.local',
+    displayName: 'Admin demo',
+    createdAt: nowIso(),
+    updatedAt: nowIso(),
+  },
+  {
+    uid: 'demo-moderator',
+    role: 'moderator',
+    email: 'moderator@nexo.local',
+    displayName: 'Moderador demo',
+    createdAt: nowIso(),
+    updatedAt: nowIso(),
+  },
+  {
+    uid: 'demo-user',
+    role: 'user',
+    email: 'usuario@nexo.local',
+    displayName: 'Usuario demo',
+    createdAt: nowIso(),
+    updatedAt: nowIso(),
+  },
+]
+
 export function useLibrary(user?: SignedInUserProfile | null) {
   const userId = user?.uid
   const [repositoryState, setRepositoryState] = useState<{ repository?: LibraryRepository; userId?: string }>({})
@@ -42,6 +69,7 @@ export function useLibrary(user?: SignedInUserProfile | null) {
   const [discoveryCandidates, setDiscoveryCandidates] = useState<DiscoveryCandidate[]>([])
   const [publicCatalog, setPublicCatalog] = useState<PublicCatalogItem[]>(demoPublicCatalog)
   const [profileRole, setProfileRole] = useState<{ role: UserRole; userId?: string }>({ role: 'user' })
+  const [userProfiles, setUserProfiles] = useState<UserProfile[]>(demoUserProfiles)
   const [demoLibrary, setDemoLibrary] = useState<ListItem[]>(demoItems)
   const [error, setError] = useState<string | undefined>()
   const expectsRemote = Boolean(isFirebaseConfigured && userId)
@@ -123,6 +151,17 @@ export function useLibrary(user?: SignedInUserProfile | null) {
 
     return () => unsubscribers.forEach((unsubscribe) => unsubscribe())
   }, [repository, user, userId])
+
+  useEffect(() => {
+    if (!repository || !userId || userRole !== 'admin') {
+      return undefined
+    }
+
+    return repository.subscribeUserProfiles(
+      (profiles) => setUserProfiles(profiles),
+      (reason) => setError(reason.message),
+    )
+  }, [repository, userId, userRole])
 
   async function saveItem(item: ListItem) {
     const normalized = {
@@ -281,6 +320,16 @@ export function useLibrary(user?: SignedInUserProfile | null) {
     }
   }
 
+  async function updateUserRole(targetUserId: string, role: UserRole) {
+    if (repository) {
+      await repository.updateUserRole(targetUserId, role)
+    } else {
+      setUserProfiles((current) =>
+        current.map((profile) => (profile.uid === targetUserId ? { ...profile, role, updatedAt: nowIso() } : profile)),
+      )
+    }
+  }
+
   function candidateToItem(candidate: ExternalCandidate): ListItem {
     return {
       id: `${candidate.type}-${slugify(candidate.title)}-${candidate.sourceId}`.slice(0, 120),
@@ -304,6 +353,7 @@ export function useLibrary(user?: SignedInUserProfile | null) {
     items,
     settings,
     discoveryCandidates,
+    userProfiles: userRole === 'admin' ? userProfiles : [],
     userRole,
     isModerator,
     loading,
@@ -322,6 +372,7 @@ export function useLibrary(user?: SignedInUserProfile | null) {
     saveDiscoveryToLibrary,
     upsertPublicItem,
     archivePublicItem,
+    updateUserRole,
     candidateToItem,
     publicItemToDiscovery,
     externalCandidateToDiscovery,

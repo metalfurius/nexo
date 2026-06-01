@@ -22,6 +22,8 @@ const repositoryMock = vi.hoisted(() => ({
   subscribeItems: vi.fn(),
   subscribeSettings: vi.fn(),
   subscribeUserProfile: vi.fn(),
+  subscribeUserProfiles: vi.fn(),
+  updateUserRole: vi.fn(),
   upsertPublicItem: vi.fn(),
 }))
 
@@ -54,6 +56,7 @@ describe('useLibrary', () => {
     vi.clearAllMocks()
     repositoryMock.ensureUserProfile.mockResolvedValue(undefined)
     repositoryMock.saveDiscoveryCandidate.mockResolvedValue(undefined)
+    repositoryMock.updateUserRole.mockResolvedValue(undefined)
     repositoryMock.subscribeItems.mockImplementation((onItems: (items: unknown[]) => void) => {
       onItems([])
       return vi.fn()
@@ -68,6 +71,10 @@ describe('useLibrary', () => {
     })
     repositoryMock.subscribeDiscoveryCandidates.mockImplementation((onCandidates: (candidates: unknown[]) => void) => {
       onCandidates([])
+      return vi.fn()
+    })
+    repositoryMock.subscribeUserProfiles.mockImplementation((onProfiles: (profiles: unknown[]) => void) => {
+      onProfiles([])
       return vi.fn()
     })
   })
@@ -99,5 +106,46 @@ describe('useLibrary', () => {
         title: 'Odisea',
       }),
     ])
+  })
+
+  it('loads user profiles and delegates role updates for admins', async () => {
+    repositoryMock.subscribeUserProfile.mockImplementation((onProfile: (profile: unknown) => void) => {
+      onProfile({ role: 'admin' })
+      return vi.fn()
+    })
+    repositoryMock.subscribeUserProfiles.mockImplementation((onProfiles: (profiles: unknown[]) => void) => {
+      onProfiles([
+        {
+          uid: 'user-1',
+          role: 'user',
+          email: 'fran@example.com',
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+        },
+      ])
+      return vi.fn()
+    })
+
+    const user = {
+      uid: 'admin-1',
+      email: 'admin@example.com',
+      displayName: 'Admin',
+    }
+    const { result } = renderHook(() => useLibrary(user))
+
+    await waitFor(() => expect(repositoryMock.subscribeUserProfiles).toHaveBeenCalled())
+
+    expect(result.current.userProfiles).toEqual([
+      expect.objectContaining({
+        uid: 'user-1',
+        role: 'user',
+      }),
+    ])
+
+    await act(async () => {
+      await result.current.updateUserRole('user-1', 'moderator')
+    })
+
+    expect(repositoryMock.updateUserRole).toHaveBeenCalledWith('user-1', 'moderator')
   })
 })
