@@ -8,10 +8,11 @@
 - `npm run test`
 - `npm run test:rules`
 - `npm run build`
+- `npm run build:functions`
 - `npm run test:e2e`
 - `npm audit --audit-level=high`
 
-`npm run release:check` covers the full local gate and expects Java/Firebase emulators to be available for Firestore rules tests.
+`npm run release:check` covers the full local gate and expects Java/Firebase emulators to be available for Firestore rules tests. If a Firestore emulator is already running on `127.0.0.1:8080`, `npm run test:rules` reuses it instead of trying to start a second emulator.
 
 ## Firebase
 
