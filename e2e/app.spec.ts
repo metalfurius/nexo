@@ -5,6 +5,10 @@ test('library and weighted dice work in demo mode', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByRole('heading', { name: 'Biblioteca privada' })).toBeVisible()
   await expect(page.getByTestId('library-grid')).toContainText('Outer Wilds')
+  await expect(page.getByRole('button', { name: 'Todo 7' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Empezar Outer Wilds' })).toBeVisible()
+  await page.getByRole('button', { name: 'Empezar Outer Wilds' }).click()
+  await expect(page.getByRole('button', { name: 'Completar Outer Wilds' })).toBeVisible()
 
   await page.getByRole('button', { name: 'Dado' }).click()
   await expect(page.getByRole('heading', { name: 'Elige el siguiente hilo' })).toBeVisible()

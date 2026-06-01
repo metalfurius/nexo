@@ -14,6 +14,7 @@ import {
   Pause,
   Play,
   Plus,
+  RotateCcw,
   Save,
   Search,
   ShieldCheck,
@@ -432,6 +433,14 @@ function LibraryTab({ library }: { library: LibrarySurface }) {
         </div>
 
         <div className="stats-row">
+          <button
+            className={statusFilter === 'all' ? 'stat-chip active' : 'stat-chip'}
+            type="button"
+            onClick={() => setStatusFilter('all')}
+          >
+            <span>Todo</span>
+            <strong>{library.items.length}</strong>
+          </button>
           {stats.map((stat) => (
             <button
               className={statusFilter === stat.status ? 'stat-chip active' : 'stat-chip'}
@@ -1451,6 +1460,9 @@ function ItemCard({
   onDelete: (id: string) => void
   onStatus: (id: string, status: ItemStatus) => void
 }) {
+  const primaryAction = getPrimaryItemAction(item.status)
+  const secondaryAction = getSecondaryItemAction(item.status)
+
   return (
     <article className="item-card">
       <button className="item-main" type="button" onClick={onEdit}>
@@ -1466,25 +1478,64 @@ function ItemCard({
         </div>
       </button>
       <div className="card-actions">
-        <button className="card-primary-action" type="button" title="Empezar" onClick={() => onStatus(item.id, 'in_progress')}>
-          <Play size={16} />
-          <span>Empezar</span>
+        <button
+          className="card-primary-action"
+          type="button"
+          aria-label={`${primaryAction.label} ${item.title}`}
+          title={primaryAction.label}
+          onClick={() => onStatus(item.id, primaryAction.nextStatus)}
+        >
+          <primaryAction.Icon size={16} />
+          <span>{primaryAction.label}</span>
         </button>
-        <button className="card-secondary-action" type="button" title="Pausar" onClick={() => onStatus(item.id, 'paused')}>
-          <Pause size={16} />
-          <span className="sr-only">Pausar</span>
+        <button
+          className="card-secondary-action"
+          type="button"
+          aria-label={`${secondaryAction.label} ${item.title}`}
+          title={secondaryAction.label}
+          onClick={() => onStatus(item.id, secondaryAction.nextStatus)}
+        >
+          <secondaryAction.Icon size={16} />
+          <span className="sr-only">{secondaryAction.label}</span>
         </button>
-        <button className="card-secondary-action" type="button" title="Completar" onClick={() => onStatus(item.id, 'completed')}>
-          <Check size={16} />
-          <span className="sr-only">Completar</span>
-        </button>
-        <button className="card-secondary-action danger-icon" type="button" title="Borrar" onClick={() => onDelete(item.id)}>
+        <button className="card-secondary-action danger-icon" type="button" aria-label={`Borrar ${item.title}`} title="Borrar" onClick={() => onDelete(item.id)}>
           <Trash2 size={16} />
           <span className="sr-only">Borrar</span>
         </button>
       </div>
     </article>
   )
+}
+
+function getPrimaryItemAction(status: ItemStatus): { Icon: typeof Play; label: string; nextStatus: ItemStatus } {
+  switch (status) {
+    case 'in_progress':
+      return { Icon: Check, label: 'Completar', nextStatus: 'completed' }
+    case 'paused':
+      return { Icon: Play, label: 'Retomar', nextStatus: 'in_progress' }
+    case 'completed':
+      return { Icon: RotateCcw, label: 'Reabrir', nextStatus: 'in_progress' }
+    case 'dropped':
+      return { Icon: RotateCcw, label: 'Recuperar', nextStatus: 'wishlist' }
+    case 'wishlist':
+    default:
+      return { Icon: Play, label: 'Empezar', nextStatus: 'in_progress' }
+  }
+}
+
+function getSecondaryItemAction(status: ItemStatus): { Icon: typeof Play; label: string; nextStatus: ItemStatus } {
+  switch (status) {
+    case 'in_progress':
+      return { Icon: Pause, label: 'Pausar', nextStatus: 'paused' }
+    case 'completed':
+      return { Icon: RotateCcw, label: 'Pendiente', nextStatus: 'wishlist' }
+    case 'dropped':
+      return { Icon: Play, label: 'Empezar', nextStatus: 'in_progress' }
+    case 'paused':
+    case 'wishlist':
+    default:
+      return { Icon: Check, label: 'Completar', nextStatus: 'completed' }
+  }
 }
 
 function CoverArt({ posterUrl, title, type }: { posterUrl?: string; title: string; type: ItemType }) {
