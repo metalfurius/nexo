@@ -87,6 +87,11 @@ test('settings show pending changes before saving preferences', async ({ page })
 test('explorer searches public catalog and saves to private library', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Explorador' }).click()
+  await page.getByLabel('Tipo de busqueda en explorador').selectOption('game')
+  await page.getByRole('button', { name: 'Ajustes' }).click()
+  await expect(page.getByLabel('Tipo por defecto')).toHaveValue('game')
+  await page.getByRole('button', { name: 'Explorador' }).click()
+  await expect(page.getByLabel('Tipo de busqueda en explorador')).toHaveValue('game')
   await page.getByLabel('Buscar en explorador').fill('Odisea')
   await page.getByRole('button', { name: 'Buscar' }).click()
 

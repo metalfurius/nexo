@@ -44,6 +44,7 @@ import {
   type DiscoveryCandidate,
   type DiscoveryStatus,
   type EnergyLevel,
+  type ExplorerSearchType,
   type IntensityLevel,
   type ItemStatus,
   type ItemType,
@@ -925,11 +926,11 @@ function DiceTab({ library }: { library: LibrarySurface }) {
 
 function ExplorerTab({ library }: { library: LibrarySurface }) {
   const [query, setQuery] = useState('')
-  const [type, setType] = useState<ItemType | 'watch' | 'any'>(library.settings.explorerDefaultType)
   const [view, setView] = useState<DiscoveryStatus>('queued')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<string | undefined>()
   const [selected, setSelected] = useState<DiscoveryCandidate | undefined>()
+  const type = library.settings.explorerDefaultType
   const discoveryCounts = useMemo(() => {
     const counts: Record<DiscoveryStatus, number> = { queued: 0, saved: 0, dismissed: 0 }
     for (const candidate of library.discoveryCandidates) {
@@ -942,6 +943,15 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
   const queuedNexoCount = queuedCandidates.filter((candidate) => candidate.source === 'nexo').length
   const queuedExternalCount = queuedCandidates.filter((candidate) => candidate.source !== 'nexo' && candidate.source !== 'prompt').length
   const queuedPromptCount = queuedCandidates.filter((candidate) => candidate.source === 'prompt').length
+
+  async function changeSearchType(nextType: ExplorerSearchType) {
+    setMessage(undefined)
+    try {
+      await library.saveSettings({ explorerDefaultType: nextType })
+    } catch (reason) {
+      setMessage(reason instanceof Error ? reason.message : 'No se pudo guardar el tipo de busqueda.')
+    }
+  }
 
   async function runDiscoverySearch() {
     const cleanedQuery = query.trim()
@@ -1030,7 +1040,7 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
           <select
             aria-label="Tipo de busqueda en explorador"
             value={type}
-            onChange={(event) => setType(event.target.value as ItemType | 'watch' | 'any')}
+            onChange={(event) => void changeSearchType(event.target.value as ExplorerSearchType)}
           >
             <option value="any">Todo</option>
             <option value="watch">Ver</option>
@@ -1203,7 +1213,7 @@ function SettingsTab({
               onChange={(event) =>
                 setDraft((current) => ({
                   ...current,
-                  explorerDefaultType: event.target.value as ItemType | 'watch' | 'any',
+                  explorerDefaultType: event.target.value as ExplorerSearchType,
                 }))
               }
             >

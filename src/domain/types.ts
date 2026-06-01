@@ -29,6 +29,7 @@ export type IntensityLevel = 'soft' | 'balanced' | 'intense'
 export type NoveltyLevel = 'comfort' | 'balanced' | 'surprise'
 export type ThemeMode = 'dark' | 'light'
 export type LibraryViewMode = 'cards' | 'list'
+export type ExplorerSearchType = ItemType | 'watch' | 'any'
 export type DiscoveryOrigin = 'publicCatalog' | 'externalSearch' | 'prompt' | 'roll'
 export type DiscoveryStatus = 'queued' | 'saved' | 'dismissed'
 
@@ -155,7 +156,7 @@ export interface UserSettings {
   allowPausedByDefault: boolean
   theme: ThemeMode
   recommendationPreferences: RecommendationPreferences
-  explorerDefaultType: ItemType | 'watch' | 'any'
+  explorerDefaultType: ExplorerSearchType
   libraryViewMode: LibraryViewMode
 }
 
@@ -171,7 +172,7 @@ export interface UserProfile {
 }
 
 export interface RecommendationPreferences {
-  medium: ItemType | 'watch' | 'any'
+  medium: ExplorerSearchType
   timeBudgetHours?: number
   energy: EnergyLevel
   intensity: IntensityLevel

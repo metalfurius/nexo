@@ -4,6 +4,7 @@ import {
   DEFAULT_WEIGHTS,
   ITEM_STATUSES,
   ITEM_TYPES,
+  type ExplorerSearchType,
   type ExternalRefs,
   type ItemStatus,
   type ItemType,
@@ -191,7 +192,7 @@ function readItemStatus(value: unknown, message: string): ItemStatus {
   throw new Error(message)
 }
 
-function readExplorerDefaultType(value: unknown) {
+function readExplorerDefaultType(value: unknown): ExplorerSearchType {
   if (value === 'any' || value === 'watch') return value
   if (typeof value === 'string' && ITEM_TYPES.includes(value as ItemType)) return value as ItemType
   return DEFAULT_SETTINGS.explorerDefaultType
