@@ -65,7 +65,7 @@ export function useLibrary(userId?: string) {
         (reason) => setError(reason.message),
       ),
       repository.subscribeDiscoveryCandidates(
-        (nextCandidates) => setDiscoveryCandidates(nextCandidates),
+        (nextCandidates) => setDiscoveryCandidates((current) => mergeCandidates(nextCandidates, current)),
         (reason) => setError(reason.message),
       ),
     ]
@@ -166,38 +166,42 @@ export function useLibrary(userId?: string) {
       status: candidate.status ?? 'queued',
       updatedAt: nowIso(),
     }))
-    if (repository) {
-      await Promise.all(normalized.map((candidate) => repository.saveDiscoveryCandidate(candidate)))
-    } else {
-      setDiscoveryCandidates((current) => mergeCandidates(normalized, current))
-    }
+    setDiscoveryCandidates((current) => mergeCandidates(normalized, current))
   }
 
   async function dismissDiscoveryCandidate(candidateId: string) {
+    const dismissedAt = nowIso()
+    setDiscoveryCandidates((current) =>
+      current.map((candidate) =>
+        candidate.id === candidateId
+          ? { ...candidate, status: 'dismissed', dismissedAt, updatedAt: dismissedAt }
+          : candidate,
+      ),
+    )
     if (repository) {
-      await repository.dismissDiscoveryCandidate(candidateId)
-    } else {
-      setDiscoveryCandidates((current) =>
-        current.map((candidate) =>
-          candidate.id === candidateId
-            ? { ...candidate, status: 'dismissed', dismissedAt: nowIso(), updatedAt: nowIso() }
-            : candidate,
-        ),
-      )
+      try {
+        await repository.dismissDiscoveryCandidate(candidateId)
+      } catch (reason) {
+        setError(reason instanceof Error ? reason.message : 'No se pudo persistir el descarte.')
+      }
     }
   }
 
   async function saveDiscoveryToLibrary(candidate: DiscoveryCandidate) {
     const item = discoveryToListItem(candidate)
     await saveItem(item)
+    const savedAt = nowIso()
+    setDiscoveryCandidates((current) =>
+      current.map((entry) =>
+        entry.id === candidate.id ? { ...entry, status: 'saved', savedItemId: item.id, updatedAt: savedAt } : entry,
+      ),
+    )
     if (repository) {
-      await repository.markDiscoveryCandidateSaved(candidate.id, item.id)
-    } else {
-      setDiscoveryCandidates((current) =>
-        current.map((entry) =>
-          entry.id === candidate.id ? { ...entry, status: 'saved', savedItemId: item.id, updatedAt: nowIso() } : entry,
-        ),
-      )
+      try {
+        await repository.markDiscoveryCandidateSaved(candidate.id, item.id)
+      } catch (reason) {
+        setError(reason instanceof Error ? reason.message : 'No se pudo persistir el estado del candidato.')
+      }
     }
     return item
   }
@@ -287,7 +291,10 @@ function upsertCatalogItem(items: PublicCatalogItem[], nextItem: PublicCatalogIt
 function mergeCandidates(nextCandidates: DiscoveryCandidate[], currentCandidates: DiscoveryCandidate[]) {
   const byId = new Map<string, DiscoveryCandidate>()
   for (const candidate of [...nextCandidates, ...currentCandidates]) {
-    if (!byId.has(candidate.id)) byId.set(candidate.id, candidate)
+    const current = byId.get(candidate.id)
+    if (!current || candidate.updatedAt.localeCompare(current.updatedAt) > 0) {
+      byId.set(candidate.id, candidate)
+    }
   }
   return [...byId.values()].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
 }

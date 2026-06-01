@@ -76,6 +76,7 @@ const sourceLabels: Record<DiscoveryCandidate['source'], string> = {
   rawg: 'RAWG',
   openLibrary: 'Open Library',
   anilist: 'AniList',
+  wikidata: 'Wikidata',
   prompt: 'Explorador',
 }
 

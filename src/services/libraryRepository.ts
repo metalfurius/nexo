@@ -171,6 +171,7 @@ export function createFirestoreRepository(userId: string): LibraryRepository | u
       return setDoc(
         discoveryCandidateDocument(candidateId),
         {
+          id: candidateId,
           status: 'dismissed',
           dismissedAt: nowIso(),
           updatedAt: nowIso(),
@@ -182,6 +183,7 @@ export function createFirestoreRepository(userId: string): LibraryRepository | u
       return setDoc(
         discoveryCandidateDocument(candidateId),
         {
+          id: candidateId,
           status: 'saved',
           savedItemId,
           updatedAt: nowIso(),
@@ -246,6 +248,7 @@ function scorePublicCatalogItem(item: PublicCatalogItem, queryKey: string, query
 
 async function searchExternalClientSide(searchQuery: string, type: string): Promise<ExternalCandidate[]> {
   if (type === 'book') return searchOpenLibraryClientSide(searchQuery)
+  if (type === 'game') return searchWikidataGamesClientSide(searchQuery)
   if (type === 'anime' || type === 'manga' || type === 'manhwa') {
     return searchAniListClientSide(searchQuery, type)
   }
@@ -253,6 +256,7 @@ async function searchExternalClientSide(searchQuery: string, type: string): Prom
     const groups = await Promise.allSettled([
       searchOpenLibraryClientSide(searchQuery),
       searchAniListClientSide(searchQuery, 'anime'),
+      searchWikidataGamesClientSide(searchQuery),
     ])
     return groups.flatMap((group) => (group.status === 'fulfilled' ? group.value : []))
   }
@@ -288,6 +292,42 @@ async function searchOpenLibraryClientSide(searchQuery: string): Promise<Externa
       createdAt: nowIso(),
     } satisfies ExternalCandidate
   })
+}
+
+async function searchWikidataGamesClientSide(searchQuery: string): Promise<ExternalCandidate[]> {
+  const url = new URL('https://www.wikidata.org/w/api.php')
+  url.searchParams.set('action', 'wbsearchentities')
+  url.searchParams.set('search', searchQuery)
+  url.searchParams.set('language', 'en')
+  url.searchParams.set('format', 'json')
+  url.searchParams.set('origin', '*')
+  url.searchParams.set('limit', '8')
+
+  const response = await fetch(url)
+  if (!response.ok) return []
+  const payload = (await response.json()) as { search?: Array<Record<string, unknown>> }
+
+  return (payload.search ?? [])
+    .filter((entry) => /video game|videogame/i.test(String(entry.description ?? '')))
+    .map((entry) => {
+      const id = String(entry.id)
+      const description = typeof entry.description === 'string' ? entry.description : undefined
+      return {
+        id: `wikidata-${id}`,
+        title: String(entry.label ?? 'Sin titulo'),
+        type: 'game',
+        source: 'wikidata',
+        sourceId: id,
+        overview: description,
+        releaseYear: parseFirstYear(description),
+        genres: ['video game'],
+        externalRefs: {
+          wikidataId: id,
+          sourceUrl: `https://www.wikidata.org/wiki/${id}`,
+        },
+        createdAt: nowIso(),
+      } satisfies ExternalCandidate
+    })
 }
 
 async function searchAniListClientSide(
@@ -347,6 +387,11 @@ async function searchAniListClientSide(
       createdAt: nowIso(),
     } satisfies ExternalCandidate
   })
+}
+
+function parseFirstYear(value?: string) {
+  const match = value?.match(/\b(19|20)\d{2}\b/)
+  return match ? Number(match[0]) : undefined
 }
 
 function withoutUndefined<T>(value: T): T {
