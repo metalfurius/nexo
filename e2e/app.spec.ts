@@ -46,6 +46,17 @@ test('pwa metadata is present', async ({ page }) => {
   )
 })
 
+test('settings show pending changes before saving preferences', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Ajustes' }).click()
+
+  await expect(page.getByRole('button', { name: 'Guardado' })).toBeDisabled()
+  await page.getByRole('button', { name: 'Claro', exact: true }).click()
+  await expect(page.getByText('Cambios pendientes')).toBeVisible()
+  await page.getByRole('button', { name: 'Guardar cambios' }).click()
+  await expect(page.getByText('Ajustes guardados')).toBeVisible()
+})
+
 test('explorer searches public catalog and saves to private library', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Explorador' }).click()

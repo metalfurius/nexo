@@ -979,13 +979,22 @@ function SettingsTab({
     explorerDefaultType: library.settings.explorerDefaultType,
   })
   const [status, setStatus] = useState<string | undefined>()
+  const draftFavoriteTags = splitList(draft.favoriteTags)
+  const draftFavoriteGenres = splitList(draft.favoriteGenres)
+  const draftBlockedTags = splitList(draft.blockedTags)
+  const hasUnsavedChanges =
+    draft.theme !== theme ||
+    draft.explorerDefaultType !== library.settings.explorerDefaultType ||
+    !sameList(draftFavoriteTags, library.settings.favoriteTags) ||
+    !sameList(draftFavoriteGenres, library.settings.favoriteGenres) ||
+    !sameList(draftBlockedTags, library.settings.blockedTags)
 
   async function saveSettings() {
     const nextSettings: Partial<UserSettings> = {
       theme: draft.theme,
-      favoriteTags: splitList(draft.favoriteTags),
-      favoriteGenres: splitList(draft.favoriteGenres),
-      blockedTags: splitList(draft.blockedTags),
+      favoriteTags: draftFavoriteTags,
+      favoriteGenres: draftFavoriteGenres,
+      blockedTags: draftBlockedTags,
       explorerDefaultType: draft.explorerDefaultType,
     }
     setTheme(draft.theme)
@@ -1001,30 +1010,50 @@ function SettingsTab({
 
   return (
     <section className="settings-grid">
-      <section className="workspace-panel">
+      <form
+        className="workspace-panel settings-panel"
+        onSubmit={(event) => {
+          event.preventDefault()
+          void saveSettings()
+        }}
+      >
         <div className="panel-heading">
           <div>
             <h2>Ajustes</h2>
             <p>Preferencias privadas para el dado y el explorador</p>
           </div>
-          <button className="primary-button" type="button" onClick={saveSettings}>
+          <button className="primary-button" disabled={!hasUnsavedChanges} type="submit">
             <Save size={17} />
-            Guardar
+            {hasUnsavedChanges ? 'Guardar cambios' : 'Guardado'}
           </button>
         </div>
-        <div className="form-grid">
+
+        <div className={hasUnsavedChanges ? 'settings-status pending' : 'settings-status'}>
+          <span>{hasUnsavedChanges ? 'Cambios pendientes' : 'Sin cambios pendientes'}</span>
+          <strong>{typeLabels[draft.explorerDefaultType]}</strong>
+        </div>
+
+        <div className="settings-section">
+          <h3>Apariencia</h3>
+          <div className="segmented-options" role="group" aria-label="Tema">
+            {(['dark', 'light'] as const).map((mode) => (
+              <button
+                className={draft.theme === mode ? 'segment-option active' : 'segment-option'}
+                key={mode}
+                type="button"
+                onClick={() => setDraft((current) => ({ ...current, theme: mode }))}
+              >
+                {mode === 'dark' ? <Moon size={16} /> : <Sun size={16} />}
+                <span>{mode === 'dark' ? 'Oscuro' : 'Claro'}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="settings-section">
+          <h3>Explorador</h3>
           <label>
-            Tema
-            <select
-              value={draft.theme}
-              onChange={(event) => setDraft((current) => ({ ...current, theme: event.target.value as ThemeMode }))}
-            >
-              <option value="dark">Oscuro</option>
-              <option value="light">Claro</option>
-            </select>
-          </label>
-          <label>
-            Explorador por defecto
+            Tipo por defecto
             <select
               value={draft.explorerDefaultType}
               onChange={(event) =>
@@ -1038,60 +1067,75 @@ function SettingsTab({
               <option value="any">Todo</option>
               <option value="game">Juego</option>
               <option value="book">Libro</option>
+              <option value="anime">Anime</option>
+              <option value="manga">Manga</option>
+              <option value="manhwa">Manhwa</option>
             </select>
           </label>
         </div>
-        <label>
-          Tags favoritos
-          <input value={draft.favoriteTags} onChange={(event) => setDraft((current) => ({ ...current, favoriteTags: event.target.value }))} />
-        </label>
-        <label>
-          Generos favoritos
-          <input value={draft.favoriteGenres} onChange={(event) => setDraft((current) => ({ ...current, favoriteGenres: event.target.value }))} />
-        </label>
-        <label>
-          Tags bloqueados
-          <input value={draft.blockedTags} onChange={(event) => setDraft((current) => ({ ...current, blockedTags: event.target.value }))} />
-        </label>
+
+        <div className="settings-section">
+          <h3>Preferencias del dado</h3>
+          <label>
+            Tags favoritos
+            <input value={draft.favoriteTags} onChange={(event) => setDraft((current) => ({ ...current, favoriteTags: event.target.value }))} />
+          </label>
+          <label>
+            Generos favoritos
+            <input value={draft.favoriteGenres} onChange={(event) => setDraft((current) => ({ ...current, favoriteGenres: event.target.value }))} />
+          </label>
+          <label>
+            Tags bloqueados
+            <input value={draft.blockedTags} onChange={(event) => setDraft((current) => ({ ...current, blockedTags: event.target.value }))} />
+          </label>
+        </div>
+
+        <div className="preference-preview" aria-label="Resumen de preferencias">
+          <PreferencePreview label="Favoritos" values={[...draftFavoriteGenres, ...draftFavoriteTags]} />
+          <PreferencePreview label="Bloqueados" values={draftBlockedTags} tone="danger" />
+        </div>
+
         {status && <p className="muted-line">{status}</p>}
-      </section>
+      </form>
 
-      <section className="workspace-panel">
-        <div className="panel-heading compact">
-          <div>
-            <h2>Cuenta</h2>
-            <p className="muted-line">{user?.displayName ?? user?.email ?? 'Sesion activa'}</p>
-          </div>
-          <span className={library.isModerator ? 'mode-pill moderator' : 'mode-pill'}>
-            {roleLabels[library.userRole]}
-          </span>
-        </div>
-        <div className="account-panel">
-          <label>
-            Email
-            <input readOnly value={user?.email ?? 'Sin email'} />
-          </label>
-          <label>
-            UID
-            <div className="inline-control">
-              <input readOnly value={user?.uid ?? 'Demo local'} />
-              <button className="icon-button" disabled={!user} type="button" onClick={copyUserId} title="Copiar UID">
-                <Copy size={17} />
-              </button>
+      <div className="settings-side">
+        <section className="workspace-panel">
+          <div className="panel-heading compact">
+            <div>
+              <h2>Cuenta</h2>
+              <p className="muted-line">{user?.displayName ?? user?.email ?? 'Sesion activa'}</p>
             </div>
-          </label>
-        </div>
-      </section>
+            <span className={library.isModerator ? 'mode-pill moderator' : 'mode-pill'}>
+              {roleLabels[library.userRole]}
+            </span>
+          </div>
+          <div className="account-panel">
+            <label>
+              Email
+              <input readOnly value={user?.email ?? 'Sin email'} />
+            </label>
+            <label>
+              UID
+              <div className="inline-control">
+                <input readOnly value={user?.uid ?? 'Demo local'} />
+                <button className="icon-button" disabled={!user} type="button" onClick={copyUserId} title="Copiar UID">
+                  <Copy size={17} />
+                </button>
+              </div>
+            </label>
+          </div>
+        </section>
 
-      <section className="workspace-panel">
-        <h2>Beta suave</h2>
-        <p className="muted-line">Google login abre una biblioteca privada por usuario. El catalogo Nexo es comun, pero solo moderadores lo editan.</p>
-        <div className="release-list">
-          <span>Firestore privado por usuario</span>
-          <span>Catalogo publico curado</span>
-          <span>Export JSON schemaVersion 1</span>
-        </div>
-      </section>
+        <section className="workspace-panel">
+          <h2>Beta suave</h2>
+          <p className="muted-line">Google login abre una biblioteca privada por usuario. El catalogo Nexo es comun, pero solo moderadores lo editan.</p>
+          <div className="release-list">
+            <span>Firestore privado por usuario</span>
+            <span>Catalogo publico curado</span>
+            <span>Export JSON schemaVersion 1</span>
+          </div>
+        </section>
+      </div>
     </section>
   )
 }
@@ -1933,6 +1977,24 @@ function MetricCard({ label, value }: { label: string; value: number | string })
   )
 }
 
+function PreferencePreview({ label, tone, values }: { label: string; tone?: 'danger'; values: string[] }) {
+  return (
+    <div className={tone === 'danger' ? 'preference-preview-group danger' : 'preference-preview-group'}>
+      <strong>{label}</strong>
+      {values.length ? (
+        <div className="preference-chip-row">
+          {values.slice(0, 8).map((value) => (
+            <span key={value}>{value}</span>
+          ))}
+          {values.length > 8 && <span>+{values.length - 8}</span>}
+        </div>
+      ) : (
+        <p>Sin valores</p>
+      )}
+    </div>
+  )
+}
+
 function EmptyState({ detail, title }: { title: string; detail: string }) {
   return (
     <div className="empty-state">
@@ -1990,6 +2052,11 @@ function draftCatalogQualityWarnings(draft: { description?: string; genresText: 
 
 function upsertVisibleCatalogItem(items: PublicCatalogItem[], nextItem: PublicCatalogItem) {
   return [nextItem, ...items.filter((item) => item.id !== nextItem.id)].sort((left, right) => left.title.localeCompare(right.title, 'es'))
+}
+
+function sameList(left: string[], right: string[]) {
+  if (left.length !== right.length) return false
+  return left.every((value, index) => value === right[index])
 }
 
 function splitList(value: string) {

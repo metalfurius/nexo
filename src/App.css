@@ -47,7 +47,8 @@
 .panel-actions,
 .action-row,
 .stats-row,
-.utility-actions {
+.utility-actions,
+.segmented-options {
   align-items: center;
   display: flex;
   gap: 10px;
@@ -325,6 +326,127 @@
   gap: 12px;
 }
 
+.settings-panel,
+.settings-side {
+  display: grid;
+  gap: 16px;
+}
+
+.settings-side {
+  align-content: start;
+}
+
+.settings-status {
+  align-items: center;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  padding: 12px;
+}
+
+.settings-status span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.settings-status strong {
+  color: var(--text-strong);
+}
+
+.settings-status.pending {
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+}
+
+.settings-status.pending span,
+.settings-status.pending strong {
+  color: var(--accent-dark);
+}
+
+.settings-section {
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 12px;
+  padding-top: 14px;
+}
+
+.settings-section h3 {
+  color: var(--text-strong);
+  font-size: 14px;
+  margin: 0;
+}
+
+.segmented-options {
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px;
+}
+
+.segment-option {
+  background: transparent;
+  color: var(--muted);
+  flex: 1;
+  font-weight: 850;
+  min-width: 0;
+  padding: 0 12px;
+}
+
+.segment-option.active {
+  background: var(--surface-raised);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  color: var(--text-strong);
+}
+
+.preference-preview {
+  display: grid;
+  gap: 10px;
+}
+
+.preference-preview-group {
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+}
+
+.preference-preview-group strong {
+  color: var(--text-strong);
+  font-size: 13px;
+}
+
+.preference-preview-group p {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 0;
+}
+
+.preference-preview-group.danger {
+  border-color: color-mix(in srgb, var(--danger-border) 75%, var(--border));
+}
+
+.preference-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.preference-chip-row span {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1;
+  padding: 7px 9px;
+}
+
 .inline-control {
   align-items: center;
   display: grid;
@@ -568,6 +690,7 @@ label {
 .candidate-icon-action,
 .candidate-primary-action,
 .dice-button,
+.segment-option,
 .primary-button,
 .secondary-button,
 .danger-button,
