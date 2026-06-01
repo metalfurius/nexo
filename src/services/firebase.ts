@@ -7,8 +7,7 @@ import {
   signInWithPopup,
   signOut,
 } from 'firebase/auth'
-import { connectFunctionsEmulator, getFunctions } from 'firebase/functions'
-import { connectFirestoreEmulator, getFirestore } from 'firebase/firestore'
+import { connectFirestoreEmulator, initializeFirestore, type Firestore } from 'firebase/firestore'
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -32,6 +31,7 @@ export const isFirebaseConfigured = Boolean(
 
 let app: FirebaseApp | undefined
 let analytics: Analytics | undefined
+let db: Firestore | undefined
 let emulatorsConnected = false
 
 export function getFirebaseApp() {
@@ -53,16 +53,16 @@ export function getFirebaseServices() {
   if (!firebaseApp) return undefined
 
   const auth = getAuth(firebaseApp)
-  const db = getFirestore(firebaseApp)
-  const functions = getFunctions(firebaseApp)
+  db ??= initializeFirestore(firebaseApp, {
+    experimentalAutoDetectLongPolling: true,
+  })
 
   if (import.meta.env.DEV && import.meta.env.VITE_USE_FIREBASE_EMULATORS === 'true' && !emulatorsConnected) {
     connectFirestoreEmulator(db, '127.0.0.1', 8080)
-    connectFunctionsEmulator(functions, '127.0.0.1', 5001)
     emulatorsConnected = true
   }
 
-  return { auth, db, functions }
+  return { auth, db }
 }
 
 export function watchAuth(callback: (user: ReturnType<typeof getAuth>['currentUser']) => void) {

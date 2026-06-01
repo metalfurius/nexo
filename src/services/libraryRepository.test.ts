@@ -6,28 +6,21 @@ const mocks = vi.hoisted(() => ({
   addDoc: vi.fn(),
   batchCommit: vi.fn(),
   batchDelete: vi.fn(),
-  callable: vi.fn(),
   deleteDoc: vi.fn(),
   getDoc: vi.fn(),
   getDocs: vi.fn(),
-  httpsCallable: vi.fn(),
   onSnapshot: vi.fn(),
   setDoc: vi.fn(),
 }))
 
 const firebaseServices = vi.hoisted(() => ({
   db: { name: 'db' },
-  functions: { name: 'functions' },
 }))
 
 const sdkPath = vi.hoisted(() => (args: unknown[]) => args.slice(1).map(String).join('/'))
 
 vi.mock('./firebase', () => ({
   getFirebaseServices: vi.fn(() => firebaseServices),
-}))
-
-vi.mock('firebase/functions', () => ({
-  httpsCallable: mocks.httpsCallable,
 }))
 
 vi.mock('firebase/firestore', () => ({
@@ -66,11 +59,9 @@ describe('createFirestoreRepository', () => {
     vi.clearAllMocks()
     mocks.addDoc.mockResolvedValue(undefined)
     mocks.batchCommit.mockResolvedValue(undefined)
-    mocks.callable.mockResolvedValue({ data: { candidates: [] } })
     mocks.deleteDoc.mockResolvedValue(undefined)
     mocks.getDoc.mockResolvedValue({ exists: () => false })
     mocks.getDocs.mockResolvedValue({ docs: [] })
-    mocks.httpsCallable.mockReturnValue(mocks.callable)
     mocks.setDoc.mockResolvedValue(undefined)
   })
 
