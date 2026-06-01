@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { initializeTestEnvironment, type RulesTestEnvironment } from '@firebase/rules-unit-testing'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
@@ -18,18 +18,45 @@ maybeDescribe('firestore.rules emulator', () => {
   })
 
   afterAll(async () => {
-    await env.cleanup()
+    await env?.cleanup()
   })
 
-  it('allows signed-in users to read app collections', async () => {
+  beforeEach(async () => {
+    await env.clearFirestore()
+  })
+
+  it('allows signed-in users to read and write their own library', async () => {
+    const ownerDb = env.authenticatedContext('owner').firestore()
+    const itemRef = doc(ownerDb, 'users', 'owner', 'items', 'outer-wilds')
+
+    await expect(setDoc(itemRef, { title: 'Outer Wilds' })).resolves.toBeUndefined()
+    await expect(getDoc(itemRef)).resolves.toBeTruthy()
+  })
+
+  it('blocks signed-in users from another user library', async () => {
     await env.withSecurityRulesDisabled(async (context) => {
-      await setDoc(doc(context.firestore(), 'items', 'outer-wilds'), { title: 'Outer Wilds' })
+      await setDoc(doc(context.firestore(), 'users', 'owner', 'items', 'outer-wilds'), {
+        title: 'Outer Wilds',
+      })
     })
 
-    const ownerDb = env.authenticatedContext('owner').firestore()
+    const otherDb = env.authenticatedContext('other').firestore()
+
+    await expect(getDoc(doc(otherDb, 'users', 'owner', 'items', 'outer-wilds'))).rejects.toThrow()
+    await expect(setDoc(doc(otherDb, 'users', 'owner', 'items', 'new-item'), { title: 'Nope' })).rejects.toThrow()
+  })
+
+  it('blocks anonymous users from user libraries', async () => {
     const anonymousDb = env.unauthenticatedContext().firestore()
 
-    await expect(getDoc(doc(ownerDb, 'items', 'outer-wilds'))).resolves.toBeTruthy()
-    await expect(getDoc(doc(anonymousDb, 'items', 'outer-wilds'))).rejects.toThrow()
+    await expect(getDoc(doc(anonymousDb, 'users', 'owner', 'items', 'outer-wilds'))).rejects.toThrow()
+    await expect(setDoc(doc(anonymousDb, 'users', 'owner', 'items', 'new-item'), { title: 'Nope' })).rejects.toThrow()
+  })
+
+  it('blocks legacy root collections', async () => {
+    const ownerDb = env.authenticatedContext('owner').firestore()
+
+    await expect(setDoc(doc(ownerDb, 'items', 'outer-wilds'), { title: 'Outer Wilds' })).rejects.toThrow()
+    await expect(getDoc(doc(ownerDb, 'items', 'outer-wilds'))).rejects.toThrow()
   })
 })

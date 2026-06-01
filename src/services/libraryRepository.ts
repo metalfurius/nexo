@@ -31,13 +31,16 @@ export interface LibraryRepository {
   searchExternal: (query: string, type: string) => Promise<ExternalCandidate[]>
 }
 
-export function createFirestoreRepository(): LibraryRepository | undefined {
+export function createFirestoreRepository(userId: string): LibraryRepository | undefined {
   const services = getFirebaseServices()
   if (!services) return undefined
+  const itemCollection = collection(services.db, 'users', userId, 'items')
+  const itemDocument = (id: string) => doc(services.db, 'users', userId, 'items', id)
+  const recommendationRunCollection = collection(services.db, 'users', userId, 'recommendationRuns')
 
   return {
     subscribeItems(onItems, onError) {
-      const itemsQuery = query(collection(services.db, 'items'), orderBy('updatedAt', 'desc'))
+      const itemsQuery = query(itemCollection, orderBy('updatedAt', 'desc'))
       return onSnapshot(
         itemsQuery,
         (snapshot) => {
@@ -47,16 +50,16 @@ export function createFirestoreRepository(): LibraryRepository | undefined {
       )
     },
     saveItem(item) {
-      return setDoc(doc(services.db, 'items', item.id), {
+      return setDoc(itemDocument(item.id), {
         ...withoutUndefined(item),
         updatedAt: nowIso(),
       })
     },
     deleteItem(id) {
-      return deleteDoc(doc(services.db, 'items', id))
+      return deleteDoc(itemDocument(id))
     },
     async deleteAllItems() {
-      const snapshot = await getDocs(collection(services.db, 'items'))
+      const snapshot = await getDocs(itemCollection)
       for (const docsChunk of chunk(snapshot.docs, 450)) {
         const batch = writeBatch(services.db)
         for (const itemDoc of docsChunk) {
@@ -67,7 +70,7 @@ export function createFirestoreRepository(): LibraryRepository | undefined {
     },
     setStatus(id, status) {
       return setDoc(
-        doc(services.db, 'items', id),
+        itemDocument(id),
         {
           status,
           updatedAt: nowIso(),
@@ -79,7 +82,7 @@ export function createFirestoreRepository(): LibraryRepository | undefined {
       const tomorrow = new Date()
       tomorrow.setDate(tomorrow.getDate() + 1)
       return setDoc(
-        doc(services.db, 'items', id),
+        itemDocument(id),
         {
           recommendationCooldownUntil: tomorrow.toISOString(),
           updatedAt: nowIso(),
@@ -88,7 +91,7 @@ export function createFirestoreRepository(): LibraryRepository | undefined {
       )
     },
     async recordRecommendation(itemId, reasons) {
-      await addDoc(collection(services.db, 'recommendationRuns'), {
+      await addDoc(recommendationRunCollection, {
         itemId,
         reasons,
         createdAt: nowIso(),
@@ -113,8 +116,8 @@ function chunk<Value>(values: Value[], size: number) {
   return chunks
 }
 
-export function createItemId(db: Firestore, title: string) {
-  return doc(collection(db, 'items')).id || title
+export function createItemId(db: Firestore, userId: string, title: string) {
+  return doc(collection(db, 'users', userId, 'items')).id || title
 }
 
 function withoutUndefined<T>(value: T): T {

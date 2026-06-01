@@ -6,7 +6,11 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isAppCollection(collectionName) {
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isUserCollection(collectionName) {
       return collectionName in [
         'items',
         'tags',
@@ -16,8 +20,12 @@ service cloud.firestore {
       ];
     }
 
-    match /{collectionName}/{documentId} {
-      allow read, write: if isSignedIn() && isAppCollection(collectionName);
+    match /users/{userId}/{collectionName}/{documentId} {
+      allow read, write: if isOwner(userId) && isUserCollection(collectionName);
+    }
+
+    match /users/{userId} {
+      allow read, write: if false;
     }
 
     match /{document=**} {

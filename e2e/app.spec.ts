@@ -26,6 +26,6 @@ test('delete all requires explicit confirmation', async ({ page }) => {
   await page.getByLabel('Confirmacion').fill('BORRAR')
   await page.getByRole('button', { name: 'Borrar todo' }).last().click()
 
-  await expect(page.getByText('Biblioteca borrada')).toBeVisible()
+  await expect(page.getByText('Tu biblioteca ha sido borrada')).toBeVisible()
   await expect(page.getByTestId('library-grid')).not.toContainText('Outer Wilds')
 })

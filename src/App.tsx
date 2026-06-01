@@ -93,7 +93,7 @@ const blankItem = (): ListItem => ({
 
 function App() {
   const auth = useAuth()
-  const library = useLibrary(!auth.isFirebaseConfigured || Boolean(auth.user))
+  const library = useLibrary(auth.user?.uid)
   const [theme, setTheme] = useState<ThemeMode>(() => {
     const stored = window.localStorage.getItem(themeStorageKey)
     return stored === 'light' || stored === 'dark' ? stored : 'dark'
@@ -106,6 +106,8 @@ function App() {
   const [externalType, setExternalType] = useState<ItemType | 'watch' | 'any'>('watch')
   const [externalCandidates, setExternalCandidates] = useState<ExternalCandidate[]>([])
   const [externalLoading, setExternalLoading] = useState(false)
+  const [externalError, setExternalError] = useState<string | undefined>()
+  const [externalStatus, setExternalStatus] = useState<string | undefined>()
   const [importStatus, setImportStatus] = useState<string | undefined>()
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
@@ -176,9 +178,23 @@ function App() {
   }
 
   async function runExternalSearch() {
+    const cleanedQuery = externalQuery.trim()
+    setExternalError(undefined)
+    setExternalStatus(undefined)
+    setExternalCandidates([])
+
+    if (cleanedQuery.length < 2) {
+      setExternalError('Escribe al menos 2 caracteres para buscar.')
+      return
+    }
+
     setExternalLoading(true)
     try {
-      setExternalCandidates(await library.searchExternal(externalQuery, externalType))
+      const candidates = await library.searchExternal(cleanedQuery, externalType)
+      setExternalCandidates(candidates)
+      if (!candidates.length) setExternalStatus('Sin resultados para esa busqueda.')
+    } catch (reason) {
+      setExternalError(reason instanceof Error ? reason.message : 'No se pudo completar la busqueda.')
     } finally {
       setExternalLoading(false)
     }
@@ -208,12 +224,12 @@ function App() {
   }
 
   async function deleteEntireLibrary() {
-    setImportStatus('Borrando biblioteca...')
+    setImportStatus('Borrando tu biblioteca...')
     await library.deleteAllItems()
     setRecommendation(undefined)
     setDeleteDialogOpen(false)
     setDeleteConfirmText('')
-    setImportStatus('Biblioteca borrada')
+    setImportStatus('Tu biblioteca ha sido borrada')
   }
 
   return (
@@ -528,6 +544,8 @@ function App() {
               </button>
             </div>
             {externalLoading && <p className="muted-line">Buscando...</p>}
+            {externalError && <p className="error-line">{externalError}</p>}
+            {externalStatus && <p className="muted-line">{externalStatus}</p>}
             <div className="candidate-list">
               {externalCandidates.map((candidate) => (
                 <div className="candidate-row" key={candidate.id}>
@@ -572,7 +590,7 @@ function App() {
           >
             <div>
               <h2>Borrar toda la biblioteca</h2>
-              <p>Esto elimina las entradas actuales de Firestore. Escribe BORRAR para confirmar.</p>
+              <p>Esto elimina las entradas actuales de tu biblioteca. Escribe BORRAR para confirmar.</p>
             </div>
             <label>
               Confirmacion

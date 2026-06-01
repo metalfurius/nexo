@@ -10,28 +10,33 @@ import { demoItems } from '../data/demoItems'
 import { slugify, uniqueValues } from '../lib/strings'
 import { createFirestoreRepository } from '../services/libraryRepository'
 
-export function useLibrary(enabled: boolean) {
-  const repository = useMemo(() => (enabled ? createFirestoreRepository() : undefined), [enabled])
-  const [items, setItems] = useState<ListItem[]>(repository ? [] : demoItems)
-  const [loading, setLoading] = useState(Boolean(repository))
+export function useLibrary(userId?: string) {
+  const repository = useMemo(() => (userId ? createFirestoreRepository(userId) : undefined), [userId])
+  const [remoteItems, setRemoteItems] = useState<ListItem[]>([])
+  const [remoteUserId, setRemoteUserId] = useState<string | undefined>()
+  const [demoLibrary, setDemoLibrary] = useState<ListItem[]>(demoItems)
   const [error, setError] = useState<string | undefined>()
+  const remoteReady = Boolean(repository && userId && remoteUserId === userId)
+  const loading = Boolean(repository && !remoteReady)
+  const items = repository ? (remoteReady ? remoteItems : []) : demoLibrary
+  const activeError = remoteReady ? error : undefined
 
   useEffect(() => {
-    if (!repository) {
-      return undefined
-    }
+    if (!repository || !userId) return undefined
 
     return repository.subscribeItems(
       (nextItems) => {
-        setItems(nextItems)
-        setLoading(false)
+        setRemoteItems(nextItems)
+        setRemoteUserId(userId)
+        setError(undefined)
       },
       (reason) => {
+        setRemoteItems([])
+        setRemoteUserId(userId)
         setError(reason.message)
-        setLoading(false)
       },
     )
-  }, [repository])
+  }, [repository, userId])
 
   async function saveItem(item: ListItem) {
     const normalized = {
@@ -44,7 +49,7 @@ export function useLibrary(enabled: boolean) {
     if (repository) {
       await repository.saveItem(normalized)
     } else {
-      setItems((current) => upsertItem(current, normalized))
+      setDemoLibrary((current) => upsertItem(current, normalized))
     }
   }
 
@@ -52,7 +57,7 @@ export function useLibrary(enabled: boolean) {
     if (repository) {
       await repository.deleteItem(id)
     } else {
-      setItems((current) => current.filter((item) => item.id !== id))
+      setDemoLibrary((current) => current.filter((item) => item.id !== id))
     }
   }
 
@@ -60,7 +65,7 @@ export function useLibrary(enabled: boolean) {
     if (repository) {
       await repository.deleteAllItems()
     } else {
-      setItems([])
+      setDemoLibrary([])
     }
   }
 
@@ -68,7 +73,7 @@ export function useLibrary(enabled: boolean) {
     if (repository) {
       await repository.setStatus(id, status)
     } else {
-      setItems((current) =>
+      setDemoLibrary((current) =>
         current.map((item) => (item.id === id ? { ...item, status, updatedAt: nowIso() } : item)),
       )
     }
@@ -80,7 +85,7 @@ export function useLibrary(enabled: boolean) {
     if (repository) {
       await repository.snoozeRecommendation(id)
     } else {
-      setItems((current) =>
+      setDemoLibrary((current) =>
         current.map((item) =>
           item.id === id
             ? { ...item, recommendationCooldownUntil: tomorrow.toISOString(), updatedAt: nowIso() }
@@ -121,7 +126,7 @@ export function useLibrary(enabled: boolean) {
   return {
     items,
     loading,
-    error,
+    error: activeError,
     saveItem,
     deleteItem,
     deleteAllItems,
