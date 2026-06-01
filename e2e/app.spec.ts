@@ -77,7 +77,9 @@ test('explorer searches public catalog and saves to private library', async ({ p
   await page.getByRole('button', { name: 'Buscar' }).click()
 
   await expect(page.getByText('Odisea').first()).toBeVisible()
-  await page.getByRole('button', { name: 'Ver detalles Odisea' }).click()
+  await page.getByRole('button', { name: 'Mas acciones Odisea' }).click()
+  await expect(page.getByRole('menu', { name: 'Acciones Odisea' })).toBeVisible()
+  await page.getByRole('menuitem', { name: 'Ver detalles Odisea' }).click()
   await expect(page.getByRole('dialog', { name: 'Odisea' })).toContainText('En cola')
   await page.getByRole('button', { name: 'Cerrar' }).click()
   await page.getByRole('button', { name: 'Guardar Odisea' }).click()

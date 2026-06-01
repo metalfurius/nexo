@@ -670,7 +670,11 @@ label {
   position: relative;
 }
 
-.discovery-card,
+.discovery-card {
+  overflow: visible;
+  position: relative;
+}
+
 .catalog-card {
   overflow: hidden;
 }
@@ -1302,7 +1306,7 @@ button:hover:not(:disabled),
   display: grid;
   margin-top: 2px;
   padding-top: 10px;
-  grid-template-columns: minmax(116px, 1fr) repeat(2, 40px);
+  grid-template-columns: minmax(116px, 1fr) 40px;
 }
 
 .candidate-card-actions.resolved {

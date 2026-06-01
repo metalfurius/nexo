@@ -1538,9 +1538,31 @@ function DiscoveryCard({
   onSave: () => void
 }) {
   const isQueued = candidate.status === 'queued'
+  const [menuOpen, setMenuOpen] = useState(false)
+
+  function showDetails() {
+    setMenuOpen(false)
+    onDetails()
+  }
+
+  function dismissCandidate() {
+    setMenuOpen(false)
+    onDismiss()
+  }
 
   return (
-    <article className={`discovery-card ${candidate.status}`}>
+    <article
+      className={`discovery-card ${candidate.status}${menuOpen ? ' menu-open' : ''}`}
+      onBlur={(event) => {
+        const nextTarget = event.relatedTarget
+        if (!(nextTarget instanceof Node) || !event.currentTarget.contains(nextTarget)) {
+          setMenuOpen(false)
+        }
+      }}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') setMenuOpen(false)
+      }}
+    >
       <CoverArt title={candidate.title} type={candidate.type} posterUrl={candidate.posterUrl} />
       <div className="discovery-body">
         <div className="candidate-meta">
@@ -1563,14 +1585,43 @@ function DiscoveryCard({
               <Plus size={16} />
               <span>Guardar</span>
             </button>
-            <button className="candidate-icon-action" type="button" onClick={onDetails} aria-label={`Ver detalles ${candidate.title}`} title="Ver detalles">
-              <Eye size={16} />
-              <span className="sr-only">Ver detalles</span>
-            </button>
-            <button className="candidate-icon-action" type="button" onClick={onDismiss} aria-label={`Descartar ${candidate.title}`} title="Descartar">
-              <X size={16} />
-              <span className="sr-only">Descartar</span>
-            </button>
+            <div className="card-menu-wrap">
+              <button
+                aria-expanded={menuOpen}
+                aria-haspopup="menu"
+                aria-label={`Mas acciones ${candidate.title}`}
+                className="candidate-icon-action card-menu-trigger"
+                title="Mas acciones"
+                type="button"
+                onClick={() => setMenuOpen((current) => !current)}
+              >
+                <MoreHorizontal size={17} />
+              </button>
+              {menuOpen && (
+                <div aria-label={`Acciones ${candidate.title}`} className="card-menu" role="menu">
+                  <button
+                    className="card-menu-item"
+                    role="menuitem"
+                    type="button"
+                    aria-label={`Ver detalles ${candidate.title}`}
+                    onClick={showDetails}
+                  >
+                    <Eye size={15} />
+                    <span>Detalles</span>
+                  </button>
+                  <button
+                    className="card-menu-item danger"
+                    role="menuitem"
+                    type="button"
+                    aria-label={`Descartar ${candidate.title}`}
+                    onClick={dismissCandidate}
+                  >
+                    <X size={15} />
+                    <span>Descartar</span>
+                  </button>
+                </div>
+              )}
+            </div>
           </>
         ) : (
           <>
