@@ -1,0 +1,21 @@
+{
+  "name": "Nexo",
+  "short_name": "Nexo",
+  "description": "Biblioteca privada, descubrimientos y recomendaciones ponderadas.",
+  "lang": "es",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0f1214",
+  "theme_color": "#0f1214",
+  "categories": ["entertainment", "productivity", "books"],
+  "icons": [
+    {
+      "src": "/icons/nexo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

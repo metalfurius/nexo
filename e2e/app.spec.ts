@@ -22,6 +22,21 @@ test('mobile layout keeps the core controls reachable', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Tirar dado ponderado' })).toBeVisible()
 })
 
+test('pwa metadata is present', async ({ page }) => {
+  await page.goto('/')
+
+  await expect(page.locator('link[rel="manifest"]')).toHaveAttribute('href', '/manifest.webmanifest')
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#0f1214')
+
+  const response = await page.request.get('/manifest.webmanifest')
+  expect(response.ok()).toBe(true)
+  const manifest = await response.json()
+  expect(manifest).toEqual(expect.objectContaining({ display: 'standalone', name: 'Nexo' }))
+  expect(manifest.icons).toEqual(
+    expect.arrayContaining([expect.objectContaining({ src: '/icons/nexo.svg', purpose: 'any maskable' })]),
+  )
+})
+
 test('explorer searches public catalog and saves to private library', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Explorador' }).click()

@@ -34,8 +34,10 @@ Functions are optional for a Blaze-backed provider upgrade. The 1.0 Spark-compat
 - Tag `v1.0.0`.
 - Create a GitHub Release from the tag.
 - Watch GitHub Pages deploy and smoke-test login, Biblioteca, Dado, Explorador and Curacion.
+- Install from browser/PWA prompt once and confirm standalone launch reaches Biblioteca.
 
 ## Known Launch Notes
 
 - Firebase Auth, Firestore and Analytics are split behind lazy imports. `npm run build` should not emit Vite's 500 kB chunk warning; if it returns, inspect the initial `index-*.js` chunk before tagging.
+- The service worker only caches same-origin app shell/assets and should not intercept Firebase or external API calls.
 - `npm audit --audit-level=moderate` reports transitive `uuid` advisories through Firebase Admin/Tools dependency chains. High severity audit is clean-gated for 1.0; revisit after Firebase packages publish non-breaking patched dependency trees.
