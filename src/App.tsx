@@ -1084,11 +1084,61 @@ function CurationTab({ library }: { library: LibrarySurface }) {
   const [query, setQuery] = useState('')
   const [items, setItems] = useState<PublicCatalogItem[]>([])
   const [editingItem, setEditingItem] = useState<PublicCatalogItem | undefined>()
+  const [archiveTarget, setArchiveTarget] = useState<PublicCatalogItem | undefined>()
+  const [hasLoaded, setHasLoaded] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
   const [status, setStatus] = useState<string | undefined>()
+  const [initialLibrary] = useState(() => library)
+  const incompleteCount = items.filter((item) => catalogQualityWarnings(item).length > 0).length
+  const typeCount = new Set(items.map((item) => item.type)).size
+
+  useEffect(() => {
+    let isAlive = true
+
+    void Promise.resolve().then(async () => {
+      if (!isAlive) return
+      setIsLoading(true)
+      try {
+        const nextItems = await initialLibrary.searchPublicCatalog('', 'any')
+        if (!isAlive) return
+        setItems(nextItems)
+        setHasLoaded(true)
+      } catch (reason) {
+        if (!isAlive) return
+        setStatus(reason instanceof Error ? reason.message : 'No se pudo cargar el catalogo.')
+      } finally {
+        if (isAlive) setIsLoading(false)
+      }
+    })
+
+    return () => {
+      isAlive = false
+    }
+  }, [initialLibrary])
 
   async function refreshCatalog(searchQuery = query) {
-    const nextItems = await library.searchPublicCatalog(searchQuery, 'any')
-    setItems(nextItems)
+    setIsLoading(true)
+    try {
+      const nextItems = await library.searchPublicCatalog(searchQuery, 'any')
+      setItems(nextItems)
+      setHasLoaded(true)
+      if (!nextItems.length) {
+        setStatus(searchQuery.trim() ? 'No hay entradas con ese filtro.' : 'El catalogo publico esta vacio.')
+      }
+    } catch (reason) {
+      setStatus(reason instanceof Error ? reason.message : 'No se pudo actualizar el catalogo.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  async function archiveSelectedItem() {
+    if (!archiveTarget) return
+    const archivedTitle = archiveTarget.title
+    await library.archivePublicItem(archiveTarget.id)
+    setItems((current) => current.filter((item) => item.id !== archiveTarget.id))
+    setStatus(`${archivedTitle} archivado`)
+    setArchiveTarget(undefined)
   }
 
   return (
@@ -1104,69 +1154,113 @@ function CurationTab({ library }: { library: LibrarySurface }) {
             Nueva entrada
           </button>
         </div>
-        <div className="explorer-search two">
+        <form
+          className="explorer-search two"
+          onSubmit={(event) => {
+            event.preventDefault()
+            void refreshCatalog()
+          }}
+        >
           <input
             aria-label="Buscar en catalogo publico"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Buscar entrada publica"
           />
-          <button className="secondary-button" type="button" onClick={() => void refreshCatalog()}>
+          <button className="secondary-button" disabled={isLoading} type="submit">
             <Search size={18} />
-            Buscar
+            {isLoading ? 'Buscando' : 'Buscar'}
           </button>
-        </div>
+        </form>
         {status && <p className="muted-line">{status}</p>}
 
-        <div className="candidate-grid">
-          {items.map((item) => (
-            <article className="catalog-card" key={item.id}>
-              <CoverArt title={item.title} type={item.type} posterUrl={item.posterUrl} />
-              <div>
-                <span className="source-pill">Nexo</span>
-                <h3>{item.title}</h3>
-                <p>{item.description || `${typeLabels[item.type]} publico`}</p>
-                <div className="tag-row">
-                  {item.genres.slice(0, 3).map((genre) => (
-                    <span key={genre}>{genre}</span>
-                  ))}
-                </div>
-              </div>
-              <div className="action-row">
-                <button className="small-button" type="button" onClick={() => setEditingItem(item)}>
-                  Editar
-                </button>
-                <button
-                  className="small-button danger-text"
-                  type="button"
-                  onClick={async () => {
-                    await library.archivePublicItem(item.id)
-                    setStatus(`${item.title} archivado`)
-                    await refreshCatalog()
-                  }}
-                >
-                  Archivar
-                </button>
-              </div>
-            </article>
-          ))}
-        </div>
+        {isLoading && items.length === 0 ? (
+          <EmptyState title="Cargando catalogo" detail="Recuperando las entradas publicas curadas." />
+        ) : hasLoaded && items.length === 0 ? (
+          <EmptyState title="Sin entradas publicas" detail="Crea la primera ficha curada o prueba otra busqueda." />
+        ) : (
+          <div className="candidate-grid">
+            {items.map((item) => {
+              const warnings = catalogQualityWarnings(item)
+              const qualityLabel = warnings.length ? `${warnings.length} pendiente${warnings.length === 1 ? '' : 's'}` : 'Completa'
+
+              return (
+                <article className="catalog-card" key={item.id}>
+                  <CoverArt title={item.title} type={item.type} posterUrl={item.posterUrl} />
+                  <div className="catalog-body">
+                    <div className="catalog-meta">
+                      <span className="source-pill">Nexo</span>
+                      <span>{typeLabels[item.type]}</span>
+                      {item.releaseYear && <span>{item.releaseYear}</span>}
+                    </div>
+                    <h3>{item.title}</h3>
+                    <p>{item.description || `${typeLabels[item.type]} publico`}</p>
+                    <div className="tag-row">
+                      {item.genres.slice(0, 3).map((genre) => (
+                        <span key={genre}>{genre}</span>
+                      ))}
+                    </div>
+                    <div className={warnings.length ? 'catalog-quality warning' : 'catalog-quality'}>
+                      <span>{qualityLabel}</span>
+                      {warnings.length > 0 && <small>{warnings.slice(0, 2).join(' / ')}</small>}
+                    </div>
+                  </div>
+                  <div className="candidate-card-actions">
+                    <button className="small-button" type="button" onClick={() => setEditingItem(item)} aria-label={`Editar ${item.title}`}>
+                      Editar
+                    </button>
+                    <button className="small-button danger-text" type="button" onClick={() => setArchiveTarget(item)} aria-label={`Archivar ${item.title}`}>
+                      Archivar
+                    </button>
+                  </div>
+                </article>
+              )
+            })}
+          </div>
+        )}
       </section>
 
       <aside className="insight-rail">
         <MetricCard label="Catalogo" value={items.length} />
-        <MetricCard label="Rol" value="Mod" />
+        <MetricCard label="Incompletas" value={incompleteCount} />
+        <MetricCard label="Tipos" value={typeCount} />
+        <MetricCard label="Rol" value={roleLabels[library.userRole]} />
       </aside>
+
+      {archiveTarget && (
+        <div className="modal-backdrop" role="presentation">
+          <div className="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="archive-title">
+            <div className="panel-heading compact">
+              <div>
+                <h2 id="archive-title">Archivar entrada publica</h2>
+                <p>{archiveTarget.title} dejara de aparecer en Explorador y busquedas del catalogo.</p>
+              </div>
+              <button className="icon-button" type="button" onClick={() => setArchiveTarget(undefined)} title="Cerrar">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="action-row end">
+              <button className="ghost-button" type="button" onClick={() => setArchiveTarget(undefined)}>
+                Cancelar
+              </button>
+              <button className="danger-button" type="button" onClick={() => void archiveSelectedItem()}>
+                Archivar entrada
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {editingItem && (
         <PublicItemEditor
           item={editingItem}
           onClose={() => setEditingItem(undefined)}
           onSave={async (item) => {
-            await library.upsertPublicItem(item)
+            const savedItem = await library.upsertPublicItem(item)
+            setItems((current) => upsertVisibleCatalogItem(current, savedItem))
+            setHasLoaded(true)
             setEditingItem(undefined)
             setStatus(`${item.title} guardado en catalogo`)
-            await refreshCatalog()
           }}
         />
       )}
@@ -1394,11 +1488,15 @@ function ItemCard({
 }
 
 function CoverArt({ posterUrl, title, type }: { posterUrl?: string; title: string; type: ItemType }) {
+  const [failedPosterUrl, setFailedPosterUrl] = useState<string | undefined>()
   const Icon = typeIcons[type]
+  const shouldShowPoster = Boolean(posterUrl && failedPosterUrl !== posterUrl)
+
   return (
     <div className={`cover-art ${type}`}>
-      {posterUrl ? <img alt="" src={posterUrl} /> : <Icon size={24} aria-hidden="true" />}
-      {!posterUrl && <span>{title.slice(0, 1).toUpperCase()}</span>}
+      {shouldShowPoster && <img alt="" loading="lazy" src={posterUrl} onError={() => setFailedPosterUrl(posterUrl)} />}
+      {!shouldShowPoster && <Icon size={24} aria-hidden="true" />}
+      {!shouldShowPoster && <span>{title.slice(0, 1).toUpperCase()}</span>}
     </div>
   )
 }
@@ -1588,11 +1686,15 @@ function PublicItemEditor({
     genresText: item.genres.join(', '),
     moodText: item.moodTags.join(', '),
   })
+  const warnings = draftCatalogQualityWarnings(draft)
 
   return (
     <div className="modal-backdrop" role="presentation">
       <form
         className="item-editor"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="public-item-editor-title"
         onSubmit={(event) => {
           event.preventDefault()
           onSave(
@@ -1610,7 +1712,7 @@ function PublicItemEditor({
       >
         <div className="panel-heading">
           <div>
-            <h2>Catalogo Nexo</h2>
+            <h2 id="public-item-editor-title">Catalogo Nexo</h2>
             <p>Entrada publica curada</p>
           </div>
           <button className="icon-button" type="button" onClick={onClose} title="Cerrar">
@@ -1636,6 +1738,8 @@ function PublicItemEditor({
             Ano
             <input
               type="number"
+              min="1800"
+              max="2100"
               value={draft.releaseYear ?? ''}
               onChange={(event) => setDraft((current) => ({ ...current, releaseYear: event.target.value ? Number(event.target.value) : undefined }))}
             />
@@ -1661,12 +1765,19 @@ function PublicItemEditor({
           Mood tags
           <input value={draft.moodText} onChange={(event) => setDraft((current) => ({ ...current, moodText: event.target.value }))} />
         </label>
+        <div className={warnings.length ? 'quality-panel warning' : 'quality-panel'}>
+          <div>
+            <strong>{warnings.length ? 'Ficha incompleta' : 'Ficha lista'}</strong>
+            <p>{warnings.length ? warnings.join(' / ') : 'Tiene portada, descripcion y taxonomia basica.'}</p>
+          </div>
+          <span>{warnings.length ? warnings.length : 'OK'}</span>
+        </div>
         <div className="action-row end">
           <button className="ghost-button" type="button" onClick={onClose}>
             Cancelar
           </button>
           <button className="primary-button" type="submit">
-            Guardar
+            Guardar en catalogo
           </button>
         </div>
       </form>
@@ -1718,6 +1829,28 @@ function blankPublicCatalogItem(): PublicCatalogItem {
     },
     'moderator',
   )
+}
+
+function catalogQualityWarnings(item: Pick<PublicCatalogItem, 'description' | 'genres' | 'posterUrl' | 'tags'>) {
+  const warnings: string[] = []
+  if (!item.description?.trim()) warnings.push('Sin descripcion')
+  if (!item.genres.length) warnings.push('Sin generos')
+  if (!item.tags.length) warnings.push('Sin tags')
+  if (!item.posterUrl?.trim()) warnings.push('Sin portada')
+  return warnings
+}
+
+function draftCatalogQualityWarnings(draft: { description?: string; genresText: string; posterUrl?: string; tagsText: string }) {
+  return catalogQualityWarnings({
+    description: draft.description,
+    genres: splitList(draft.genresText),
+    posterUrl: draft.posterUrl,
+    tags: splitList(draft.tagsText),
+  })
+}
+
+function upsertVisibleCatalogItem(items: PublicCatalogItem[], nextItem: PublicCatalogItem) {
+  return [nextItem, ...items.filter((item) => item.id !== nextItem.id)].sort((left, right) => left.title.localeCompare(right.title, 'es'))
 }
 
 function splitList(value: string) {

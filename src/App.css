@@ -892,14 +892,62 @@ button:hover:not(:disabled),
 }
 
 .candidate-meta,
+.catalog-meta,
 .candidate-card-actions {
   align-items: center;
   display: flex;
   gap: 8px;
 }
 
-.candidate-meta {
+.candidate-meta,
+.catalog-meta {
   flex-wrap: wrap;
+}
+
+.catalog-body {
+  display: grid;
+  gap: 7px;
+}
+
+.catalog-meta span:not(.source-pill),
+.catalog-quality {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1;
+  padding: 7px 10px;
+}
+
+.catalog-meta span:not(.source-pill) {
+  background: var(--surface-muted);
+}
+
+.catalog-quality {
+  align-items: center;
+  background: color-mix(in srgb, var(--accent-soft) 62%, var(--surface-muted));
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--border));
+  color: var(--accent-dark);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: space-between;
+  margin-top: 2px;
+}
+
+.catalog-quality span {
+  font-weight: 850;
+}
+
+.catalog-quality small {
+  color: var(--muted);
+  line-height: 1.25;
+}
+
+.catalog-quality.warning {
+  background: var(--surface-muted);
+  border-color: var(--danger-border);
+  color: var(--danger-text);
 }
 
 .candidate-status {
@@ -937,6 +985,51 @@ button:hover:not(:disabled),
   color: var(--muted);
   font-size: 12px;
   margin-right: auto;
+}
+
+.quality-panel {
+  align-items: center;
+  background: color-mix(in srgb, var(--accent-soft) 72%, var(--surface-muted));
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--border));
+  border-radius: 8px;
+  color: var(--accent-dark);
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 12px;
+}
+
+.quality-panel.warning {
+  background: var(--surface-muted);
+  border-color: var(--danger-border);
+  color: var(--danger-text);
+}
+
+.quality-panel strong {
+  color: inherit;
+  display: block;
+  font-size: 13px;
+  margin-bottom: 3px;
+}
+
+.quality-panel p {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+  margin: 0;
+}
+
+.quality-panel span {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 900;
+  justify-content: center;
+  min-width: 38px;
+  padding: 8px 10px;
 }
 
 .release-list {

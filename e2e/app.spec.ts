@@ -61,9 +61,18 @@ test('moderator curation can create a public catalog item in demo mode', async (
   const editor = page.locator('.item-editor')
   await editor.getByLabel('Titulo').fill('Solaris')
   await editor.getByLabel('Descripcion').fill('Ciencia ficcion introspectiva.')
-  await editor.getByRole('button', { name: 'Guardar' }).click()
+  await editor.getByLabel('Generos').fill('Ciencia ficcion')
+  await editor.getByLabel('Tags', { exact: true }).fill('clasico, introspectivo')
+  await editor.getByRole('button', { name: 'Guardar en catalogo' }).click()
 
-  await expect(page.getByText('Solaris')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Solaris' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Editar Solaris' })).toBeVisible()
+  await page.getByRole('button', { name: 'Archivar Solaris' }).click()
+  await expect(page.getByRole('heading', { name: 'Archivar entrada publica' })).toBeVisible()
+  await page.getByRole('button', { name: 'Archivar entrada' }).click()
+
+  await expect(page.getByText('Solaris archivado')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Editar Solaris' })).not.toBeVisible()
 })
 
 test('delete all requires explicit confirmation', async ({ page }) => {
