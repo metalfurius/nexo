@@ -52,6 +52,7 @@ import {
 import { useAuth } from './hooks/useAuth'
 import { useLibrary } from './hooks/useLibrary'
 import { buildPublicCatalogItem, promptToDiscovery } from './lib/catalog'
+import { createLibraryExportPayload, parseLibraryImportPayload } from './lib/libraryBackup'
 import { recommendItem, scoreCandidates } from './lib/recommendations'
 import { slugify, uniqueValues } from './lib/strings'
 
@@ -283,7 +284,7 @@ function App() {
       </nav>
 
       <section className="tab-stage">
-        {activeTab === 'library' && <LibraryTab library={library} />}
+        {activeTab === 'library' && <LibraryTab library={library} setTheme={setTheme} />}
         {activeTab === 'dice' && <DiceTab library={library} />}
         {activeTab === 'explorer' && <ExplorerTab library={library} />}
         {activeTab === 'settings' && (
@@ -321,7 +322,7 @@ interface LibrarySurface {
   externalCandidateToDiscovery: (candidate: ExternalCandidate) => DiscoveryCandidate
 }
 
-function LibraryTab({ library }: { library: LibrarySurface }) {
+function LibraryTab({ library, setTheme }: { library: LibrarySurface; setTheme: (theme: ThemeMode) => void }) {
   const [query, setQuery] = useState('')
   const [typeFilter, setTypeFilter] = useState<ItemType | 'all'>('all')
   const [statusFilter, setStatusFilter] = useState<ItemStatus | 'all'>('all')
@@ -352,13 +353,20 @@ function LibraryTab({ library }: { library: LibrarySurface }) {
 
     setImportStatus('Importando biblioteca...')
     try {
-      const payload = JSON.parse(await file.text()) as { items?: ListItem[] }
-      if (!Array.isArray(payload.items)) throw new Error('El archivo no tiene una lista de items valida')
+      const payload = parseLibraryImportPayload(JSON.parse(await file.text()))
 
       for (const item of payload.items) {
-        await library.saveItem({ ...item, updatedAt: nowIso() })
+        await library.saveItem(item)
       }
-      setImportStatus(`Importadas ${payload.items.length} entradas`)
+      if (payload.settings) {
+        await library.saveSettings(payload.settings)
+        setTheme(payload.settings.theme)
+      }
+      setImportStatus(
+        payload.settings
+          ? `Importadas ${payload.items.length} entradas y ajustes`
+          : `Importadas ${payload.items.length} entradas`,
+      )
     } catch (reason) {
       setImportStatus(reason instanceof Error ? reason.message : 'No se pudo importar el archivo')
     }
@@ -373,12 +381,7 @@ function LibraryTab({ library }: { library: LibrarySurface }) {
   }
 
   function exportLibrary() {
-    const payload = {
-      schemaVersion: 1,
-      exportedAt: nowIso(),
-      items: library.items,
-      settings: library.settings,
-    }
+    const payload = createLibraryExportPayload(library.items, library.settings)
     const blob = new Blob([`${JSON.stringify(payload, null, 2)}\n`], { type: 'application/json' })
     const href = URL.createObjectURL(blob)
     const link = document.createElement('a')
