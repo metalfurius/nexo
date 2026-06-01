@@ -7,7 +7,6 @@
 - `npm run lint`
 - `npm run test`
 - `npm run test:rules`
-- `npm run build:functions`
 - `npm run build`
 - `npm run test:e2e`
 - `npm audit --audit-level=high`
@@ -19,9 +18,10 @@
 - Confirm GitHub Pages variables match `.env.example`.
 - Confirm Firebase Auth Google provider is enabled.
 - Confirm Firestore rules and indexes are deployed.
-- Confirm Functions are deployed with `TMDB_TOKEN` and `RAWG_API_KEY`.
 - Create moderator marker documents manually at `moderators/{uid}`.
 - Seed or curate initial `publicItems` entries before sharing beta access.
+
+Functions are optional for a Blaze-backed provider upgrade. The 1.0 Spark-compatible path should not require Firebase Functions.
 
 ## Release Steps
 

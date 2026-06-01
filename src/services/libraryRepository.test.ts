@@ -175,13 +175,31 @@ describe('createFirestoreRepository', () => {
     )
   })
 
-  it('uses callables for public catalog search and moderator writes', async () => {
+  it('uses Firestore for public catalog search and moderator writes', async () => {
     const repository = createFirestoreRepository('user-1')
-    mocks.callable.mockResolvedValueOnce({ data: { items: [item] } })
-    mocks.callable.mockResolvedValueOnce({ data: { item } })
-    mocks.callable.mockResolvedValueOnce({ data: { ok: true } })
+    mocks.getDocs.mockResolvedValueOnce({
+      docs: [
+        {
+          data: () => ({
+            id: 'movie-arrival',
+            title: 'Arrival',
+            type: 'movie',
+            genres: [],
+            tags: [],
+            moodTags: [],
+            externalRefs: {},
+            searchTokens: ['arrival'],
+            canonicalKey: 'movie:arrival',
+            createdAt: '2026-01-01T00:00:00.000Z',
+            updatedAt: '2026-01-01T00:00:00.000Z',
+            createdBy: 'moderator',
+            updatedBy: 'moderator',
+          }),
+        },
+      ],
+    })
 
-    await repository?.searchPublicCatalog('arrival', 'movie')
+    const results = await repository?.searchPublicCatalog('', 'movie')
     await repository?.upsertPublicItem({
       title: 'Arrival',
       type: 'movie',
@@ -192,8 +210,18 @@ describe('createFirestoreRepository', () => {
     })
     await repository?.archivePublicItem('movie-arrival')
 
-    expect(mocks.httpsCallable).toHaveBeenCalledWith(firebaseServices.functions, 'searchPublicCatalog')
-    expect(mocks.httpsCallable).toHaveBeenCalledWith(firebaseServices.functions, 'upsertPublicItem')
-    expect(mocks.httpsCallable).toHaveBeenCalledWith(firebaseServices.functions, 'archivePublicItem')
+    expect(results?.[0]?.title).toBe('Arrival')
+    expect(mocks.setDoc).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ path: 'publicItems/movie-arrival' }),
+      expect.objectContaining({ title: 'Arrival', updatedBy: 'user-1' }),
+      { merge: true },
+    )
+    expect(mocks.setDoc).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ path: 'publicItems/movie-arrival' }),
+      expect.objectContaining({ archivedAt: expect.any(String), updatedBy: 'user-1' }),
+      { merge: true },
+    )
   })
 })

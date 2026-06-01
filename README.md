@@ -31,12 +31,9 @@ npm run dev
 
 Required Vite variables are listed in `.env.example`.
 
-Functions secrets:
+Nexo's default production path is Spark-compatible: Auth, Firestore and GitHub Pages are enough. Moderators are managed manually by creating `moderators/{uid}` documents, and Firestore rules allow only those users to write `publicItems`.
 
-- `TMDB_TOKEN`
-- `RAWG_API_KEY`
-
-Moderators are managed manually by creating `moderators/{uid}` documents. Public catalog writes are performed through Firebase Functions, not direct client writes.
+Firebase Functions are optional for a future Blaze-backed upgrade if server-side API keys are needed for providers like TMDB or RAWG. The Spark-compatible explorer uses the public Nexo catalog plus browser-callable providers such as Open Library and AniList.
 
 ## Verification
 
@@ -44,7 +41,6 @@ Moderators are managed manually by creating `moderators/{uid}` documents. Public
 npm run lint
 npm run test
 npm run test:rules
-npm run build:functions
 npm run build
 npm run test:e2e
 ```
