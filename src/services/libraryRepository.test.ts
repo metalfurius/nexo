@@ -133,6 +133,61 @@ describe('createFirestoreRepository', () => {
     )
   })
 
+  it('creates user profiles as user and updates safe account fields later', async () => {
+    const repository = createFirestoreRepository('user-1')
+
+    await repository?.ensureUserProfile({
+      email: 'fran@example.com',
+      displayName: 'Fran',
+    })
+    mocks.getDoc.mockResolvedValueOnce({ exists: () => true })
+    await repository?.ensureUserProfile({
+      email: 'fran@codeoverdose.es',
+      displayName: 'Fran',
+    })
+
+    expect(mocks.getDoc).toHaveBeenCalledWith(expect.objectContaining({ path: 'users/user-1' }))
+    expect(mocks.setDoc).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ path: 'users/user-1' }),
+      expect.objectContaining({ email: 'fran@example.com', role: 'user', uid: 'user-1' }),
+    )
+    expect(mocks.setDoc).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ path: 'users/user-1' }),
+      expect.not.objectContaining({ role: expect.any(String) }),
+      { merge: true },
+    )
+  })
+
+  it('subscribes to the current user profile role', () => {
+    const unsubscribe = vi.fn()
+    const onProfile = vi.fn()
+    mocks.onSnapshot.mockImplementation((source, onNext) => {
+      onNext({
+        exists: () => true,
+        data: () => ({
+          uid: 'user-1',
+          role: 'admin',
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+        }),
+      })
+      return unsubscribe
+    })
+
+    const repository = createFirestoreRepository('user-1')
+    const result = repository?.subscribeUserProfile(onProfile, vi.fn())
+
+    expect(mocks.onSnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({ path: 'users/user-1' }),
+      expect.any(Function),
+      expect.any(Function),
+    )
+    expect(onProfile).toHaveBeenCalledWith(expect.objectContaining({ role: 'admin', uid: 'user-1' }))
+    expect(result).toBe(unsubscribe)
+  })
+
   it('persists settings and discovery candidates under the signed-in user', async () => {
     const repository = createFirestoreRepository('user-1')
 

@@ -91,7 +91,18 @@ maybeDescribe('firestore.rules emulator', () => {
 
   it('allows moderators to write public catalog items directly', async () => {
     await env.withSecurityRulesDisabled(async (context) => {
-      await setDoc(doc(context.firestore(), 'moderators', 'owner'), { createdAt: '2026-01-01T00:00:00.000Z' })
+      await setDoc(doc(context.firestore(), 'users', 'owner'), {
+        uid: 'owner',
+        role: 'moderator',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      })
+      await setDoc(doc(context.firestore(), 'users', 'other'), {
+        uid: 'other',
+        role: 'user',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      })
     })
 
     const ownerDb = env.authenticatedContext('owner').firestore()
@@ -101,15 +112,44 @@ maybeDescribe('firestore.rules emulator', () => {
     await expect(setDoc(doc(otherDb, 'publicItems', 'book-odisea'), { title: 'Nope' })).rejects.toThrow()
   })
 
-  it('allows users to read only their own moderator marker', async () => {
+  it('allows users to create their profile as user but not promote themselves', async () => {
+    const ownerDb = env.authenticatedContext('owner').firestore()
+    const profileRef = doc(ownerDb, 'users', 'owner')
+
+    await expect(
+      setDoc(profileRef, {
+        uid: 'owner',
+        role: 'user',
+        email: 'owner@example.com',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      }),
+    ).resolves.toBeUndefined()
+    await expect(setDoc(profileRef, { role: 'admin', updatedAt: '2026-01-02T00:00:00.000Z' }, { merge: true })).rejects.toThrow()
+    await expect(setDoc(profileRef, { displayName: 'Owner', updatedAt: '2026-01-02T00:00:00.000Z' }, { merge: true })).resolves.toBeUndefined()
+  })
+
+  it('allows admins to change user roles', async () => {
     await env.withSecurityRulesDisabled(async (context) => {
-      await setDoc(doc(context.firestore(), 'moderators', 'owner'), { createdAt: '2026-01-01T00:00:00.000Z' })
+      await setDoc(doc(context.firestore(), 'users', 'admin'), {
+        uid: 'admin',
+        role: 'admin',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      })
+      await setDoc(doc(context.firestore(), 'users', 'owner'), {
+        uid: 'owner',
+        role: 'user',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      })
     })
 
+    const adminDb = env.authenticatedContext('admin').firestore()
     const ownerDb = env.authenticatedContext('owner').firestore()
-    const otherDb = env.authenticatedContext('other').firestore()
 
-    await expect(getDoc(doc(ownerDb, 'moderators', 'owner'))).resolves.toBeTruthy()
-    await expect(getDoc(doc(otherDb, 'moderators', 'owner'))).rejects.toThrow()
+    await expect(getDoc(doc(ownerDb, 'users', 'owner'))).resolves.toBeTruthy()
+    await expect(getDoc(doc(ownerDb, 'users', 'admin'))).rejects.toThrow()
+    await expect(setDoc(doc(adminDb, 'users', 'owner'), { role: 'moderator', updatedAt: '2026-01-02T00:00:00.000Z' }, { merge: true })).resolves.toBeUndefined()
   })
 })

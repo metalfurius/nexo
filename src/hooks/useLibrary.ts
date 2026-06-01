@@ -8,6 +8,8 @@ import {
   type ItemStatus,
   type ListItem,
   type PublicCatalogItem,
+  type UserProfile,
+  type UserRole,
   type UserSettings,
   nowIso,
 } from '../domain/types'
@@ -22,20 +24,30 @@ import {
 import { slugify, uniqueValues } from '../lib/strings'
 import { createFirestoreRepository } from '../services/libraryRepository'
 
-export function useLibrary(userId?: string) {
+interface SignedInUserProfile {
+  uid: string
+  email: string | null
+  displayName: string | null
+  photoURL?: string | null
+}
+
+export function useLibrary(user?: SignedInUserProfile | null) {
+  const userId = user?.uid
   const repository = useMemo(() => (userId ? createFirestoreRepository(userId) : undefined), [userId])
   const [remoteItems, setRemoteItems] = useState<ListItem[]>([])
   const [remoteUserId, setRemoteUserId] = useState<string | undefined>()
   const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS)
   const [discoveryCandidates, setDiscoveryCandidates] = useState<DiscoveryCandidate[]>([])
   const [publicCatalog, setPublicCatalog] = useState<PublicCatalogItem[]>(demoPublicCatalog)
-  const [isModerator, setIsModerator] = useState(!repository)
+  const [profileRole, setProfileRole] = useState<{ role: UserRole; userId?: string }>({ role: 'user' })
   const [demoLibrary, setDemoLibrary] = useState<ListItem[]>(demoItems)
   const [error, setError] = useState<string | undefined>()
   const remoteReady = Boolean(repository && userId && remoteUserId === userId)
   const loading = Boolean(repository && !remoteReady)
   const items = repository ? (remoteReady ? remoteItems : []) : demoLibrary
   const activeError = remoteReady ? error : undefined
+  const userRole = repository ? (profileRole.userId === userId ? profileRole.role : 'user') : 'admin'
+  const isModerator = userRole === 'admin' || userRole === 'moderator'
 
   useEffect(() => {
     if (!repository || !userId) return undefined
@@ -55,11 +67,15 @@ export function useLibrary(userId?: string) {
   }, [repository, userId])
 
   useEffect(() => {
-    if (!repository || !userId) {
+    if (!repository || !userId || !user) {
       return undefined
     }
 
     const unsubscribers = [
+      repository.subscribeUserProfile(
+        (profile) => setProfileRole({ role: profile?.role ?? 'user', userId }),
+        (reason) => setError(reason.message),
+      ),
       repository.subscribeSettings(
         (remoteSettings) => setSettings(mergeSettings(remoteSettings)),
         (reason) => setError(reason.message),
@@ -70,10 +86,12 @@ export function useLibrary(userId?: string) {
       ),
     ]
 
-    void repository.getModeratorStatus().then(setIsModerator).catch(() => setIsModerator(false))
+    void repository
+      .ensureUserProfile(toUserProfileSeed(user))
+      .catch((reason) => setError(reason instanceof Error ? reason.message : 'No se pudo actualizar el perfil.'))
 
     return () => unsubscribers.forEach((unsubscribe) => unsubscribe())
-  }, [repository, userId])
+  }, [repository, user, userId])
 
   async function saveItem(item: ListItem) {
     const normalized = {
@@ -247,6 +265,7 @@ export function useLibrary(userId?: string) {
     items,
     settings,
     discoveryCandidates,
+    userRole,
     isModerator,
     loading,
     error: activeError,
@@ -267,6 +286,15 @@ export function useLibrary(userId?: string) {
     candidateToItem,
     publicItemToDiscovery,
     externalCandidateToDiscovery,
+  }
+}
+
+function toUserProfileSeed(user: SignedInUserProfile): Partial<UserProfile> {
+  return {
+    uid: user.uid,
+    email: user.email ?? undefined,
+    displayName: user.displayName ?? undefined,
+    photoURL: user.photoURL ?? undefined,
   }
 }
 

@@ -38,6 +38,7 @@ import {
   type PublicCatalogItem,
   type RecommendationPreferences,
   type ThemeMode,
+  type UserRole,
   type UserSettings,
   nowIso,
 } from './domain/types'
@@ -81,6 +82,12 @@ const sourceLabels: Record<DiscoveryCandidate['source'], string> = {
   prompt: 'Explorador',
 }
 
+const roleLabels: Record<UserRole, string> = {
+  admin: 'Admin',
+  moderator: 'Moderador',
+  user: 'Usuario',
+}
+
 const typeIcons: Record<ItemType, typeof Film> = {
   game: Gamepad2,
   book: BookOpen,
@@ -99,6 +106,7 @@ interface AuthUserSummary {
   uid: string
   email: string | null
   displayName: string | null
+  photoURL?: string | null
 }
 
 const themeStorageKey = 'nexo-theme'
@@ -125,7 +133,7 @@ const blankItem = (): ListItem => ({
 
 function App() {
   const auth = useAuth()
-  const library = useLibrary(auth.user?.uid)
+  const library = useLibrary(auth.user)
   const [activeTab, setActiveTab] = useState<AppTab>('library')
   const [theme, setTheme] = useState<ThemeMode>(() => {
     const stored = window.localStorage.getItem(themeStorageKey)
@@ -177,7 +185,7 @@ function App() {
         </div>
         <div className="topbar-actions">
           {!auth.isFirebaseConfigured && <span className="mode-pill">Demo local</span>}
-          {library.isModerator && <span className="mode-pill moderator">Moderador</span>}
+          {library.isModerator && <span className="mode-pill moderator">{roleLabels[library.userRole]}</span>}
           <button
             aria-label={theme === 'dark' ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'}
             className="icon-button"
@@ -236,6 +244,7 @@ interface LibrarySurface {
   items: ListItem[]
   settings: UserSettings
   discoveryCandidates: DiscoveryCandidate[]
+  userRole: UserRole
   isModerator: boolean
   loading: boolean
   error?: string
@@ -835,7 +844,7 @@ function SettingsTab({
             <p className="muted-line">{user?.displayName ?? user?.email ?? 'Sesion activa'}</p>
           </div>
           <span className={library.isModerator ? 'mode-pill moderator' : 'mode-pill'}>
-            {library.isModerator ? 'Moderador' : 'Usuario'}
+            {roleLabels[library.userRole]}
           </span>
         </div>
         <div className="account-panel">

@@ -18,8 +18,11 @@ export const ITEM_STATUSES = [
   'dropped',
 ] as const
 
+export const USER_ROLES = ['user', 'moderator', 'admin'] as const
+
 export type ItemType = (typeof ITEM_TYPES)[number]
 export type ItemStatus = (typeof ITEM_STATUSES)[number]
+export type UserRole = (typeof USER_ROLES)[number]
 
 export type EnergyLevel = 'low' | 'medium' | 'high'
 export type IntensityLevel = 'soft' | 'balanced' | 'intense'
@@ -152,6 +155,17 @@ export interface UserSettings {
   theme: ThemeMode
   recommendationPreferences: RecommendationPreferences
   explorerDefaultType: ItemType | 'watch' | 'any'
+}
+
+export interface UserProfile {
+  uid: string
+  role: UserRole
+  email?: string
+  displayName?: string
+  photoURL?: string
+  createdAt: string
+  updatedAt: string
+  lastSeenAt?: string
 }
 
 export interface RecommendationPreferences {

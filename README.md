@@ -31,7 +31,9 @@ npm run dev
 
 Required Vite variables are listed in `.env.example`.
 
-Nexo's default production path is Spark-compatible: Auth, Firestore and GitHub Pages are enough. Moderators are managed manually by creating `moderators/{uid}` documents, and Firestore rules allow only those users to write `publicItems`.
+Nexo's default production path is Spark-compatible: Auth, Firestore and GitHub Pages are enough. Each signed-in user gets a profile at `users/{uid}` with `role: "user" | "moderator" | "admin"`. The app can create and refresh safe profile fields, but Firestore rules prevent users from changing `role`.
+
+Bootstrap the first admin manually from Firebase Console or Admin SDK by setting `users/{uid}.role` to `admin`. After that, admins can manage roles by editing user profile documents, while `admin` and `moderator` users can curate `publicItems`.
 
 Firebase Functions are optional for a future Blaze-backed upgrade if server-side API keys are needed for providers like TMDB or RAWG. The Spark-compatible explorer uses the public Nexo catalog plus browser-callable providers such as Open Library and AniList.
 

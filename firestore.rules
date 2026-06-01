@@ -10,8 +10,55 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    function isModerator() {
-      return isSignedIn() && exists(/databases/$(database)/documents/moderators/$(request.auth.uid));
+    function isValidRole(role) {
+      return role in ['user', 'moderator', 'admin'];
+    }
+
+    function currentUserRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && currentUserRole() == 'admin';
+    }
+
+    function canCurateCatalog() {
+      return isSignedIn() && currentUserRole() in ['admin', 'moderator'];
+    }
+
+    function isValidUserProfile(userId) {
+      return request.resource.data.uid == userId
+        && isValidRole(request.resource.data.role)
+        && request.resource.data.keys().hasOnly([
+          'uid',
+          'role',
+          'email',
+          'displayName',
+          'photoURL',
+          'createdAt',
+          'updatedAt',
+          'lastSeenAt'
+        ]);
+    }
+
+    function canCreateOwnProfile(userId) {
+      return isOwner(userId)
+        && request.resource.data.role == 'user'
+        && isValidUserProfile(userId);
+    }
+
+    function canUpdateOwnProfile(userId) {
+      return isOwner(userId)
+        && resource.data.role == request.resource.data.role
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'email',
+          'displayName',
+          'photoURL',
+          'updatedAt',
+          'lastSeenAt'
+        ])
+        && isValidUserProfile(userId);
     }
 
     function isUserCollection(collectionName) {
@@ -30,16 +77,15 @@ service cloud.firestore {
 
     match /publicItems/{publicItemId} {
       allow read: if isSignedIn();
-      allow create, update, delete: if isModerator();
-    }
-
-    match /moderators/{userId} {
-      allow read: if isOwner(userId);
-      allow write: if false;
+      allow create, update, delete: if canCurateCatalog();
     }
 
     match /users/{userId} {
-      allow read, write: if false;
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if canCreateOwnProfile(userId) || (isAdmin() && isValidUserProfile(userId));
+      allow update: if canUpdateOwnProfile(userId) || (isAdmin() && isValidUserProfile(userId));
+      allow delete: if isAdmin() && request.auth.uid != userId;
     }
 
     match /{document=**} {

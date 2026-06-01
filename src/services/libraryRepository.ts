@@ -18,6 +18,8 @@ import {
   type ItemStatus,
   type ListItem,
   type PublicCatalogItem,
+  type UserProfile,
+  type UserRole,
   type UserSettings,
   nowIso,
 } from '../domain/types'
@@ -44,7 +46,8 @@ export interface LibraryRepository {
   saveDiscoveryCandidate: (candidate: DiscoveryCandidate) => Promise<void>
   dismissDiscoveryCandidate: (candidateId: string) => Promise<void>
   markDiscoveryCandidateSaved: (candidateId: string, savedItemId: string) => Promise<void>
-  getModeratorStatus: () => Promise<boolean>
+  ensureUserProfile: (profile: Partial<UserProfile>) => Promise<void>
+  subscribeUserProfile: (onProfile: (profile: UserProfile | undefined) => void, onError: (error: Error) => void) => () => void
   upsertPublicItem: (item: Partial<PublicCatalogItem> & Pick<PublicCatalogItem, 'title' | 'type'>) => Promise<PublicCatalogItem>
   archivePublicItem: (id: string) => Promise<void>
 }
@@ -58,7 +61,7 @@ export function createFirestoreRepository(userId: string): LibraryRepository | u
   const settingsDocument = doc(services.db, 'users', userId, 'userSettings', 'preferences')
   const discoveryCandidateCollection = collection(services.db, 'users', userId, 'externalCandidates')
   const discoveryCandidateDocument = (id: string) => doc(services.db, 'users', userId, 'externalCandidates', id)
-  const moderatorDocument = doc(services.db, 'moderators', userId)
+  const userProfileDocument = doc(services.db, 'users', userId)
 
   return {
     subscribeItems(onItems, onError) {
@@ -191,9 +194,35 @@ export function createFirestoreRepository(userId: string): LibraryRepository | u
         { merge: true },
       )
     },
-    async getModeratorStatus() {
-      const snapshot = await getDoc(moderatorDocument)
-      return snapshot.exists()
+    async ensureUserProfile(profile) {
+      const snapshot = await getDoc(userProfileDocument)
+      const timestamp = nowIso()
+      const profilePatch = withoutUndefined({
+        email: profile.email,
+        displayName: profile.displayName,
+        photoURL: profile.photoURL,
+        updatedAt: timestamp,
+        lastSeenAt: timestamp,
+      })
+
+      if (snapshot.exists()) {
+        await setDoc(userProfileDocument, profilePatch, { merge: true })
+        return
+      }
+
+      await setDoc(userProfileDocument, {
+        ...profilePatch,
+        uid: userId,
+        role: 'user',
+        createdAt: timestamp,
+      } satisfies UserProfile)
+    },
+    subscribeUserProfile(onProfile, onError) {
+      return onSnapshot(
+        userProfileDocument,
+        (snapshot) => onProfile(snapshot.exists() ? normalizeUserProfile(userId, snapshot.data()) : undefined),
+        (error) => onError(error),
+      )
     },
     async upsertPublicItem(item) {
       const publicItem = buildPublicCatalogItem(item, userId)
@@ -212,6 +241,24 @@ export function createFirestoreRepository(userId: string): LibraryRepository | u
       )
     },
   }
+}
+
+function normalizeUserProfile(userId: string, data: Record<string, unknown>): UserProfile {
+  const timestamp = nowIso()
+  return {
+    uid: typeof data.uid === 'string' ? data.uid : userId,
+    role: normalizeUserRole(data.role),
+    email: typeof data.email === 'string' ? data.email : undefined,
+    displayName: typeof data.displayName === 'string' ? data.displayName : undefined,
+    photoURL: typeof data.photoURL === 'string' ? data.photoURL : undefined,
+    createdAt: typeof data.createdAt === 'string' ? data.createdAt : timestamp,
+    updatedAt: typeof data.updatedAt === 'string' ? data.updatedAt : timestamp,
+    lastSeenAt: typeof data.lastSeenAt === 'string' ? data.lastSeenAt : undefined,
+  }
+}
+
+function normalizeUserRole(role: unknown): UserRole {
+  return role === 'admin' || role === 'moderator' || role === 'user' ? role : 'user'
 }
 
 function chunk<Value>(values: Value[], size: number) {
