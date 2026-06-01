@@ -32,6 +32,7 @@ import {
   ITEM_STATUSES,
   ITEM_TYPES,
   type DiscoveryCandidate,
+  type DiscoveryStatus,
   type ItemStatus,
   type ItemType,
   type ListItem,
@@ -80,6 +81,27 @@ const sourceLabels: Record<DiscoveryCandidate['source'], string> = {
   anilist: 'AniList',
   wikidata: 'Wikidata',
   prompt: 'Explorador',
+}
+
+const discoveryStatusLabels: Record<DiscoveryStatus, string> = {
+  queued: 'En cola',
+  saved: 'Guardados',
+  dismissed: 'Descartados',
+}
+
+const discoveryEmptyCopy: Record<DiscoveryStatus, { title: string; detail: string }> = {
+  queued: {
+    title: 'La cola esta limpia',
+    detail: 'Busca en el catalogo Nexo, tira una carta sorpresa o guarda hallazgos externos.',
+  },
+  saved: {
+    title: 'Aun no has guardado hallazgos',
+    detail: 'Cuando algo pase a Biblioteca quedara registrado aqui para recordar de donde vino.',
+  },
+  dismissed: {
+    title: 'No hay descartes',
+    detail: 'Lo que apartes de la cola aparece aqui sin ensuciar tus pendientes.',
+  },
 }
 
 const roleLabels: Record<UserRole, string> = {
@@ -176,13 +198,14 @@ function App() {
     { id: 'curation', label: 'Curacion', description: 'Catalogo Nexo', icon: ShieldCheck, hidden: !library.isModerator },
   ]
   const activeNavItem = navItems.find((item) => item.id === activeTab) ?? navItems[0]
+  const shellTitle = activeTab === 'library' ? 'Biblioteca privada' : activeNavItem.label
 
   return (
     <main className="app-shell">
       <header className="topbar">
         <div>
           <span className="eyebrow">Nexo 1.0 beta</span>
-          <h1>Biblioteca privada</h1>
+          <h1>{shellTitle}</h1>
           <p className="topbar-subtitle">{activeNavItem.description}</p>
         </div>
         <div className="topbar-actions">
@@ -640,12 +663,22 @@ function DiceTab({ library }: { library: LibrarySurface }) {
 function ExplorerTab({ library }: { library: LibrarySurface }) {
   const [query, setQuery] = useState('')
   const [type, setType] = useState<ItemType | 'watch' | 'any'>(library.settings.explorerDefaultType)
+  const [view, setView] = useState<DiscoveryStatus>('queued')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<string | undefined>()
   const [selected, setSelected] = useState<DiscoveryCandidate | undefined>()
+  const discoveryCounts = useMemo(() => {
+    const counts: Record<DiscoveryStatus, number> = { queued: 0, saved: 0, dismissed: 0 }
+    for (const candidate of library.discoveryCandidates) {
+      counts[candidate.status] += 1
+    }
+    return counts
+  }, [library.discoveryCandidates])
+  const visibleCandidates = library.discoveryCandidates.filter((candidate) => candidate.status === view)
   const queuedCandidates = library.discoveryCandidates.filter((candidate) => candidate.status === 'queued')
-  const savedCount = library.discoveryCandidates.filter((candidate) => candidate.status === 'saved').length
-  const dismissedCount = library.discoveryCandidates.filter((candidate) => candidate.status === 'dismissed').length
+  const queuedNexoCount = queuedCandidates.filter((candidate) => candidate.source === 'nexo').length
+  const queuedExternalCount = queuedCandidates.filter((candidate) => candidate.source !== 'nexo' && candidate.source !== 'prompt').length
+  const queuedPromptCount = queuedCandidates.filter((candidate) => candidate.source === 'prompt').length
 
   async function runDiscoverySearch() {
     const cleanedQuery = query.trim()
@@ -666,6 +699,7 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
         ...externalCandidates.map(library.externalCandidateToDiscovery),
       ]
       await library.queueDiscoveryCandidates(candidates)
+      setView('queued')
       setMessage(candidates.length ? `${candidates.length} hallazgos enviados a la cola.` : 'Sin resultados para esa busqueda.')
     } catch (reason) {
       setMessage(reason instanceof Error ? reason.message : 'No se pudo completar la busqueda.')
@@ -675,9 +709,32 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
   }
 
   async function addPromptCard() {
-    const title = promptDeck[Math.floor(Math.random() * promptDeck.length)]
-    await library.queueDiscoveryCandidates([promptToDiscovery(title)])
-    setMessage('Carta de exploracion anadida.')
+    try {
+      const title = promptDeck[Math.floor(Math.random() * promptDeck.length)]
+      await library.queueDiscoveryCandidates([promptToDiscovery(title)])
+      setView('queued')
+      setMessage('Carta de exploracion anadida.')
+    } catch (reason) {
+      setMessage(reason instanceof Error ? reason.message : 'No se pudo anadir la carta.')
+    }
+  }
+
+  async function saveCandidate(candidate: DiscoveryCandidate) {
+    try {
+      const item = await library.saveDiscoveryToLibrary(candidate)
+      setMessage(`${item.title} guardado en Biblioteca.`)
+    } catch (reason) {
+      setMessage(reason instanceof Error ? reason.message : 'No se pudo guardar el hallazgo.')
+    }
+  }
+
+  async function dismissCandidate(candidate: DiscoveryCandidate) {
+    try {
+      await library.dismissDiscoveryCandidate(candidate.id)
+      setMessage(`${candidate.title} descartado de la cola.`)
+    } catch (reason) {
+      setMessage(reason instanceof Error ? reason.message : 'No se pudo descartar el hallazgo.')
+    }
   }
 
   return (
@@ -722,27 +779,54 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
         {loading && <p className="muted-line">Buscando en Nexo y fuera...</p>}
         {message && <p className="muted-line">{message}</p>}
 
-        {queuedCandidates.length ? (
+        <div className="explorer-status-strip" role="tablist" aria-label="Estado de descubrimiento">
+          {(['queued', 'saved', 'dismissed'] as const).map((status) => (
+            <button
+              aria-selected={view === status}
+              className={view === status ? 'stat-chip active' : 'stat-chip'}
+              key={status}
+              role="tab"
+              type="button"
+              onClick={() => setView(status)}
+            >
+              <span>{discoveryStatusLabels[status]}</span>
+              <strong>{discoveryCounts[status]}</strong>
+            </button>
+          ))}
+        </div>
+
+        <div className="candidate-feed-header">
+          <div>
+            <h3>{discoveryStatusLabels[view]}</h3>
+            <p>
+              {view === 'queued'
+                ? 'Revisa, guarda o descarta sin mezclarlo con tu biblioteca privada.'
+                : 'Historial ligero de decisiones del explorador.'}
+            </p>
+          </div>
+        </div>
+
+        {visibleCandidates.length ? (
           <div className="candidate-grid">
-            {queuedCandidates.map((candidate) => (
+            {visibleCandidates.map((candidate) => (
               <DiscoveryCard
                 candidate={candidate}
                 key={candidate.id}
                 onDetails={() => setSelected(candidate)}
-                onDismiss={() => library.dismissDiscoveryCandidate(candidate.id)}
-                onSave={() => library.saveDiscoveryToLibrary(candidate)}
+                onDismiss={() => dismissCandidate(candidate)}
+                onSave={() => saveCandidate(candidate)}
               />
             ))}
           </div>
         ) : (
-          <EmptyState title="La cola esta limpia" detail="Busca en el catalogo Nexo, tira una carta sorpresa o guarda hallazgos externos." />
+          <EmptyState title={discoveryEmptyCopy[view].title} detail={discoveryEmptyCopy[view].detail} />
         )}
       </section>
 
       <aside className="insight-rail">
-        <MetricCard label="En cola" value={queuedCandidates.length} />
-        <MetricCard label="Guardados" value={savedCount} />
-        <MetricCard label="Descartados" value={dismissedCount} />
+        <MetricCard label="Nexo en cola" value={queuedNexoCount} />
+        <MetricCard label="APIs en cola" value={queuedExternalCount} />
+        <MetricCard label="Ideas" value={queuedPromptCount} />
       </aside>
 
       {selected && <CandidateDialog candidate={selected} onClose={() => setSelected(undefined)} />}
@@ -902,7 +986,7 @@ function CurationTab({ library }: { library: LibrarySurface }) {
       <section className="workspace-panel wide">
         <div className="panel-heading">
           <div>
-            <h2>Curacion</h2>
+            <h2>Catalogo Nexo</h2>
             <p>Catalogo compartido visible para usuarios logueados</p>
           </div>
           <button className="primary-button" type="button" onClick={() => setEditingItem(blankPublicCatalogItem())}>
@@ -1103,11 +1187,16 @@ function DiscoveryCard({
   onDismiss: () => void
   onSave: () => void
 }) {
+  const isQueued = candidate.status === 'queued'
+
   return (
-    <article className="discovery-card">
+    <article className={`discovery-card ${candidate.status}`}>
       <CoverArt title={candidate.title} type={candidate.type} posterUrl={candidate.posterUrl} />
       <div className="discovery-body">
-        <span className="source-pill">{sourceLabels[candidate.source]}</span>
+        <div className="candidate-meta">
+          <span className="source-pill">{sourceLabels[candidate.source]}</span>
+          {!isQueued && <span className={`candidate-status ${candidate.status}`}>{discoveryStatusLabels[candidate.status]}</span>}
+        </div>
         <h3>{candidate.title}</h3>
         <p>{candidate.overview || `${typeLabels[candidate.type]} para explorar`}</p>
         <div className="tag-row">
@@ -1117,17 +1206,31 @@ function DiscoveryCard({
           ))}
         </div>
       </div>
-      <div className="action-row">
-        <button className="small-button" type="button" onClick={onSave}>
-          <Plus size={16} />
-          Guardar
-        </button>
-        <button className="small-button" type="button" onClick={onDetails}>
-          Ver detalles
-        </button>
-        <button className="small-button" type="button" onClick={onDismiss}>
-          <X size={16} />
-        </button>
+      <div className="candidate-card-actions">
+        {isQueued ? (
+          <>
+            <button className="small-button" type="button" onClick={onSave}>
+              <Plus size={16} />
+              Guardar
+            </button>
+            <button className="small-button" type="button" onClick={onDetails}>
+              Ver detalles
+            </button>
+            <button className="icon-button" type="button" onClick={onDismiss} title="Descartar">
+              <X size={16} />
+              <span className="sr-only">Descartar</span>
+            </button>
+          </>
+        ) : (
+          <>
+            <span className="candidate-footnote">
+              {candidate.status === 'saved' ? 'Ya esta en tu biblioteca' : 'Apartado de tus pendientes'}
+            </span>
+            <button className="small-button" type="button" onClick={onDetails}>
+              Ver detalles
+            </button>
+          </>
+        )}
       </div>
     </article>
   )

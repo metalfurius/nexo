@@ -373,6 +373,15 @@ label {
   margin-bottom: 18px;
 }
 
+.explorer-status-strip {
+  border-block: 1px solid var(--border);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 16px 0;
+  padding: 12px 0;
+}
+
 .stat-chip {
   align-items: center;
   background: var(--surface);
@@ -394,6 +403,25 @@ label {
   background: var(--accent-soft);
   border-color: var(--accent);
   color: var(--accent-dark);
+}
+
+.candidate-feed-header {
+  align-items: flex-end;
+  display: flex;
+  justify-content: space-between;
+  margin: 0 0 14px;
+}
+
+.candidate-feed-header h3 {
+  color: var(--text-strong);
+  font-size: 17px;
+  margin: 0;
+}
+
+.candidate-feed-header p {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 4px 0 0;
 }
 
 .item-grid,
@@ -744,6 +772,14 @@ button:hover:not(:disabled),
   padding: 12px;
 }
 
+.discovery-card.saved {
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--border));
+}
+
+.discovery-card.dismissed {
+  opacity: 0.82;
+}
+
 .discovery-card .cover-art,
 .catalog-card .cover-art,
 .detail-dialog .cover-art {
@@ -753,6 +789,54 @@ button:hover:not(:disabled),
 .discovery-body {
   display: grid;
   gap: 6px;
+}
+
+.candidate-meta,
+.candidate-card-actions {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.candidate-meta {
+  flex-wrap: wrap;
+}
+
+.candidate-status {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1;
+  padding: 7px 10px;
+}
+
+.candidate-status.saved {
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  color: var(--accent-dark);
+}
+
+.candidate-status.dismissed {
+  background: var(--surface-muted);
+  color: var(--muted);
+}
+
+.candidate-card-actions {
+  border-top: 1px solid var(--border);
+  justify-content: space-between;
+  margin-top: 2px;
+  padding-top: 10px;
+}
+
+.candidate-card-actions .small-button:first-child {
+  flex: 1;
+}
+
+.candidate-footnote {
+  color: var(--muted);
+  font-size: 12px;
+  margin-right: auto;
 }
 
 .release-list {

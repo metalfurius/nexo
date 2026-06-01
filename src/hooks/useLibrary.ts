@@ -185,6 +185,14 @@ export function useLibrary(user?: SignedInUserProfile | null) {
       updatedAt: nowIso(),
     }))
     setDiscoveryCandidates((current) => mergeCandidates(normalized, current))
+    if (repository) {
+      try {
+        await Promise.all(normalized.map((candidate) => repository.saveDiscoveryCandidate(candidate)))
+      } catch (reason) {
+        setError(reason instanceof Error ? reason.message : 'No se pudo persistir la cola de exploracion.')
+        throw reason
+      }
+    }
   }
 
   async function dismissDiscoveryCandidate(candidateId: string) {

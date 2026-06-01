@@ -28,6 +28,9 @@ test('explorer searches public catalog and saves to private library', async ({ p
 
   await expect(page.getByText('Odisea').first()).toBeVisible()
   await page.getByRole('button', { name: 'Guardar' }).first().click()
+  await page.getByRole('tab', { name: /Guardados 1/ }).click()
+  await expect(page.getByText('Ya esta en tu biblioteca')).toBeVisible()
+  await expect(page.getByText('Odisea').first()).toBeVisible()
   await page.getByRole('button', { name: 'Biblioteca' }).click()
   await expect(page.getByTestId('library-grid')).toContainText('Odisea')
 })
