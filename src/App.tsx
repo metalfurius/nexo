@@ -2353,6 +2353,7 @@ function CurationTab({ library }: { library: LibrarySurface }) {
   const [hasLoaded, setHasLoaded] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [starterTemplateType, setStarterTemplateType] = useState<ItemType>('book')
   const [status, setStatus] = useState<string | undefined>()
   const [initialLibrary] = useState(() => library)
   const incompleteCount = items.filter((item) => catalogQualityWarnings(item).length > 0).length
@@ -2360,6 +2361,7 @@ function CurationTab({ library }: { library: LibrarySurface }) {
   const typeCount = new Set(items.map((item) => item.type)).size
   const reviewQueue = useMemo(() => getCatalogReviewQueue(items), [items])
   const catalogDiagnostics = useMemo(() => getCatalogDiagnostics(items), [items])
+  const starterTemplates = catalogTaxonomyTemplates[starterTemplateType]
   const hasActiveCatalogFilters = qualityFilter !== 'all' || issueFilter !== 'all' || typeFilter !== 'all' || sortMode !== 'quality'
   const visibleCatalogItems = useMemo(() => {
     return items
@@ -2441,8 +2443,8 @@ function CurationTab({ library }: { library: LibrarySurface }) {
     setSortMode('quality')
   }
 
-  function startNewCatalogItem(type: ItemType = 'book') {
-    setEditingItem(blankPublicCatalogItem(type))
+  function startNewCatalogItem(type: ItemType = 'book', template?: CatalogTaxonomyTemplate) {
+    setEditingItem(template ? publicCatalogDraftFromTemplate(type, template) : blankPublicCatalogItem(type))
   }
 
   function downloadCatalogSeedTemplate() {
@@ -2539,6 +2541,54 @@ function CurationTab({ library }: { library: LibrarySurface }) {
             })}
           </div>
         </div>
+        <section className="curation-template-launcher" aria-label="Plantillas de curacion">
+          <div className="curation-template-heading">
+            <div>
+              <span className="eyebrow">Presets</span>
+              <strong>Empieza con generos predefinidos</strong>
+              <p>Elige una receta y se abre una ficha con generos, tags y tono ya cargados.</p>
+            </div>
+            <label>
+              Medio
+              <select
+                aria-label="Medio de plantillas de curacion"
+                value={starterTemplateType}
+                onChange={(event) => setStarterTemplateType(event.target.value as ItemType)}
+              >
+                {ITEM_TYPES.map((type) => (
+                  <option key={type} value={type}>
+                    {typeLabels[type]}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div className="curation-template-grid">
+            {starterTemplates.map((template) => (
+              <button
+                aria-label={`Usar plantilla ${template.label} para ${typeLabels[starterTemplateType]}`}
+                className="curation-template-card"
+                key={template.label}
+                type="button"
+                onClick={() => startNewCatalogItem(starterTemplateType, template)}
+              >
+                <span>
+                  <Sparkles size={15} />
+                  <strong>{template.label}</strong>
+                </span>
+                <small>{template.detail}</small>
+                <div className="curation-template-taxonomy">
+                  {template.genres.slice(0, 3).map((genre) => (
+                    <em key={genre}>{genre}</em>
+                  ))}
+                  {template.tags.slice(0, 2).map((tag) => (
+                    <em key={tag}>{tag}</em>
+                  ))}
+                </div>
+              </button>
+            ))}
+          </div>
+        </section>
         <form
           className="explorer-search two"
           onSubmit={(event) => {
@@ -4400,6 +4450,15 @@ function blankPublicCatalogItem(type: ItemType = 'book'): PublicCatalogItem {
     updatedAt: timestamp,
     createdBy: 'moderator',
     updatedBy: 'moderator',
+  }
+}
+
+function publicCatalogDraftFromTemplate(type: ItemType, template: CatalogTaxonomyTemplate): PublicCatalogItem {
+  return {
+    ...blankPublicCatalogItem(type),
+    genres: [...template.genres],
+    tags: [...template.tags],
+    moodTags: [...template.moodTags],
   }
 }
 

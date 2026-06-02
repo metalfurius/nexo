@@ -278,8 +278,20 @@ test('moderator curation can create a public catalog item in demo mode', async (
   await expect(page.locator('.public-item-editor').getByLabel('Titulo')).toHaveValue('Arrival')
   await page.getByRole('button', { name: 'Cerrar', exact: true }).click()
 
+  const templateLauncher = page.getByRole('region', { name: 'Plantillas de curacion' })
+  await expect(templateLauncher).toContainText('Empieza con generos predefinidos')
+  await page.getByLabel('Medio de plantillas de curacion').selectOption('game')
+  await expect(templateLauncher).toContainText('Survival craft')
+  await page.getByRole('button', { name: 'Usar plantilla Survival craft para Juegos' }).click()
+  const templatedEditor = page.locator('.public-item-editor')
+  await expect(templatedEditor.getByLabel('Tipo')).toHaveValue('game')
+  await expect(templatedEditor.getByLabel('Generos', { exact: true })).toHaveValue('Supervivencia, Crafting, Accion')
+  await expect(templatedEditor.getByLabel('Tags', { exact: true })).toHaveValue('cooperativo, base building, mundo abierto')
+  await expect(templatedEditor.getByLabel('Mood tags')).toHaveValue('intenso')
+  await page.getByRole('button', { name: 'Cerrar', exact: true }).click()
+
   const templateDownloadPromise = page.waitForEvent('download')
-  await page.getByRole('button', { name: 'Plantilla' }).click()
+  await page.getByRole('button', { name: 'Plantilla', exact: true }).click()
   const templateDownload = await templateDownloadPromise
   expect(templateDownload.suggestedFilename()).toBe('nexo-catalog-seed-template.json')
   const templatePath = await templateDownload.path()
