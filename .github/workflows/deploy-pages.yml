@@ -68,6 +68,9 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Build output readiness
+        run: npm run check:build-output
+
       - name: Functions build
         run: npm run build:functions
 

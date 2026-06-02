@@ -57,6 +57,8 @@ const rootPackage = await readJson<{ scripts?: Record<string, string>; version?:
 const functionsPackage = await readJson<{ version?: string }>('functions/package.json')
 check(rootPackage.version === '1.0.0', 'Root package version must be 1.0.0.')
 check(functionsPackage.version === rootPackage.version, 'Functions package version must match root package version.')
+check(rootPackage.scripts?.['check:build-output'], 'package.json must expose check:build-output.')
+check(rootPackage.scripts?.check?.includes('check:build-output'), 'npm run check must include check:build-output.')
 check(rootPackage.scripts?.['check:release-files'], 'package.json must expose check:release-files.')
 check(rootPackage.scripts?.['release:check']?.includes('check:release-files'), 'release:check must include check:release-files.')
 
@@ -125,6 +127,7 @@ check(ciWorkflow.includes('npm audit --audit-level=high'), 'CI workflow must run
 
 const deployWorkflow = await readText('.github/workflows/deploy-pages.yml')
 check(deployWorkflow.includes('branches: [main]'), 'Deploy workflow must run on main pushes.')
+check(deployWorkflow.includes('npm run check:build-output'), 'Deploy workflow must validate build output.')
 check(deployWorkflow.includes('npm run check:release-files'), 'Deploy workflow must run check:release-files.')
 check(deployWorkflow.includes('actions/deploy-pages'), 'Deploy workflow must deploy GitHub Pages.')
 
