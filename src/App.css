@@ -3368,7 +3368,7 @@ button:active:not(:disabled),
 .catalog-taxonomy-board {
   display: grid;
   gap: 10px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .catalog-preset-field {
@@ -3381,12 +3381,22 @@ button:active:not(:disabled),
   padding: 12px;
 }
 
+.catalog-preset-field.featured {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--accent-soft) 58%, transparent), transparent 64%),
+    var(--surface-muted);
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
+  grid-column: 1 / -1;
+}
+
 .catalog-preset-input {
+  border-top: 1px solid var(--border);
   color: var(--muted);
   display: grid;
   font-size: 11px;
   font-weight: 850;
   gap: 5px;
+  padding-top: 9px;
 }
 
 .catalog-preset-input input {
@@ -3414,6 +3424,13 @@ button:active:not(:disabled),
   gap: 8px;
 }
 
+.speed-template-list {
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border));
+  border-radius: 8px;
+  padding: 8px;
+}
+
 .taxonomy-assistant {
   background: var(--surface-muted);
   border: 1px solid var(--border);
@@ -3424,7 +3441,7 @@ button:active:not(:disabled),
 }
 
 .taxonomy-template-list.compact {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
 }
 
 .taxonomy-template-list.compact .taxonomy-template-button {
@@ -4042,6 +4059,8 @@ textarea:focus-visible {
   .public-item-editor .action-row.end {
     align-items: stretch;
     flex-direction: column-reverse;
+    margin: 0;
+    position: static;
   }
 
   .public-item-editor .action-row.end button {

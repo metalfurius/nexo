@@ -3264,7 +3264,6 @@ function PublicItemEditor({
   const tagPresets = catalogTagPresets[draft.type]
   const taxonomyTemplates = catalogTaxonomyTemplates[draft.type]
   const primaryTemplate = taxonomyTemplates[0]
-  const featuredGenrePresets = genrePresets.slice(0, 12)
   const featuredTagPresets = tagPresets.slice(0, 10)
   const selectedTaxonomyCount = selectedGenres.length + selectedTags.length + selectedMoodTags.length
   const taxonomySignals = uniqueNormalizedValues([...selectedGenres, ...selectedTags, ...selectedMoodTags])
@@ -3458,6 +3457,20 @@ function PublicItemEditor({
               </span>
             ))}
           </div>
+          <div className="taxonomy-template-list compact speed-template-list" aria-label={`Recetas rapidas para ${typeLabels[draft.type]}`}>
+            {taxonomyTemplates.map((template) => (
+              <button className="taxonomy-template-button" key={template.label} type="button" onClick={() => applyTaxonomyTemplate(template)}>
+                <span>
+                  <Sparkles size={15} />
+                  <strong>{template.label}</strong>
+                </span>
+                <small>{template.detail}</small>
+                <em>
+                  {template.genres.length} generos / {template.tags.length} tags
+                </em>
+              </button>
+            ))}
+          </div>
           <div className="active-taxonomy-strip" aria-label="Taxonomia activa">
             {taxonomySignals.length ? (
               taxonomySignals.slice(0, 10).map((signal) => <span key={signal}>{signal}</span>)
@@ -3519,13 +3532,14 @@ function PublicItemEditor({
               </div>
               <div className="catalog-taxonomy-board">
                 <CatalogPresetField
+                  featured
                   title="Generos"
                   inputLabel="Generos"
                   hint={selectedGenres.length ? `${selectedGenres.length} seleccionados` : 'Elige uno o varios'}
                   value={draft.genresText}
-                  values={featuredGenrePresets}
+                  values={genrePresets}
                   selectedKeys={selectedGenreKeys}
-                  suggestionsLabel={`Sugerencias de taxonomia para ${typeLabels[draft.type]}`}
+                  suggestionsLabel={`Generos predefinidos para ${typeLabels[draft.type]}`}
                   clearLabel="Limpiar generos"
                   onChange={(value) => setDraft((current) => ({ ...current, genresText: value }))}
                   onClear={() => clearTextPreset('genresText')}
@@ -3569,30 +3583,6 @@ function PublicItemEditor({
               </div>
               <span>{warnings.length ? warnings.length : 'OK'}</span>
             </div>
-
-            <section className="editor-section">
-              <div className="editor-section-heading">
-                <div>
-                  <h3>Atajos de curacion</h3>
-                  <p>Aplica una base de generos, tags y tono en un clic.</p>
-                </div>
-                <span>{selectedTaxonomyCount} activos</span>
-              </div>
-              <div className="taxonomy-template-list" aria-label={`Plantillas rapidas para ${typeLabels[draft.type]}`}>
-                {taxonomyTemplates.map((template) => (
-                  <button className="taxonomy-template-button" key={template.label} type="button" onClick={() => applyTaxonomyTemplate(template)}>
-                    <span>
-                      <Sparkles size={15} />
-                      <strong>{template.label}</strong>
-                    </span>
-                    <small>{template.detail}</small>
-                    <em>
-                      {template.genres.length} generos / {template.tags.length} tags / {template.moodTags.length} tono
-                    </em>
-                  </button>
-                ))}
-              </div>
-            </section>
           </aside>
         </div>
 
@@ -3617,6 +3607,7 @@ function PublicItemEditor({
 
 function CatalogPresetField({
   clearLabel,
+  featured = false,
   hint,
   inputLabel,
   onChange,
@@ -3629,6 +3620,7 @@ function CatalogPresetField({
   values,
 }: {
   clearLabel: string
+  featured?: boolean
   hint: string
   inputLabel: string
   onChange: (value: string) => void
@@ -3643,7 +3635,7 @@ function CatalogPresetField({
   const hasValue = splitList(value).length > 0
 
   return (
-    <div className="catalog-preset-field">
+    <div className={featured ? 'catalog-preset-field featured' : 'catalog-preset-field'}>
       <div className="preset-chip-heading">
         <div>
           <strong>{title}</strong>
@@ -3655,10 +3647,6 @@ function CatalogPresetField({
           </button>
         )}
       </div>
-      <label className="catalog-preset-input">
-        {inputLabel}
-        <input value={value} onChange={(event) => onChange(event.target.value)} />
-      </label>
       <div className="preset-chip-row" aria-label={suggestionsLabel}>
         {values.map((preset) => {
           const isActive = selectedKeys.has(normalizeKey(preset))
@@ -3676,6 +3664,10 @@ function CatalogPresetField({
           )
         })}
       </div>
+      <label className="catalog-preset-input">
+        <span>Texto libre</span>
+        <input aria-label={inputLabel} value={value} onChange={(event) => onChange(event.target.value)} />
+      </label>
     </div>
   )
 }
