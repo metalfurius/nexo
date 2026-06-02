@@ -1867,6 +1867,46 @@ function SettingsTab({
           <strong>{typeLabels[draft.explorerDefaultType]}</strong>
         </div>
 
+        <section className="settings-confidence-panel" aria-label="Estado de cuenta y datos" data-testid="settings-confidence">
+          <div className="settings-confidence-main">
+            <span className="account-avatar small">{accountInitial}</span>
+            <div>
+              <span className="eyebrow">Estado de cuenta</span>
+              <strong>{hasUnsavedChanges ? 'Ajustes pendientes' : 'Cuenta lista'}</strong>
+              <p>{hasUnsavedChanges ? 'Guarda los cambios para que Dado y Explorador usen esta configuracion.' : 'Preferencias, rol y biblioteca privada estan sincronizados.'}</p>
+            </div>
+          </div>
+          <div className="settings-confidence-facts">
+            <span>
+              <strong>{roleLabels[library.userRole]}</strong>
+              Rol
+            </span>
+            <span>
+              <strong>{draft.theme === 'dark' ? 'Oscuro' : 'Claro'}</strong>
+              Tema
+            </span>
+            <span>
+              <strong>{library.items.length}</strong>
+              Entradas
+            </span>
+            <span>
+              <strong>{queuedDiscoveryCount}</strong>
+              Cola
+            </span>
+          </div>
+          {hasUnsavedChanges ? (
+            <button className="secondary-button" type="submit">
+              <Save size={16} />
+              Aplicar ajustes pendientes
+            </button>
+          ) : (
+            <button className="secondary-button" type="button" onClick={exportPrivateBackup}>
+              <Download size={16} />
+              Exportar backup rapido
+            </button>
+          )}
+        </section>
+
         <div className="settings-overview" aria-label="Resumen de ajustes">
           <MetricCard label="Favoritos" value={draftFavoriteGenres.length + draftFavoriteTags.length} />
           <MetricCard label="Bloqueados" value={draftBlockedTags.length} />

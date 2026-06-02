@@ -1219,6 +1219,76 @@
   color: var(--accent-dark);
 }
 
+.settings-confidence-panel {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--accent-soft) 52%, transparent), transparent 66%),
+    var(--surface-muted);
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border));
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1.2fr) minmax(260px, 1fr);
+  padding: 12px;
+}
+
+.settings-confidence-main {
+  align-items: center;
+  display: grid;
+  gap: 11px;
+  grid-template-columns: 38px minmax(0, 1fr);
+  min-width: 0;
+}
+
+.settings-confidence-main strong {
+  color: var(--text-strong);
+  display: block;
+  font-size: 18px;
+  line-height: 1.1;
+  margin-top: 3px;
+}
+
+.settings-confidence-main p {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+  margin: 4px 0 0;
+}
+
+.settings-confidence-facts {
+  display: grid;
+  gap: 7px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.settings-confidence-facts span {
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  display: grid;
+  font-size: 11px;
+  font-weight: 850;
+  gap: 3px;
+  line-height: 1;
+  min-width: 0;
+  padding: 8px;
+}
+
+.settings-confidence-facts strong {
+  color: var(--text-strong);
+  font-size: 14px;
+  line-height: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-confidence-panel > button {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+
 .settings-overview {
   display: grid;
   gap: 10px;
@@ -4342,6 +4412,18 @@ textarea:focus-visible {
   }
 
   .library-next-card .primary-button {
+    justify-self: stretch;
+  }
+
+  .settings-confidence-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-confidence-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .settings-confidence-panel > button {
     justify-self: stretch;
   }
 
