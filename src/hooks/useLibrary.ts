@@ -223,7 +223,16 @@ export function useLibrary(user?: SignedInUserProfile | null) {
   }
 
   async function recordRecommendation(itemId: string, reasons: string[]) {
-    if (repository) await repository.recordRecommendation(itemId, reasons)
+    const recommendedAt = nowIso()
+    if (repository) {
+      await repository.recordRecommendation(itemId, reasons)
+    } else {
+      setDemoLibrary((current) =>
+        current.map((item) =>
+          item.id === itemId ? { ...item, lastRecommendedAt: recommendedAt, updatedAt: recommendedAt } : item,
+        ),
+      )
+    }
   }
 
   async function searchExternal(query: string, type: string): Promise<ExternalCandidate[]> {

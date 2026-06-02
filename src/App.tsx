@@ -906,6 +906,7 @@ function DiceTab({ library }: { library: LibrarySurface }) {
   const unavailableCount = Math.max(0, library.items.length - scoredCandidates.length)
   const poolSize = Math.min(scoredCandidates.length, Math.max(3, Math.ceil(3 + preferences.surprisePercent / 8)))
   const activeDiceFilters = getActiveDiceFilters(preferences, library.settings)
+  const recentRecommendations = useMemo(() => getRecentRecommendationItems(library.items), [library.items])
   const hasCandidates = scoredCandidates.length > 0
   const setPreferences = (
     update: RecommendationPreferences | ((current: RecommendationPreferences) => RecommendationPreferences),
@@ -1154,6 +1155,34 @@ function DiceTab({ library }: { library: LibrarySurface }) {
         ) : (
           <EmptyState icon={Dice5} title="El dado espera" detail="Ajusta el clima de la sesion y tira cuando quieras una recomendacion." />
         )}
+
+        <section className="recent-rolls" aria-label="Tiradas recientes" data-testid="recent-rolls">
+          <div className="recent-rolls-heading">
+            <h3>Tiradas recientes</h3>
+            <span>{recentRecommendations.length ? `${recentRecommendations.length} ultimas` : 'Sin memoria aun'}</span>
+          </div>
+          {recentRecommendations.length ? (
+            <ol className="recent-roll-list">
+              {recentRecommendations.map((item) => {
+                const Icon = typeIcons[item.type]
+
+                return (
+                  <li key={item.id}>
+                    <span className={`recent-roll-icon ${item.type}`}>
+                      <Icon size={14} />
+                    </span>
+                    <span>
+                      <strong>{item.title}</strong>
+                      <small>{formatRecentRecommendationTime(item.lastRecommendedAt)}</small>
+                    </span>
+                  </li>
+                )
+              })}
+            </ol>
+          ) : (
+            <p className="muted-line">Las tiradas guardadas apareceran aqui despues de usar el dado.</p>
+          )}
+        </section>
       </section>
     </section>
   )
@@ -3635,6 +3664,27 @@ function getActiveDiceFilters(preferences: RecommendationPreferences, settings: 
     preferences.includePaused ? 'Incluye pausados' : 'Pausados fuera',
     settings.blockedTags.length ? `${settings.blockedTags.length} tags bloqueados` : 'Sin tags bloqueados',
   ]
+}
+
+function getRecentRecommendationItems(items: ListItem[]) {
+  return items
+    .filter((item) => Boolean(item.lastRecommendedAt))
+    .sort((left, right) => (right.lastRecommendedAt ?? '').localeCompare(left.lastRecommendedAt ?? ''))
+    .slice(0, 4)
+}
+
+function formatRecentRecommendationTime(value?: string) {
+  if (!value) return 'Sin fecha'
+
+  const timestamp = Date.parse(value)
+  if (!Number.isFinite(timestamp)) return 'Fecha desconocida'
+
+  const elapsedMs = Date.now() - timestamp
+  if (elapsedMs < 60_000) return 'Ahora mismo'
+  if (elapsedMs < 3_600_000) return `Hace ${Math.max(1, Math.floor(elapsedMs / 60_000))} min`
+  if (elapsedMs < 86_400_000) return `Hace ${Math.max(1, Math.floor(elapsedMs / 3_600_000))} h`
+
+  return new Intl.DateTimeFormat('es', { day: '2-digit', month: 'short' }).format(new Date(timestamp))
 }
 
 function sameList(left: string[], right: string[]) {

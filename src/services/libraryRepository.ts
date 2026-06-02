@@ -121,11 +121,20 @@ export function createFirestoreRepository(userId: string): LibraryRepository | u
       )
     },
     async recordRecommendation(itemId, reasons) {
+      const recommendedAt = nowIso()
       await addDoc(recommendationRunCollection, {
         itemId,
         reasons,
-        createdAt: nowIso(),
+        createdAt: recommendedAt,
       })
+      await setDoc(
+        itemDocument(itemId),
+        {
+          lastRecommendedAt: recommendedAt,
+          updatedAt: recommendedAt,
+        },
+        { merge: true },
+      )
     },
     async searchExternal(searchQuery, type) {
       return searchExternalClientSide(searchQuery, type)

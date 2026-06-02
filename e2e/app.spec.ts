@@ -68,6 +68,7 @@ test('library and weighted dice work in demo mode', async ({ page }) => {
   await expect(page.getByTestId('recommendation-result')).toBeVisible()
   await expect(page.getByTestId('recommendation-result')).toContainText('Score')
   await expect(page.getByTestId('recommendation-result')).toContainText('Por que sale')
+  await expect(page.getByTestId('recent-rolls')).toContainText('Ahora mismo')
 })
 
 test('mobile layout keeps the core controls reachable', async ({ page }) => {

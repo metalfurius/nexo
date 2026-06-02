@@ -132,6 +132,14 @@ describe('createFirestoreRepository', () => {
       expect.objectContaining({ path: 'users/user-1/recommendationRuns' }),
       expect.objectContaining({ itemId: item.id, reasons: ['encaja'] }),
     )
+    expect(mocks.setDoc).toHaveBeenCalledWith(
+      expect.objectContaining({ path: 'users/user-1/items/movie-arrival' }),
+      expect.objectContaining({
+        lastRecommendedAt: expect.any(String),
+        updatedAt: expect.any(String),
+      }),
+      { merge: true },
+    )
   })
 
   it('creates user profiles as user and updates safe account fields later', async () => {

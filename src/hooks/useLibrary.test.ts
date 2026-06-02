@@ -111,6 +111,23 @@ describe('useLibrary', () => {
     ])
   })
 
+  it('delegates recommendation runs to the signed-in repository', async () => {
+    const user = {
+      uid: 'user-1',
+      email: null,
+      displayName: null,
+    }
+    const { result } = renderHook(() => useLibrary(user))
+
+    await waitFor(() => expect(repositoryMock.subscribeItems).toHaveBeenCalled())
+
+    await act(async () => {
+      await result.current.recordRecommendation('movie-arrival', ['encaja'])
+    })
+
+    expect(repositoryMock.recordRecommendation).toHaveBeenCalledWith('movie-arrival', ['encaja'])
+  })
+
   it('does not requeue discovery candidates already saved by the user', async () => {
     const user = {
       uid: 'user-1',
