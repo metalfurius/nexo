@@ -251,6 +251,79 @@ const explorerSourceFilters: Array<{ id: ExplorerSourceFilter; label: string; de
   { id: 'prompt', label: 'Ideas', detail: 'Cartas manuales' },
 ]
 
+const dicePreferencePresets: Array<{
+  id: string
+  label: string
+  detail: string
+  Icon: typeof Sparkles
+  preferences: RecommendationPreferences
+}> = [
+  {
+    id: 'light-night',
+    label: 'Noche ligera',
+    detail: 'Poco tiempo, baja energia y confort.',
+    Icon: Moon,
+    preferences: {
+      medium: 'any',
+      timeBudgetHours: 8,
+      energy: 'low',
+      intensity: 'soft',
+      novelty: 'comfort',
+      includePaused: false,
+      surprisePercent: 15,
+      seed: 'nexo-light-night',
+    },
+  },
+  {
+    id: 'weird-surprise',
+    label: 'Sorpresa rara',
+    detail: 'Abre pausados y sube la novedad.',
+    Icon: Sparkles,
+    preferences: {
+      medium: 'any',
+      timeBudgetHours: undefined,
+      energy: 'medium',
+      intensity: 'balanced',
+      novelty: 'surprise',
+      includePaused: true,
+      surprisePercent: 75,
+      seed: 'nexo-weird-surprise',
+    },
+  },
+  {
+    id: 'heavy-challenge',
+    label: 'Reto con peso',
+    detail: 'Mas energia, mas intensidad, menos ruido.',
+    Icon: Dice5,
+    preferences: {
+      medium: 'any',
+      timeBudgetHours: 30,
+      energy: 'high',
+      intensity: 'intense',
+      novelty: 'balanced',
+      includePaused: false,
+      surprisePercent: 25,
+      seed: 'nexo-heavy-challenge',
+    },
+  },
+  {
+    id: 'watch-today',
+    label: 'Ver hoy',
+    detail: 'Solo pantalla y una sesion corta.',
+    Icon: Play,
+    preferences: {
+      medium: 'watch',
+      timeBudgetHours: 2,
+      energy: 'low',
+      intensity: 'soft',
+      novelty: 'balanced',
+      includePaused: false,
+      surprisePercent: 20,
+      seed: 'nexo-watch-today',
+    },
+  },
+]
+
 const blankItem = (): ListItem => ({
   id: `manual-${Date.now()}`,
   title: '',
@@ -904,6 +977,10 @@ function DiceTab({ library }: { library: LibrarySurface }) {
     }
   }
 
+  function applyDicePreset(preferencesPreset: RecommendationPreferences) {
+    setPreferences(preferencesPreset)
+  }
+
   return (
     <section className="dice-layout">
       <section className="workspace-panel dice-hero" aria-label="Dado ponderado">
@@ -975,6 +1052,28 @@ function DiceTab({ library }: { library: LibrarySurface }) {
         <div className={hasUnsavedDicePreferences ? 'settings-status pending' : 'settings-status'}>
           <span>{hasUnsavedDicePreferences ? 'Cambios pendientes' : 'Sin cambios pendientes'}</span>
           <strong>{scoredCandidates.length} candidatas</strong>
+        </div>
+        <div className="dice-preset-grid" aria-label="Presets rapidos del dado">
+          {dicePreferencePresets.map((preset) => {
+            const isActive = sameRecommendationPreferences(preferences, preset.preferences)
+
+            return (
+              <button
+                aria-label={`Aplicar preset ${preset.label}`}
+                aria-pressed={isActive}
+                className={isActive ? 'dice-preset-card active' : 'dice-preset-card'}
+                key={preset.id}
+                type="button"
+                onClick={() => applyDicePreset(preset.preferences)}
+              >
+                <preset.Icon size={16} />
+                <span>
+                  <strong>{preset.label}</strong>
+                  <small>{preset.detail}</small>
+                </span>
+              </button>
+            )
+          })}
         </div>
         <PreferenceControls preferences={preferences} setPreferences={setPreferences} />
         {status && <FeedbackMessage tone={feedbackToneFromText(status)}>{status}</FeedbackMessage>}
