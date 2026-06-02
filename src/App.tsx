@@ -3039,6 +3039,7 @@ function ItemCard({
         <div className="item-body">
           <ItemIdentity item={item} />
           <ItemSignalStrip item={item} />
+          <ItemPulsePanel item={item} />
           {visibleChips.length ? (
             <div className="tag-row item-tag-row">
               {visibleChips.map((chip) => (
@@ -3074,6 +3075,37 @@ function ItemCard({
         />
       </div>
     </article>
+  )
+}
+
+function ItemPulsePanel({ item }: { item: ListItem }) {
+  const pulse = getItemPulse(item)
+
+  return (
+    <div className="item-pulse-panel" aria-label={`Pulso de ${item.title}`}>
+      <div className="item-pulse-summary">
+        <span>{pulse.label}</span>
+        <strong>{pulse.value}</strong>
+      </div>
+      <div className="item-pulse-meters">
+        {pulse.metrics.map((metric) => (
+          <div className="item-pulse-meter" key={metric.label}>
+            <span>{metric.label}</span>
+            <div
+              className="item-pulse-track"
+              role="meter"
+              aria-label="Medidor de tarjeta"
+              aria-valuemax={100}
+              aria-valuemin={0}
+              aria-valuenow={metric.value}
+              aria-valuetext={`${metric.label} ${metric.value}%`}
+            >
+              <span style={{ width: `${metric.value}%` }} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   )
 }
 
@@ -4618,6 +4650,65 @@ function getVisibleItemChips(item: ListItem) {
     ...item.tags,
     ...item.moodTags,
   ]).slice(0, 4)
+}
+
+function getItemPulse(item: ListItem) {
+  return {
+    ...getItemPulseSummary(item),
+    metrics: [
+      { label: 'Foco', value: getWeightMeterValue(item.weights.priority) },
+      { label: 'Sorpresa', value: getWeightMeterValue(item.weights.surprise) },
+      { label: 'Reto', value: getWeightMeterValue(item.weights.challenge) },
+    ],
+  }
+}
+
+function getItemPulseSummary(item: ListItem) {
+  if (item.status === 'completed') {
+    return {
+      label: 'Cerrada',
+      value: item.rating !== undefined ? `${item.rating}/10` : 'Completada',
+    }
+  }
+  if (item.status === 'dropped') {
+    return {
+      label: 'Fuera',
+      value: item.rating !== undefined ? `${item.rating}/10` : 'Droppeada',
+    }
+  }
+  if (isItemInCooldown(item)) {
+    return {
+      label: 'Dado',
+      value: 'Cooldown',
+    }
+  }
+  if (item.status === 'in_progress') {
+    return {
+      label: 'Continuar',
+      value: item.progress?.trim() || 'En curso',
+    }
+  }
+  if (item.status === 'paused') {
+    return {
+      label: 'Retomar',
+      value: 'Pausada',
+    }
+  }
+
+  return {
+    label: 'Dado',
+    value: item.weights.priority >= 1.15 ? 'Alta prioridad' : 'Disponible',
+  }
+}
+
+function getWeightMeterValue(value: number) {
+  return Math.round(Math.min(100, Math.max(8, value * 100)))
+}
+
+function isItemInCooldown(item: ListItem) {
+  if (!item.recommendationCooldownUntil) return false
+  const timestamp = Date.parse(item.recommendationCooldownUntil)
+  return Number.isFinite(timestamp) && timestamp > Date.now()
 }
 
 function getItemSignals(item: ListItem): Array<{ label: string; tone?: 'strong' }> {

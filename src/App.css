@@ -2345,6 +2345,92 @@ label {
   color: var(--accent-dark);
 }
 
+.item-pulse-panel {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--accent-soft) 34%, transparent), transparent 72%),
+    color-mix(in srgb, var(--surface-muted) 72%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border));
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  padding: 9px;
+}
+
+.item-pulse-summary {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.item-pulse-summary span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.item-pulse-summary strong {
+  color: var(--text-strong);
+  font-size: 12px;
+  line-height: 1.1;
+  min-width: 0;
+  overflow: hidden;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.item-pulse-meters {
+  display: grid;
+  gap: 6px;
+}
+
+.item-pulse-meter {
+  align-items: center;
+  display: grid;
+  gap: 7px;
+  grid-template-columns: 58px minmax(0, 1fr);
+  min-width: 0;
+}
+
+.item-pulse-meter > span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 850;
+  line-height: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.item-pulse-track {
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  height: 7px;
+  overflow: hidden;
+}
+
+.item-pulse-track span {
+  background: linear-gradient(90deg, var(--accent-warm), var(--accent-dark));
+  border-radius: inherit;
+  display: block;
+  height: 100%;
+  transition: width var(--motion-slow) var(--motion-ease);
+}
+
+.list-card .item-pulse-panel {
+  grid-template-columns: minmax(124px, 0.8fr) minmax(0, 1.2fr);
+}
+
+.list-card .item-pulse-meters {
+  align-content: center;
+}
+
 .item-status {
   border: 1px solid var(--border);
   border-radius: 999px;
@@ -4879,6 +4965,10 @@ textarea:focus-visible {
   }
 
   .item-card.list-card {
+    grid-template-columns: 1fr;
+  }
+
+  .list-card .item-pulse-panel {
     grid-template-columns: 1fr;
   }
 
