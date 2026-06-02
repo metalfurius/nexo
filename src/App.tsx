@@ -211,6 +211,20 @@ const catalogGenrePresets: Record<ItemType, string[]> = {
   other: ['Aventura', 'Drama', 'Ciencia ficcion', 'Fantasia', 'Misterio', 'Ligero', 'Denso', 'Experimental'],
 }
 
+const catalogTagPresets: Record<ItemType, string[]> = {
+  game: ['indie', 'single-player', 'cooperativo', 'mundo abierto', 'historia fuerte', 'dificil', 'corto', 'sin spoilers'],
+  book: ['clasico', 'moderno', 'literatura', 'epico', 'introspectivo', 'politico', 'adaptacion', 'premiado'],
+  movie: ['autor', 'culto', 'premiada', 'palomitas', 'contemplativa', 'experimental', 'familiar', 'adaptacion'],
+  series: ['serializada', 'miniserie', 'procedural', 'prestige', 'familiar', 'adaptacion', 'coral', 'lenta'],
+  anime: ['temporada corta', 'pelicula', 'original', 'adaptacion', 'sakuga', 'clasico', 'popular', 'raro'],
+  manga: ['serializado', 'finalizado', 'clasico', 'popular', 'raro', 'adaptacion', 'autoconclusivo', 'largo'],
+  manhwa: ['webtoon', 'finalizado', 'popular', 'romance', 'progresion', 'fantasia', 'largo', 'ligero'],
+  comic: ['autoconclusivo', 'serie abierta', 'clasico', 'autor', 'mainstream', 'indie', 'premiado', 'adaptacion'],
+  other: ['manual', 'pendiente', 'curado', 'raro', 'popular', 'clasico', 'corto', 'experimental'],
+}
+
+const catalogMoodPresets = ['ligero', 'denso', 'intenso', 'rapido', 'confort', 'sorpresa', 'melancolico', 'raro']
+
 const blankItem = (): ListItem => ({
   id: `manual-${Date.now()}`,
   title: '',
@@ -2233,19 +2247,24 @@ function PublicItemEditor({
   const warnings = draftCatalogQualityWarnings(draft)
   const selectedGenres = splitList(draft.genresText)
   const selectedGenreKeys = new Set(selectedGenres.map(normalizeKey))
+  const selectedTags = splitList(draft.tagsText)
+  const selectedTagKeys = new Set(selectedTags.map(normalizeKey))
+  const selectedMoodTags = splitList(draft.moodText)
+  const selectedMoodKeys = new Set(selectedMoodTags.map(normalizeKey))
   const genrePresets = catalogGenrePresets[draft.type]
+  const tagPresets = catalogTagPresets[draft.type]
 
-  function toggleGenrePreset(genre: string) {
+  function toggleTextPreset(field: 'genresText' | 'tagsText' | 'moodText', value: string) {
     setDraft((current) => {
-      const currentGenres = splitList(current.genresText)
-      const genreKey = normalizeKey(genre)
-      const nextGenres = currentGenres.some((entry) => normalizeKey(entry) === genreKey)
-        ? currentGenres.filter((entry) => normalizeKey(entry) !== genreKey)
-        : [...currentGenres, genre]
+      const currentValues = splitList(current[field])
+      const valueKey = normalizeKey(value)
+      const nextValues = currentValues.some((entry) => normalizeKey(entry) === valueKey)
+        ? currentValues.filter((entry) => normalizeKey(entry) !== valueKey)
+        : [...currentValues, value]
 
       return {
         ...current,
-        genresText: nextGenres.join(', '),
+        [field]: nextValues.join(', '),
       }
     })
   }
@@ -2328,7 +2347,7 @@ function PublicItemEditor({
                 className={selectedGenreKeys.has(normalizeKey(genre)) ? 'preset-chip active' : 'preset-chip'}
                 key={genre}
                 type="button"
-                onClick={() => toggleGenrePreset(genre)}
+                onClick={() => toggleTextPreset('genresText', genre)}
               >
                 {genre}
               </button>
@@ -2339,10 +2358,42 @@ function PublicItemEditor({
           Tags
           <input value={draft.tagsText} onChange={(event) => setDraft((current) => ({ ...current, tagsText: event.target.value }))} />
         </label>
+        <div className="preset-chip-panel">
+          <strong>Tags frecuentes</strong>
+          <div className="preset-chip-row" aria-label={`Sugerencias de tags para ${typeLabels[draft.type]}`}>
+            {tagPresets.map((tag) => (
+              <button
+                aria-pressed={selectedTagKeys.has(normalizeKey(tag))}
+                className={selectedTagKeys.has(normalizeKey(tag)) ? 'preset-chip active' : 'preset-chip'}
+                key={tag}
+                type="button"
+                onClick={() => toggleTextPreset('tagsText', tag)}
+              >
+                {tag}
+              </button>
+            ))}
+          </div>
+        </div>
         <label>
           Mood tags
           <input value={draft.moodText} onChange={(event) => setDraft((current) => ({ ...current, moodText: event.target.value }))} />
         </label>
+        <div className="preset-chip-panel">
+          <strong>Tono</strong>
+          <div className="preset-chip-row" aria-label="Sugerencias de tono">
+            {catalogMoodPresets.map((moodTag) => (
+              <button
+                aria-pressed={selectedMoodKeys.has(normalizeKey(moodTag))}
+                className={selectedMoodKeys.has(normalizeKey(moodTag)) ? 'preset-chip active' : 'preset-chip'}
+                key={moodTag}
+                type="button"
+                onClick={() => toggleTextPreset('moodText', moodTag)}
+              >
+                {moodTag}
+              </button>
+            ))}
+          </div>
+        </div>
         <div className={warnings.length ? 'quality-panel warning' : 'quality-panel'}>
           <div>
             <strong>{warnings.length ? 'Ficha incompleta' : 'Ficha lista'}</strong>

@@ -120,7 +120,10 @@ test('moderator curation can create a public catalog item in demo mode', async (
   await editor.getByLabel('Descripcion').fill('Ciencia ficcion introspectiva.')
   await editor.getByRole('button', { name: 'Ciencia ficcion' }).click()
   await expect(editor.getByLabel('Generos', { exact: true })).toHaveValue('Ciencia ficcion')
-  await editor.getByLabel('Tags', { exact: true }).fill('clasico, introspectivo')
+  await editor.getByLabel('Sugerencias de tags para Libros').getByRole('button', { name: 'clasico' }).click()
+  await editor.getByLabel('Sugerencias de tono').getByRole('button', { name: 'denso' }).click()
+  await expect(editor.getByLabel('Tags', { exact: true })).toHaveValue('clasico')
+  await expect(editor.getByLabel('Mood tags')).toHaveValue('denso')
   await editor.getByRole('button', { name: 'Guardar en catalogo' }).click()
 
   await expect(page.getByRole('heading', { name: 'Solaris' })).toBeVisible()
