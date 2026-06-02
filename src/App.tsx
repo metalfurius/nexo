@@ -1797,6 +1797,7 @@ function CurationTab({ library }: { library: LibrarySurface }) {
   const incompleteCount = items.filter((item) => catalogQualityWarnings(item).length > 0).length
   const completeCount = items.length - incompleteCount
   const typeCount = new Set(items.map((item) => item.type)).size
+  const reviewQueue = useMemo(() => getCatalogReviewQueue(items), [items])
   const hasActiveCatalogFilters = qualityFilter !== 'all' || typeFilter !== 'all' || sortMode !== 'quality'
   const visibleCatalogItems = useMemo(() => {
     return items
@@ -1920,6 +1921,46 @@ function CurationTab({ library }: { library: LibrarySurface }) {
             {isLoading ? 'Buscando' : 'Buscar'}
           </button>
         </form>
+        {reviewQueue.length > 0 && (
+          <section className="catalog-review-panel" aria-label="Revision prioritaria del catalogo">
+            <div className="catalog-review-heading">
+              <div>
+                <h3>Revision prioritaria</h3>
+                <p>Fichas publicas con senales pendientes antes de compartir beta.</p>
+              </div>
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={() => {
+                  setQualityFilter('needs-work')
+                  setSortMode('quality')
+                }}
+              >
+                Ver pendientes
+              </button>
+            </div>
+            <div className="catalog-review-list">
+              {reviewQueue.map(({ item, warnings }) => (
+                <article className="catalog-review-item" key={item.id}>
+                  <div>
+                    <strong>{item.title}</strong>
+                    <span>
+                      {typeLabels[item.type]} / {warnings.length} pendiente{warnings.length === 1 ? '' : 's'}
+                    </span>
+                    <div className="catalog-review-tags">
+                      {warnings.slice(0, 3).map((warning) => (
+                        <small key={warning}>{warning}</small>
+                      ))}
+                    </div>
+                  </div>
+                  <button className="small-button" type="button" onClick={() => setEditingItem(item)} aria-label={`Revisar ${item.title}`}>
+                    Revisar
+                  </button>
+                </article>
+              ))}
+            </div>
+          </section>
+        )}
         <div className="catalog-curation-toolbar">
           <div className="catalog-filter-tabs" role="group" aria-label="Calidad del catalogo">
             {qualityFilters.map((filter) => (
@@ -3469,6 +3510,18 @@ function draftCatalogQualityWarnings(draft: { description?: string; genresText: 
     posterUrl: draft.posterUrl,
     tags: splitList(draft.tagsText),
   })
+}
+
+function getCatalogReviewQueue(items: PublicCatalogItem[]) {
+  return items
+    .map((item) => ({ item, warnings: catalogQualityWarnings(item) }))
+    .filter((entry) => entry.warnings.length > 0)
+    .sort((left, right) => {
+      const warningDelta = right.warnings.length - left.warnings.length
+      if (warningDelta !== 0) return warningDelta
+      return right.item.updatedAt.localeCompare(left.item.updatedAt) || left.item.title.localeCompare(right.item.title, 'es')
+    })
+    .slice(0, 3)
 }
 
 function upsertVisibleCatalogItem(items: PublicCatalogItem[], nextItem: PublicCatalogItem) {
