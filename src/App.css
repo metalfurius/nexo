@@ -808,8 +808,34 @@ label {
   cursor: pointer;
   display: grid;
   gap: 12px;
+  grid-template-columns: minmax(86px, 116px) minmax(0, 1fr);
   padding: 12px;
   text-align: left;
+  transition:
+    background 160ms ease,
+    color 160ms ease;
+}
+
+.item-main:hover {
+  background: color-mix(in srgb, var(--accent-soft) 30%, transparent);
+}
+
+.item-main:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -4px;
+}
+
+.item-card:not(.list-card) .cover-art {
+  aspect-ratio: 3 / 4;
+  border-radius: 8px;
+  min-height: 136px;
+}
+
+.item-body {
+  align-content: start;
+  display: grid;
+  gap: 10px;
+  min-width: 0;
 }
 
 .list-card .item-main {
@@ -821,12 +847,15 @@ label {
 
 .list-card .cover-art {
   aspect-ratio: 1;
-  grid-row: 1 / span 2;
+  grid-row: auto;
 }
 
 .list-card .tag-row {
-  grid-column: 2;
   margin-top: 0;
+}
+
+.list-card .item-body {
+  align-content: center;
 }
 
 .cover-art {
@@ -890,12 +919,22 @@ label {
   align-items: start;
   display: grid;
   gap: 10px;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .item-identity h3 {
   min-width: 0;
   overflow-wrap: anywhere;
+}
+
+.list-card .item-identity {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.item-empty-meta {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 0;
 }
 
 .item-status {
@@ -942,6 +981,7 @@ label {
 }
 
 .card-actions {
+  background: color-mix(in srgb, var(--surface-muted) 66%, transparent);
   border-top: 1px solid var(--border);
   display: grid;
   gap: 6px;

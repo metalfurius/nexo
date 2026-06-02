@@ -1814,6 +1814,7 @@ function ItemCard({
 }) {
   const primaryAction = getPrimaryItemAction(item.status)
   const secondaryAction = getSecondaryItemAction(item.status)
+  const visibleChips = getVisibleItemChips(item)
 
   function applyStatus(status: ItemStatus) {
     onStatus(item.id, status)
@@ -1827,14 +1828,17 @@ function ItemCard({
     <article className={layout === 'list' ? 'item-card list-card' : 'item-card'}>
       <button className="item-main" type="button" onClick={onEdit}>
         <CoverArt title={item.title} type={item.type} posterUrl={item.posterUrl} />
-        <ItemIdentity item={item} />
-        <div className="tag-row">
-          {item.rating && <span>{item.rating}/10</span>}
-          {item.durationMaxHours && <span>{formatDuration(item)}</span>}
-          {item.publicItemId && <span>Nexo</span>}
-          {item.tags.slice(0, 3).map((tag) => (
-            <span key={tag}>{tag}</span>
-          ))}
+        <div className="item-body">
+          <ItemIdentity item={item} />
+          {visibleChips.length ? (
+            <div className="tag-row item-tag-row">
+              {visibleChips.map((chip) => (
+                <span key={chip}>{chip}</span>
+              ))}
+            </div>
+          ) : (
+            <p className="item-empty-meta">Sin etiquetas todavia</p>
+          )}
         </div>
       </button>
       <div className="card-actions">
@@ -1981,7 +1985,7 @@ function ItemIdentity({ item }: { item: ListItem }) {
     <div className="item-identity">
       <div>
         <h3>{item.title}</h3>
-        <p>{typeLabels[item.type]}</p>
+        <p>{getItemSubtitle(item)}</p>
       </div>
       <span className={`item-status ${item.status}`}>{statusLabels[item.status]}</span>
     </div>
@@ -2611,6 +2615,23 @@ function sameRecommendationPreferences(left: RecommendationPreferences, right: R
 
 function splitList(value: string) {
   return uniqueValues(value.split(',').map((entry) => entry.trim()))
+}
+
+function getItemSubtitle(item: ListItem) {
+  const parts = [typeLabels[item.type]]
+  if (item.progress) parts.push(item.progress)
+  if (item.durationMinHours || item.durationMaxHours) parts.push(formatDuration(item))
+  if (item.publicItemId) parts.push('Nexo')
+  return parts.join(' / ')
+}
+
+function getVisibleItemChips(item: ListItem) {
+  return uniqueValues([
+    ...(item.rating !== undefined ? [`${item.rating}/10`] : []),
+    ...item.genres,
+    ...item.tags,
+    ...item.moodTags,
+  ]).slice(0, 4)
 }
 
 function formatDuration(item: ListItem) {
