@@ -412,6 +412,153 @@
   min-height: 34px;
 }
 
+.library-focus-shelf {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--surface-muted) 86%, transparent), var(--surface));
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  margin: 0 0 16px;
+  padding: 12px;
+}
+
+.focus-shelf-heading {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.focus-shelf-heading h3 {
+  color: var(--text-strong);
+  font-size: 15px;
+  margin: 0;
+}
+
+.focus-shelf-heading p {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 3px 0 0;
+}
+
+.focus-shelf-heading > span {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 850;
+  padding: 7px 9px;
+}
+
+.focus-shelf-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.focus-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px;
+}
+
+.focus-item-main {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  display: grid;
+  gap: 9px;
+  grid-template-columns: 36px minmax(0, 1fr);
+  min-width: 0;
+  padding: 0;
+  text-align: left;
+}
+
+.focus-item-main strong,
+.focus-item-main small {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.focus-item-main strong {
+  color: var(--text-strong);
+  font-size: 13px;
+}
+
+.focus-item-main small {
+  color: var(--muted);
+  font-size: 11px;
+  margin-top: 2px;
+}
+
+.focus-type-dot {
+  align-items: center;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  display: inline-flex;
+  height: 36px;
+  justify-content: center;
+  width: 36px;
+}
+
+.focus-type-dot.game {
+  background: var(--mark-game-bg);
+  color: var(--mark-game-text);
+}
+
+.focus-type-dot.book,
+.focus-type-dot.manga,
+.focus-type-dot.manhwa,
+.focus-type-dot.comic {
+  background: var(--mark-book-bg);
+  color: var(--mark-book-text);
+}
+
+.focus-type-dot.movie,
+.focus-type-dot.series,
+.focus-type-dot.anime {
+  background: var(--mark-watch-bg);
+  color: var(--mark-watch-text);
+}
+
+.focus-item-action {
+  align-items: center;
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 38%, var(--border));
+  border-radius: 8px;
+  color: var(--accent-dark);
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 850;
+  gap: 6px;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0 10px;
+  transition:
+    background var(--motion-fast) ease,
+    border-color var(--motion-fast) ease,
+    transform var(--motion-fast) var(--motion-ease);
+}
+
+.focus-item-action:hover {
+  background: color-mix(in srgb, var(--accent-soft) 70%, var(--surface));
+  transform: translateY(-1px);
+}
+
 .explorer-search {
   grid-template-columns: minmax(0, 1fr) 160px 140px;
   margin-bottom: 16px;
@@ -3015,6 +3162,15 @@ textarea:focus-visible {
 
   .filter-summary span {
     white-space: normal;
+  }
+
+  .focus-shelf-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .focus-shelf-grid {
+    grid-template-columns: 1fr;
   }
 
   .item-card.list-card {

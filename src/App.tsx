@@ -429,6 +429,8 @@ function LibraryTab({ library, setTheme }: { library: LibrarySurface; setTheme: 
     typeFilter !== 'all' ? `Tipo: ${typeLabels[typeFilter]}` : undefined,
     statusFilter !== 'all' ? `Estado: ${statusLabels[statusFilter]}` : undefined,
   ].filter((filter): filter is string => Boolean(filter))
+  const focusItems = useMemo(() => getLibraryFocusItems(library.items), [library.items])
+  const showFocusShelf = !hasActiveLibraryFilters && focusItems.length > 0
 
   const filteredItems = useMemo(() => {
     return library.items
@@ -642,6 +644,47 @@ function LibraryTab({ library, setTheme }: { library: LibrarySurface; setTheme: 
         {library.loading && <FeedbackMessage tone="loading">Cargando biblioteca...</FeedbackMessage>}
         {library.error && <FeedbackMessage tone="danger">{library.error}</FeedbackMessage>}
         {importStatus && <FeedbackMessage tone={feedbackToneFromText(importStatus)}>{importStatus}</FeedbackMessage>}
+
+        {showFocusShelf && (
+          <section className="library-focus-shelf" aria-label="Foco de biblioteca" data-testid="library-focus-shelf">
+            <div className="focus-shelf-heading">
+              <div>
+                <h3>En foco</h3>
+                <p>Entradas listas para seguir sin abrir toda la parrilla.</p>
+              </div>
+              <span>{focusItems.length} sugeridas</span>
+            </div>
+            <div className="focus-shelf-grid">
+              {focusItems.map((item) => {
+                const primaryAction = getPrimaryItemAction(item.status)
+                const Icon = typeIcons[item.type]
+
+                return (
+                  <article className="focus-item" key={item.id}>
+                    <button className="focus-item-main" type="button" onClick={() => setEditingItem(item)}>
+                      <span className={`focus-type-dot ${item.type}`} aria-hidden="true">
+                        <Icon size={15} />
+                      </span>
+                      <span>
+                        <strong>{item.title}</strong>
+                        <small>{getLibraryFocusReason(item)}</small>
+                      </span>
+                    </button>
+                    <button
+                      className="focus-item-action"
+                      type="button"
+                      aria-label={`Accion de foco para ${item.title}: ${primaryAction.label}`}
+                      onClick={() => void library.setStatus(item.id, primaryAction.nextStatus)}
+                    >
+                      <primaryAction.Icon size={15} />
+                      {primaryAction.label}
+                    </button>
+                  </article>
+                )
+              })}
+            </div>
+          </section>
+        )}
 
         {filteredItems.length ? (
           <div className={viewMode === 'list' ? 'item-grid list-view' : 'item-grid'} data-testid="library-grid">
@@ -2121,6 +2164,39 @@ function getDiscoverySourceFilter(candidate: DiscoveryCandidate): ExplorerSource
   if (candidate.source === 'nexo') return 'nexo'
   if (candidate.source === 'prompt') return 'prompt'
   return 'external'
+}
+
+function getLibraryFocusItems(items: ListItem[]) {
+  const statusRank: Record<ItemStatus, number> = {
+    in_progress: 0,
+    wishlist: 1,
+    paused: 2,
+    completed: 3,
+    dropped: 4,
+  }
+
+  return items
+    .filter((item) => item.status === 'in_progress' || item.status === 'wishlist' || item.status === 'paused')
+    .sort((left, right) => {
+      const statusDelta = statusRank[left.status] - statusRank[right.status]
+      if (statusDelta !== 0) return statusDelta
+
+      const leftWeight = left.weights.priority + left.weights.challenge * 0.4 + left.weights.surprise * 0.25
+      const rightWeight = right.weights.priority + right.weights.challenge * 0.4 + right.weights.surprise * 0.25
+      if (leftWeight !== rightWeight) return rightWeight - leftWeight
+
+      return right.updatedAt.localeCompare(left.updatedAt)
+    })
+    .slice(0, 3)
+}
+
+function getLibraryFocusReason(item: ListItem) {
+  if (item.status === 'in_progress') return item.progress || 'Ya empezada, pide cierre'
+  if (item.status === 'paused') return 'Pausada, lista para retomar'
+  if (item.weights.priority >= 1.15) return 'Alta prioridad'
+  if (item.weights.surprise >= 0.75) return 'Buena candidata sorpresa'
+  if (item.weights.challenge >= 0.7) return 'Reto interesante'
+  return `${typeLabels[item.type]} pendiente`
 }
 
 function ItemCard({
