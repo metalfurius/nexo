@@ -73,6 +73,7 @@ import {
 } from './data/catalogPresets'
 import { buildPublicCatalogItem, promptToDiscovery } from './lib/catalog'
 import { createLibraryExportPayload, parseLibraryImportPayload } from './lib/libraryBackup'
+import { sortLibraryItems, type LibrarySortMode } from './lib/librarySorting'
 import { createPublicCatalogSeedTemplate, parsePublicCatalogSeed } from './lib/publicCatalogSeed'
 import { recommendItem, scoreCandidates } from './lib/recommendations'
 import { normalizeKey, slugify, uniqueValues } from './lib/strings'
@@ -122,6 +123,14 @@ const catalogSortLabels: Record<CatalogSortMode, string> = {
   quality: 'Prioridad',
   title: 'Titulo',
   updated: 'Recientes',
+}
+
+const librarySortLabels: Record<LibrarySortMode, string> = {
+  focus: 'Foco',
+  updated: 'Recientes',
+  title: 'Titulo',
+  priority: 'Prioridad',
+  rating: 'Rating',
 }
 
 const sourceLabels: Record<DiscoveryCandidate['source'], string> = {
@@ -522,6 +531,7 @@ function LibraryTab({ library, setTheme }: { library: LibrarySurface; setTheme: 
   const [query, setQuery] = useState('')
   const [typeFilter, setTypeFilter] = useState<ItemType | 'all'>('all')
   const [statusFilter, setStatusFilter] = useState<ItemStatus | 'all'>('all')
+  const [sortMode, setSortMode] = useState<LibrarySortMode>('focus')
   const [editingItem, setEditingItem] = useState<ListItem | undefined>()
   const [deleteTarget, setDeleteTarget] = useState<ListItem | undefined>()
   const [importStatus, setImportStatus] = useState<string | undefined>()
@@ -530,23 +540,27 @@ function LibraryTab({ library, setTheme }: { library: LibrarySurface; setTheme: 
   const viewMode = library.settings.libraryViewMode
   const trimmedQuery = query.trim()
   const hasActiveLibraryFilters = Boolean(trimmedQuery) || typeFilter !== 'all' || statusFilter !== 'all'
-  const activeLibraryFilters = [
+  const hasActiveLibraryControls = hasActiveLibraryFilters || sortMode !== 'focus'
+  const activeLibraryControls = [
     trimmedQuery ? `Busqueda: ${trimmedQuery}` : undefined,
     typeFilter !== 'all' ? `Tipo: ${typeLabels[typeFilter]}` : undefined,
     statusFilter !== 'all' ? `Estado: ${statusLabels[statusFilter]}` : undefined,
-  ].filter((filter): filter is string => Boolean(filter))
+    sortMode !== 'focus' ? `Orden: ${librarySortLabels[sortMode]}` : undefined,
+  ].filter((control): control is string => Boolean(control))
   const focusItems = useMemo(() => getLibraryFocusItems(library.items), [library.items])
   const showFocusShelf = !hasActiveLibraryFilters && focusItems.length > 0
 
   const filteredItems = useMemo(() => {
-    return library.items
+    const matchingItems = library.items
       .filter((item) => {
         const text = `${item.title} ${item.tags.join(' ')} ${item.genres.join(' ')}`.toLowerCase()
         return text.includes(query.toLowerCase())
       })
       .filter((item) => typeFilter === 'all' || item.type === typeFilter)
       .filter((item) => statusFilter === 'all' || item.status === statusFilter)
-  }, [library.items, query, statusFilter, typeFilter])
+
+    return sortLibraryItems(matchingItems, sortMode)
+  }, [library.items, query, sortMode, statusFilter, typeFilter])
 
   const stats = useMemo(() => {
     return ITEM_STATUSES.map((status) => ({
@@ -610,6 +624,7 @@ function LibraryTab({ library, setTheme }: { library: LibrarySurface; setTheme: 
     setQuery('')
     setTypeFilter('all')
     setStatusFilter('all')
+    setSortMode('focus')
   }
 
   return (
@@ -723,19 +738,30 @@ function LibraryTab({ library, setTheme }: { library: LibrarySurface; setTheme: 
               </option>
             ))}
           </select>
+          <select
+            aria-label="Ordenar biblioteca"
+            value={sortMode}
+            onChange={(event) => setSortMode(event.target.value as LibrarySortMode)}
+          >
+            {(Object.keys(librarySortLabels) as LibrarySortMode[]).map((mode) => (
+              <option key={mode} value={mode}>
+                {librarySortLabels[mode]}
+              </option>
+            ))}
+          </select>
         </div>
 
-        {hasActiveLibraryFilters && (
+        {hasActiveLibraryControls && (
           <div className="filter-summary" aria-live="polite">
             <div>
               <strong>
                 {filteredItems.length} de {library.items.length} entradas
               </strong>
-              <span>{activeLibraryFilters.join(' / ')}</span>
+              <span>{activeLibraryControls.join(' / ')}</span>
             </div>
             <button className="ghost-button" type="button" onClick={resetLibraryFilters}>
               <X size={16} />
-              Limpiar filtros
+              Restablecer vista
             </button>
           </div>
         )}

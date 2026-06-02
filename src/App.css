@@ -372,7 +372,7 @@
 }
 
 .toolbar {
-  grid-template-columns: minmax(220px, 1fr) 180px;
+  grid-template-columns: minmax(220px, 1fr) 180px 160px;
   margin-bottom: 20px;
 }
 
