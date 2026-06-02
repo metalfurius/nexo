@@ -62,6 +62,9 @@ test('library and weighted dice work in demo mode', async ({ page }) => {
 
   await page.getByRole('button', { name: 'Dado' }).click()
   await expect(page.getByRole('heading', { name: 'Elige el siguiente hilo' })).toBeVisible()
+  await expect(page.getByTestId('dice-readiness')).toContainText('Listo para tirar')
+  await expect(page.getByTestId('dice-readiness')).toContainText('Candidatas')
+  await expect(page.getByTestId('dice-readiness')).toContainText('Ajustes')
   await expect(page.getByRole('heading', { name: 'En la mesa' })).toBeVisible()
   await expect(page.getByTestId('dice-candidate-list')).toContainText('#1')
   await expect(page.getByTestId('dice-candidate-list')).toContainText('Score')
@@ -75,6 +78,7 @@ test('library and weighted dice work in demo mode', async ({ page }) => {
   await page.getByRole('button', { name: 'Aplicar preset Noche ligera' }).click()
   await expect(page.getByLabel('Energia')).toHaveValue('low')
   await expect(page.getByLabel('Porcentaje de sorpresa')).toHaveValue('15')
+  await expect(page.getByTestId('dice-readiness')).toContainText('!')
   await expect(page.getByText('Cambios pendientes')).toBeVisible()
   await page.getByLabel('Energia').selectOption('high')
   await page.getByLabel('Incluir pausados').check()

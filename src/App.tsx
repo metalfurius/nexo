@@ -1044,6 +1044,7 @@ function DiceTab({ library }: { library: LibrarySurface }) {
   const candidatePreview = showFullDicePool ? scoredCandidates : scoredCandidates.slice(0, 4)
   const hiddenCandidateCount = Math.max(0, scoredCandidates.length - candidatePreview.length)
   const maxCandidateScore = scoredCandidates[0]?.score ?? 1
+  const topCandidate = scoredCandidates[0]
   const unavailableCount = Math.max(0, library.items.length - scoredCandidates.length)
   const poolSize = Math.min(scoredCandidates.length, Math.max(3, Math.ceil(3 + preferences.surprisePercent / 8)))
   const activeDiceFilters = getActiveDiceFilters(preferences, library.settings)
@@ -1129,6 +1130,35 @@ function DiceTab({ library }: { library: LibrarySurface }) {
             <span>{preferences.timeBudgetHours ? `${preferences.timeBudgetHours}h` : 'Sin limite'}</span>
             <span>Energia {energyLabels[preferences.energy]}</span>
             <span>{noveltyLabels[preferences.novelty]}</span>
+          </div>
+          <div className="dice-readiness" aria-label="Resumen del dado" data-testid="dice-readiness">
+            <div className={hasCandidates ? 'dice-readiness-card ready' : 'dice-readiness-card warning'}>
+              <span>{hasCandidates ? 'Listo para tirar' : 'Sin tirada posible'}</span>
+              <strong>{topCandidate ? topCandidate.item.title : 'Ajusta filtros'}</strong>
+              <small>
+                {topCandidate
+                  ? `${topCandidate.score} score / ${topCandidate.reasons[0] ?? 'mejor candidata'}`
+                  : 'Afloja medio, tiempo, tags o pausados.'}
+              </small>
+            </div>
+            <div className="dice-readiness-metrics">
+              <span>
+                <strong>{scoredCandidates.length}</strong>
+                Candidatas
+              </span>
+              <span>
+                <strong>{poolSize}</strong>
+                Pool
+              </span>
+              <span>
+                <strong>{activeDiceFilters.length}</strong>
+                Filtros
+              </span>
+              <span>
+                <strong>{hasUnsavedDicePreferences ? '!' : 'OK'}</strong>
+                Ajustes
+              </span>
+            </div>
           </div>
         </div>
         <button

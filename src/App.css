@@ -2306,6 +2306,86 @@ button:active:not(:disabled),
   padding: 7px 9px;
 }
 
+.dice-readiness {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+  max-width: 560px;
+}
+
+.dice-readiness-card {
+  background: color-mix(in srgb, var(--surface-muted) 80%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 12px;
+}
+
+.dice-readiness-card.ready {
+  background: color-mix(in srgb, var(--accent-soft) 58%, var(--surface-muted));
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--border));
+}
+
+.dice-readiness-card.warning {
+  background: var(--surface-muted);
+  border-color: var(--danger-border);
+}
+
+.dice-readiness-card span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.dice-readiness-card strong {
+  color: var(--text-strong);
+  font-size: 17px;
+  line-height: 1.15;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dice-readiness-card small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.dice-readiness-metrics {
+  display: grid;
+  gap: 7px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.dice-readiness-metrics span {
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  display: grid;
+  font-size: 11px;
+  font-weight: 850;
+  gap: 3px;
+  line-height: 1;
+  min-width: 0;
+  padding: 8px;
+}
+
+.dice-readiness-metrics strong {
+  color: var(--text-strong);
+  font-size: 16px;
+  line-height: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .dice-eligibility-panel {
   background: var(--surface-muted);
   border: 1px solid var(--border);
@@ -4208,6 +4288,10 @@ textarea:focus-visible {
 
   .dice-preset-grid {
     grid-template-columns: 1fr;
+  }
+
+  .dice-readiness-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .dice-candidate-list li {
