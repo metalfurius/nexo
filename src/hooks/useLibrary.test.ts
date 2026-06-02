@@ -89,10 +89,12 @@ describe('useLibrary', () => {
 
     await waitFor(() => expect(repositoryMock.subscribeItems).toHaveBeenCalled())
 
+    let queuedCount = 0
     await act(async () => {
-      await result.current.queueDiscoveryCandidates([candidate])
+      queuedCount = await result.current.queueDiscoveryCandidates([candidate])
     })
 
+    expect(queuedCount).toBe(1)
     expect(repositoryMock.saveDiscoveryCandidate).toHaveBeenCalledWith(
       expect.objectContaining({
         id: 'public-book-odisea',
@@ -106,6 +108,49 @@ describe('useLibrary', () => {
         title: 'Odisea',
       }),
     ])
+  })
+
+  it('does not requeue discovery candidates already saved by the user', async () => {
+    const user = {
+      uid: 'user-1',
+      email: null,
+      displayName: null,
+    }
+    const { result } = renderHook(() => useLibrary(user))
+
+    await waitFor(() => expect(repositoryMock.subscribeItems).toHaveBeenCalled())
+
+    let queuedCount = 0
+    await act(async () => {
+      queuedCount = await result.current.queueDiscoveryCandidates([candidate])
+    })
+    expect(queuedCount).toBe(1)
+
+    await act(async () => {
+      await result.current.saveDiscoveryToLibrary(candidate)
+    })
+
+    await waitFor(() =>
+      expect(result.current.discoveryCandidates[0]).toEqual(
+        expect.objectContaining({
+          id: 'public-book-odisea',
+          status: 'saved',
+        }),
+      ),
+    )
+
+    await act(async () => {
+      queuedCount = await result.current.queueDiscoveryCandidates([{ ...candidate, updatedAt: '2026-01-04T00:00:00.000Z' }])
+    })
+
+    expect(queuedCount).toBe(0)
+    expect(result.current.discoveryCandidates[0]).toEqual(
+      expect.objectContaining({
+        id: 'public-book-odisea',
+        status: 'saved',
+      }),
+    )
+    expect(repositoryMock.saveDiscoveryCandidate).toHaveBeenCalledTimes(1)
   })
 
   it('loads user profiles and delegates role updates for admins', async () => {

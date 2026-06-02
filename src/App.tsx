@@ -376,7 +376,7 @@ interface LibrarySurface {
   searchExternal: (query: string, type: string) => Promise<ExternalCandidate[]>
   searchPublicCatalog: (query: string, type?: string) => Promise<PublicCatalogItem[]>
   saveSettings: (settings: Partial<UserSettings>) => Promise<void>
-  queueDiscoveryCandidates: (candidates: DiscoveryCandidate[]) => Promise<void>
+  queueDiscoveryCandidates: (candidates: DiscoveryCandidate[]) => Promise<number>
   dismissDiscoveryCandidate: (candidateId: string) => Promise<void>
   saveDiscoveryToLibrary: (candidate: DiscoveryCandidate) => Promise<ListItem>
   upsertPublicItem: (item: Partial<PublicCatalogItem> & Pick<PublicCatalogItem, 'title' | 'type'>) => Promise<PublicCatalogItem>
@@ -997,9 +997,15 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
         ...publicItems.map(library.publicItemToDiscovery),
         ...externalCandidates.map(library.externalCandidateToDiscovery),
       ]
-      await library.queueDiscoveryCandidates(candidates)
+      const queuedCount = await library.queueDiscoveryCandidates(candidates)
       setView('queued')
-      setMessage(candidates.length ? `${candidates.length} hallazgos enviados a la cola.` : 'Sin resultados para esa busqueda.')
+      setMessage(
+        !candidates.length
+          ? 'Sin resultados para esa busqueda.'
+          : queuedCount
+            ? `${queuedCount} hallazgos enviados a la cola.`
+            : 'No hay hallazgos nuevos para esa busqueda.',
+      )
     } catch (reason) {
       setMessage(reason instanceof Error ? reason.message : 'No se pudo completar la busqueda.')
     } finally {

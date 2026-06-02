@@ -139,6 +139,19 @@ export function discoveryToListItem(candidate: DiscoveryCandidate): ListItem {
   }
 }
 
+export function shouldPreserveDiscoveryDecision(
+  existing: DiscoveryCandidate | undefined,
+  incoming: Pick<DiscoveryCandidate, 'status'>,
+) {
+  return Boolean(existing && incoming.status === 'queued' && (existing.status === 'saved' || existing.status === 'dismissed'))
+}
+
+export function mergeDiscoveryCandidate(existing: DiscoveryCandidate | undefined, incoming: DiscoveryCandidate) {
+  if (!existing) return incoming
+  if (shouldPreserveDiscoveryDecision(existing, incoming)) return existing
+  return incoming.updatedAt.localeCompare(existing.updatedAt) > 0 ? incoming : existing
+}
+
 export function publicItemToListItem(item: PublicCatalogItem): ListItem {
   return discoveryToListItem(publicItemToDiscovery(item))
 }

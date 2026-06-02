@@ -263,6 +263,47 @@ describe('createFirestoreRepository', () => {
     )
   })
 
+  it('does not overwrite saved discovery candidates with queued search results', async () => {
+    const repository = createFirestoreRepository('user-1')
+    mocks.getDoc.mockResolvedValueOnce({
+      exists: () => true,
+      data: () => ({
+        id: 'public-book-odisea',
+        title: 'Odisea',
+        type: 'book',
+        status: 'saved',
+        origin: 'publicCatalog',
+        source: 'nexo',
+        sourceId: 'book-odisea',
+        genres: ['clasico'],
+        tags: ['epico'],
+        moodTags: [],
+        externalRefs: {},
+        savedItemId: 'book-odisea',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-03T00:00:00.000Z',
+      }),
+    })
+
+    await repository?.saveDiscoveryCandidate({
+      id: 'public-book-odisea',
+      title: 'Odisea',
+      type: 'book',
+      status: 'queued',
+      origin: 'publicCatalog',
+      source: 'nexo',
+      sourceId: 'book-odisea',
+      genres: ['clasico'],
+      tags: ['epico'],
+      moodTags: [],
+      externalRefs: {},
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-04T00:00:00.000Z',
+    })
+
+    expect(mocks.setDoc).not.toHaveBeenCalled()
+  })
+
   it('uses Firestore for public catalog search and moderator writes', async () => {
     const repository = createFirestoreRepository('user-1')
     mocks.getDocs.mockResolvedValueOnce({

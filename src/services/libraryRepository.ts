@@ -23,7 +23,7 @@ import {
   type UserSettings,
   nowIso,
 } from '../domain/types'
-import { buildPublicCatalogItem } from '../lib/catalog'
+import { buildPublicCatalogItem, shouldPreserveDiscoveryDecision } from '../lib/catalog'
 import { normalizeKey } from '../lib/strings'
 import { getFirebaseServices } from './firebaseDb'
 
@@ -167,8 +167,13 @@ export function createFirestoreRepository(userId: string): LibraryRepository | u
         (error) => onError(error),
       )
     },
-    saveDiscoveryCandidate(candidate) {
-      return setDoc(discoveryCandidateDocument(candidate.id), {
+    async saveDiscoveryCandidate(candidate) {
+      const candidateDocument = discoveryCandidateDocument(candidate.id)
+      const snapshot = await getDoc(candidateDocument)
+      const existing = snapshot.exists() ? (snapshot.data() as DiscoveryCandidate) : undefined
+      if (shouldPreserveDiscoveryDecision(existing, candidate)) return
+
+      return setDoc(candidateDocument, {
         ...withoutUndefined(candidate),
         updatedAt: nowIso(),
       })

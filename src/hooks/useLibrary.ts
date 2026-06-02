@@ -19,7 +19,9 @@ import {
   buildPublicCatalogItem,
   discoveryToListItem,
   externalCandidateToDiscovery,
+  mergeDiscoveryCandidate,
   publicItemToDiscovery,
+  shouldPreserveDiscoveryDecision,
 } from '../lib/catalog'
 import { slugify, uniqueValues } from '../lib/strings'
 import { isFirebaseConfigured } from '../services/firebaseConfig'
@@ -254,15 +256,20 @@ export function useLibrary(user?: SignedInUserProfile | null) {
       status: candidate.status ?? 'queued',
       updatedAt: nowIso(),
     }))
+    const currentCandidatesById = new Map(discoveryCandidates.map((candidate) => [candidate.id, candidate]))
+    const candidatesToPersist = normalized.filter(
+      (candidate) => !shouldPreserveDiscoveryDecision(currentCandidatesById.get(candidate.id), candidate),
+    )
     setDiscoveryCandidates((current) => mergeCandidates(normalized, current))
     if (repository) {
       try {
-        await Promise.all(normalized.map((candidate) => repository.saveDiscoveryCandidate(candidate)))
+        await Promise.all(candidatesToPersist.map((candidate) => repository.saveDiscoveryCandidate(candidate)))
       } catch (reason) {
         setError(reason instanceof Error ? reason.message : 'No se pudo persistir la cola de exploracion.')
         throw reason
       }
     }
+    return candidatesToPersist.length
   }
 
   async function dismissDiscoveryCandidate(candidateId: string) {
@@ -407,12 +414,9 @@ function upsertCatalogItem(items: PublicCatalogItem[], nextItem: PublicCatalogIt
 }
 
 function mergeCandidates(nextCandidates: DiscoveryCandidate[], currentCandidates: DiscoveryCandidate[]) {
-  const byId = new Map<string, DiscoveryCandidate>()
-  for (const candidate of [...nextCandidates, ...currentCandidates]) {
-    const current = byId.get(candidate.id)
-    if (!current || candidate.updatedAt.localeCompare(current.updatedAt) > 0) {
-      byId.set(candidate.id, candidate)
-    }
+  const byId = new Map(currentCandidates.map((candidate) => [candidate.id, candidate]))
+  for (const candidate of nextCandidates) {
+    byId.set(candidate.id, mergeDiscoveryCandidate(byId.get(candidate.id), candidate))
   }
   return [...byId.values()].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
 }
