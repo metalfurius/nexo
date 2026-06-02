@@ -948,6 +948,7 @@ function DiceTab({ library }: { library: LibrarySurface }) {
   const [draftPreferences, setDraftPreferences] = useState<RecommendationPreferences | undefined>()
   const [recommendation, setRecommendation] = useState<RecommendationResult | undefined>()
   const [isRolling, setIsRolling] = useState(false)
+  const [showFullDicePool, setShowFullDicePool] = useState(false)
   const [status, setStatus] = useState<string | undefined>()
   const persistedPreferences = library.settings.recommendationPreferences ?? DEFAULT_RECOMMENDATION_PREFERENCES
   const preferences = draftPreferences ?? persistedPreferences
@@ -960,7 +961,9 @@ function DiceTab({ library }: { library: LibrarySurface }) {
     () => getDiceEligibilityBreakdown(library.items, preferences, library.settings),
     [library.items, library.settings, preferences],
   )
-  const candidatePreview = scoredCandidates.slice(0, 4)
+  const candidatePreview = showFullDicePool ? scoredCandidates : scoredCandidates.slice(0, 4)
+  const hiddenCandidateCount = Math.max(0, scoredCandidates.length - candidatePreview.length)
+  const maxCandidateScore = scoredCandidates[0]?.score ?? 1
   const unavailableCount = Math.max(0, library.items.length - scoredCandidates.length)
   const poolSize = Math.min(scoredCandidates.length, Math.max(3, Math.ceil(3 + preferences.surprisePercent / 8)))
   const activeDiceFilters = getActiveDiceFilters(preferences, library.settings)
@@ -1068,14 +1071,37 @@ function DiceTab({ library }: { library: LibrarySurface }) {
           </div>
         </div>
         {candidatePreview.length ? (
-          <ol className="dice-candidate-list">
-            {candidatePreview.map((candidate) => (
+          <ol className="dice-candidate-list" aria-label="Candidatas del dado" data-testid="dice-candidate-list">
+            {candidatePreview.map((candidate, index) => {
+              const Icon = typeIcons[candidate.item.type]
+
+              return (
               <li key={candidate.item.id}>
-                <span>{candidate.item.title}</span>
-                <strong>{candidate.score}</strong>
-                <small>{candidate.reasons[0]}</small>
+                <span className="dice-candidate-rank">#{index + 1}</span>
+                <span className={`dice-candidate-type ${candidate.item.type}`} aria-hidden="true">
+                  <Icon size={14} />
+                </span>
+                <span className="dice-candidate-main">
+                  <strong>{candidate.item.title}</strong>
+                  <small>
+                    {statusLabels[candidate.item.status]} / {typeLabels[candidate.item.type]}
+                  </small>
+                  <span className="dice-candidate-reasons">
+                    {candidate.reasons.slice(0, 2).map((reason) => (
+                      <em key={reason}>{reason}</em>
+                    ))}
+                  </span>
+                </span>
+                <span className="dice-candidate-score" aria-label={`Score ${candidate.score} de ${candidate.item.title}`}>
+                  <span>Score</span>
+                  <strong>{candidate.score}</strong>
+                  <span className="dice-score-meter" aria-hidden="true">
+                    <span style={{ width: getDiceScoreMeterWidth(candidate.score, maxCandidateScore) }} />
+                  </span>
+                </span>
               </li>
-            ))}
+              )
+            })}
           </ol>
         ) : (
           <EmptyState
@@ -1083,6 +1109,11 @@ function DiceTab({ library }: { library: LibrarySurface }) {
             title="Sin candidatas"
             detail="Afloja filtros, incluye pausados o anade pendientes desde Biblioteca y Explorador."
           />
+        )}
+        {scoredCandidates.length > 4 && (
+          <button className="ghost-button dice-expand-button" type="button" onClick={() => setShowFullDicePool((current) => !current)}>
+            {showFullDicePool ? 'Ver menos candidatas' : `Ver ${hiddenCandidateCount} mas`}
+          </button>
         )}
         <div className="dice-footnotes">
           <span>{unavailableCount} fuera por estado, cooldown o filtros</span>
@@ -3913,6 +3944,11 @@ function sortCatalogItems(left: PublicCatalogItem, right: PublicCatalogItem, mod
   const leftWarnings = catalogQualityWarnings(left).length
   const rightWarnings = catalogQualityWarnings(right).length
   return rightWarnings - leftWarnings || right.updatedAt.localeCompare(left.updatedAt) || left.title.localeCompare(right.title, 'es')
+}
+
+function getDiceScoreMeterWidth(score: number, maxScore: number) {
+  if (maxScore <= 0) return '0%'
+  return `${Math.min(100, Math.max(8, (score / maxScore) * 100))}%`
 }
 
 function getDiceEligibilityBreakdown(
