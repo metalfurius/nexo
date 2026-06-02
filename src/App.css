@@ -1373,6 +1373,11 @@ button:hover:not(:disabled),
   gap: 8px;
 }
 
+.detail-actions {
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
 .catalog-meta span:not(.source-pill),
 .catalog-quality,
 .detail-meta span:not(.source-pill) {

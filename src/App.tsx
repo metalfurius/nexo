@@ -996,8 +996,10 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
     try {
       const item = await library.saveDiscoveryToLibrary(candidate)
       setMessage(`${item.title} guardado en Biblioteca.`)
+      return true
     } catch (reason) {
       setMessage(reason instanceof Error ? reason.message : 'No se pudo guardar el hallazgo.')
+      return false
     }
   }
 
@@ -1005,9 +1007,19 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
     try {
       await library.dismissDiscoveryCandidate(candidate.id)
       setMessage(`${candidate.title} descartado de la cola.`)
+      return true
     } catch (reason) {
       setMessage(reason instanceof Error ? reason.message : 'No se pudo descartar el hallazgo.')
+      return false
     }
+  }
+
+  async function saveSelectedCandidate(candidate: DiscoveryCandidate) {
+    if (await saveCandidate(candidate)) setSelected(undefined)
+  }
+
+  async function dismissSelectedCandidate(candidate: DiscoveryCandidate) {
+    if (await dismissCandidate(candidate)) setSelected(undefined)
   }
 
   return (
@@ -1109,7 +1121,14 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
         <MetricCard label="Ideas" value={queuedPromptCount} />
       </aside>
 
-      {selected && <CandidateDialog candidate={selected} onClose={() => setSelected(undefined)} />}
+      {selected && (
+        <CandidateDialog
+          candidate={selected}
+          onClose={() => setSelected(undefined)}
+          onDismiss={() => dismissSelectedCandidate(selected)}
+          onSave={() => saveSelectedCandidate(selected)}
+        />
+      )}
     </section>
   )
 }
@@ -1924,7 +1943,19 @@ function ItemIdentity({ item }: { item: ListItem }) {
   )
 }
 
-function CandidateDialog({ candidate, onClose }: { candidate: DiscoveryCandidate; onClose: () => void }) {
+function CandidateDialog({
+  candidate,
+  onClose,
+  onDismiss,
+  onSave,
+}: {
+  candidate: DiscoveryCandidate
+  onClose: () => void
+  onDismiss: () => void
+  onSave: () => void
+}) {
+  const isQueued = candidate.status === 'queued'
+
   return (
     <div className="modal-backdrop" role="presentation">
       <section className="detail-dialog" role="dialog" aria-modal="true" aria-labelledby="candidate-detail-title">
@@ -1946,6 +1977,18 @@ function CandidateDialog({ candidate, onClose }: { candidate: DiscoveryCandidate
               <span key={genre}>{genre}</span>
             ))}
           </div>
+          {isQueued && (
+            <div className="action-row detail-actions">
+              <button className="primary-button" type="button" onClick={onSave}>
+                <Plus size={16} />
+                Guardar en Biblioteca
+              </button>
+              <button className="ghost-button danger-text" type="button" onClick={onDismiss}>
+                <X size={16} />
+                Descartar
+              </button>
+            </div>
+          )}
         </div>
       </section>
     </div>
