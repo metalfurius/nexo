@@ -209,6 +209,16 @@ type AppTab = 'library' | 'dice' | 'explorer' | 'settings' | 'curation'
 type CatalogQualityFilter = 'all' | 'needs-work' | 'ready'
 type CatalogSortMode = 'quality' | 'title' | 'updated'
 
+interface DiceEligibilityBreakdown {
+  available: number
+  blockedTags: number
+  cooldown: number
+  medium: number
+  paused: number
+  resolved: number
+  total: number
+}
+
 interface AuthUserSummary {
   uid: string
   email: string | null
@@ -1229,8 +1239,14 @@ function DiceTab({ library }: { library: LibrarySurface }) {
     () => scoreCandidates(library.items, preferences, library.settings),
     [library.items, library.settings, preferences],
   )
+  const eligibilityBreakdown = useMemo(
+    () => getDiceEligibilityBreakdown(library.items, preferences, library.settings),
+    [library.items, library.settings, preferences],
+  )
   const candidatePreview = scoredCandidates.slice(0, 4)
   const unavailableCount = Math.max(0, library.items.length - scoredCandidates.length)
+  const poolSize = Math.min(scoredCandidates.length, Math.max(3, Math.ceil(3 + preferences.surprisePercent / 8)))
+  const activeDiceFilters = getActiveDiceFilters(preferences, library.settings)
   const hasCandidates = scoredCandidates.length > 0
   const setPreferences = (
     update: RecommendationPreferences | ((current: RecommendationPreferences) => RecommendationPreferences),
@@ -1348,8 +1364,9 @@ function DiceTab({ library }: { library: LibrarySurface }) {
         )}
         <div className="dice-footnotes">
           <span>{unavailableCount} fuera por estado, cooldown o filtros</span>
-          <span>Pool maximo {Math.min(scoredCandidates.length, Math.max(3, Math.ceil(3 + preferences.surprisePercent / 8)))}</span>
+          <span>Pool maximo {poolSize}</span>
         </div>
+        <DiceEligibilityPanel breakdown={eligibilityBreakdown} activeFilters={activeDiceFilters} />
       </section>
 
       <section className="workspace-panel dice-settings">
@@ -3367,6 +3384,63 @@ function PreferencePreview({ label, tone, values }: { label: string; tone?: 'dan
   )
 }
 
+function DiceEligibilityPanel({
+  activeFilters,
+  breakdown,
+}: {
+  activeFilters: string[]
+  breakdown: DiceEligibilityBreakdown
+}) {
+  const exclusionRows = [
+    { label: 'Completadas/droppeadas', value: breakdown.resolved },
+    { label: 'Pausadas', value: breakdown.paused },
+    { label: 'Cooldown', value: breakdown.cooldown },
+    { label: 'Medio', value: breakdown.medium },
+    { label: 'Tags bloqueados', value: breakdown.blockedTags },
+  ].filter((row) => row.value > 0)
+
+  return (
+    <section className="dice-eligibility-panel" aria-label="Elegibilidad del dado">
+      <div className="dice-eligibility-head">
+        <div>
+          <h3>Elegibilidad</h3>
+          <p>
+            {breakdown.available} de {breakdown.total} pueden salir ahora
+          </p>
+        </div>
+        <strong>{breakdown.total ? Math.round((breakdown.available / breakdown.total) * 100) : 0}%</strong>
+      </div>
+      <div className="eligibility-meter" aria-hidden="true">
+        <span style={{ width: `${breakdown.total ? (breakdown.available / breakdown.total) * 100 : 0}%` }} />
+      </div>
+      <div className="eligibility-grid">
+        <div>
+          <span>Activas</span>
+          <strong>{breakdown.available}</strong>
+        </div>
+        <div>
+          <span>Fuera</span>
+          <strong>{breakdown.total - breakdown.available}</strong>
+        </div>
+      </div>
+      {exclusionRows.length > 0 && (
+        <div className="eligibility-reasons">
+          {exclusionRows.map((row) => (
+            <span key={row.label}>
+              {row.label}: {row.value}
+            </span>
+          ))}
+        </div>
+      )}
+      <div className="eligibility-filters">
+        {activeFilters.map((filter) => (
+          <span key={filter}>{filter}</span>
+        ))}
+      </div>
+    </section>
+  )
+}
+
 function PresetChipGroup({
   label,
   onToggle,
@@ -3572,6 +3646,67 @@ function sortCatalogItems(left: PublicCatalogItem, right: PublicCatalogItem, mod
   const leftWarnings = catalogQualityWarnings(left).length
   const rightWarnings = catalogQualityWarnings(right).length
   return rightWarnings - leftWarnings || right.updatedAt.localeCompare(left.updatedAt) || left.title.localeCompare(right.title, 'es')
+}
+
+function getDiceEligibilityBreakdown(
+  items: ListItem[],
+  preferences: RecommendationPreferences,
+  settings: UserSettings,
+): DiceEligibilityBreakdown {
+  const breakdown: DiceEligibilityBreakdown = {
+    available: 0,
+    blockedTags: 0,
+    cooldown: 0,
+    medium: 0,
+    paused: 0,
+    resolved: 0,
+    total: items.length,
+  }
+  const now = Date.now()
+  const blockedTagKeys = settings.blockedTags.map(normalizeKey)
+
+  for (const item of items) {
+    if (item.status === 'completed' || item.status === 'dropped') {
+      breakdown.resolved += 1
+      continue
+    }
+    if (item.status === 'paused' && !preferences.includePaused) {
+      breakdown.paused += 1
+      continue
+    }
+    if (item.recommendationCooldownUntil && Date.parse(item.recommendationCooldownUntil) > now) {
+      breakdown.cooldown += 1
+      continue
+    }
+    if (!matchesDiceMedium(item.type, preferences.medium)) {
+      breakdown.medium += 1
+      continue
+    }
+    if (blockedTagKeys.some((tag) => item.tags.map(normalizeKey).includes(tag))) {
+      breakdown.blockedTags += 1
+      continue
+    }
+    breakdown.available += 1
+  }
+
+  return breakdown
+}
+
+function matchesDiceMedium(itemType: ItemType, medium: ExplorerSearchType) {
+  if (medium === 'any') return true
+  if (medium === 'watch') return ['movie', 'series', 'anime', 'manga', 'manhwa', 'comic'].includes(itemType)
+  return itemType === medium
+}
+
+function getActiveDiceFilters(preferences: RecommendationPreferences, settings: UserSettings) {
+  return [
+    `Medio: ${typeLabels[preferences.medium]}`,
+    preferences.timeBudgetHours ? `Tiempo: ${preferences.timeBudgetHours}h` : 'Sin limite de tiempo',
+    `Energia: ${energyLabels[preferences.energy]}`,
+    `Novedad: ${noveltyLabels[preferences.novelty]}`,
+    preferences.includePaused ? 'Incluye pausados' : 'Pausados fuera',
+    settings.blockedTags.length ? `${settings.blockedTags.length} tags bloqueados` : 'Sin tags bloqueados',
+  ]
 }
 
 function sameList(left: string[], right: string[]) {
