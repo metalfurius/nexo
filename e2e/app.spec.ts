@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises'
 import AxeBuilder from '@axe-core/playwright'
 import { expect, test } from '@playwright/test'
 
@@ -194,6 +195,15 @@ test('moderator curation can create a public catalog item in demo mode', async (
   await page.getByRole('button', { name: 'Revisar Arrival' }).click()
   await expect(page.locator('.public-item-editor').getByLabel('Titulo')).toHaveValue('Arrival')
   await page.getByRole('button', { name: 'Cerrar', exact: true }).click()
+
+  const templateDownloadPromise = page.waitForEvent('download')
+  await page.getByRole('button', { name: 'Plantilla' }).click()
+  const templateDownload = await templateDownloadPromise
+  expect(templateDownload.suggestedFilename()).toBe('nexo-catalog-seed-template.json')
+  const templatePath = await templateDownload.path()
+  if (!templatePath) throw new Error('Template download path is missing')
+  const templatePayload = JSON.parse(await readFile(templatePath, 'utf8')) as { items?: unknown[] }
+  expect(templatePayload.items?.length).toBeGreaterThan(0)
 
   await page.getByLabel('Importar lote de catalogo JSON').setInputFiles({
     name: 'public-catalog.seed.json',

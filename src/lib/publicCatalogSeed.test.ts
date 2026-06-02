@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { parsePublicCatalogSeed } from './publicCatalogSeed'
+import { createPublicCatalogSeedTemplate, parsePublicCatalogSeed } from './publicCatalogSeed'
 
 describe('parsePublicCatalogSeed', () => {
+  it('creates a valid editable seed template', () => {
+    const template = createPublicCatalogSeedTemplate()
+    const result = parsePublicCatalogSeed(template, 'admin-1')
+
+    expect(template.items.length).toBeGreaterThan(0)
+    expect(result.errors).toEqual([])
+    expect(result.items.length).toBe(template.items.length)
+  })
+
   it('normalizes valid seed entries into public catalog items', () => {
     const result = parsePublicCatalogSeed(
       {

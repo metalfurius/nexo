@@ -28,6 +28,43 @@ export interface PublicCatalogSeedResult {
   errors: string[]
 }
 
+export function createPublicCatalogSeedTemplate(): PublicCatalogSeedFile {
+  return {
+    sourceName: 'Nexo curated batch',
+    license: 'Describe aqui la fuente/licencia revisada antes de importar.',
+    notes: [
+      'Edita items y elimina los ejemplos que no quieras importar.',
+      'El importador rechaza tipos desconocidos y duplicados por type:title.',
+    ],
+    items: [
+      {
+        title: 'Moon',
+        type: 'movie',
+        description: 'Ciencia ficcion contenida y solitaria.',
+        releaseYear: 2009,
+        genres: ['Ciencia ficcion', 'Drama'],
+        tags: ['culto', 'introspectivo'],
+        moodTags: ['melancolico'],
+        externalRefs: {
+          sourceUrl: 'https://www.wikidata.org/w/index.php?search=Moon+2009+film',
+        },
+      },
+      {
+        title: 'Outer Wilds',
+        type: 'game',
+        description: 'Exploracion espacial de misterio, tiempo y descubrimiento.',
+        releaseYear: 2019,
+        genres: ['Exploracion', 'Misterio'],
+        tags: ['indie', 'sin spoilers'],
+        moodTags: ['sorpresa'],
+        externalRefs: {
+          sourceUrl: 'https://www.wikidata.org/w/index.php?search=Outer+Wilds',
+        },
+      },
+    ],
+  }
+}
+
 export function parsePublicCatalogSeed(value: unknown, actorId: string): PublicCatalogSeedResult {
   const errors: string[] = []
   if (!isRecord(value)) {

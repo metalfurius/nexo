@@ -9,6 +9,16 @@ The recommended path is curated import, not uncontrolled scraping:
 - Write to Firestore with Admin SDK credentials only when the normalized output looks right.
 - Keep provider licenses and terms under review before expanding the seed massively.
 
+## In-App Moderator Import
+
+Moderators can import a reviewed batch from `Curacion`:
+
+1. Click `Plantilla` to download `nexo-catalog-seed-template.json`.
+2. Edit the `items` array and keep only reviewed entries.
+3. Click `Importar lote` and choose the JSON file.
+
+The app validates the whole seed before writing anything. Invalid item types, missing titles and duplicate `type:title` canonical keys are reported as errors. Valid entries are written through the same moderator-only catalog flow as manual curation.
+
 ## Normalize
 
 ```sh

@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   Copy,
   Dice5,
+  Download,
   Eye,
   Film,
   Gamepad2,
@@ -72,7 +73,7 @@ import {
 } from './data/catalogPresets'
 import { buildPublicCatalogItem, promptToDiscovery } from './lib/catalog'
 import { createLibraryExportPayload, parseLibraryImportPayload } from './lib/libraryBackup'
-import { parsePublicCatalogSeed } from './lib/publicCatalogSeed'
+import { createPublicCatalogSeedTemplate, parsePublicCatalogSeed } from './lib/publicCatalogSeed'
 import { recommendItem, scoreCandidates } from './lib/recommendations'
 import { normalizeKey, slugify, uniqueValues } from './lib/strings'
 
@@ -1925,6 +1926,11 @@ function CurationTab({ library }: { library: LibrarySurface }) {
     setEditingItem(blankPublicCatalogItem(type))
   }
 
+  function downloadCatalogSeedTemplate() {
+    downloadJsonFile(createPublicCatalogSeedTemplate(), 'nexo-catalog-seed-template.json')
+    setStatus('Plantilla de catalogo descargada')
+  }
+
   async function importCatalogSeed(file?: File) {
     if (!file) return
 
@@ -1967,6 +1973,10 @@ function CurationTab({ library }: { library: LibrarySurface }) {
             <p>Catalogo compartido visible para usuarios logueados</p>
           </div>
           <div className="panel-actions">
+            <button className="secondary-button catalog-import-button" type="button" onClick={downloadCatalogSeedTemplate}>
+              <Download size={17} />
+              Plantilla
+            </button>
             <label
               className={
                 isImporting
@@ -2493,12 +2503,15 @@ function getLibraryFocusReason(item: ListItem) {
 }
 
 function downloadLibraryBackup(items: ListItem[], settings: UserSettings, prefix: string) {
-  const payload = createLibraryExportPayload(items, settings)
+  downloadJsonFile(createLibraryExportPayload(items, settings), `${prefix}-${new Date().toISOString().slice(0, 10)}.json`)
+}
+
+function downloadJsonFile(payload: unknown, filename: string) {
   const blob = new Blob([`${JSON.stringify(payload, null, 2)}\n`], { type: 'application/json' })
   const href = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = href
-  link.download = `${prefix}-${new Date().toISOString().slice(0, 10)}.json`
+  link.download = filename
   link.click()
   URL.revokeObjectURL(href)
 }
