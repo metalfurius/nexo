@@ -15,6 +15,11 @@
 
 `npm run release:check` covers the full local gate and expects Java/Firebase emulators to be available for Firestore rules tests. If a Firestore emulator is already running on `127.0.0.1:8080`, `npm run test:rules` reuses it instead of trying to start a second emulator. `npm run check:release-files` validates release metadata and static launch contracts such as CNAME, manifest shortcuts, required docs, Firebase config and the public catalog seed.
 
+GitHub Actions mirrors the gate:
+
+- `.github/workflows/ci.yml` runs on pull requests and manual dispatch.
+- `.github/workflows/deploy-pages.yml` runs on `main`, repeats the gate, then deploys GitHub Pages.
+
 ## Firebase
 
 - Confirm GitHub Pages variables match `.env.example`.

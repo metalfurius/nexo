@@ -26,6 +26,8 @@ const requiredFiles = [
   'public/manifest.webmanifest',
   'public/sw.js',
   'seed/public-catalog.seed.json',
+  '.github/workflows/ci.yml',
+  '.github/workflows/deploy-pages.yml',
 ]
 
 const failures: string[] = []
@@ -113,6 +115,18 @@ check(changelog.includes('## 1.0.0'), 'CHANGELOG.md must include 1.0.0 release n
 const releaseChecklist = await readText('docs/release-checklist.md')
 check(releaseChecklist.includes('npm run release:check'), 'Release checklist must mention npm run release:check.')
 check(releaseChecklist.includes('v1.0.0'), 'Release checklist must mention tag v1.0.0.')
+
+const ciWorkflow = await readText('.github/workflows/ci.yml')
+check(ciWorkflow.includes('pull_request:'), 'CI workflow must run on pull requests.')
+check(ciWorkflow.includes('npm run check'), 'CI workflow must run npm run check.')
+check(ciWorkflow.includes('npm run test:e2e'), 'CI workflow must run E2E tests.')
+check(ciWorkflow.includes('npm run check:release-files'), 'CI workflow must run check:release-files.')
+check(ciWorkflow.includes('npm audit --audit-level=high'), 'CI workflow must run high severity audit.')
+
+const deployWorkflow = await readText('.github/workflows/deploy-pages.yml')
+check(deployWorkflow.includes('branches: [main]'), 'Deploy workflow must run on main pushes.')
+check(deployWorkflow.includes('npm run check:release-files'), 'Deploy workflow must run check:release-files.')
+check(deployWorkflow.includes('actions/deploy-pages'), 'Deploy workflow must deploy GitHub Pages.')
 
 const seed = await readJson<unknown>('seed/public-catalog.seed.json')
 const seedResult = parsePublicCatalogSeed(seed, 'release-check')

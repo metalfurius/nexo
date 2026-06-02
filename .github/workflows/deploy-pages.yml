@@ -74,6 +74,9 @@ jobs:
       - name: E2E smoke
         run: npm run test:e2e
 
+      - name: Release file readiness
+        run: npm run check:release-files
+
       - name: High severity audit gate
         run: npm audit --audit-level=high
 

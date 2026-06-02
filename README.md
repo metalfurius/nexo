@@ -64,3 +64,5 @@ npm run check:release-files
 `npm run check:release-files` validates launch metadata such as package versions, PWA manifest shortcuts, CNAME, Firebase config, required docs and the public catalog seed.
 
 `npm run release:check` runs the launch gate used before tagging a release. It gates high severity audit findings; the current moderate Firebase-tooling transitive `uuid` advisories are documented in `docs/release-checklist.md`.
+
+GitHub Actions runs the same gate for pull requests and repeats it before deploying `main` to GitHub Pages.
