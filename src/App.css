@@ -956,6 +956,105 @@
   gap: 10px;
 }
 
+.role-summary-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-bottom: 12px;
+}
+
+.role-summary-card {
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px;
+}
+
+.role-summary-card.elevated {
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 36%, var(--border));
+}
+
+.role-summary-card span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.role-summary-card strong {
+  color: var(--text-strong);
+  font-size: 22px;
+  line-height: 1;
+}
+
+.role-permission-grid {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.role-permission-card {
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  padding: 11px;
+}
+
+.role-permission-card.elevated {
+  background: color-mix(in srgb, var(--accent-soft) 42%, var(--surface-muted));
+  border-color: color-mix(in srgb, var(--accent) 24%, var(--border));
+}
+
+.role-permission-card > div {
+  align-items: center;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.role-permission-card p {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+  margin: 0;
+  min-width: 0;
+}
+
+.role-permission-card ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.role-permission-card li {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 800;
+  gap: 5px;
+  line-height: 1;
+  padding: 6px 8px;
+}
+
+.role-permission-card li svg {
+  color: var(--accent-dark);
+  flex: 0 0 auto;
+}
+
 .role-row {
   align-items: center;
   background: var(--surface-muted);
@@ -4006,6 +4105,14 @@ textarea:focus-visible {
   }
 
   .data-health-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .role-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .role-permission-card > div {
     grid-template-columns: 1fr;
   }
 

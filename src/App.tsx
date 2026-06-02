@@ -170,6 +170,24 @@ const roleLabels: Record<UserRole, string> = {
   user: 'Usuario',
 }
 
+const rolePermissionSummaries: Array<{ role: UserRole; detail: string; permissions: string[] }> = [
+  {
+    role: 'user',
+    detail: 'Uso privado de Biblioteca, Dado y Explorador.',
+    permissions: ['Biblioteca privada', 'Guardar hallazgos', 'Exportar backup'],
+  },
+  {
+    role: 'moderator',
+    detail: 'Puede mantener el catalogo compartido sin tocar roles.',
+    permissions: ['Curar catalogo', 'Importar seed', 'Archivar publicas'],
+  },
+  {
+    role: 'admin',
+    detail: 'Gestiona roles y conserva todos los permisos de moderacion.',
+    permissions: ['Cambiar roles', 'Curar catalogo', 'Ver perfiles'],
+  },
+]
+
 const itemSourceLabels: Record<ListItem['source'], string> = {
   manual: 'Manual',
   markdown: 'Importacion',
@@ -1875,6 +1893,10 @@ function AdminRolesPanel({
   profiles: UserProfile[]
 }) {
   const [status, setStatus] = useState<string | undefined>()
+  const roleCounts = USER_ROLES.map((role) => ({
+    role,
+    count: profiles.filter((profile) => profile.role === role).length,
+  }))
 
   async function changeRole(profile: UserProfile, role: UserRole) {
     if (profile.role === role) return
@@ -1898,6 +1920,36 @@ function AdminRolesPanel({
           </p>
         </div>
         <span className="mode-pill moderator">Admin</span>
+      </div>
+
+      <div className="role-summary-grid" aria-label="Resumen de roles">
+        {roleCounts.map(({ count, role }) => (
+          <div className={role === 'user' ? 'role-summary-card' : 'role-summary-card elevated'} key={role}>
+            <span>{roleLabels[role]}</span>
+            <strong>{count}</strong>
+          </div>
+        ))}
+      </div>
+
+      <div className="role-permission-grid" aria-label="Permisos de roles">
+        {rolePermissionSummaries.map((summary) => (
+          <article className={summary.role === 'user' ? 'role-permission-card' : 'role-permission-card elevated'} key={summary.role}>
+            <div>
+              <span className={summary.role === 'user' ? 'role-badge' : 'role-badge elevated'}>
+                {roleLabels[summary.role]}
+              </span>
+              <p>{summary.detail}</p>
+            </div>
+            <ul>
+              {summary.permissions.map((permission) => (
+                <li key={permission}>
+                  <Check size={13} />
+                  <span>{permission}</span>
+                </li>
+              ))}
+            </ul>
+          </article>
+        ))}
       </div>
 
       {profiles.length ? (
