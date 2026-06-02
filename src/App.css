@@ -1626,6 +1626,96 @@ label {
   white-space: nowrap;
 }
 
+.candidate-spotlight {
+  animation: reveal-result var(--motion-slow) var(--motion-ease) both;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--accent-soft) 60%, transparent), transparent 68%),
+    var(--surface-muted);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  border-radius: 8px;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(118px, 160px) minmax(0, 1fr) minmax(160px, 210px);
+  margin: 0 0 14px;
+  padding: 12px;
+}
+
+.candidate-spotlight-media {
+  min-width: 0;
+}
+
+.candidate-spotlight-media .cover-art {
+  aspect-ratio: 3 / 4;
+  border-radius: 8px;
+  min-height: 156px;
+}
+
+.candidate-spotlight-body {
+  align-content: center;
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.candidate-spotlight-body h3 {
+  color: var(--text-strong);
+  font-size: 24px;
+  line-height: 1.08;
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.candidate-spotlight-body p {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.candidate-spotlight .candidate-meta span:not(.source-pill) {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1;
+  padding: 7px 9px;
+}
+
+.candidate-spotlight-actions {
+  align-content: center;
+  display: grid;
+  gap: 8px;
+}
+
+.candidate-spotlight-actions button {
+  width: 100%;
+}
+
+.danger-ghost {
+  color: var(--danger-text);
+}
+
+.danger-ghost:hover {
+  background: var(--danger-bg);
+  border-color: var(--danger-border);
+  color: var(--danger-text);
+}
+
+.candidate-feed-note {
+  background: var(--surface-muted);
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  margin: 0;
+  padding: 14px;
+  text-align: center;
+}
+
 .item-grid,
 .candidate-grid {
   display: grid;
@@ -4195,6 +4285,23 @@ textarea:focus-visible {
 
   .explorer-status-strip {
     grid-template-columns: 1fr;
+  }
+
+  .candidate-spotlight {
+    grid-template-columns: minmax(92px, 118px) minmax(0, 1fr);
+  }
+
+  .candidate-spotlight-actions {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .candidate-spotlight-actions .primary-button {
+    grid-column: 1 / -1;
+  }
+
+  .candidate-spotlight-body h3 {
+    white-space: normal;
   }
 
   .curation-speed-heading {

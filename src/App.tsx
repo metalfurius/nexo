@@ -1385,6 +1385,8 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
     sourceFilter === 'all'
       ? candidatesInView
       : candidatesInView.filter((candidate) => getDiscoverySourceFilter(candidate) === sourceFilter)
+  const spotlightCandidate = view === 'queued' ? visibleCandidates[0] : undefined
+  const feedCandidates = spotlightCandidate ? visibleCandidates.slice(1) : visibleCandidates
   const queuedCandidates = library.discoveryCandidates.filter((candidate) => candidate.status === 'queued')
   const queuedNexoCount = queuedCandidates.filter((candidate) => candidate.source === 'nexo').length
   const queuedExternalCount = queuedCandidates.filter((candidate) => candidate.source !== 'nexo' && candidate.source !== 'prompt').length
@@ -1630,9 +1632,11 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
 
         <div className="candidate-feed-header">
           <div>
-            <h3>{discoveryStatusLabels[view]}</h3>
+            <h3>{spotlightCandidate ? 'Bandeja de decision' : discoveryStatusLabels[view]}</h3>
             <p>
-              {view === 'queued'
+              {spotlightCandidate
+                ? 'Decide primero el hallazgo superior; el resto espera debajo.'
+                : view === 'queued'
                 ? 'Revisa, guarda o descarta sin mezclarlo con tu biblioteca privada.'
                 : 'Historial ligero de decisiones del explorador.'}
             </p>
@@ -1642,9 +1646,57 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
           </span>
         </div>
 
+        {spotlightCandidate && (
+          <section className="candidate-spotlight" aria-label="Hallazgo destacado" data-testid="candidate-spotlight">
+            <div className="candidate-spotlight-media">
+              <CoverArt title={spotlightCandidate.title} type={spotlightCandidate.type} posterUrl={spotlightCandidate.posterUrl} />
+            </div>
+            <div className="candidate-spotlight-body">
+              <div className="candidate-meta">
+                <span className="source-pill">{sourceLabels[spotlightCandidate.source]}</span>
+                <span>{typeLabels[spotlightCandidate.type]}</span>
+                {spotlightCandidate.releaseYear && <span>{spotlightCandidate.releaseYear}</span>}
+              </div>
+              <span className="eyebrow">Siguiente hallazgo</span>
+              <h3>{spotlightCandidate.title}</h3>
+              <p>{spotlightCandidate.overview || `${typeLabels[spotlightCandidate.type]} para explorar`}</p>
+              <div className="tag-row">
+                {spotlightCandidate.genres.slice(0, 4).map((genre) => (
+                  <span key={genre}>{genre}</span>
+                ))}
+              </div>
+            </div>
+            <div className="candidate-spotlight-actions" aria-label={`Decidir ${spotlightCandidate.title}`}>
+              <button className="primary-button" type="button" onClick={() => void saveCandidate(spotlightCandidate)} aria-label={`Guardar ${spotlightCandidate.title}`}>
+                <Plus size={17} />
+                Guardar
+              </button>
+              <button className="secondary-button" type="button" onClick={() => setSelected(spotlightCandidate)} aria-label={`Abrir ficha ${spotlightCandidate.title}`}>
+                <Eye size={17} />
+                Detalles
+              </button>
+              <button className="ghost-button danger-ghost" type="button" onClick={() => void dismissCandidate(spotlightCandidate)} aria-label={`Descartar ${spotlightCandidate.title}`}>
+                <X size={17} />
+                Descartar
+              </button>
+              {library.isModerator && (
+                <button
+                  className="ghost-button"
+                  type="button"
+                  onClick={() => openCatalogDraft(spotlightCandidate)}
+                  aria-label={`${spotlightCandidate.source === 'nexo' ? 'Editar catalogo' : 'Crear catalogo'} ${spotlightCandidate.title}`}
+                >
+                  <ShieldCheck size={17} />
+                  Catalogo
+                </button>
+              )}
+            </div>
+          </section>
+        )}
+
         {visibleCandidates.length ? (
           <div className="candidate-grid">
-            {visibleCandidates.map((candidate) => (
+            {feedCandidates.map((candidate) => (
               <DiscoveryCard
                 candidate={candidate}
                 key={candidate.id}
@@ -1655,6 +1707,9 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
                 onCurate={library.isModerator ? () => openCatalogDraft(candidate) : undefined}
               />
             ))}
+            {!feedCandidates.length && spotlightCandidate && (
+              <p className="candidate-feed-note">No hay mas hallazgos en esta vista.</p>
+            )}
           </div>
         ) : (
           <EmptyState
