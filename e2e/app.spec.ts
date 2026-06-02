@@ -6,8 +6,11 @@ test('library and weighted dice work in demo mode', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByRole('heading', { name: 'Biblioteca privada' })).toBeVisible()
   await expect(page.getByTestId('library-grid')).toContainText('Outer Wilds')
+  await expect(page.getByTestId('library-overview')).toContainText('Siguiente accion')
+  await expect(page.getByTestId('library-overview')).toContainText('Inception')
+  await expect(page.getByTestId('library-overview')).toContainText('Explorador')
   await expect(page.getByTestId('library-focus-shelf')).toContainText('En foco')
-  await expect(page.getByTestId('library-focus-shelf')).toContainText('Inception')
+  await expect(page.getByTestId('library-focus-shelf')).toContainText('1984 - George Orwell')
   await expect(page.getByRole('button', { name: 'Todo 7' })).toBeVisible()
   await expect(page.getByLabel('Ordenar biblioteca')).toHaveValue('focus')
   await page.getByLabel('Ordenar biblioteca').selectOption('title')
@@ -88,6 +91,7 @@ test('library and weighted dice work in demo mode', async ({ page }) => {
 
 test('mobile layout keeps the core controls reachable', async ({ page }) => {
   await page.goto('/')
+  await expect(page.getByTestId('library-overview')).toBeVisible()
   await expect(page.getByLabel('Buscar en biblioteca')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Explorador' })).toBeVisible()
   await page.getByRole('button', { name: 'Dado' }).click()

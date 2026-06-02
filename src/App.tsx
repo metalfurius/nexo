@@ -566,7 +566,10 @@ function LibraryTab({ library, setTheme }: { library: LibrarySurface; setTheme: 
     sortMode !== 'focus' ? `Orden: ${librarySortLabels[sortMode]}` : undefined,
   ].filter((control): control is string => Boolean(control))
   const focusItems = useMemo(() => getLibraryFocusItems(library.items), [library.items])
-  const showFocusShelf = !hasActiveLibraryFilters && focusItems.length > 0
+  const nextFocusItem = focusItems[0]
+  const nextFocusAction = nextFocusItem ? getPrimaryItemAction(nextFocusItem.status) : undefined
+  const secondaryFocusItems = focusItems.slice(1)
+  const showFocusShelf = !hasActiveLibraryFilters && secondaryFocusItems.length > 0
 
   const filteredItems = useMemo(() => {
     const matchingItems = library.items
@@ -586,6 +589,10 @@ function LibraryTab({ library, setTheme }: { library: LibrarySurface; setTheme: 
       count: library.items.filter((item) => item.status === status).length,
     }))
   }, [library.items])
+  const inProgressCount = stats.find((stat) => stat.status === 'in_progress')?.count ?? 0
+  const wishlistCount = stats.find((stat) => stat.status === 'wishlist')?.count ?? 0
+  const queuedDiscoveryCount = library.discoveryCandidates.filter((candidate) => candidate.status === 'queued').length
+  const publicCatalogCopyCount = library.items.filter((item) => Boolean(item.publicItemId)).length
 
   async function importLibraryFile(file?: File) {
     if (!file) return
@@ -710,6 +717,61 @@ function LibraryTab({ library, setTheme }: { library: LibrarySurface; setTheme: 
           </div>
         </div>
 
+        <section className="library-overview" aria-label="Resumen de biblioteca" data-testid="library-overview">
+          <article className="library-next-card">
+            <span className="eyebrow">Siguiente accion</span>
+            {nextFocusItem && nextFocusAction ? (
+              <>
+                <div>
+                  <strong>{nextFocusItem.title}</strong>
+                  <p>{getLibraryFocusReason(nextFocusItem)}</p>
+                </div>
+                <button
+                  className="primary-button"
+                  type="button"
+                  onClick={() => void library.setStatus(nextFocusItem.id, nextFocusAction.nextStatus)}
+                >
+                  <nextFocusAction.Icon size={16} />
+                  {nextFocusAction.label}
+                </button>
+              </>
+            ) : (
+              <>
+                <div>
+                  <strong>Biblioteca lista</strong>
+                  <p>Anade algo o guarda hallazgos desde Explorador para alimentar el dado.</p>
+                </div>
+                <button className="primary-button" type="button" onClick={() => setEditingItem(blankItem())}>
+                  <Plus size={16} />
+                  Anadir entrada
+                </button>
+              </>
+            )}
+          </article>
+          <div className="library-overview-metrics">
+            <div>
+              <span>En curso</span>
+              <strong>{inProgressCount}</strong>
+              <small>para continuar</small>
+            </div>
+            <div>
+              <span>Pendientes</span>
+              <strong>{wishlistCount}</strong>
+              <small>en la lista</small>
+            </div>
+            <div>
+              <span>Explorador</span>
+              <strong>{queuedDiscoveryCount}</strong>
+              <small>en cola</small>
+            </div>
+            <div>
+              <span>Nexo</span>
+              <strong>{publicCatalogCopyCount}</strong>
+              <small>copias publicas</small>
+            </div>
+          </div>
+        </section>
+
         <div className="stats-row">
           <button
             className={statusFilter === 'all' ? 'stat-chip active' : 'stat-chip'}
@@ -793,12 +855,12 @@ function LibraryTab({ library, setTheme }: { library: LibrarySurface; setTheme: 
             <div className="focus-shelf-heading">
               <div>
                 <h3>En foco</h3>
-                <p>Entradas listas para seguir sin abrir toda la parrilla.</p>
+                <p>Mas entradas listas sin abrir toda la parrilla.</p>
               </div>
-              <span>{focusItems.length} sugeridas</span>
+              <span>{secondaryFocusItems.length} sugeridas</span>
             </div>
             <div className="focus-shelf-grid">
-              {focusItems.map((item) => {
+              {secondaryFocusItems.map((item) => {
                 const primaryAction = getPrimaryItemAction(item.status)
                 const Icon = typeIcons[item.type]
 

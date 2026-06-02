@@ -412,6 +412,85 @@
   min-height: 34px;
 }
 
+.library-overview {
+  align-items: stretch;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(260px, 1.05fr) minmax(0, 1.6fr);
+  margin: 0 0 14px;
+}
+
+.library-next-card {
+  align-content: space-between;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--accent-soft) 62%, transparent), transparent 66%),
+    var(--surface-muted);
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px;
+}
+
+.library-next-card strong {
+  color: var(--text-strong);
+  display: block;
+  font-size: 18px;
+  line-height: 1.15;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.library-next-card p {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.35;
+  margin: 4px 0 0;
+}
+
+.library-next-card .primary-button {
+  justify-self: start;
+}
+
+.library-overview-metrics {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.library-overview-metrics div {
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 12px;
+}
+
+.library-overview-metrics span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.library-overview-metrics strong {
+  color: var(--text-strong);
+  font-size: 25px;
+  line-height: 1;
+}
+
+.library-overview-metrics small {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.25;
+}
+
 .library-focus-shelf {
   background: linear-gradient(135deg, color-mix(in srgb, var(--surface-muted) 86%, transparent), var(--surface));
   border: 1px solid var(--border);
@@ -3989,6 +4068,10 @@ textarea:focus-visible {
 }
 
 @media (max-width: 980px) {
+  .library-overview {
+    grid-template-columns: 1fr;
+  }
+
   .public-editor-body {
     grid-template-columns: 1fr;
   }
@@ -4078,6 +4161,14 @@ textarea:focus-visible {
 
   .view-switch .segment-option {
     flex: 1;
+  }
+
+  .library-overview-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .library-next-card .primary-button {
+    justify-self: stretch;
   }
 
   .catalog-filter-tabs {
