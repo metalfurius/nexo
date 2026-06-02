@@ -136,10 +136,10 @@
   padding: 10px 12px;
   text-align: left;
   transition:
-    background 160ms ease,
-    border-color 160ms ease,
-    color 160ms ease,
-    transform 160ms ease;
+    background var(--motion-fast) ease,
+    border-color var(--motion-fast) ease,
+    color var(--motion-fast) ease,
+    transform var(--motion-fast) var(--motion-ease);
   width: 100%;
 }
 
@@ -193,7 +193,7 @@
 }
 
 .tab-stage {
-  animation: tab-enter 260ms ease;
+  animation: tab-enter var(--motion-slow) var(--motion-ease);
   grid-column: 2;
   grid-row: 2;
   padding: 24px;
@@ -672,9 +672,14 @@ label {
   min-height: 38px;
   padding: 8px 10px;
   transition:
-    background 160ms ease,
-    border-color 160ms ease,
-    color 160ms ease;
+    background var(--motion-fast) ease,
+    border-color var(--motion-fast) ease,
+    color var(--motion-fast) ease,
+    transform var(--motion-fast) var(--motion-ease);
+}
+
+.stat-chip:hover {
+  transform: translateY(-1px);
 }
 
 .stat-chip::before {
@@ -765,13 +770,38 @@ label {
 .item-card,
 .discovery-card,
 .catalog-card {
-  animation: card-enter 220ms ease both;
+  animation: card-enter var(--motion-slow) var(--motion-ease) both;
   display: grid;
   transition:
-    border-color 180ms ease,
-    transform 180ms ease,
-    background 180ms ease,
-    box-shadow 180ms ease;
+    border-color var(--motion) ease,
+    transform var(--motion) var(--motion-ease),
+    background var(--motion) ease,
+    box-shadow var(--motion) ease;
+}
+
+.item-grid > .item-card:nth-child(2),
+.candidate-grid > .discovery-card:nth-child(2) {
+  animation-delay: 35ms;
+}
+
+.item-grid > .item-card:nth-child(3),
+.candidate-grid > .discovery-card:nth-child(3) {
+  animation-delay: 70ms;
+}
+
+.item-grid > .item-card:nth-child(4),
+.candidate-grid > .discovery-card:nth-child(4) {
+  animation-delay: 105ms;
+}
+
+.item-grid > .item-card:nth-child(5),
+.candidate-grid > .discovery-card:nth-child(5) {
+  animation-delay: 140ms;
+}
+
+.item-grid > .item-card:nth-child(n + 6),
+.candidate-grid > .discovery-card:nth-child(n + 6) {
+  animation-delay: 175ms;
 }
 
 .item-card {
@@ -812,8 +842,8 @@ label {
   padding: 12px;
   text-align: left;
   transition:
-    background 160ms ease,
-    color 160ms ease;
+    background var(--motion-fast) ease,
+    color var(--motion-fast) ease;
 }
 
 .item-main:hover {
@@ -1067,7 +1097,7 @@ label {
 }
 
 .card-menu {
-  animation: menu-enter 140ms ease both;
+  animation: menu-enter var(--motion-fast) var(--motion-ease) both;
   background: var(--surface-raised);
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -1164,6 +1194,11 @@ button:hover:not(:disabled),
   transform: translateY(-1px);
 }
 
+button:active:not(:disabled),
+.file-button:active {
+  transform: translateY(0) scale(0.98);
+}
+
 .primary-button:hover:not(:disabled) {
   background: color-mix(in srgb, var(--accent) 88%, #fff);
 }
@@ -1256,8 +1291,8 @@ button:hover:not(:disabled),
   justify-content: center;
   min-width: 116px;
   transition:
-    transform 180ms ease,
-    background 180ms ease;
+    transform var(--motion) var(--motion-ease),
+    background var(--motion) ease;
 }
 
 .dice-orb:hover {
@@ -1394,8 +1429,8 @@ button:hover:not(:disabled),
   padding: 12px;
   text-align: left;
   transition:
-    background 160ms ease,
-    color 160ms ease;
+    background var(--motion-fast) ease,
+    color var(--motion-fast) ease;
 }
 
 .candidate-main:hover {
@@ -1718,10 +1753,10 @@ button:hover:not(:disabled),
   min-height: 32px;
   padding: 0 10px;
   transition:
-    background 160ms ease,
-    border-color 160ms ease,
-    color 160ms ease,
-    transform 160ms ease;
+    background var(--motion-fast) ease,
+    border-color var(--motion-fast) ease,
+    color var(--motion-fast) ease,
+    transform var(--motion-fast) var(--motion-ease);
 }
 
 .preset-chip.active {
@@ -1822,7 +1857,7 @@ button:hover:not(:disabled),
 
 .modal-backdrop {
   align-items: center;
-  animation: fade-in 160ms ease both;
+  animation: fade-in var(--motion-fast) ease both;
   background: var(--modal-backdrop);
   display: flex;
   inset: 0;
@@ -1835,7 +1870,7 @@ button:hover:not(:disabled),
 .item-editor,
 .confirm-dialog,
 .detail-dialog {
-  animation: modal-enter 180ms ease both;
+  animation: modal-enter var(--motion) var(--motion-ease) both;
   display: grid;
   gap: 14px;
   max-height: calc(100vh - 36px);
@@ -1892,19 +1927,21 @@ textarea:focus-visible {
 
 @keyframes tab-enter {
   from {
+    opacity: 0;
     transform: translateY(8px);
   }
   to {
+    opacity: 1;
     transform: translateY(0);
   }
 }
 
 @keyframes card-enter {
   from {
-    transform: translateY(6px);
+    transform: translateY(8px) scale(0.99);
   }
   to {
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
   }
 }
 
@@ -1943,6 +1980,7 @@ textarea:focus-visible {
   *,
   *::before,
   *::after {
+    animation-delay: 0ms !important;
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     scroll-behavior: auto !important;

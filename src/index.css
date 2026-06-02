@@ -26,6 +26,10 @@
   --text: #d7e0df;
   --text-strong: #f6f8f4;
   --shadow: 0 18px 46px rgba(0, 0, 0, 0.28);
+  --motion-fast: 140ms;
+  --motion: 200ms;
+  --motion-slow: 320ms;
+  --motion-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   color: var(--text);
   background: var(--surface);
   color-scheme: dark;
