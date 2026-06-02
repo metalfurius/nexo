@@ -3006,7 +3006,17 @@ function PublicItemEditor({
   const genrePresets = catalogGenrePresets[draft.type]
   const tagPresets = catalogTagPresets[draft.type]
   const taxonomyTemplates = catalogTaxonomyTemplates[draft.type]
+  const primaryTemplate = taxonomyTemplates[0]
   const selectedTaxonomyCount = selectedGenres.length + selectedTags.length + selectedMoodTags.length
+  const taxonomySignals = uniqueNormalizedValues([...selectedGenres, ...selectedTags, ...selectedMoodTags])
+  const qualityChecklist = [
+    { id: 'description', label: 'Descripcion', done: Boolean(draft.description?.trim()) },
+    { id: 'genres', label: 'Generos', done: selectedGenres.length > 0 },
+    { id: 'tags', label: 'Tags', done: selectedTags.length > 0 },
+    { id: 'poster', label: 'Portada', done: Boolean(draft.posterUrl?.trim()) },
+  ]
+  const completedQualityCount = qualityChecklist.filter((entry) => entry.done).length
+  const nextMissingQuality = qualityChecklist.find((entry) => !entry.done)?.label
   const isNewItem = !item.id
   const editorTitle = draft.title.trim() || 'Nueva entrada'
   const summaryDescription = draft.description?.trim() || 'Sin descripcion.'
@@ -3052,6 +3062,32 @@ function PublicItemEditor({
     }))
   }
 
+  function clearTaxonomy() {
+    setDraft((current) => ({ ...current, genresText: '', tagsText: '', moodText: '' }))
+  }
+
+  function completeMinimumDraft() {
+    setDraft((current) => {
+      const template = catalogTaxonomyTemplates[current.type][0]
+      const nextGenresText = splitList(current.genresText).length
+        ? current.genresText
+        : mergeListText('', template?.genres ?? [])
+      const nextTagsText = splitList(current.tagsText).length ? current.tagsText : mergeListText('', template?.tags ?? [])
+      const nextMoodText = splitList(current.moodText).length ? current.moodText : mergeListText('', template?.moodTags ?? [])
+      const signals = uniqueNormalizedValues([...splitList(nextGenresText), ...splitList(nextTagsText), ...splitList(nextMoodText)])
+
+      return {
+        ...current,
+        description: current.description?.trim()
+          ? current.description
+          : buildCatalogDescriptionDraft(current.title, current.type, signals),
+        genresText: nextGenresText,
+        tagsText: nextTagsText,
+        moodText: nextMoodText,
+      }
+    })
+  }
+
   return (
     <div className="modal-backdrop" role="presentation">
       <form
@@ -3087,6 +3123,49 @@ function PublicItemEditor({
             <p>{summaryDescription}</p>
           </div>
         </div>
+
+        <section className="curation-speed-panel" aria-label="Curacion rapida">
+          <div className="curation-speed-heading">
+            <div>
+              <span className="eyebrow">Curacion rapida</span>
+              <strong>{completedQualityCount}/4 listo</strong>
+              <small>{nextMissingQuality ? `Falta ${nextMissingQuality}` : 'Lista para guardar'}</small>
+            </div>
+            <div className="curation-speed-actions">
+              <button className="primary-button" type="button" onClick={completeMinimumDraft}>
+                <Check size={16} />
+                Completar minimo
+              </button>
+              {primaryTemplate && (
+                <button className="secondary-button" type="button" onClick={() => applyTaxonomyTemplate(primaryTemplate)}>
+                  <Sparkles size={16} />
+                  Base recomendada
+                </button>
+              )}
+              {selectedTaxonomyCount > 0 && (
+                <button className="ghost-button" type="button" onClick={clearTaxonomy}>
+                  <X size={16} />
+                  Limpiar taxonomia
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="quality-checklist" aria-label="Estado minimo de la ficha">
+            {qualityChecklist.map((entry) => (
+              <span className={entry.done ? 'done' : undefined} key={entry.id}>
+                {entry.done ? <Check size={13} /> : <X size={13} />}
+                {entry.label}
+              </span>
+            ))}
+          </div>
+          <div className="active-taxonomy-strip" aria-label="Taxonomia activa">
+            {taxonomySignals.length ? (
+              taxonomySignals.slice(0, 10).map((signal) => <span key={signal}>{signal}</span>)
+            ) : (
+              <small>Sin taxonomia activa</small>
+            )}
+          </div>
+        </section>
 
         <div className="public-editor-body">
           <div className="public-editor-main">
@@ -3664,6 +3743,22 @@ function getActiveDiceFilters(preferences: RecommendationPreferences, settings: 
     preferences.includePaused ? 'Incluye pausados' : 'Pausados fuera',
     settings.blockedTags.length ? `${settings.blockedTags.length} tags bloqueados` : 'Sin tags bloqueados',
   ]
+}
+
+function buildCatalogDescriptionDraft(title: string, type: ItemType, signals: string[]) {
+  const displayTitle = title.trim() || 'Entrada pendiente'
+  const signalText = signals.length ? signals.slice(0, 4).join(', ') : typeLabels[type].toLowerCase()
+  return `${displayTitle} combina ${signalText} en una ficha curada para el catalogo Nexo.`
+}
+
+function uniqueNormalizedValues(values: string[]) {
+  const seen = new Set<string>()
+  return values.filter((value) => {
+    const key = normalizeKey(value)
+    if (!key || seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
 }
 
 function getRecentRecommendationItems(items: ListItem[]) {

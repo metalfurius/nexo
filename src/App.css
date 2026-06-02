@@ -2753,6 +2753,87 @@ button:active:not(:disabled),
   max-height: 188px;
 }
 
+.curation-speed-panel {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--accent-soft) 58%, transparent), transparent 62%),
+    var(--surface-muted);
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+}
+
+.curation-speed-heading {
+  align-items: center;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.curation-speed-heading > div:first-child {
+  display: grid;
+  gap: 2px;
+}
+
+.curation-speed-heading strong {
+  color: var(--text-strong);
+  font-size: 17px;
+  line-height: 1.1;
+}
+
+.curation-speed-heading small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.curation-speed-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.quality-checklist,
+.active-taxonomy-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.quality-checklist span,
+.active-taxonomy-strip span,
+.active-taxonomy-strip small {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 850;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 9px;
+}
+
+.quality-checklist span.done {
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+  color: var(--accent-dark);
+}
+
+.quality-checklist span:not(.done) svg {
+  color: var(--danger-text);
+}
+
+.active-taxonomy-strip span {
+  background: color-mix(in srgb, var(--surface) 78%, var(--accent-soft));
+  color: var(--text);
+}
+
 .public-editor-body {
   align-items: start;
   display: grid;
@@ -3435,6 +3516,18 @@ textarea:focus-visible {
   .catalog-review-heading {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .curation-speed-heading {
+    grid-template-columns: 1fr;
+  }
+
+  .curation-speed-actions {
+    justify-content: stretch;
+  }
+
+  .curation-speed-actions button {
+    flex: 1 1 160px;
   }
 
   .catalog-review-item {
