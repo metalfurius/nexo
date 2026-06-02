@@ -11,6 +11,7 @@ const repositoryMock = vi.hoisted(() => ({
   ensureUserProfile: vi.fn(),
   markDiscoveryCandidateSaved: vi.fn(),
   recordRecommendation: vi.fn(),
+  restoreDiscoveryCandidate: vi.fn(),
   saveDiscoveryCandidate: vi.fn(),
   saveItem: vi.fn(),
   saveSettings: vi.fn(),
@@ -151,6 +152,32 @@ describe('useLibrary', () => {
       }),
     )
     expect(repositoryMock.saveDiscoveryCandidate).toHaveBeenCalledTimes(1)
+  })
+
+  it('restores dismissed discovery candidates back to the queue', async () => {
+    const user = {
+      uid: 'user-1',
+      email: null,
+      displayName: null,
+    }
+    const { result } = renderHook(() => useLibrary(user))
+
+    await waitFor(() => expect(repositoryMock.subscribeItems).toHaveBeenCalled())
+
+    await act(async () => {
+      await result.current.queueDiscoveryCandidates([candidate])
+      await result.current.dismissDiscoveryCandidate(candidate.id)
+      await result.current.restoreDiscoveryCandidate(candidate.id)
+    })
+
+    expect(result.current.discoveryCandidates[0]).toEqual(
+      expect.objectContaining({
+        id: 'public-book-odisea',
+        status: 'queued',
+      }),
+    )
+    expect(result.current.discoveryCandidates[0].dismissedAt).toBeUndefined()
+    expect(repositoryMock.restoreDiscoveryCandidate).toHaveBeenCalledWith('public-book-odisea')
   })
 
   it('loads user profiles and delegates role updates for admins', async () => {

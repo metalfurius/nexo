@@ -290,6 +290,25 @@ export function useLibrary(user?: SignedInUserProfile | null) {
     }
   }
 
+  async function restoreDiscoveryCandidate(candidateId: string) {
+    const restoredAt = nowIso()
+    setDiscoveryCandidates((current) =>
+      current.map((candidate) => {
+        if (candidate.id !== candidateId) return candidate
+        const restored = { ...candidate, status: 'queued' as const, updatedAt: restoredAt }
+        delete restored.dismissedAt
+        return restored
+      }),
+    )
+    if (repository) {
+      try {
+        await repository.restoreDiscoveryCandidate(candidateId)
+      } catch (reason) {
+        setError(reason instanceof Error ? reason.message : 'No se pudo restaurar el hallazgo.')
+      }
+    }
+  }
+
   async function saveDiscoveryToLibrary(candidate: DiscoveryCandidate) {
     const item = discoveryToListItem(candidate)
     await saveItem(item)
@@ -376,6 +395,7 @@ export function useLibrary(user?: SignedInUserProfile | null) {
     saveSettings,
     queueDiscoveryCandidates,
     dismissDiscoveryCandidate,
+    restoreDiscoveryCandidate,
     saveDiscoveryToLibrary,
     upsertPublicItem,
     archivePublicItem,

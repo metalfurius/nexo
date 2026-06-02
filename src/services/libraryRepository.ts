@@ -2,6 +2,7 @@ import {
   addDoc,
   collection,
   deleteDoc,
+  deleteField,
   doc,
   getDoc,
   getDocs,
@@ -45,6 +46,7 @@ export interface LibraryRepository {
   ) => () => void
   saveDiscoveryCandidate: (candidate: DiscoveryCandidate) => Promise<void>
   dismissDiscoveryCandidate: (candidateId: string) => Promise<void>
+  restoreDiscoveryCandidate: (candidateId: string) => Promise<void>
   markDiscoveryCandidateSaved: (candidateId: string, savedItemId: string) => Promise<void>
   ensureUserProfile: (profile: Partial<UserProfile>) => Promise<void>
   subscribeUserProfile: (onProfile: (profile: UserProfile | undefined) => void, onError: (error: Error) => void) => () => void
@@ -185,6 +187,18 @@ export function createFirestoreRepository(userId: string): LibraryRepository | u
           id: candidateId,
           status: 'dismissed',
           dismissedAt: nowIso(),
+          updatedAt: nowIso(),
+        },
+        { merge: true },
+      )
+    },
+    restoreDiscoveryCandidate(candidateId) {
+      return setDoc(
+        discoveryCandidateDocument(candidateId),
+        {
+          id: candidateId,
+          status: 'queued',
+          dismissedAt: deleteField(),
           updatedAt: nowIso(),
         },
         { merge: true },

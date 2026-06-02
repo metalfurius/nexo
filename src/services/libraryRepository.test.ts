@@ -27,6 +27,7 @@ vi.mock('firebase/firestore', () => ({
   addDoc: mocks.addDoc,
   collection: vi.fn((...args: unknown[]) => ({ kind: 'collection', path: sdkPath(args) })),
   deleteDoc: mocks.deleteDoc,
+  deleteField: vi.fn(() => ({ kind: 'deleteField' })),
   doc: vi.fn((...args: unknown[]) => ({ kind: 'doc', path: sdkPath(args) })),
   getDoc: mocks.getDoc,
   getDocs: mocks.getDocs,
@@ -302,6 +303,22 @@ describe('createFirestoreRepository', () => {
     })
 
     expect(mocks.setDoc).not.toHaveBeenCalled()
+  })
+
+  it('restores dismissed discovery candidates back to queued', async () => {
+    const repository = createFirestoreRepository('user-1')
+
+    await repository?.restoreDiscoveryCandidate('public-book-odisea')
+
+    expect(mocks.setDoc).toHaveBeenCalledWith(
+      expect.objectContaining({ path: 'users/user-1/externalCandidates/public-book-odisea' }),
+      expect.objectContaining({
+        id: 'public-book-odisea',
+        status: 'queued',
+        dismissedAt: { kind: 'deleteField' },
+      }),
+      { merge: true },
+    )
   })
 
   it('uses Firestore for public catalog search and moderator writes', async () => {

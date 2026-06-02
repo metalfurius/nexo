@@ -477,6 +477,7 @@ interface LibrarySurface {
   saveSettings: (settings: Partial<UserSettings>) => Promise<void>
   queueDiscoveryCandidates: (candidates: DiscoveryCandidate[]) => Promise<number>
   dismissDiscoveryCandidate: (candidateId: string) => Promise<void>
+  restoreDiscoveryCandidate: (candidateId: string) => Promise<void>
   saveDiscoveryToLibrary: (candidate: DiscoveryCandidate) => Promise<ListItem>
   upsertPublicItem: (item: Partial<PublicCatalogItem> & Pick<PublicCatalogItem, 'title' | 'type'>) => Promise<PublicCatalogItem>
   archivePublicItem: (id: string) => Promise<void>
@@ -1269,12 +1270,28 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
     }
   }
 
+  async function restoreCandidate(candidate: DiscoveryCandidate) {
+    try {
+      await library.restoreDiscoveryCandidate(candidate.id)
+      setView('queued')
+      setMessage(`${candidate.title} recuperado a la cola.`)
+      return true
+    } catch (reason) {
+      setMessage(reason instanceof Error ? reason.message : 'No se pudo recuperar el hallazgo.')
+      return false
+    }
+  }
+
   async function saveSelectedCandidate(candidate: DiscoveryCandidate) {
     if (await saveCandidate(candidate)) setSelected(undefined)
   }
 
   async function dismissSelectedCandidate(candidate: DiscoveryCandidate) {
     if (await dismissCandidate(candidate)) setSelected(undefined)
+  }
+
+  async function restoreSelectedCandidate(candidate: DiscoveryCandidate) {
+    if (await restoreCandidate(candidate)) setSelected(undefined)
   }
 
   function openCatalogDraft(candidate: DiscoveryCandidate) {
@@ -1406,6 +1423,7 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
                 key={candidate.id}
                 onDetails={() => setSelected(candidate)}
                 onDismiss={() => dismissCandidate(candidate)}
+                onRestore={() => restoreCandidate(candidate)}
                 onSave={() => saveCandidate(candidate)}
                 onCurate={library.isModerator ? () => openCatalogDraft(candidate) : undefined}
               />
@@ -1437,6 +1455,7 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
           candidate={selected}
           onClose={() => setSelected(undefined)}
           onDismiss={() => dismissSelectedCandidate(selected)}
+          onRestore={() => restoreSelectedCandidate(selected)}
           onSave={() => saveSelectedCandidate(selected)}
           onCurate={library.isModerator ? () => openCatalogDraft(selected) : undefined}
         />
@@ -2257,15 +2276,18 @@ function DiscoveryCard({
   onDetails,
   onCurate,
   onDismiss,
+  onRestore,
   onSave,
 }: {
   candidate: DiscoveryCandidate
   onDetails: () => void
   onCurate?: () => void
   onDismiss: () => void
+  onRestore: () => void
   onSave: () => void
 }) {
   const isQueued = candidate.status === 'queued'
+  const isDismissed = candidate.status === 'dismissed'
   const catalogActionLabel = candidate.source === 'nexo' ? 'Editar catalogo' : 'Crear catalogo'
 
   function openDetailsFromKeyboard(event: KeyboardEvent<HTMLDivElement>) {
@@ -2328,6 +2350,12 @@ function DiscoveryCard({
             <span className="candidate-footnote">
               {candidate.status === 'saved' ? 'Ya esta en tu biblioteca' : 'Apartado de tus pendientes'}
             </span>
+            {isDismissed && (
+              <button className="candidate-primary-action secondary" type="button" onClick={onRestore} aria-label={`Recuperar ${candidate.title}`}>
+                <RotateCcw size={16} />
+                <span>Recuperar</span>
+              </button>
+            )}
           </>
         )}
       </div>
@@ -2583,15 +2611,18 @@ function CandidateDialog({
   onClose,
   onCurate,
   onDismiss,
+  onRestore,
   onSave,
 }: {
   candidate: DiscoveryCandidate
   onClose: () => void
   onCurate?: () => void
   onDismiss: () => void
+  onRestore: () => void
   onSave: () => void
 }) {
   const isQueued = candidate.status === 'queued'
+  const isDismissed = candidate.status === 'dismissed'
   const catalogActionLabel = candidate.source === 'nexo' ? 'Editar catalogo' : 'Crear ficha publica'
 
   return (
@@ -2615,6 +2646,14 @@ function CandidateDialog({
               <span key={genre}>{genre}</span>
             ))}
           </div>
+          {isDismissed && (
+            <div className="action-row detail-actions">
+              <button className="primary-button" type="button" onClick={onRestore}>
+                <RotateCcw size={16} />
+                Recuperar a cola
+              </button>
+            </div>
+          )}
           {isQueued && (
             <div className="action-row detail-actions">
               <button className="primary-button" type="button" onClick={onSave}>
