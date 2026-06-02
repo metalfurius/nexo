@@ -565,14 +565,7 @@ function LibraryTab({ library, setTheme }: { library: LibrarySurface; setTheme: 
   }
 
   function exportLibrary() {
-    const payload = createLibraryExportPayload(library.items, library.settings)
-    const blob = new Blob([`${JSON.stringify(payload, null, 2)}\n`], { type: 'application/json' })
-    const href = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = href
-    link.download = `nexo-export-${new Date().toISOString().slice(0, 10)}.json`
-    link.click()
-    URL.revokeObjectURL(href)
+    downloadLibraryBackup(library.items, library.settings, 'nexo-export')
   }
 
   async function changeViewMode(nextViewMode: LibraryViewMode) {
@@ -1485,6 +1478,8 @@ function SettingsTab({
   const draftBlockedTags = splitList(draft.blockedTags)
   const accountLabel = user?.displayName ?? user?.email ?? 'Sesion demo'
   const accountInitial = accountLabel.slice(0, 1).toUpperCase()
+  const queuedDiscoveryCount = library.discoveryCandidates.filter((candidate) => candidate.status === 'queued').length
+  const resolvedDiscoveryCount = library.discoveryCandidates.length - queuedDiscoveryCount
   const hasUnsavedChanges =
     draft.theme !== theme ||
     draft.explorerDefaultType !== library.settings.explorerDefaultType ||
@@ -1509,6 +1504,11 @@ function SettingsTab({
     if (!user) return
     await navigator.clipboard?.writeText(user.uid)
     setStatus('UID copiado')
+  }
+
+  function exportPrivateBackup() {
+    downloadLibraryBackup(library.items, library.settings, 'nexo-backup')
+    setStatus('Backup JSON descargado')
   }
 
   return (
@@ -1649,6 +1649,41 @@ function SettingsTab({
             profiles={library.userProfiles}
           />
         )}
+
+        <section className="workspace-panel private-data-panel">
+          <div className="panel-heading compact">
+            <div>
+              <h2>Datos privados</h2>
+              <p className="muted-line">Backup y estado de tu biblioteca personal.</p>
+            </div>
+            <span className="mode-pill">JSON v1</span>
+          </div>
+          <div className="data-health-grid" aria-label="Estado de datos privados">
+            <div>
+              <span>Biblioteca</span>
+              <strong>{library.items.length}</strong>
+              <small>entradas privadas</small>
+            </div>
+            <div>
+              <span>Cola</span>
+              <strong>{queuedDiscoveryCount}</strong>
+              <small>hallazgos pendientes</small>
+            </div>
+            <div>
+              <span>Historial</span>
+              <strong>{resolvedDiscoveryCount}</strong>
+              <small>guardados o descartados</small>
+            </div>
+          </div>
+          <div className="data-safety-note">
+            <ShieldCheck size={17} />
+            <span>Tus notas, ratings, progreso y pesos viven bajo tu usuario. El catalogo Nexo no recibe esos cambios privados.</span>
+          </div>
+          <button className="secondary-button data-backup-button" type="button" onClick={exportPrivateBackup}>
+            <Archive size={17} />
+            Exportar backup JSON
+          </button>
+        </section>
 
         <section className="workspace-panel">
           <h2>Beta suave</h2>
@@ -2296,6 +2331,17 @@ function getLibraryFocusReason(item: ListItem) {
   if (item.weights.surprise >= 0.75) return 'Buena candidata sorpresa'
   if (item.weights.challenge >= 0.7) return 'Reto interesante'
   return `${typeLabels[item.type]} pendiente`
+}
+
+function downloadLibraryBackup(items: ListItem[], settings: UserSettings, prefix: string) {
+  const payload = createLibraryExportPayload(items, settings)
+  const blob = new Blob([`${JSON.stringify(payload, null, 2)}\n`], { type: 'application/json' })
+  const href = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = href
+  link.download = `${prefix}-${new Date().toISOString().slice(0, 10)}.json`
+  link.click()
+  URL.revokeObjectURL(href)
 }
 
 function ItemCard({

@@ -882,6 +882,68 @@
   font-size: 20px;
 }
 
+.private-data-panel {
+  gap: 12px;
+}
+
+.data-health-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.data-health-grid div {
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 10px;
+}
+
+.data-health-grid span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.data-health-grid strong {
+  color: var(--text-strong);
+  font-size: 22px;
+  line-height: 1;
+}
+
+.data-health-grid small {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+.data-safety-note {
+  align-items: start;
+  background: color-mix(in srgb, var(--accent-soft) 45%, var(--surface-muted));
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+  border-radius: 8px;
+  color: var(--muted);
+  display: grid;
+  font-size: 12px;
+  gap: 8px;
+  grid-template-columns: 18px minmax(0, 1fr);
+  line-height: 1.4;
+  padding: 10px;
+}
+
+.data-safety-note svg {
+  color: var(--accent-dark);
+  margin-top: 1px;
+}
+
+.data-backup-button {
+  width: 100%;
+}
+
 .settings-section {
   border-top: 1px solid var(--border);
   display: grid;
@@ -3196,6 +3258,10 @@ textarea:focus-visible {
   }
 
   .catalog-filter-tabs {
+    grid-template-columns: 1fr;
+  }
+
+  .data-health-grid {
     grid-template-columns: 1fr;
   }
 

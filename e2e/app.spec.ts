@@ -99,6 +99,13 @@ test('settings show pending changes before saving preferences', async ({ page })
 
   await expect(page.getByRole('button', { name: 'Guardado' })).toBeDisabled()
   await expect(page.getByRole('heading', { name: 'Roles' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Datos privados' })).toBeVisible()
+  await expect(page.getByLabel('Estado de datos privados')).toContainText('7')
+  const downloadPromise = page.waitForEvent('download')
+  await page.getByRole('button', { name: 'Exportar backup JSON' }).click()
+  const download = await downloadPromise
+  expect(download.suggestedFilename()).toMatch(/^nexo-backup-\d{4}-\d{2}-\d{2}\.json$/)
+  await expect(page.getByText('Backup JSON descargado')).toBeVisible()
   await expect(page.getByLabel('Rol de Usuario demo')).toHaveValue('user')
   await page.getByLabel('Rol de Usuario demo').selectOption('moderator')
   await expect(page.getByText('Usuario demo ahora es Moderador')).toBeVisible()
