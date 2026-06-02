@@ -1597,14 +1597,15 @@ function CurationTab({ library }: { library: LibrarySurface }) {
 
       {editingItem && (
         <PublicItemEditor
+          key={`${editingItem.id || 'draft'}-${editingItem.createdAt}-${editingItem.type}`}
           item={editingItem}
           onClose={() => setEditingItem(undefined)}
-          onSave={async (item) => {
+          onSave={async (item, options) => {
             const savedItem = await library.upsertPublicItem(item)
             setItems((current) => upsertVisibleCatalogItem(current, savedItem))
             setHasLoaded(true)
-            setEditingItem(undefined)
-            setStatus(`${item.title} guardado en catalogo`)
+            setEditingItem(options?.createAnother ? blankPublicCatalogItem(savedItem.type) : undefined)
+            setStatus(`${savedItem.title} guardado en catalogo`)
           }}
         />
       )}
@@ -2242,7 +2243,7 @@ function PublicItemEditor({
 }: {
   item: PublicCatalogItem
   onClose: () => void
-  onSave: (item: PublicCatalogItem) => void
+  onSave: (item: PublicCatalogItem, options?: { createAnother?: boolean }) => Promise<void> | void
 }) {
   const [draft, setDraft] = useState({
     ...item,
@@ -2259,6 +2260,20 @@ function PublicItemEditor({
   const selectedMoodKeys = new Set(selectedMoodTags.map(normalizeKey))
   const genrePresets = catalogGenrePresets[draft.type]
   const tagPresets = catalogTagPresets[draft.type]
+  const isNewItem = !item.id
+
+  function buildDraftItem() {
+    return buildPublicCatalogItem(
+      {
+        ...draft,
+        id: draft.id || undefined,
+        tags: splitList(draft.tagsText),
+        genres: splitList(draft.genresText),
+        moodTags: splitList(draft.moodText),
+      },
+      draft.updatedBy || 'moderator',
+    )
+  }
 
   function toggleTextPreset(field: 'genresText' | 'tagsText' | 'moodText', value: string) {
     setDraft((current) => {
@@ -2284,17 +2299,8 @@ function PublicItemEditor({
         aria-labelledby="public-item-editor-title"
         onSubmit={(event) => {
           event.preventDefault()
-          onSave(
-            buildPublicCatalogItem(
-              {
-                ...draft,
-                tags: splitList(draft.tagsText),
-                genres: splitList(draft.genresText),
-                moodTags: splitList(draft.moodText),
-              },
-              draft.updatedBy || 'moderator',
-            ),
-          )
+          const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null
+          onSave(buildDraftItem(), { createAnother: submitter?.value === 'create-another' })
         }}
       >
         <div className="panel-heading">
@@ -2411,6 +2417,12 @@ function PublicItemEditor({
           <button className="ghost-button" type="button" onClick={onClose}>
             Cancelar
           </button>
+          {isNewItem && (
+            <button className="secondary-button" type="submit" value="create-another">
+              <Plus size={16} />
+              Guardar y crear otra
+            </button>
+          )}
           <button className="primary-button" type="submit">
             Guardar en catalogo
           </button>
@@ -2485,18 +2497,23 @@ function ShellState({ action, detail, title }: { title: string; detail?: string;
   )
 }
 
-function blankPublicCatalogItem(): PublicCatalogItem {
-  return buildPublicCatalogItem(
-    {
-      title: '',
-      type: 'book',
-      genres: [],
-      tags: [],
-      moodTags: [],
-      externalRefs: {},
-    },
-    'moderator',
-  )
+function blankPublicCatalogItem(type: ItemType = 'book'): PublicCatalogItem {
+  const timestamp = nowIso()
+  return {
+    id: '',
+    title: '',
+    type,
+    genres: [],
+    tags: [],
+    moodTags: [],
+    externalRefs: {},
+    searchTokens: [],
+    canonicalKey: '',
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    createdBy: 'moderator',
+    updatedBy: 'moderator',
+  }
 }
 
 function catalogQualityWarnings(item: Pick<PublicCatalogItem, 'description' | 'genres' | 'posterUrl' | 'tags'>) {
