@@ -261,6 +261,26 @@ type CatalogIssueFilter = 'all' | 'description' | 'genres' | 'tags' | 'poster'
 type CatalogIssueKey = Exclude<CatalogIssueFilter, 'all'>
 type CatalogSortMode = 'quality' | 'title' | 'updated'
 type ExplorerSourceFilter = 'all' | 'nexo' | 'external' | 'prompt'
+type LibraryLaunchAction = 'add' | 'edit-taxonomy' | 'open-dice' | 'open-explorer'
+
+interface LibraryLaunchStep {
+  action?: LibraryLaunchAction
+  actionLabel?: string
+  detail: string
+  done: boolean
+  id: string
+  item?: ListItem
+  label: string
+}
+
+interface LibraryLaunchGuide {
+  completed: number
+  detail: string
+  percent: number
+  steps: LibraryLaunchStep[]
+  title: string
+  total: number
+}
 
 interface DiceEligibilityBreakdown {
   available: number
@@ -523,7 +543,7 @@ function App() {
       </nav>
 
       <section className="tab-stage">
-        {activeTab === 'library' && <LibraryTab library={library} setTheme={setTheme} />}
+        {activeTab === 'library' && <LibraryTab library={library} onNavigate={changeActiveTab} setTheme={setTheme} />}
         {activeTab === 'dice' && <DiceTab library={library} />}
         {activeTab === 'explorer' && <ExplorerTab library={library} />}
         {activeTab === 'settings' && (
@@ -587,7 +607,15 @@ interface LibrarySurface {
   externalCandidateToDiscovery: (candidate: ExternalCandidate) => DiscoveryCandidate
 }
 
-function LibraryTab({ library, setTheme }: { library: LibrarySurface; setTheme: (theme: ThemeMode) => void }) {
+function LibraryTab({
+  library,
+  onNavigate,
+  setTheme,
+}: {
+  library: LibrarySurface
+  onNavigate: (tab: AppTab) => void
+  setTheme: (theme: ThemeMode) => void
+}) {
   const [query, setQuery] = useState('')
   const [typeFilter, setTypeFilter] = useState<ItemType | 'all'>('all')
   const [statusFilter, setStatusFilter] = useState<ItemStatus | 'all'>('all')
@@ -635,6 +663,10 @@ function LibraryTab({ library, setTheme }: { library: LibrarySurface; setTheme: 
   const wishlistCount = stats.find((stat) => stat.status === 'wishlist')?.count ?? 0
   const queuedDiscoveryCount = library.discoveryCandidates.filter((candidate) => candidate.status === 'queued').length
   const publicCatalogCopyCount = library.items.filter((item) => Boolean(item.publicItemId)).length
+  const launchGuide = useMemo(
+    () => getLibraryLaunchGuide(library.items, library.discoveryCandidates),
+    [library.discoveryCandidates, library.items],
+  )
 
   async function importLibraryFile(file?: File) {
     if (!file) return
@@ -758,6 +790,13 @@ function LibraryTab({ library, setTheme }: { library: LibrarySurface; setTheme: 
             </div>
           </div>
         </div>
+
+        <LaunchGuideCard
+          guide={launchGuide}
+          onAdd={() => setEditingItem(blankItem())}
+          onEditItem={(item) => setEditingItem(item)}
+          onNavigate={onNavigate}
+        />
 
         <section className="library-overview" aria-label="Resumen de biblioteca" data-testid="library-overview">
           <article className="library-next-card">
@@ -4281,6 +4320,83 @@ function CatalogPresetField({
   )
 }
 
+function LaunchGuideCard({
+  guide,
+  onAdd,
+  onEditItem,
+  onNavigate,
+}: {
+  guide: LibraryLaunchGuide
+  onAdd: () => void
+  onEditItem: (item: ListItem) => void
+  onNavigate: (tab: AppTab) => void
+}) {
+  const nextStep = guide.steps.find((step) => !step.done)
+
+  function handleStepAction(step: LibraryLaunchStep) {
+    if (step.action === 'add') {
+      onAdd()
+      return
+    }
+    if (step.action === 'edit-taxonomy' && step.item) {
+      onEditItem(step.item)
+      return
+    }
+    if (step.action === 'open-dice') {
+      onNavigate('dice')
+      return
+    }
+    if (step.action === 'open-explorer') {
+      onNavigate('explorer')
+    }
+  }
+
+  return (
+    <section className="launch-guide-card" aria-label="Plan de arranque de Nexo" data-testid="launch-guide">
+      <div className="launch-guide-heading">
+        <span className="eyebrow">Plan de arranque</span>
+        <strong>{guide.title}</strong>
+        <p>{guide.detail}</p>
+      </div>
+      <div
+        aria-label={`Preparacion de Nexo ${guide.percent}%`}
+        className="launch-guide-meter"
+        role="meter"
+        aria-valuemax={100}
+        aria-valuemin={0}
+        aria-valuenow={guide.percent}
+      >
+        <span style={{ width: `${guide.percent}%` }} />
+      </div>
+      <div className="launch-guide-steps">
+        {guide.steps.map((step) => {
+          const Icon = step.done ? CheckCircle2 : Info
+
+          return (
+            <article className={step.done ? 'launch-step done' : 'launch-step'} key={step.id}>
+              <Icon size={16} />
+              <div>
+                <strong>{step.label}</strong>
+                <p>{step.detail}</p>
+              </div>
+              {!step.done && step.actionLabel && (
+                <button className="small-button" type="button" onClick={() => handleStepAction(step)}>
+                  {step.actionLabel}
+                </button>
+              )}
+            </article>
+          )
+        })}
+      </div>
+      {nextStep ? (
+        <p className="launch-guide-next">Siguiente: {nextStep.label.toLowerCase()}</p>
+      ) : (
+        <p className="launch-guide-next done">Nexo esta listo para seguir creciendo.</p>
+      )}
+    </section>
+  )
+}
+
 function MetricCard({ label, value }: { label: string; value: number | string }) {
   return (
     <div className="metric-card">
@@ -4613,6 +4729,71 @@ function isItemReadyForDicePulse(item: ListItem, now: number) {
 
   const timestamp = Date.parse(item.recommendationCooldownUntil)
   return !Number.isFinite(timestamp) || timestamp <= now
+}
+
+function getLibraryLaunchGuide(items: ListItem[], candidates: DiscoveryCandidate[]): LibraryLaunchGuide {
+  const now = Date.now()
+  const targetItemCount = 3
+  const taxonomyReadyItems = items.filter(hasItemTaxonomy)
+  const firstMissingTaxonomyItem = items.find((item) => !hasItemTaxonomy(item))
+  const diceReadyCount = items.filter((item) => isItemReadyForDicePulse(item, now)).length
+  const queuedDiscoveryCount = candidates.filter((candidate) => candidate.status === 'queued').length
+
+  const steps: LibraryLaunchStep[] = [
+    {
+      action: 'add',
+      actionLabel: 'Anadir',
+      detail: `${Math.min(items.length, targetItemCount)}/${targetItemCount} entradas privadas`,
+      done: items.length >= targetItemCount,
+      id: 'base',
+      label: 'Base privada',
+    },
+    {
+      action: firstMissingTaxonomyItem ? 'edit-taxonomy' : 'add',
+      actionLabel: firstMissingTaxonomyItem ? 'Afinar' : 'Anadir',
+      detail: items.length ? `${taxonomyReadyItems.length}/${items.length} con generos o tags` : 'Sin entradas que leer',
+      done: items.length > 0 && taxonomyReadyItems.length === items.length,
+      id: 'taxonomy',
+      item: firstMissingTaxonomyItem,
+      label: 'Senales para Dado',
+    },
+    {
+      action: items.length ? 'open-dice' : 'add',
+      actionLabel: items.length ? 'Abrir Dado' : 'Anadir',
+      detail: diceReadyCount ? `${diceReadyCount} candidatas vivas` : 'Sin candidatas disponibles',
+      done: diceReadyCount > 0,
+      id: 'dice',
+      label: 'Dado vivo',
+    },
+    {
+      action: 'open-explorer',
+      actionLabel: 'Decidir',
+      detail: queuedDiscoveryCount ? `${queuedDiscoveryCount} hallazgos por decidir` : 'Cola limpia',
+      done: queuedDiscoveryCount === 0,
+      id: 'explorer',
+      label: 'Explorador limpio',
+    },
+  ]
+  const completed = steps.filter((step) => step.done).length
+  const percent = Math.round((completed / steps.length) * 100)
+  const title = completed === steps.length ? 'Nexo preparado' : completed >= 2 ? 'Buen arranque' : 'Arranque pendiente'
+  const detail =
+    completed === steps.length
+      ? 'Biblioteca, dado y cola estan en buen estado.'
+      : 'Sigue estos pasos para que la app recomiende mejor.'
+
+  return {
+    completed,
+    detail,
+    percent,
+    steps,
+    title,
+    total: steps.length,
+  }
+}
+
+function hasItemTaxonomy(item: ListItem) {
+  return item.genres.length + item.tags.length + item.moodTags.length > 0
 }
 
 function catalogQualityIssueKeys(item: Pick<PublicCatalogItem, 'description' | 'genres' | 'posterUrl' | 'tags'>): CatalogIssueKey[] {
