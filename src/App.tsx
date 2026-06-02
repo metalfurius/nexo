@@ -72,6 +72,7 @@ import {
 } from './data/catalogPresets'
 import { buildPublicCatalogItem, promptToDiscovery } from './lib/catalog'
 import { createLibraryExportPayload, parseLibraryImportPayload } from './lib/libraryBackup'
+import { parsePublicCatalogSeed } from './lib/publicCatalogSeed'
 import { recommendItem, scoreCandidates } from './lib/recommendations'
 import { normalizeKey, slugify, uniqueValues } from './lib/strings'
 
@@ -191,7 +192,7 @@ type FeedbackTone = 'info' | 'success' | 'danger' | 'loading'
 
 function feedbackToneFromText(message: string): FeedbackTone {
   const normalized = message.toLowerCase()
-  if (normalized.includes('no se pudo') || normalized.includes('error')) return 'danger'
+  if (normalized.includes('no se pudo') || normalized.includes('error') || normalized.includes('invalido')) return 'danger'
   if (normalized.startsWith('buscando') || normalized.startsWith('borrando') || normalized.startsWith('importando')) {
     return 'loading'
   }
@@ -1839,6 +1840,7 @@ function CurationTab({ library }: { library: LibrarySurface }) {
   const [editingItem, setEditingItem] = useState<PublicCatalogItem | undefined>()
   const [archiveTarget, setArchiveTarget] = useState<PublicCatalogItem | undefined>()
   const [hasLoaded, setHasLoaded] = useState(false)
+  const [isImporting, setIsImporting] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [status, setStatus] = useState<string | undefined>()
   const [initialLibrary] = useState(() => library)
@@ -1923,6 +1925,39 @@ function CurationTab({ library }: { library: LibrarySurface }) {
     setEditingItem(blankPublicCatalogItem(type))
   }
 
+  async function importCatalogSeed(file?: File) {
+    if (!file) return
+
+    setIsImporting(true)
+    setStatus('Importando lote de catalogo...')
+    try {
+      const parsed = parsePublicCatalogSeed(JSON.parse(await file.text()), 'curation-import')
+      if (parsed.errors.length) {
+        setStatus(`Seed invalido: ${parsed.errors[0]}${parsed.errors.length > 1 ? ` (+${parsed.errors.length - 1})` : ''}`)
+        return
+      }
+      if (!parsed.items.length) {
+        setStatus('El seed no contiene entradas para importar.')
+        return
+      }
+
+      const savedItems: PublicCatalogItem[] = []
+      for (const item of parsed.items) {
+        savedItems.push(await library.upsertPublicItem(item))
+      }
+
+      setItems((current) => savedItems.reduce((nextItems, item) => upsertVisibleCatalogItem(nextItems, item), current))
+      setHasLoaded(true)
+      setQualityFilter('all')
+      setSortMode('updated')
+      setStatus(`Importadas ${savedItems.length} entradas al catalogo`)
+    } catch (reason) {
+      setStatus(reason instanceof Error ? reason.message : 'No se pudo importar el lote de catalogo.')
+    } finally {
+      setIsImporting(false)
+    }
+  }
+
   return (
     <section className="content-grid">
       <section className="workspace-panel wide">
@@ -1931,10 +1966,33 @@ function CurationTab({ library }: { library: LibrarySurface }) {
             <h2>Catalogo Nexo</h2>
             <p>Catalogo compartido visible para usuarios logueados</p>
           </div>
-          <button className="primary-button" type="button" onClick={() => startNewCatalogItem()}>
-            <Plus size={18} />
-            Nueva entrada
-          </button>
+          <div className="panel-actions">
+            <label
+              className={
+                isImporting
+                  ? 'secondary-button file-button catalog-import-button disabled'
+                  : 'secondary-button file-button catalog-import-button'
+              }
+              title="Importar lote JSON"
+            >
+              <Upload size={17} />
+              {isImporting ? 'Importando' : 'Importar lote'}
+              <input
+                accept="application/json,.json"
+                aria-label="Importar lote de catalogo JSON"
+                disabled={isImporting}
+                type="file"
+                onChange={(event) => {
+                  void importCatalogSeed(event.target.files?.[0])
+                  event.target.value = ''
+                }}
+              />
+            </label>
+            <button className="primary-button" type="button" onClick={() => startNewCatalogItem()}>
+              <Plus size={18} />
+              Nueva entrada
+            </button>
+          </div>
         </div>
         <div className="curation-starter-strip" aria-label="Crear entrada por tipo">
           <span>Crear como</span>

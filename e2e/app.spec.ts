@@ -195,6 +195,28 @@ test('moderator curation can create a public catalog item in demo mode', async (
   await expect(page.locator('.public-item-editor').getByLabel('Titulo')).toHaveValue('Arrival')
   await page.getByRole('button', { name: 'Cerrar', exact: true }).click()
 
+  await page.getByLabel('Importar lote de catalogo JSON').setInputFiles({
+    name: 'public-catalog.seed.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(
+      JSON.stringify({
+        items: [
+          {
+            title: 'Moon',
+            type: 'movie',
+            description: 'Ciencia ficcion contenida y solitaria.',
+            releaseYear: 2009,
+            genres: ['Ciencia ficcion', 'Drama'],
+            tags: ['culto', 'introspectivo'],
+            moodTags: ['melancolico'],
+          },
+        ],
+      }),
+    ),
+  })
+  await expect(page.getByText('Importadas 1 entradas al catalogo')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Moon' })).toBeVisible()
+
   await page.getByRole('button', { name: 'Crear Libros' }).click()
   const editor = page.locator('.item-editor')
   await expect(editor.getByLabel('Tipo')).toHaveValue('book')
