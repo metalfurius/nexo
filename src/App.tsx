@@ -916,29 +916,49 @@ function DiceTab({ library }: { library: LibrarySurface }) {
           <div className="recommendation-result rolling-result" data-testid="recommendation-result">
             <Dice5 size={30} />
             <strong>El dado esta eligiendo...</strong>
+            <div className="dice-roll-track" aria-hidden="true">
+              <span />
+              <span />
+              <span />
+            </div>
             <FeedbackMessage>Barajando {scoredCandidates.length} opciones disponibles.</FeedbackMessage>
           </div>
         ) : recommendation ? (
-          <div className="recommendation-result" data-testid="recommendation-result">
+          <div className="recommendation-result revealed-result" data-testid="recommendation-result">
             <div className="recommendation-head">
               <CoverArt title={recommendation.item.title} type={recommendation.item.type} posterUrl={recommendation.item.posterUrl} />
-              <div>
+              <div className="recommendation-summary">
                 <ItemIdentity item={recommendation.item} />
-                <div className="score-line">
-                  <span>Score {recommendation.score}</span>
-                  <span>Pool {recommendation.poolSize}</span>
-                  <span>Roll {Math.round(recommendation.roll * 100)}%</span>
+                <div className="recommendation-scoreboard" aria-label="Detalle de tirada">
+                  <div className="score-card primary">
+                    <span>Score</span>
+                    <strong>{recommendation.score}</strong>
+                  </div>
+                  <div className="score-card">
+                    <span>Pool</span>
+                    <strong>{recommendation.poolSize}</strong>
+                  </div>
+                  <div className="score-card">
+                    <span>Roll</span>
+                    <strong>{Math.round(recommendation.roll * 100)}%</strong>
+                  </div>
                 </div>
               </div>
             </div>
-            <ul>
-              {recommendation.reasons.map((reason) => (
-                <li key={reason}>{reason}</li>
-              ))}
-            </ul>
-            <div className="action-row">
+            <section className="reason-stack" aria-label="Razones de la recomendacion">
+              <h3>Por que sale</h3>
+              <ul>
+                {recommendation.reasons.map((reason) => (
+                  <li key={reason}>
+                    <CheckCircle2 size={15} />
+                    <span>{reason}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+            <div className="action-row recommendation-actions">
               <button
-                className="small-button"
+                className="primary-button"
                 type="button"
                 onClick={startRecommendation}
               >
@@ -946,7 +966,7 @@ function DiceTab({ library }: { library: LibrarySurface }) {
                 Empezar
               </button>
               <button
-                className="small-button"
+                className="secondary-button"
                 type="button"
                 onClick={skipRecommendation}
               >
