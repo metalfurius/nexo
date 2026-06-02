@@ -3439,6 +3439,12 @@ function ItemEditor({
   const tagPresets = catalogTagPresets[draft.type].slice(0, 8)
   const moodPresets = catalogMoodPresets.slice(0, 9)
   const taxonomyTemplates = catalogTaxonomyTemplates[draft.type].slice(0, 3)
+  const readiness = getPersonalEditorReadiness({
+    ...draft,
+    genres: selectedGenres,
+    tags: selectedTags,
+    moodTags: selectedMoodTags,
+  })
 
   function toggleDraftTextPreset(field: 'genresText' | 'tagsText' | 'moodText', value: string) {
     setDraft((current) => ({
@@ -3509,6 +3515,38 @@ function ItemEditor({
             <p>{draft.notes || 'Sin notas todavia.'}</p>
           </div>
         </div>
+
+        <section className="personal-readiness-panel" aria-label="Preparacion de entrada" data-testid="personal-readiness">
+          <div className="personal-readiness-main">
+            <div>
+              <span className="eyebrow">Preparacion</span>
+              <strong>{readiness.title}</strong>
+              <p>{readiness.detail}</p>
+            </div>
+            <div className="personal-readiness-score">
+              <strong>{readiness.score}/4</strong>
+              <span>lista para Dado</span>
+            </div>
+          </div>
+          <div
+            aria-label={`Preparacion de entrada ${readiness.percent}%`}
+            className="personal-readiness-meter"
+            role="meter"
+            aria-valuemax={100}
+            aria-valuemin={0}
+            aria-valuenow={readiness.percent}
+          >
+            <span style={{ width: `${readiness.percent}%` }} />
+          </div>
+          <div className="personal-readiness-checks" aria-label="Checklist de preparacion">
+            {readiness.checks.map((check) => (
+              <span className={check.done ? 'done' : undefined} key={check.label}>
+                {check.done ? <Check size={13} /> : <X size={13} />}
+                {check.label}
+              </span>
+            ))}
+          </div>
+        </section>
 
         <OriginSummary item={draft} />
 
@@ -4793,6 +4831,36 @@ function getItemPulseSummary(item: ListItem) {
 
 function getWeightMeterValue(value: number) {
   return Math.round(Math.min(100, Math.max(8, value * 100)))
+}
+
+function getPersonalEditorReadiness(item: Pick<ListItem, 'durationMaxHours' | 'genres' | 'moodTags' | 'notes' | 'posterUrl' | 'progress' | 'rating' | 'tags' | 'title' | 'weights'>) {
+  const taxonomyCount = item.genres.length + item.tags.length + item.moodTags.length
+  const checks = [
+    { done: Boolean(item.title.trim()), label: 'Identidad' },
+    { done: taxonomyCount > 0, label: 'Taxonomia' },
+    { done: item.weights.priority > 0 || item.weights.surprise > 0 || item.weights.challenge > 0, label: 'Dado' },
+    {
+      done:
+        Boolean(item.notes?.trim()) ||
+        Boolean(item.progress?.trim()) ||
+        typeof item.rating === 'number' ||
+        Boolean(item.durationMaxHours) ||
+        Boolean(item.posterUrl?.trim()),
+      label: 'Contexto',
+    },
+  ]
+  const score = checks.filter((check) => check.done).length
+  const missing = checks.find((check) => !check.done)
+
+  return {
+    checks,
+    detail: missing
+      ? `Completa ${missing.label.toLowerCase()} para que la ficha sea mas facil de buscar y recomendar.`
+      : 'Tiene senales suficientes para busqueda, backup y dado ponderado.',
+    percent: Math.round((score / checks.length) * 100),
+    score,
+    title: missing ? 'Ficha por afinar' : 'Ficha lista',
+  }
 }
 
 function isItemInCooldown(item: ListItem) {
