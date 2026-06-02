@@ -199,31 +199,473 @@ const promptDeck = [
   'Un pendiente que merezca segunda oportunidad',
 ]
 
+interface CatalogTaxonomyTemplate {
+  label: string
+  detail: string
+  genres: string[]
+  tags: string[]
+  moodTags: string[]
+}
+
 const catalogGenrePresets: Record<ItemType, string[]> = {
-  game: ['Accion', 'Aventura', 'RPG', 'Estrategia', 'Metroidvania', 'Roguelike', 'Puzzle', 'Terror'],
-  book: ['Clasico', 'Fantasia', 'Ciencia ficcion', 'Misterio', 'Ensayo', 'Historia', 'Aventura', 'Romance'],
-  movie: ['Drama', 'Ciencia ficcion', 'Thriller', 'Terror', 'Comedia', 'Animacion', 'Fantasia', 'Documental'],
-  series: ['Drama', 'Ciencia ficcion', 'Thriller', 'Comedia', 'Fantasia', 'Crimen', 'Animacion', 'Documental'],
-  anime: ['Shonen', 'Seinen', 'Slice of life', 'Mecha', 'Fantasia', 'Drama', 'Romance', 'Comedia'],
-  manga: ['Shonen', 'Seinen', 'Shojo', 'Josei', 'Fantasia', 'Drama', 'Romance', 'Terror'],
-  manhwa: ['Fantasia', 'Accion', 'Romance', 'Drama', 'Isekai', 'Historico', 'Comedia', 'Thriller'],
-  comic: ['Superheroes', 'Fantasia', 'Ciencia ficcion', 'Crimen', 'Aventura', 'Drama', 'Terror', 'Humor'],
-  other: ['Aventura', 'Drama', 'Ciencia ficcion', 'Fantasia', 'Misterio', 'Ligero', 'Denso', 'Experimental'],
+  game: [
+    'Accion',
+    'Aventura',
+    'RPG',
+    'JRPG',
+    'Estrategia',
+    'Supervivencia',
+    'Crafting',
+    'Metroidvania',
+    'Roguelike',
+    'Puzzle',
+    'Terror',
+    'Shooter',
+    'Plataformas',
+    'Simulacion',
+    'Gestion',
+    'Soulslike',
+    'Mundo abierto',
+    'Ritmo',
+  ],
+  book: [
+    'Clasico',
+    'Fantasia',
+    'Ciencia ficcion',
+    'Misterio',
+    'Ensayo',
+    'Historia',
+    'Aventura',
+    'Romance',
+    'Distopia',
+    'Terror',
+    'Policiaca',
+    'Biografia',
+    'Filosofia',
+    'Mitologia',
+    'Poesia',
+    'Realismo magico',
+  ],
+  movie: [
+    'Drama',
+    'Ciencia ficcion',
+    'Thriller',
+    'Terror',
+    'Comedia',
+    'Animacion',
+    'Fantasia',
+    'Documental',
+    'Accion',
+    'Aventura',
+    'Crimen',
+    'Noir',
+    'Musical',
+    'Belica',
+    'Historica',
+    'Romance',
+  ],
+  series: [
+    'Drama',
+    'Ciencia ficcion',
+    'Thriller',
+    'Comedia',
+    'Fantasia',
+    'Crimen',
+    'Animacion',
+    'Documental',
+    'Misterio',
+    'Accion',
+    'Aventura',
+    'Historica',
+    'Reality',
+    'Procedural',
+    'Miniserie',
+    'Antologia',
+  ],
+  anime: [
+    'Shonen',
+    'Seinen',
+    'Slice of life',
+    'Mecha',
+    'Fantasia',
+    'Drama',
+    'Romance',
+    'Comedia',
+    'Isekai',
+    'Deportes',
+    'Terror',
+    'Misterio',
+    'Aventura',
+    'Sci-fi',
+    'Historico',
+    'Musica',
+  ],
+  manga: [
+    'Shonen',
+    'Seinen',
+    'Shojo',
+    'Josei',
+    'Fantasia',
+    'Drama',
+    'Romance',
+    'Terror',
+    'Isekai',
+    'Slice of life',
+    'Misterio',
+    'Deportes',
+    'Historico',
+    'Comedia',
+    'Accion',
+    'Psicologico',
+  ],
+  manhwa: [
+    'Fantasia',
+    'Accion',
+    'Romance',
+    'Drama',
+    'Isekai',
+    'Historico',
+    'Comedia',
+    'Thriller',
+    'Progresion',
+    'Academia',
+    'Artes marciales',
+    'Slice of life',
+    'Supernatural',
+    'Aventura',
+  ],
+  comic: [
+    'Superheroes',
+    'Fantasia',
+    'Ciencia ficcion',
+    'Crimen',
+    'Aventura',
+    'Drama',
+    'Terror',
+    'Humor',
+    'Noir',
+    'Historico',
+    'Autobiografico',
+    'Indie',
+    'Satira',
+    'Western',
+  ],
+  other: [
+    'Aventura',
+    'Drama',
+    'Ciencia ficcion',
+    'Fantasia',
+    'Misterio',
+    'Ligero',
+    'Denso',
+    'Experimental',
+    'Ensayo',
+    'Documental',
+    'Humor',
+    'Practico',
+  ],
 }
 
 const catalogTagPresets: Record<ItemType, string[]> = {
-  game: ['indie', 'single-player', 'cooperativo', 'mundo abierto', 'historia fuerte', 'dificil', 'corto', 'sin spoilers'],
-  book: ['clasico', 'moderno', 'literatura', 'epico', 'introspectivo', 'politico', 'adaptacion', 'premiado'],
-  movie: ['autor', 'culto', 'premiada', 'palomitas', 'contemplativa', 'experimental', 'familiar', 'adaptacion'],
-  series: ['serializada', 'miniserie', 'procedural', 'prestige', 'familiar', 'adaptacion', 'coral', 'lenta'],
-  anime: ['temporada corta', 'pelicula', 'original', 'adaptacion', 'sakuga', 'clasico', 'popular', 'raro'],
-  manga: ['serializado', 'finalizado', 'clasico', 'popular', 'raro', 'adaptacion', 'autoconclusivo', 'largo'],
-  manhwa: ['webtoon', 'finalizado', 'popular', 'romance', 'progresion', 'fantasia', 'largo', 'ligero'],
-  comic: ['autoconclusivo', 'serie abierta', 'clasico', 'autor', 'mainstream', 'indie', 'premiado', 'adaptacion'],
-  other: ['manual', 'pendiente', 'curado', 'raro', 'popular', 'clasico', 'corto', 'experimental'],
+  game: ['indie', 'single-player', 'cooperativo', 'mundo abierto', 'base building', 'historia fuerte', 'dificil', 'corto', 'sin spoilers'],
+  book: ['clasico', 'moderno', 'literatura', 'epico', 'introspectivo', 'politico', 'adaptacion', 'premiado', 'canon', 'lectura lenta'],
+  movie: ['autor', 'culto', 'premiada', 'palomitas', 'contemplativa', 'experimental', 'familiar', 'adaptacion', 'festival', 'visual'],
+  series: ['serializada', 'miniserie', 'procedural', 'prestige', 'familiar', 'adaptacion', 'coral', 'lenta', 'binge', 'weekly'],
+  anime: ['temporada corta', 'pelicula', 'original', 'adaptacion', 'sakuga', 'clasico', 'popular', 'raro', 'arco cerrado'],
+  manga: ['serializado', 'finalizado', 'clasico', 'popular', 'raro', 'adaptacion', 'autoconclusivo', 'largo', 'scan friendly'],
+  manhwa: ['webtoon', 'finalizado', 'popular', 'romance', 'progresion', 'fantasia', 'largo', 'ligero', 'temporadas'],
+  comic: ['autoconclusivo', 'serie abierta', 'clasico', 'autor', 'mainstream', 'indie', 'premiado', 'adaptacion', 'omnibuses'],
+  other: ['manual', 'pendiente', 'curado', 'raro', 'popular', 'clasico', 'corto', 'experimental', 'referencia'],
 }
 
-const catalogMoodPresets = ['ligero', 'denso', 'intenso', 'rapido', 'confort', 'sorpresa', 'melancolico', 'raro']
+const catalogMoodPresets = [
+  'ligero',
+  'denso',
+  'intenso',
+  'rapido',
+  'confort',
+  'sorpresa',
+  'melancolico',
+  'raro',
+  'oscuro',
+  'emocional',
+  'maraton',
+  'cozy',
+  'competitivo',
+]
+
+const catalogTaxonomyTemplates: Record<ItemType, CatalogTaxonomyTemplate[]> = {
+  game: [
+    {
+      label: 'Survival craft',
+      detail: 'Bases, farmeo, coop o mundo persistente.',
+      genres: ['Supervivencia', 'Crafting', 'Accion'],
+      tags: ['cooperativo', 'base building', 'mundo abierto'],
+      moodTags: ['intenso'],
+    },
+    {
+      label: 'Narrativo corto',
+      detail: 'Historia fuerte para cerrar sin eternizarse.',
+      genres: ['Aventura'],
+      tags: ['single-player', 'historia fuerte', 'corto'],
+      moodTags: ['rapido', 'emocional'],
+    },
+    {
+      label: 'Reto tecnico',
+      detail: 'Precision, repeticion y curva exigente.',
+      genres: ['Soulslike', 'Roguelike', 'Accion'],
+      tags: ['single-player', 'dificil'],
+      moodTags: ['intenso'],
+    },
+    {
+      label: 'Cozy gestion',
+      detail: 'Sistemas tranquilos, rutina y avance suave.',
+      genres: ['Gestion', 'Simulacion'],
+      tags: ['indie', 'single-player'],
+      moodTags: ['cozy', 'confort', 'ligero'],
+    },
+  ],
+  book: [
+    {
+      label: 'Clasico epico',
+      detail: 'Canon, viaje largo y lectura con peso.',
+      genres: ['Clasico', 'Aventura', 'Mitologia'],
+      tags: ['clasico', 'epico', 'literatura'],
+      moodTags: ['denso'],
+    },
+    {
+      label: 'Ideas grandes',
+      detail: 'Mundo raro, politica o dilema filosofico.',
+      genres: ['Ciencia ficcion', 'Distopia', 'Filosofia'],
+      tags: ['introspectivo', 'politico', 'premiado'],
+      moodTags: ['denso', 'raro'],
+    },
+    {
+      label: 'Misterio agil',
+      detail: 'Intriga clara, ritmo alto y cierre limpio.',
+      genres: ['Misterio', 'Policiaca'],
+      tags: ['moderno', 'adaptacion'],
+      moodTags: ['rapido', 'sorpresa'],
+    },
+    {
+      label: 'Confort romantico',
+      detail: 'Calor humano, conflicto suave, final amable.',
+      genres: ['Romance', 'Drama'],
+      tags: ['moderno'],
+      moodTags: ['confort', 'ligero'],
+    },
+  ],
+  movie: [
+    {
+      label: 'Noche palomitas',
+      detail: 'Directa, clara y facil de recomendar.',
+      genres: ['Accion', 'Aventura'],
+      tags: ['palomitas', 'visual'],
+      moodTags: ['rapido', 'ligero'],
+    },
+    {
+      label: 'Autor lento',
+      detail: 'Plano largo, subtexto y conversacion despues.',
+      genres: ['Drama'],
+      tags: ['autor', 'contemplativa', 'festival'],
+      moodTags: ['denso', 'melancolico'],
+    },
+    {
+      label: 'Tension oscura',
+      detail: 'Amenaza, paranoia y pulso nocturno.',
+      genres: ['Thriller', 'Terror', 'Noir'],
+      tags: ['culto'],
+      moodTags: ['oscuro', 'intenso'],
+    },
+    {
+      label: 'Familiar amable',
+      detail: 'Apta para grupo y facil de ver.',
+      genres: ['Animacion', 'Comedia'],
+      tags: ['familiar'],
+      moodTags: ['confort', 'ligero'],
+    },
+  ],
+  series: [
+    {
+      label: 'Prestige drama',
+      detail: 'Personajes, capas y temporada con peso.',
+      genres: ['Drama', 'Crimen'],
+      tags: ['prestige', 'coral', 'serializada'],
+      moodTags: ['denso'],
+    },
+    {
+      label: 'Procedural facil',
+      detail: 'Episodios cerrados para entrar y salir.',
+      genres: ['Misterio', 'Crimen'],
+      tags: ['procedural', 'weekly'],
+      moodTags: ['confort'],
+    },
+    {
+      label: 'Maraton ligera',
+      detail: 'Ritmo alto, episodios cortos, poco roce.',
+      genres: ['Comedia'],
+      tags: ['binge', 'familiar'],
+      moodTags: ['maraton', 'ligero'],
+    },
+    {
+      label: 'Fantasia serial',
+      detail: 'Lore, facciones y continuidad larga.',
+      genres: ['Fantasia', 'Aventura'],
+      tags: ['serializada', 'adaptacion'],
+      moodTags: ['sorpresa'],
+    },
+  ],
+  anime: [
+    {
+      label: 'Arco shonen',
+      detail: 'Escalada, peleas y energia alta.',
+      genres: ['Shonen', 'Accion', 'Aventura'],
+      tags: ['popular', 'sakuga'],
+      moodTags: ['intenso'],
+    },
+    {
+      label: 'Vida tranquila',
+      detail: 'Rutina, humor suave y bajo compromiso.',
+      genres: ['Slice of life', 'Comedia'],
+      tags: ['temporada corta'],
+      moodTags: ['cozy', 'ligero'],
+    },
+    {
+      label: 'Mecha drama',
+      detail: 'Escala grande, conflicto humano y trauma.',
+      genres: ['Mecha', 'Drama', 'Sci-fi'],
+      tags: ['clasico'],
+      moodTags: ['denso', 'emocional'],
+    },
+    {
+      label: 'Rareza cerrada',
+      detail: 'Premisa peculiar y temporada autocontenida.',
+      genres: ['Misterio', 'Fantasia'],
+      tags: ['raro', 'arco cerrado'],
+      moodTags: ['sorpresa', 'raro'],
+    },
+  ],
+  manga: [
+    {
+      label: 'Serie larga',
+      detail: 'Muchos tomos, progresion y fandom activo.',
+      genres: ['Shonen', 'Aventura'],
+      tags: ['serializado', 'popular', 'largo'],
+      moodTags: ['maraton'],
+    },
+    {
+      label: 'Tomo unico',
+      detail: 'Autoconclusivo, facil de recomendar.',
+      genres: ['Drama'],
+      tags: ['autoconclusivo', 'finalizado'],
+      moodTags: ['rapido'],
+    },
+    {
+      label: 'Psico oscuro',
+      detail: 'Cabeza rara, tension y lectura pesada.',
+      genres: ['Psicologico', 'Terror'],
+      tags: ['raro'],
+      moodTags: ['oscuro', 'denso'],
+    },
+    {
+      label: 'Romance suave',
+      detail: 'Relaciones, humor y avance amable.',
+      genres: ['Romance', 'Slice of life'],
+      tags: ['finalizado'],
+      moodTags: ['confort', 'ligero'],
+    },
+  ],
+  manhwa: [
+    {
+      label: 'Power fantasy',
+      detail: 'Subida de nivel, raids y progresion clara.',
+      genres: ['Progresion', 'Accion', 'Fantasia'],
+      tags: ['webtoon', 'popular', 'progresion'],
+      moodTags: ['maraton'],
+    },
+    {
+      label: 'Romance webtoon',
+      detail: 'Capitulos cortos, drama y lectura ligera.',
+      genres: ['Romance', 'Drama'],
+      tags: ['webtoon', 'romance'],
+      moodTags: ['ligero', 'emocional'],
+    },
+    {
+      label: 'Historico noble',
+      detail: 'Corte, intriga y vestidos con veneno.',
+      genres: ['Historico', 'Drama'],
+      tags: ['temporadas'],
+      moodTags: ['sorpresa'],
+    },
+    {
+      label: 'Academia magica',
+      detail: 'Escuela, poderes y rivalidades.',
+      genres: ['Academia', 'Fantasia'],
+      tags: ['fantasia', 'largo'],
+      moodTags: ['confort'],
+    },
+  ],
+  comic: [
+    {
+      label: 'Mainstream hero',
+      detail: 'Arcos grandes, continuidad y accion.',
+      genres: ['Superheroes', 'Accion'],
+      tags: ['mainstream', 'serie abierta'],
+      moodTags: ['intenso'],
+    },
+    {
+      label: 'Indie autor',
+      detail: 'Voz propia, riesgo formal y cierre fuerte.',
+      genres: ['Drama', 'Indie'],
+      tags: ['autor', 'indie', 'premiado'],
+      moodTags: ['raro'],
+    },
+    {
+      label: 'Noir crimen',
+      detail: 'Caso, ciudad sucia y tono adulto.',
+      genres: ['Crimen', 'Noir'],
+      tags: ['autoconclusivo'],
+      moodTags: ['oscuro', 'denso'],
+    },
+    {
+      label: 'Humor satira',
+      detail: 'Lectura rapida, comentario y mala leche.',
+      genres: ['Humor', 'Satira'],
+      tags: ['corto'],
+      moodTags: ['rapido', 'ligero'],
+    },
+  ],
+  other: [
+    {
+      label: 'Curado raro',
+      detail: 'Entrada manual que no encaja del todo.',
+      genres: ['Experimental'],
+      tags: ['manual', 'raro', 'curado'],
+      moodTags: ['raro'],
+    },
+    {
+      label: 'Referencia util',
+      detail: 'Consulta, aprendizaje o material practico.',
+      genres: ['Ensayo', 'Practico'],
+      tags: ['referencia'],
+      moodTags: ['denso'],
+    },
+    {
+      label: 'Ligero corto',
+      detail: 'Algo pequeno para recomendar sin friccion.',
+      genres: ['Ligero'],
+      tags: ['corto'],
+      moodTags: ['rapido', 'ligero'],
+    },
+    {
+      label: 'Documental',
+      detail: 'No ficcion, tema concreto y valor externo.',
+      genres: ['Documental'],
+      tags: ['curado'],
+      moodTags: ['sorpresa'],
+    },
+  ],
+}
 
 const blankItem = (): ListItem => ({
   id: `manual-${Date.now()}`,
@@ -2371,6 +2813,8 @@ function PublicItemEditor({
   const selectedMoodKeys = new Set(selectedMoodTags.map(normalizeKey))
   const genrePresets = catalogGenrePresets[draft.type]
   const tagPresets = catalogTagPresets[draft.type]
+  const taxonomyTemplates = catalogTaxonomyTemplates[draft.type]
+  const selectedTaxonomyCount = selectedGenres.length + selectedTags.length + selectedMoodTags.length
   const isNewItem = !item.id
   const editorTitle = draft.title.trim() || 'Nueva entrada'
   const summaryDescription = draft.description?.trim() || 'Sin descripcion.'
@@ -2401,6 +2845,19 @@ function PublicItemEditor({
         [field]: nextValues.join(', '),
       }
     })
+  }
+
+  function clearTextPreset(field: 'genresText' | 'tagsText' | 'moodText') {
+    setDraft((current) => ({ ...current, [field]: '' }))
+  }
+
+  function applyTaxonomyTemplate(template: CatalogTaxonomyTemplate) {
+    setDraft((current) => ({
+      ...current,
+      genresText: mergeListText(current.genresText, template.genres),
+      tagsText: mergeListText(current.tagsText, template.tags),
+      moodText: mergeListText(current.moodText, template.moodTags),
+    }))
   }
 
   return (
@@ -2492,13 +2949,47 @@ function PublicItemEditor({
             </div>
 
             <section className="editor-section">
+              <div className="editor-section-heading">
+                <div>
+                  <h3>Atajos de curacion</h3>
+                  <p>Aplica una base de generos, tags y tono en un clic.</p>
+                </div>
+                <span>{selectedTaxonomyCount} activos</span>
+              </div>
+              <div className="taxonomy-template-list" aria-label={`Plantillas rapidas para ${typeLabels[draft.type]}`}>
+                {taxonomyTemplates.map((template) => (
+                  <button className="taxonomy-template-button" key={template.label} type="button" onClick={() => applyTaxonomyTemplate(template)}>
+                    <span>
+                      <Sparkles size={15} />
+                      <strong>{template.label}</strong>
+                    </span>
+                    <small>{template.detail}</small>
+                    <em>
+                      {template.genres.length} generos / {template.tags.length} tags / {template.moodTags.length} tono
+                    </em>
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            <section className="editor-section">
               <h3>Generos</h3>
               <label>
                 Generos
                 <input value={draft.genresText} onChange={(event) => setDraft((current) => ({ ...current, genresText: event.target.value }))} />
               </label>
               <div className="preset-chip-panel">
-                <strong>Generos frecuentes</strong>
+                <div className="preset-chip-heading">
+                  <div>
+                    <strong>Generos predefinidos</strong>
+                    <span>{selectedGenres.length ? `${selectedGenres.length} seleccionados` : 'Elige uno o varios'}</span>
+                  </div>
+                  {selectedGenres.length > 0 && (
+                    <button className="micro-icon-button" type="button" onClick={() => clearTextPreset('genresText')} title="Limpiar generos" aria-label="Limpiar generos">
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
                 <div className="preset-chip-row" aria-label={`Sugerencias de taxonomia para ${typeLabels[draft.type]}`}>
                   {genrePresets.map((genre) => (
                     <button
@@ -2522,7 +3013,17 @@ function PublicItemEditor({
                 <input value={draft.tagsText} onChange={(event) => setDraft((current) => ({ ...current, tagsText: event.target.value }))} />
               </label>
               <div className="preset-chip-panel">
-                <strong>Tags frecuentes</strong>
+                <div className="preset-chip-heading">
+                  <div>
+                    <strong>Tags frecuentes</strong>
+                    <span>{selectedTags.length ? `${selectedTags.length} seleccionados` : 'Senales para busqueda y dado'}</span>
+                  </div>
+                  {selectedTags.length > 0 && (
+                    <button className="micro-icon-button" type="button" onClick={() => clearTextPreset('tagsText')} title="Limpiar tags" aria-label="Limpiar tags">
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
                 <div className="preset-chip-row" aria-label={`Sugerencias de tags para ${typeLabels[draft.type]}`}>
                   {tagPresets.map((tag) => (
                     <button
@@ -2546,7 +3047,17 @@ function PublicItemEditor({
                 <input value={draft.moodText} onChange={(event) => setDraft((current) => ({ ...current, moodText: event.target.value }))} />
               </label>
               <div className="preset-chip-panel">
-                <strong>Tono</strong>
+                <div className="preset-chip-heading">
+                  <div>
+                    <strong>Tono predefinido</strong>
+                    <span>{selectedMoodTags.length ? `${selectedMoodTags.length} seleccionados` : 'Como se siente la obra'}</span>
+                  </div>
+                  {selectedMoodTags.length > 0 && (
+                    <button className="micro-icon-button" type="button" onClick={() => clearTextPreset('moodText')} title="Limpiar tono" aria-label="Limpiar tono">
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
                 <div className="preset-chip-row" aria-label="Sugerencias de tono">
                   {catalogMoodPresets.map((moodTag) => (
                     <button
@@ -2725,6 +3236,10 @@ function sameRecommendationPreferences(left: RecommendationPreferences, right: R
 
 function splitList(value: string) {
   return uniqueValues(value.split(',').map((entry) => entry.trim()))
+}
+
+function mergeListText(currentText: string, additions: string[]) {
+  return uniqueValues([...splitList(currentText), ...additions]).join(', ')
 }
 
 function getItemSubtitle(item: ListItem) {
