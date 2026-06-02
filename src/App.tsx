@@ -2261,6 +2261,8 @@ function PublicItemEditor({
   const genrePresets = catalogGenrePresets[draft.type]
   const tagPresets = catalogTagPresets[draft.type]
   const isNewItem = !item.id
+  const editorTitle = draft.title.trim() || 'Nueva entrada'
+  const summaryDescription = draft.description?.trim() || 'Sin descripcion.'
 
   function buildDraftItem() {
     return buildPublicCatalogItem(
@@ -2293,7 +2295,7 @@ function PublicItemEditor({
   return (
     <div className="modal-backdrop" role="presentation">
       <form
-        className="item-editor"
+        className="item-editor public-item-editor"
         role="dialog"
         aria-modal="true"
         aria-labelledby="public-item-editor-title"
@@ -2312,107 +2314,146 @@ function PublicItemEditor({
             <X size={18} />
           </button>
         </div>
-        <label>
-          Titulo
-          <input required value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} />
-        </label>
-        <div className="form-grid">
-          <label>
-            Tipo
-            <select value={draft.type} onChange={(event) => setDraft((current) => ({ ...current, type: event.target.value as ItemType }))}>
-              {ITEM_TYPES.map((type) => (
-                <option key={type} value={type}>
-                  {typeLabels[type]}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Ano
-            <input
-              type="number"
-              min="1800"
-              max="2100"
-              value={draft.releaseYear ?? ''}
-              onChange={(event) => setDraft((current) => ({ ...current, releaseYear: event.target.value ? Number(event.target.value) : undefined }))}
-            />
-          </label>
-        </div>
-        <label>
-          Descripcion
-          <textarea value={draft.description ?? ''} onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))} />
-        </label>
-        <label>
-          Poster o portada
-          <input value={draft.posterUrl ?? ''} onChange={(event) => setDraft((current) => ({ ...current, posterUrl: event.target.value || undefined }))} />
-        </label>
-        <label>
-          Generos
-          <input value={draft.genresText} onChange={(event) => setDraft((current) => ({ ...current, genresText: event.target.value }))} />
-        </label>
-        <div className="preset-chip-panel">
-          <strong>Generos frecuentes</strong>
-          <div className="preset-chip-row" aria-label={`Sugerencias de taxonomia para ${typeLabels[draft.type]}`}>
-            {genrePresets.map((genre) => (
-              <button
-                aria-pressed={selectedGenreKeys.has(normalizeKey(genre))}
-                className={selectedGenreKeys.has(normalizeKey(genre)) ? 'preset-chip active' : 'preset-chip'}
-                key={genre}
-                type="button"
-                onClick={() => toggleTextPreset('genresText', genre)}
-              >
-                {genre}
-              </button>
-            ))}
+
+        <div className="editor-hero catalog-editor-hero">
+          <CoverArt title={editorTitle} type={draft.type} posterUrl={draft.posterUrl} />
+          <div className="editor-summary">
+            <div className="detail-meta">
+              <span>{typeLabels[draft.type]}</span>
+              <span>{draft.releaseYear || 'Sin ano'}</span>
+              <span>{selectedGenres.length ? `${selectedGenres.length} generos` : 'Sin generos'}</span>
+            </div>
+            <h3>{editorTitle}</h3>
+            <p>{summaryDescription}</p>
           </div>
         </div>
-        <label>
-          Tags
-          <input value={draft.tagsText} onChange={(event) => setDraft((current) => ({ ...current, tagsText: event.target.value }))} />
-        </label>
-        <div className="preset-chip-panel">
-          <strong>Tags frecuentes</strong>
-          <div className="preset-chip-row" aria-label={`Sugerencias de tags para ${typeLabels[draft.type]}`}>
-            {tagPresets.map((tag) => (
-              <button
-                aria-pressed={selectedTagKeys.has(normalizeKey(tag))}
-                className={selectedTagKeys.has(normalizeKey(tag)) ? 'preset-chip active' : 'preset-chip'}
-                key={tag}
-                type="button"
-                onClick={() => toggleTextPreset('tagsText', tag)}
-              >
-                {tag}
-              </button>
-            ))}
+
+        <div className="public-editor-body">
+          <div className="public-editor-main">
+            <section className="editor-section">
+              <h3>Identidad</h3>
+              <label>
+                Titulo
+                <input required value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} />
+              </label>
+              <div className="form-grid">
+                <label>
+                  Tipo
+                  <select value={draft.type} onChange={(event) => setDraft((current) => ({ ...current, type: event.target.value as ItemType }))}>
+                    {ITEM_TYPES.map((type) => (
+                      <option key={type} value={type}>
+                        {typeLabels[type]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Ano
+                  <input
+                    type="number"
+                    min="1800"
+                    max="2100"
+                    value={draft.releaseYear ?? ''}
+                    onChange={(event) =>
+                      setDraft((current) => ({ ...current, releaseYear: event.target.value ? Number(event.target.value) : undefined }))
+                    }
+                  />
+                </label>
+              </div>
+              <label>
+                Descripcion
+                <textarea value={draft.description ?? ''} onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))} />
+              </label>
+              <label>
+                Poster o portada
+                <input value={draft.posterUrl ?? ''} onChange={(event) => setDraft((current) => ({ ...current, posterUrl: event.target.value || undefined }))} />
+              </label>
+            </section>
           </div>
+
+          <aside className="public-editor-aside">
+            <div className={warnings.length ? 'quality-panel warning' : 'quality-panel'}>
+              <div>
+                <strong>{warnings.length ? 'Ficha incompleta' : 'Ficha lista'}</strong>
+                <p>{warnings.length ? warnings.join(' / ') : 'Tiene portada, descripcion y taxonomia basica.'}</p>
+              </div>
+              <span>{warnings.length ? warnings.length : 'OK'}</span>
+            </div>
+
+            <section className="editor-section">
+              <h3>Generos</h3>
+              <label>
+                Generos
+                <input value={draft.genresText} onChange={(event) => setDraft((current) => ({ ...current, genresText: event.target.value }))} />
+              </label>
+              <div className="preset-chip-panel">
+                <strong>Generos frecuentes</strong>
+                <div className="preset-chip-row" aria-label={`Sugerencias de taxonomia para ${typeLabels[draft.type]}`}>
+                  {genrePresets.map((genre) => (
+                    <button
+                      aria-pressed={selectedGenreKeys.has(normalizeKey(genre))}
+                      className={selectedGenreKeys.has(normalizeKey(genre)) ? 'preset-chip active' : 'preset-chip'}
+                      key={genre}
+                      type="button"
+                      onClick={() => toggleTextPreset('genresText', genre)}
+                    >
+                      {genre}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </section>
+
+            <section className="editor-section">
+              <h3>Tags</h3>
+              <label>
+                Tags
+                <input value={draft.tagsText} onChange={(event) => setDraft((current) => ({ ...current, tagsText: event.target.value }))} />
+              </label>
+              <div className="preset-chip-panel">
+                <strong>Tags frecuentes</strong>
+                <div className="preset-chip-row" aria-label={`Sugerencias de tags para ${typeLabels[draft.type]}`}>
+                  {tagPresets.map((tag) => (
+                    <button
+                      aria-pressed={selectedTagKeys.has(normalizeKey(tag))}
+                      className={selectedTagKeys.has(normalizeKey(tag)) ? 'preset-chip active' : 'preset-chip'}
+                      key={tag}
+                      type="button"
+                      onClick={() => toggleTextPreset('tagsText', tag)}
+                    >
+                      {tag}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </section>
+
+            <section className="editor-section">
+              <h3>Tono</h3>
+              <label>
+                Mood tags
+                <input value={draft.moodText} onChange={(event) => setDraft((current) => ({ ...current, moodText: event.target.value }))} />
+              </label>
+              <div className="preset-chip-panel">
+                <strong>Tono</strong>
+                <div className="preset-chip-row" aria-label="Sugerencias de tono">
+                  {catalogMoodPresets.map((moodTag) => (
+                    <button
+                      aria-pressed={selectedMoodKeys.has(normalizeKey(moodTag))}
+                      className={selectedMoodKeys.has(normalizeKey(moodTag)) ? 'preset-chip active' : 'preset-chip'}
+                      key={moodTag}
+                      type="button"
+                      onClick={() => toggleTextPreset('moodText', moodTag)}
+                    >
+                      {moodTag}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </section>
+          </aside>
         </div>
-        <label>
-          Mood tags
-          <input value={draft.moodText} onChange={(event) => setDraft((current) => ({ ...current, moodText: event.target.value }))} />
-        </label>
-        <div className="preset-chip-panel">
-          <strong>Tono</strong>
-          <div className="preset-chip-row" aria-label="Sugerencias de tono">
-            {catalogMoodPresets.map((moodTag) => (
-              <button
-                aria-pressed={selectedMoodKeys.has(normalizeKey(moodTag))}
-                className={selectedMoodKeys.has(normalizeKey(moodTag)) ? 'preset-chip active' : 'preset-chip'}
-                key={moodTag}
-                type="button"
-                onClick={() => toggleTextPreset('moodText', moodTag)}
-              >
-                {moodTag}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className={warnings.length ? 'quality-panel warning' : 'quality-panel'}>
-          <div>
-            <strong>{warnings.length ? 'Ficha incompleta' : 'Ficha lista'}</strong>
-            <p>{warnings.length ? warnings.join(' / ') : 'Tiene portada, descripcion y taxonomia basica.'}</p>
-          </div>
-          <span>{warnings.length ? warnings.length : 'OK'}</span>
-        </div>
+
         <div className="action-row end">
           <button className="ghost-button" type="button" onClick={onClose}>
             Cancelar
