@@ -5,6 +5,10 @@ import { expect, test } from '@playwright/test'
 test('library and weighted dice work in demo mode', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByRole('heading', { name: 'Biblioteca privada' })).toBeVisible()
+  await expect(page.getByTestId('shell-pulse')).toContainText('Biblioteca')
+  await expect(page.getByTestId('shell-pulse')).toContainText('Dado')
+  await expect(page.getByTestId('shell-pulse')).toContainText('Explorador')
+  await expect(page.getByTestId('shell-pulse')).toContainText('Admin')
   await expect(page.getByTestId('library-grid')).toContainText('Outer Wilds')
   await expect(page.getByTestId('library-overview')).toContainText('Siguiente accion')
   await expect(page.getByTestId('library-overview')).toContainText('Inception')

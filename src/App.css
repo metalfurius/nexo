@@ -21,6 +21,13 @@
   padding: 18px 28px;
 }
 
+.topbar-main {
+  display: grid;
+  flex: 1;
+  gap: 12px;
+  min-width: 0;
+}
+
 .topbar h1,
 .auth-shell h1 {
   color: var(--text-strong);
@@ -33,6 +40,91 @@
   color: var(--muted);
   font-size: 13px;
   margin: 4px 0 0;
+}
+
+.topbar-pulse {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(4, minmax(116px, 1fr));
+  max-width: 760px;
+  min-width: 0;
+}
+
+.pulse-chip {
+  align-items: center;
+  background: color-mix(in srgb, var(--surface-muted) 84%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  display: grid;
+  gap: 2px 7px;
+  grid-template-columns: 18px minmax(0, 1fr);
+  min-height: 52px;
+  min-width: 0;
+  padding: 8px 9px;
+}
+
+.pulse-chip svg {
+  color: var(--accent-dark);
+  grid-row: span 2;
+}
+
+.pulse-chip span,
+.pulse-chip small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pulse-chip span {
+  font-size: 11px;
+  font-weight: 850;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.pulse-chip strong {
+  color: var(--text-strong);
+  font-size: 15px;
+  line-height: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pulse-chip small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 750;
+  grid-column: 2;
+  line-height: 1;
+}
+
+.pulse-chip.good {
+  background: color-mix(in srgb, var(--accent-soft) 72%, var(--surface-muted));
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--border));
+}
+
+.pulse-chip.action {
+  background: color-mix(in srgb, var(--accent-warm-soft) 76%, var(--surface-muted));
+  border-color: color-mix(in srgb, var(--accent-warm) 34%, var(--border));
+}
+
+.pulse-chip.action svg,
+.pulse-chip.action strong {
+  color: var(--accent-warm);
+}
+
+.pulse-chip.warning {
+  background: var(--danger-bg);
+  border-color: var(--danger-border);
+}
+
+.pulse-chip.warning svg,
+.pulse-chip.warning strong {
+  color: var(--danger-text);
 }
 
 .eyebrow {
@@ -5173,6 +5265,16 @@ textarea:focus-visible {
   .topbar {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .topbar-main {
+    width: 100%;
+  }
+
+  .topbar-pulse {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-width: none;
+    width: 100%;
   }
 
   .toolbar,

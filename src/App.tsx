@@ -466,10 +466,13 @@ function App() {
   return (
     <main className="app-shell">
       <header className="topbar">
-        <div>
-          <span className="eyebrow">Nexo 1.0 beta</span>
-          <h1>{shellTitle}</h1>
-          <p className="topbar-subtitle">{activeNavItem.description}</p>
+        <div className="topbar-main">
+          <div>
+            <span className="eyebrow">Nexo 1.0 beta</span>
+            <h1>{shellTitle}</h1>
+            <p className="topbar-subtitle">{activeNavItem.description}</p>
+          </div>
+          <ShellPulse library={library} isFirebaseConfigured={auth.isFirebaseConfigured} />
         </div>
         <div className="topbar-actions">
           {!auth.isFirebaseConfigured && <span className="mode-pill">Demo local</span>}
@@ -529,6 +532,29 @@ function App() {
         {activeTab === 'curation' && library.isModerator && <CurationTab library={library} />}
       </section>
     </main>
+  )
+}
+
+function ShellPulse({
+  isFirebaseConfigured,
+  library,
+}: {
+  isFirebaseConfigured: boolean
+  library: Pick<LibrarySurface, 'discoveryCandidates' | 'isModerator' | 'items' | 'userRole'>
+}) {
+  const pulseItems = getShellPulseItems(library, isFirebaseConfigured)
+
+  return (
+    <div className="topbar-pulse" aria-label="Pulso de Nexo" data-testid="shell-pulse">
+      {pulseItems.map(({ Icon, detail, label, tone, value }) => (
+        <div className={`pulse-chip ${tone}`} key={label}>
+          <Icon size={15} />
+          <span>{label}</span>
+          <strong>{value}</strong>
+          <small>{detail}</small>
+        </div>
+      ))}
+    </div>
   )
 }
 
@@ -4537,6 +4563,56 @@ function publicCatalogDraftFromCandidate(candidate: DiscoveryCandidate): PublicC
 function publicCatalogTagsFromCandidate(candidate: DiscoveryCandidate) {
   const technicalTags = new Set([candidate.type, candidate.source, 'nexo', 'prompt'].map(normalizeKey))
   return uniqueValues(candidate.tags.filter((tag) => !technicalTags.has(normalizeKey(tag))))
+}
+
+function getShellPulseItems(
+  library: Pick<LibrarySurface, 'discoveryCandidates' | 'isModerator' | 'items' | 'userRole'>,
+  isFirebaseConfigured: boolean,
+) {
+  const now = Date.now()
+  const privateCopyCount = library.items.filter((item) => Boolean(item.publicItemId)).length
+  const diceReadyCount = library.items.filter((item) => isItemReadyForDicePulse(item, now)).length
+  const queuedDiscoveryCount = library.discoveryCandidates.filter((candidate) => candidate.status === 'queued').length
+  const accountMode = isFirebaseConfigured ? 'Google' : 'Demo'
+
+  return [
+    {
+      Icon: Library,
+      detail: `${privateCopyCount} Nexo`,
+      label: 'Biblioteca',
+      tone: library.items.length ? 'good' : 'warning',
+      value: String(library.items.length),
+    },
+    {
+      Icon: Dice5,
+      detail: diceReadyCount ? 'listas' : 'sin candidatas',
+      label: 'Dado',
+      tone: diceReadyCount ? 'good' : 'warning',
+      value: String(diceReadyCount),
+    },
+    {
+      Icon: Sparkles,
+      detail: queuedDiscoveryCount ? 'por decidir' : 'limpio',
+      label: 'Explorador',
+      tone: queuedDiscoveryCount ? 'action' : 'muted',
+      value: String(queuedDiscoveryCount),
+    },
+    {
+      Icon: ShieldCheck,
+      detail: library.isModerator ? 'curacion activa' : accountMode,
+      label: 'Rol',
+      tone: library.isModerator ? 'good' : 'muted',
+      value: roleLabels[library.userRole],
+    },
+  ] as const
+}
+
+function isItemReadyForDicePulse(item: ListItem, now: number) {
+  if (item.status === 'completed' || item.status === 'dropped') return false
+  if (!item.recommendationCooldownUntil) return true
+
+  const timestamp = Date.parse(item.recommendationCooldownUntil)
+  return !Number.isFinite(timestamp) || timestamp <= now
 }
 
 function catalogQualityIssueKeys(item: Pick<PublicCatalogItem, 'description' | 'genres' | 'posterUrl' | 'tags'>): CatalogIssueKey[] {
