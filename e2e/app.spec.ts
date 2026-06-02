@@ -151,6 +151,30 @@ test('moderator curation can create a public catalog item in demo mode', async (
   await expect(page.getByRole('button', { name: 'Editar Solaris' })).not.toBeVisible()
 })
 
+test('moderator can turn an explorer candidate into a public catalog item', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Explorador' }).click()
+  await page.getByLabel('Buscar en explorador').fill('V Rising')
+  await page.getByRole('button', { name: 'Buscar' }).click()
+
+  await expect(page.getByRole('button', { name: 'Crear catalogo V Rising' })).toBeVisible()
+  await page.getByRole('button', { name: 'Crear catalogo V Rising' }).click()
+
+  const editor = page.locator('.public-item-editor')
+  await expect(editor.getByLabel('Titulo')).toHaveValue('V Rising')
+  await expect(editor.getByLabel('Descripcion')).toHaveValue('Candidato de demostracion hasta configurar Firebase Functions.')
+  await expect(editor.getByLabel('Tipo')).toHaveValue('movie')
+
+  await editor.getByRole('button', { name: 'Noche palomitas' }).click()
+  await expect(editor.getByLabel('Generos', { exact: true })).toHaveValue('Accion, Aventura')
+  await expect(editor.getByLabel('Tags', { exact: true })).toHaveValue('palomitas, visual')
+  await editor.getByRole('button', { name: 'Guardar en catalogo' }).click()
+
+  await expect(page.getByText('V Rising guardado en catalogo Nexo.')).toBeVisible()
+  await page.getByRole('button', { name: 'Curacion' }).click()
+  await expect(page.getByRole('heading', { name: 'V Rising' })).toBeVisible()
+})
+
 test('delete all requires explicit confirmation', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByTestId('library-grid')).toContainText('Outer Wilds')

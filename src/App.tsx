@@ -1438,6 +1438,7 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<string | undefined>()
   const [selected, setSelected] = useState<DiscoveryCandidate | undefined>()
+  const [catalogDraft, setCatalogDraft] = useState<PublicCatalogItem | undefined>()
   const type = library.settings.explorerDefaultType
   const discoveryCounts = useMemo(() => {
     const counts: Record<DiscoveryStatus, number> = { queued: 0, saved: 0, dismissed: 0 }
@@ -1536,6 +1537,21 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
     if (await dismissCandidate(candidate)) setSelected(undefined)
   }
 
+  function openCatalogDraft(candidate: DiscoveryCandidate) {
+    setSelected(undefined)
+    setCatalogDraft(publicCatalogDraftFromCandidate(candidate))
+  }
+
+  async function saveCatalogDraft(item: PublicCatalogItem, options?: { createAnother?: boolean }) {
+    try {
+      const savedItem = await library.upsertPublicItem(item)
+      setCatalogDraft(options?.createAnother ? blankPublicCatalogItem(savedItem.type) : undefined)
+      setMessage(`${savedItem.title} guardado en catalogo Nexo.`)
+    } catch (reason) {
+      setMessage(reason instanceof Error ? reason.message : 'No se pudo guardar en el catalogo publico.')
+    }
+  }
+
   return (
     <section className="content-grid">
       <section className="workspace-panel wide">
@@ -1621,6 +1637,7 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
                 onDetails={() => setSelected(candidate)}
                 onDismiss={() => dismissCandidate(candidate)}
                 onSave={() => saveCandidate(candidate)}
+                onCurate={library.isModerator ? () => openCatalogDraft(candidate) : undefined}
               />
             ))}
           </div>
@@ -1654,6 +1671,16 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
           onClose={() => setSelected(undefined)}
           onDismiss={() => dismissSelectedCandidate(selected)}
           onSave={() => saveSelectedCandidate(selected)}
+          onCurate={library.isModerator ? () => openCatalogDraft(selected) : undefined}
+        />
+      )}
+
+      {catalogDraft && (
+        <PublicItemEditor
+          key={`${catalogDraft.id || 'candidate-draft'}-${catalogDraft.createdAt}-${catalogDraft.type}`}
+          item={catalogDraft}
+          onClose={() => setCatalogDraft(undefined)}
+          onSave={saveCatalogDraft}
         />
       )}
     </section>
@@ -2265,15 +2292,18 @@ function PreferenceControls({
 function DiscoveryCard({
   candidate,
   onDetails,
+  onCurate,
   onDismiss,
   onSave,
 }: {
   candidate: DiscoveryCandidate
   onDetails: () => void
+  onCurate?: () => void
   onDismiss: () => void
   onSave: () => void
 }) {
   const isQueued = candidate.status === 'queued'
+  const catalogActionLabel = candidate.source === 'nexo' ? 'Editar catalogo' : 'Crear catalogo'
 
   function openDetailsFromKeyboard(event: KeyboardEvent<HTMLDivElement>) {
     if (event.key !== 'Enter' && event.key !== ' ') return
@@ -2315,6 +2345,12 @@ function DiscoveryCard({
               <Plus size={16} />
               <span>Guardar</span>
             </button>
+            {onCurate && (
+              <button className="candidate-primary-action secondary" type="button" onClick={onCurate} aria-label={`${catalogActionLabel} ${candidate.title}`}>
+                <ShieldCheck size={16} />
+                <span>Catalogo</span>
+              </button>
+            )}
             <ActionMenu
               label={candidate.title}
               triggerClassName="candidate-icon-action card-menu-trigger"
@@ -2532,15 +2568,18 @@ function ItemIdentity({ item }: { item: ListItem }) {
 function CandidateDialog({
   candidate,
   onClose,
+  onCurate,
   onDismiss,
   onSave,
 }: {
   candidate: DiscoveryCandidate
   onClose: () => void
+  onCurate?: () => void
   onDismiss: () => void
   onSave: () => void
 }) {
   const isQueued = candidate.status === 'queued'
+  const catalogActionLabel = candidate.source === 'nexo' ? 'Editar catalogo' : 'Crear ficha publica'
 
   return (
     <div className="modal-backdrop" role="presentation">
@@ -2569,6 +2608,12 @@ function CandidateDialog({
                 <Plus size={16} />
                 Guardar en Biblioteca
               </button>
+              {onCurate && (
+                <button className="secondary-button" type="button" onClick={onCurate}>
+                  <ShieldCheck size={16} />
+                  {catalogActionLabel}
+                </button>
+              )}
               <button className="ghost-button danger-text" type="button" onClick={onDismiss}>
                 <X size={16} />
                 Descartar
@@ -3192,6 +3237,33 @@ function blankPublicCatalogItem(type: ItemType = 'book'): PublicCatalogItem {
     createdBy: 'moderator',
     updatedBy: 'moderator',
   }
+}
+
+function publicCatalogDraftFromCandidate(candidate: DiscoveryCandidate): PublicCatalogItem {
+  const draft = blankPublicCatalogItem(candidate.type)
+  const snapshot = candidate.publicSnapshot
+
+  return {
+    ...draft,
+    id: snapshot?.id ?? '',
+    title: candidate.title,
+    type: candidate.type,
+    description: candidate.overview ?? snapshot?.description,
+    releaseYear: candidate.releaseYear ?? snapshot?.releaseYear,
+    genres: uniqueValues(snapshot?.genres ?? candidate.genres),
+    tags: snapshot?.tags ?? publicCatalogTagsFromCandidate(candidate),
+    moodTags: uniqueValues(snapshot?.moodTags ?? candidate.moodTags),
+    externalRefs: snapshot?.externalRefs ?? candidate.externalRefs,
+    posterUrl: candidate.posterUrl ?? snapshot?.posterUrl,
+    canonicalKey: snapshot?.canonicalKey ?? '',
+    createdAt: snapshot?.updatedAt ?? candidate.createdAt,
+    updatedAt: snapshot?.updatedAt ?? draft.updatedAt,
+  }
+}
+
+function publicCatalogTagsFromCandidate(candidate: DiscoveryCandidate) {
+  const technicalTags = new Set([candidate.type, candidate.source, 'nexo', 'prompt'].map(normalizeKey))
+  return uniqueValues(candidate.tags.filter((tag) => !technicalTags.has(normalizeKey(tag))))
 }
 
 function catalogQualityWarnings(item: Pick<PublicCatalogItem, 'description' | 'genres' | 'posterUrl' | 'tags'>) {
