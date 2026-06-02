@@ -241,6 +241,8 @@ const promptDeck = [
   'Un pendiente que merezca segunda oportunidad',
 ]
 
+const curationStarterTypes: ItemType[] = ['book', 'game', 'movie', 'series', 'anime', 'manga']
+
 const blankItem = (): ListItem => ({
   id: `manual-${Date.now()}`,
   title: '',
@@ -1642,6 +1644,10 @@ function CurationTab({ library }: { library: LibrarySurface }) {
     setSortMode('quality')
   }
 
+  function startNewCatalogItem(type: ItemType = 'book') {
+    setEditingItem(blankPublicCatalogItem(type))
+  }
+
   return (
     <section className="content-grid">
       <section className="workspace-panel wide">
@@ -1650,10 +1656,25 @@ function CurationTab({ library }: { library: LibrarySurface }) {
             <h2>Catalogo Nexo</h2>
             <p>Catalogo compartido visible para usuarios logueados</p>
           </div>
-          <button className="primary-button" type="button" onClick={() => setEditingItem(blankPublicCatalogItem())}>
+          <button className="primary-button" type="button" onClick={() => startNewCatalogItem()}>
             <Plus size={18} />
             Nueva entrada
           </button>
+        </div>
+        <div className="curation-starter-strip" aria-label="Crear entrada por tipo">
+          <span>Crear como</span>
+          <div>
+            {curationStarterTypes.map((type) => {
+              const Icon = typeIcons[type]
+
+              return (
+                <button key={type} type="button" onClick={() => startNewCatalogItem(type)} aria-label={`Crear ${typeLabels[type]}`}>
+                  <Icon size={15} />
+                  {typeLabels[type]}
+                </button>
+              )
+            })}
+          </div>
         </div>
         <form
           className="explorer-search two"
@@ -1743,7 +1764,7 @@ function CurationTab({ library }: { library: LibrarySurface }) {
             title="Sin entradas publicas"
             detail="Crea la primera ficha curada o prueba otra busqueda."
             action={
-              <button className="primary-button" type="button" onClick={() => setEditingItem(blankPublicCatalogItem())}>
+              <button className="primary-button" type="button" onClick={() => startNewCatalogItem()}>
                 <Plus size={16} />
                 Crear ficha publica
               </button>
