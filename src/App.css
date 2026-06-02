@@ -431,6 +431,59 @@
   gap: 12px;
 }
 
+.account-card {
+  align-items: center;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 48px minmax(0, 1fr);
+  margin-bottom: 14px;
+  padding: 12px;
+}
+
+.account-avatar {
+  align-items: center;
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 42%, var(--border));
+  border-radius: 8px;
+  color: var(--accent-dark);
+  display: inline-flex;
+  font-weight: 900;
+  height: 48px;
+  justify-content: center;
+  width: 48px;
+}
+
+.account-avatar.small {
+  height: 38px;
+  width: 38px;
+}
+
+.account-card strong,
+.role-person strong {
+  color: var(--text-strong);
+  display: block;
+  font-size: 13px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-card span:not(.account-avatar),
+.role-person span:not(.account-avatar) {
+  color: var(--muted);
+  display: block;
+  font-size: 12px;
+  margin-top: 3px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .role-list {
   display: grid;
   gap: 10px;
@@ -443,28 +496,41 @@
   border-radius: 8px;
   display: grid;
   gap: 10px;
-  grid-template-columns: minmax(0, 1fr) 150px;
+  grid-template-columns: minmax(0, 1fr) minmax(190px, 230px);
   padding: 12px;
 }
 
-.role-row strong,
-.role-row span {
-  display: block;
+.role-person {
+  align-items: center;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 38px minmax(0, 1fr);
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-.role-row strong {
-  color: var(--text-strong);
-  font-size: 13px;
+.role-control {
+  align-items: center;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr);
 }
 
-.role-row span {
+.role-badge {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
   color: var(--muted);
   font-size: 12px;
-  margin-top: 3px;
+  font-weight: 850;
+  line-height: 1;
+  padding: 7px 9px;
+  text-align: center;
+}
+
+.role-badge.elevated {
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+  color: var(--accent-dark);
 }
 
 .settings-panel,
@@ -506,6 +572,21 @@
 .settings-status.pending span,
 .settings-status.pending strong {
   color: var(--accent-dark);
+}
+
+.settings-overview {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.settings-overview .metric-card {
+  box-shadow: none;
+  padding: 12px;
+}
+
+.settings-overview .metric-card strong {
+  font-size: 20px;
 }
 
 .settings-section {
@@ -2258,6 +2339,7 @@ textarea:focus-visible {
   .controls-grid,
   .form-grid,
   .role-row,
+  .settings-overview,
   .detail-dialog,
   .editor-hero,
   .recommendation-head {

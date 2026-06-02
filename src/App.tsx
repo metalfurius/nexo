@@ -1240,6 +1240,8 @@ function SettingsTab({
   const draftFavoriteTags = splitList(draft.favoriteTags)
   const draftFavoriteGenres = splitList(draft.favoriteGenres)
   const draftBlockedTags = splitList(draft.blockedTags)
+  const accountLabel = user?.displayName ?? user?.email ?? 'Sesion demo'
+  const accountInitial = accountLabel.slice(0, 1).toUpperCase()
   const hasUnsavedChanges =
     draft.theme !== theme ||
     draft.explorerDefaultType !== library.settings.explorerDefaultType ||
@@ -1289,6 +1291,12 @@ function SettingsTab({
         <div className={hasUnsavedChanges ? 'settings-status pending' : 'settings-status'}>
           <span>{hasUnsavedChanges ? 'Cambios pendientes' : 'Sin cambios pendientes'}</span>
           <strong>{typeLabels[draft.explorerDefaultType]}</strong>
+        </div>
+
+        <div className="settings-overview" aria-label="Resumen de ajustes">
+          <MetricCard label="Favoritos" value={draftFavoriteGenres.length + draftFavoriteTags.length} />
+          <MetricCard label="Bloqueados" value={draftBlockedTags.length} />
+          <MetricCard label="Explorador" value={typeLabels[draft.explorerDefaultType]} />
         </div>
 
         <div className="settings-section">
@@ -1361,11 +1369,18 @@ function SettingsTab({
           <div className="panel-heading compact">
             <div>
               <h2>Cuenta</h2>
-              <p className="muted-line">{user?.displayName ?? user?.email ?? 'Sesion activa'}</p>
+              <p className="muted-line">{user?.email ?? 'Sesion activa'}</p>
             </div>
             <span className={library.isModerator ? 'mode-pill moderator' : 'mode-pill'}>
               {roleLabels[library.userRole]}
             </span>
+          </div>
+          <div className="account-card">
+            <span className="account-avatar">{accountInitial}</span>
+            <div>
+              <strong>{accountLabel}</strong>
+              <span>{library.isModerator ? 'Puede curar catalogo publico' : 'Biblioteca privada activa'}</span>
+            </div>
           </div>
           <div className="account-panel">
             <label>
@@ -1448,22 +1463,30 @@ function AdminRolesPanel({
             const isCurrentUser = profile.uid === currentUserId
             return (
               <div className="role-row" key={profile.uid}>
-                <div>
-                  <strong>{label}</strong>
-                  <span>{profile.email || profile.uid}</span>
+                <div className="role-person">
+                  <span className="account-avatar small">{label.slice(0, 1).toUpperCase()}</span>
+                  <div>
+                    <strong>{label}</strong>
+                    <span>{profile.email || profile.uid}</span>
+                  </div>
                 </div>
-                <select
-                  aria-label={`Rol de ${label}`}
-                  disabled={isCurrentUser}
-                  value={profile.role}
-                  onChange={(event) => void changeRole(profile, event.target.value as UserRole)}
-                >
-                  {USER_ROLES.map((role) => (
-                    <option key={role} value={role}>
-                      {roleLabels[role]}
-                    </option>
-                  ))}
-                </select>
+                <div className="role-control">
+                  <span className={profile.role === 'user' ? 'role-badge' : 'role-badge elevated'}>
+                    {roleLabels[profile.role]}
+                  </span>
+                  <select
+                    aria-label={`Rol de ${label}`}
+                    disabled={isCurrentUser}
+                    value={profile.role}
+                    onChange={(event) => void changeRole(profile, event.target.value as UserRole)}
+                  >
+                    {USER_ROLES.map((role) => (
+                      <option key={role} value={role}>
+                        {roleLabels[role]}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
             )
           })}
