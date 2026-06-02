@@ -17,7 +17,7 @@
   --mark-other-text: #b9a8ff;
   --mark-watch-bg: #1a2c43;
   --mark-watch-text: #91bfff;
-  --modal-backdrop: rgba(0, 0, 0, 0.62);
+  --modal-backdrop: rgba(0, 0, 0, 0.78);
   --muted: #b6c3c7;
   --surface: #0f1214;
   --surface-muted: #14191c;
@@ -62,7 +62,7 @@
   --mark-other-text: #7b3eb6;
   --mark-watch-bg: #e8f0ff;
   --mark-watch-text: #315bb5;
-  --modal-backdrop: rgba(22, 24, 29, 0.32);
+  --modal-backdrop: rgba(22, 24, 29, 0.54);
   --muted: #5f6970;
   --surface: #f8faf9;
   --surface-muted: #eef3f4;

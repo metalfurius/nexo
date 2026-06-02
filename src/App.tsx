@@ -3489,6 +3489,7 @@ function ItemEditor({
   const tagPresets = catalogTagPresets[draft.type].slice(0, 8)
   const moodPresets = catalogMoodPresets.slice(0, 9)
   const taxonomyTemplates = catalogTaxonomyTemplates[draft.type].slice(0, 3)
+  const starterTemplates = catalogTaxonomyTemplates[draft.type].slice(0, 4)
   const readiness = getPersonalEditorReadiness({
     ...draft,
     genres: selectedGenres,
@@ -3594,6 +3595,55 @@ function ItemEditor({
                 {check.done ? <Check size={13} /> : <X size={13} />}
                 {check.label}
               </span>
+            ))}
+          </div>
+        </section>
+
+        <section className="personal-template-panel" aria-label="Inicio rapido de entrada">
+          <div className="personal-template-heading">
+            <div>
+              <span className="eyebrow">Inicio rapido</span>
+              <strong>Parte de una receta</strong>
+              <p>Elige medio y aplica una base de generos, tags y tono antes de ajustar detalles.</p>
+            </div>
+            <label>
+              Medio
+              <select
+                aria-label="Medio de inicio rapido"
+                value={draft.type}
+                onChange={(event) => update('type', event.target.value as ItemType)}
+              >
+                {ITEM_TYPES.map((type) => (
+                  <option key={type} value={type}>
+                    {typeLabels[type]}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div className="personal-template-grid">
+            {starterTemplates.map((template) => (
+              <button
+                aria-label={`Aplicar plantilla ${template.label} para ${typeLabels[draft.type]}`}
+                className="personal-template-card"
+                key={template.label}
+                type="button"
+                onClick={() => applyDraftTaxonomyTemplate(template)}
+              >
+                <span>
+                  <Sparkles size={15} />
+                  <strong>{template.label}</strong>
+                </span>
+                <small>{template.detail}</small>
+                <div>
+                  {template.genres.slice(0, 2).map((genre) => (
+                    <em key={genre}>{genre}</em>
+                  ))}
+                  {template.moodTags.slice(0, 1).map((mood) => (
+                    <em key={mood}>{mood}</em>
+                  ))}
+                </div>
+              </button>
             ))}
           </div>
         </section>
