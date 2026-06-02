@@ -957,9 +957,81 @@ label {
   color: var(--accent-dark);
 }
 
+.explorer-source-strip {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: -4px 0 16px;
+}
+
+.source-filter-chip {
+  align-items: center;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  cursor: pointer;
+  display: grid;
+  gap: 2px 8px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-height: 52px;
+  padding: 8px 10px;
+  text-align: left;
+  transition:
+    background var(--motion-fast) ease,
+    border-color var(--motion-fast) ease,
+    color var(--motion-fast) ease,
+    transform var(--motion-fast) var(--motion-ease);
+}
+
+.source-filter-chip:hover {
+  background: var(--surface);
+  color: var(--text-strong);
+  transform: translateY(-1px);
+}
+
+.source-filter-chip span {
+  color: var(--text-strong);
+  font-size: 13px;
+  font-weight: 850;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.source-filter-chip small {
+  font-size: 11px;
+  grid-column: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.source-filter-chip strong {
+  align-items: center;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-strong);
+  display: inline-flex;
+  font-size: 12px;
+  grid-row: 1 / span 2;
+  justify-content: center;
+  min-width: 32px;
+  padding: 6px 8px;
+}
+
+.source-filter-chip.active {
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  color: var(--accent-dark);
+}
+
 .candidate-feed-header {
   align-items: flex-end;
   display: flex;
+  gap: 12px;
   justify-content: space-between;
   margin: 0 0 14px;
 }
@@ -974,6 +1046,22 @@ label {
   color: var(--muted);
   font-size: 13px;
   margin: 4px 0 0;
+}
+
+.feed-count-pill {
+  align-items: center;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 850;
+  justify-content: center;
+  min-height: 32px;
+  padding: 0 10px;
+  white-space: nowrap;
 }
 
 .item-grid,
@@ -2886,6 +2974,16 @@ textarea:focus-visible {
 
   .catalog-filter-tabs {
     grid-template-columns: 1fr;
+  }
+
+  .explorer-source-strip {
+    display: flex;
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+
+  .source-filter-chip {
+    flex: 0 0 158px;
   }
 
   .curation-starter-strip {

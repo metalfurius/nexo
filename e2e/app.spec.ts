@@ -111,6 +111,12 @@ test('explorer searches public catalog and saves to private library', async ({ p
   await page.getByLabel('Buscar en explorador').fill('Odisea')
   await page.getByRole('button', { name: 'Buscar' }).click()
 
+  await expect(page.getByRole('button', { name: /APIs/ })).toBeVisible()
+  await page.getByRole('button', { name: /APIs/ }).click()
+  await expect(page.getByText('Odisea').first()).toBeVisible()
+  await page.getByRole('button', { name: /Nexo/ }).click()
+  await expect(page.getByRole('heading', { name: 'Sin resultados Nexo' })).toBeVisible()
+  await page.getByRole('button', { name: 'Ver todos los origenes' }).click()
   await expect(page.getByText('Odisea').first()).toBeVisible()
   await page.getByRole('button', { name: 'Mas acciones Odisea' }).click()
   await expect(page.getByRole('menu', { name: 'Acciones Odisea' })).toBeVisible()

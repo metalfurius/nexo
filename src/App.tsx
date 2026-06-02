@@ -215,6 +215,7 @@ function feedbackToneFromText(message: string): FeedbackTone {
 type AppTab = 'library' | 'dice' | 'explorer' | 'settings' | 'curation'
 type CatalogQualityFilter = 'all' | 'needs-work' | 'ready'
 type CatalogSortMode = 'quality' | 'title' | 'updated'
+type ExplorerSourceFilter = 'all' | 'nexo' | 'external' | 'prompt'
 
 interface DiceEligibilityBreakdown {
   available: number
@@ -242,6 +243,13 @@ const promptDeck = [
 ]
 
 const curationStarterTypes: ItemType[] = ['book', 'game', 'movie', 'series', 'anime', 'manga']
+
+const explorerSourceFilters: Array<{ id: ExplorerSourceFilter; label: string; detail: string }> = [
+  { id: 'all', label: 'Todo', detail: 'Toda la vista' },
+  { id: 'nexo', label: 'Nexo', detail: 'Catalogo local' },
+  { id: 'external', label: 'APIs', detail: 'Fuentes externas' },
+  { id: 'prompt', label: 'Ideas', detail: 'Cartas manuales' },
+]
 
 const blankItem = (): ListItem => ({
   id: `manual-${Date.now()}`,
@@ -1018,6 +1026,7 @@ function DiceTab({ library }: { library: LibrarySurface }) {
 function ExplorerTab({ library }: { library: LibrarySurface }) {
   const [query, setQuery] = useState('')
   const [view, setView] = useState<DiscoveryStatus>('queued')
+  const [sourceFilter, setSourceFilter] = useState<ExplorerSourceFilter>('all')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<string | undefined>()
   const [selected, setSelected] = useState<DiscoveryCandidate | undefined>()
@@ -1030,11 +1039,24 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
     }
     return counts
   }, [library.discoveryCandidates])
-  const visibleCandidates = library.discoveryCandidates.filter((candidate) => candidate.status === view)
+  const candidatesInView = library.discoveryCandidates.filter((candidate) => candidate.status === view)
+  const sourceCounts = useMemo(() => {
+    const counts: Record<ExplorerSourceFilter, number> = { all: candidatesInView.length, nexo: 0, external: 0, prompt: 0 }
+    for (const candidate of candidatesInView) {
+      counts[getDiscoverySourceFilter(candidate)] += 1
+    }
+    return counts
+  }, [candidatesInView])
+  const visibleCandidates =
+    sourceFilter === 'all'
+      ? candidatesInView
+      : candidatesInView.filter((candidate) => getDiscoverySourceFilter(candidate) === sourceFilter)
   const queuedCandidates = library.discoveryCandidates.filter((candidate) => candidate.status === 'queued')
   const queuedNexoCount = queuedCandidates.filter((candidate) => candidate.source === 'nexo').length
   const queuedExternalCount = queuedCandidates.filter((candidate) => candidate.source !== 'nexo' && candidate.source !== 'prompt').length
   const queuedPromptCount = queuedCandidates.filter((candidate) => candidate.source === 'prompt').length
+  const activeSourceLabel = explorerSourceFilters.find((filter) => filter.id === sourceFilter)?.label ?? 'Todo'
+  const isSourceFilteredEmpty = sourceFilter !== 'all' && candidatesInView.length > 0 && visibleCandidates.length === 0
 
   async function changeSearchType(nextType: ExplorerSearchType) {
     setMessage(undefined)
@@ -1135,6 +1157,17 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
     }
   }
 
+  const emptyExplorerAction = isSourceFilteredEmpty ? (
+    <button className="secondary-button" type="button" onClick={() => setSourceFilter('all')}>
+      Ver todos los origenes
+    </button>
+  ) : view === 'queued' ? (
+    <button className="secondary-button" type="button" onClick={addPromptCard}>
+      <Sparkles size={16} />
+      Anadir carta sorpresa
+    </button>
+  ) : undefined
+
   return (
     <section className="content-grid">
       <section className="workspace-panel wide">
@@ -1200,6 +1233,22 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
           ))}
         </div>
 
+        <div className="explorer-source-strip" role="group" aria-label="Filtrar descubrimientos por origen">
+          {explorerSourceFilters.map((filter) => (
+            <button
+              aria-pressed={sourceFilter === filter.id}
+              className={sourceFilter === filter.id ? 'source-filter-chip active' : 'source-filter-chip'}
+              key={filter.id}
+              type="button"
+              onClick={() => setSourceFilter(filter.id)}
+            >
+              <span>{filter.label}</span>
+              <small>{filter.detail}</small>
+              <strong>{sourceCounts[filter.id]}</strong>
+            </button>
+          ))}
+        </div>
+
         <div className="candidate-feed-header">
           <div>
             <h3>{discoveryStatusLabels[view]}</h3>
@@ -1209,6 +1258,9 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
                 : 'Historial ligero de decisiones del explorador.'}
             </p>
           </div>
+          <span className="feed-count-pill">
+            {visibleCandidates.length} / {candidatesInView.length} {activeSourceLabel}
+          </span>
         </div>
 
         {visibleCandidates.length ? (
@@ -1228,16 +1280,13 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
           <EmptyState
             icon={view === 'queued' ? Sparkles : view === 'saved' ? CheckCircle2 : X}
             tone={view === 'dismissed' ? 'muted' : 'neutral'}
-            title={discoveryEmptyCopy[view].title}
-            detail={discoveryEmptyCopy[view].detail}
-            action={
-              view === 'queued' ? (
-                <button className="secondary-button" type="button" onClick={addPromptCard}>
-                  <Sparkles size={16} />
-                  Anadir carta sorpresa
-                </button>
-              ) : undefined
+            title={isSourceFilteredEmpty ? `Sin resultados ${activeSourceLabel}` : discoveryEmptyCopy[view].title}
+            detail={
+              isSourceFilteredEmpty
+                ? 'Este estado tiene hallazgos, pero ninguno coincide con el origen seleccionado.'
+                : discoveryEmptyCopy[view].detail
             }
+            action={emptyExplorerAction}
           />
         )}
       </section>
@@ -2066,6 +2115,12 @@ function DiscoveryCard({
       </div>
     </article>
   )
+}
+
+function getDiscoverySourceFilter(candidate: DiscoveryCandidate): ExplorerSourceFilter {
+  if (candidate.source === 'nexo') return 'nexo'
+  if (candidate.source === 'prompt') return 'prompt'
+  return 'external'
 }
 
 function ItemCard({
