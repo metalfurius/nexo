@@ -112,6 +112,32 @@ test('explorer searches public catalog and saves to private library', async ({ p
   await expect(page.getByRole('tab', { name: /Guardados 1/ })).toBeVisible()
   await page.getByRole('button', { name: 'Biblioteca' }).click()
   await expect(page.getByTestId('library-grid')).toContainText('Odisea')
+  await page.locator('.item-main').filter({ hasText: 'Odisea' }).click()
+  const editor = page.getByRole('dialog', { name: 'Entrada' })
+  await expect(editor).toContainText('Origen')
+  await expect(editor).toContainText('API externa')
+  await expect(editor).toContainText('Esta ficha vive solo en tu biblioteca privada.')
+})
+
+test('library editor explains private copies from the Nexo catalog', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Explorador' }).click()
+  await page.getByLabel('Tipo de busqueda en explorador').selectOption('book')
+  await page.getByLabel('Buscar en explorador').fill('Odisea')
+  await page.getByRole('button', { name: 'Buscar' }).click()
+
+  const nexoCard = page.locator('.discovery-card').filter({ hasText: 'Nexo' }).filter({ hasText: 'Odisea' })
+  await expect(nexoCard).toBeVisible()
+  await nexoCard.getByRole('button', { name: 'Guardar Odisea' }).click()
+
+  await page.getByRole('button', { name: 'Biblioteca' }).click()
+  await expect(page.getByTestId('library-grid')).toContainText('Odisea')
+  await page.locator('.item-main').filter({ hasText: 'Odisea' }).click()
+
+  const editor = page.getByRole('dialog', { name: 'Entrada' })
+  await expect(editor).toContainText('Catalogo Nexo')
+  await expect(editor).toContainText('Tus notas, rating, estado, progreso y pesos del dado no cambian el catalogo publico.')
+  await expect(editor).toContainText('Referencias')
 })
 
 test('moderator curation can create a public catalog item in demo mode', async ({ page }) => {

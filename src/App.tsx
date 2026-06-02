@@ -44,6 +44,7 @@ import {
   type DiscoveryCandidate,
   type DiscoveryStatus,
   type EnergyLevel,
+  type ExternalRefs,
   type ExplorerSearchType,
   type IntensityLevel,
   type ItemStatus,
@@ -149,6 +150,22 @@ const roleLabels: Record<UserRole, string> = {
   admin: 'Admin',
   moderator: 'Moderador',
   user: 'Usuario',
+}
+
+const itemSourceLabels: Record<ListItem['source'], string> = {
+  manual: 'Manual',
+  markdown: 'Importacion',
+  external: 'API externa',
+  public: 'Catalogo Nexo',
+}
+
+const externalRefLabels: Record<keyof ExternalRefs, string> = {
+  tmdbId: 'TMDB',
+  rawgId: 'RAWG',
+  openLibraryKey: 'Open Library',
+  anilistId: 'AniList',
+  wikidataId: 'Wikidata',
+  sourceUrl: 'URL',
 }
 
 const typeIcons: Record<ItemType, typeof Film> = {
@@ -2793,7 +2810,7 @@ function ItemEditor({
           <CoverArt title={editorTitle} type={draft.type} posterUrl={draft.posterUrl} />
           <div className="editor-summary">
             <div className="detail-meta">
-              <span>{draft.source}</span>
+              <span>{itemSourceLabels[draft.source]}</span>
               <span>{statusLabels[draft.status]}</span>
               {draft.rating && <span>{draft.rating}/10</span>}
               {draft.publicItemId && <span>Nexo</span>}
@@ -2802,6 +2819,8 @@ function ItemEditor({
             <p>{draft.notes || 'Sin notas todavia.'}</p>
           </div>
         </div>
+
+        <OriginSummary item={draft} />
 
         <section className="editor-section">
           <h3>Identidad</h3>
@@ -3284,6 +3303,59 @@ function PreferencePreview({ label, tone, values }: { label: string; tone?: 'dan
   )
 }
 
+function OriginSummary({ item }: { item: ListItem }) {
+  const externalRefs = getExternalRefEntries(item.externalRefs)
+  const importNotes = item.importNotes ?? []
+  const hasOriginDetails = item.source !== 'manual' || item.publicSnapshot || externalRefs.length > 0 || importNotes.length > 0
+
+  if (!hasOriginDetails) return null
+
+  const sourceDetail =
+    item.source === 'public'
+      ? 'Copia privada vinculada al catalogo publico.'
+      : item.source === 'external'
+        ? 'Guardada desde busqueda externa.'
+        : item.source === 'markdown'
+          ? 'Importada desde un archivo markdown.'
+          : 'Entrada creada manualmente.'
+  const privacyDetail = item.publicItemId
+    ? 'Tus notas, rating, estado, progreso y pesos del dado no cambian el catalogo publico.'
+    : 'Esta ficha vive solo en tu biblioteca privada.'
+
+  return (
+    <section className="origin-panel" aria-label="Origen de la entrada">
+      <div className="origin-panel-heading">
+        <span>
+          <Info size={16} />
+        </span>
+        <div>
+          <h3>Origen</h3>
+          <p>{privacyDetail}</p>
+        </div>
+      </div>
+      <div className="origin-fact-grid">
+        <OriginFact label="Fuente" value={itemSourceLabels[item.source]} detail={sourceDetail} />
+        {item.publicItemId && <OriginFact label="Catalogo" value={item.publicSnapshot?.title ?? item.publicItemId} detail={item.publicItemId} />}
+        {item.publicSnapshot?.updatedAt && (
+          <OriginFact label="Snapshot" value={formatDateLabel(item.publicSnapshot.updatedAt)} detail="Metadatos copiados al guardar." />
+        )}
+        {externalRefs.length > 0 && <OriginFact label="Referencias" value={`${externalRefs.length}`} detail={externalRefs.map((ref) => `${ref.label}: ${ref.value}`).join(' / ')} />}
+        {importNotes.length > 0 && <OriginFact label="Importacion" value={`${importNotes.length} notas`} detail={importNotes.slice(0, 2).join(' / ')} />}
+      </div>
+    </section>
+  )
+}
+
+function OriginFact({ detail, label, value }: { detail?: string; label: string; value: string }) {
+  return (
+    <div className="origin-fact">
+      <span>{label}</span>
+      <strong>{value}</strong>
+      {detail && <p>{detail}</p>}
+    </div>
+  )
+}
+
 function EmptyState({
   action,
   detail,
@@ -3423,6 +3495,27 @@ function splitList(value: string) {
 
 function mergeListText(currentText: string, additions: string[]) {
   return uniqueValues([...splitList(currentText), ...additions]).join(', ')
+}
+
+function getExternalRefEntries(refs?: ExternalRefs) {
+  if (!refs) return []
+
+  return (Object.entries(refs) as Array<[keyof ExternalRefs, string | undefined]>)
+    .filter(([, value]) => Boolean(value))
+    .map(([key, value]) => ({
+      label: externalRefLabels[key],
+      value: compactRefValue(value ?? ''),
+    }))
+}
+
+function compactRefValue(value: string) {
+  return value.length > 34 ? `${value.slice(0, 31)}...` : value
+}
+
+function formatDateLabel(value: string) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value.slice(0, 10)
+  return new Intl.DateTimeFormat('es', { day: '2-digit', month: 'short', year: 'numeric' }).format(date)
 }
 
 function getItemSubtitle(item: ListItem) {
