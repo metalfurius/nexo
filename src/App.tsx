@@ -149,6 +149,20 @@ const discoveryStatusLabels: Record<DiscoveryStatus, string> = {
   dismissed: 'Descartados',
 }
 
+const catalogIssueLabels: Record<CatalogIssueKey, string> = {
+  description: 'Sin descripcion',
+  genres: 'Sin generos',
+  tags: 'Sin tags',
+  poster: 'Sin portada',
+}
+
+const catalogIssueShortLabels: Record<CatalogIssueKey, string> = {
+  description: 'Descripcion',
+  genres: 'Generos',
+  tags: 'Tags',
+  poster: 'Portada',
+}
+
 const discoveryEmptyCopy: Record<DiscoveryStatus, { title: string; detail: string }> = {
   queued: {
     title: 'La cola esta limpia',
@@ -243,6 +257,8 @@ function feedbackToneFromText(message: string): FeedbackTone {
 
 type AppTab = 'library' | 'dice' | 'explorer' | 'settings' | 'curation'
 type CatalogQualityFilter = 'all' | 'needs-work' | 'ready'
+type CatalogIssueFilter = 'all' | 'description' | 'genres' | 'tags' | 'poster'
+type CatalogIssueKey = Exclude<CatalogIssueFilter, 'all'>
 type CatalogSortMode = 'quality' | 'title' | 'updated'
 type ExplorerSourceFilter = 'all' | 'nexo' | 'external' | 'prompt'
 
@@ -2247,6 +2263,7 @@ function AdminRolesPanel({
 function CurationTab({ library }: { library: LibrarySurface }) {
   const [query, setQuery] = useState('')
   const [qualityFilter, setQualityFilter] = useState<CatalogQualityFilter>('all')
+  const [issueFilter, setIssueFilter] = useState<CatalogIssueFilter>('all')
   const [typeFilter, setTypeFilter] = useState<ItemType | 'all'>('all')
   const [sortMode, setSortMode] = useState<CatalogSortMode>('quality')
   const [items, setItems] = useState<PublicCatalogItem[]>([])
@@ -2261,10 +2278,12 @@ function CurationTab({ library }: { library: LibrarySurface }) {
   const completeCount = items.length - incompleteCount
   const typeCount = new Set(items.map((item) => item.type)).size
   const reviewQueue = useMemo(() => getCatalogReviewQueue(items), [items])
-  const hasActiveCatalogFilters = qualityFilter !== 'all' || typeFilter !== 'all' || sortMode !== 'quality'
+  const catalogDiagnostics = useMemo(() => getCatalogDiagnostics(items), [items])
+  const hasActiveCatalogFilters = qualityFilter !== 'all' || issueFilter !== 'all' || typeFilter !== 'all' || sortMode !== 'quality'
   const visibleCatalogItems = useMemo(() => {
     return items
       .filter((item) => typeFilter === 'all' || item.type === typeFilter)
+      .filter((item) => issueFilter === 'all' || catalogQualityIssueKeys(item).includes(issueFilter))
       .filter((item) => {
         const warningCount = catalogQualityWarnings(item).length
         if (qualityFilter === 'needs-work') return warningCount > 0
@@ -2272,7 +2291,7 @@ function CurationTab({ library }: { library: LibrarySurface }) {
         return true
       })
       .sort((left, right) => sortCatalogItems(left, right, sortMode))
-  }, [items, qualityFilter, sortMode, typeFilter])
+  }, [issueFilter, items, qualityFilter, sortMode, typeFilter])
   const qualityFilters: Array<{ id: CatalogQualityFilter; label: string; value: number }> = [
     { id: 'all', label: 'Todo', value: items.length },
     { id: 'needs-work', label: 'Pendientes', value: incompleteCount },
@@ -2330,7 +2349,14 @@ function CurationTab({ library }: { library: LibrarySurface }) {
 
   function resetCatalogFilters() {
     setQualityFilter('all')
+    setIssueFilter('all')
     setTypeFilter('all')
+    setSortMode('quality')
+  }
+
+  function focusCatalogIssue(issue: CatalogIssueKey) {
+    setIssueFilter(issue)
+    setQualityFilter('needs-work')
     setSortMode('quality')
   }
 
@@ -2367,6 +2393,7 @@ function CurationTab({ library }: { library: LibrarySurface }) {
       setItems((current) => savedItems.reduce((nextItems, item) => upsertVisibleCatalogItem(nextItems, item), current))
       setHasLoaded(true)
       setQualityFilter('all')
+      setIssueFilter('all')
       setSortMode('updated')
       setStatus(`Importadas ${savedItems.length} entradas al catalogo`)
     } catch (reason) {
@@ -2449,6 +2476,55 @@ function CurationTab({ library }: { library: LibrarySurface }) {
             {isLoading ? 'Buscando' : 'Buscar'}
           </button>
         </form>
+        <section className="catalog-diagnostics-panel" aria-label="Diagnostico del catalogo publico" data-testid="catalog-diagnostics">
+          <div className="catalog-diagnostics-main">
+            <div>
+              <span className="eyebrow">Diagnostico</span>
+              <strong>{catalogDiagnostics.summaryLabel}</strong>
+              <p>{catalogDiagnostics.summaryCopy}</p>
+            </div>
+            <div className="catalog-diagnostics-score">
+              <strong>{catalogDiagnostics.coveragePercent}%</strong>
+              <span>
+                {catalogDiagnostics.readyCount}/{catalogDiagnostics.totalItems} completas
+              </span>
+            </div>
+          </div>
+          <div
+            aria-label={`Cobertura del catalogo ${catalogDiagnostics.coveragePercent}%`}
+            className="catalog-diagnostics-meter"
+            role="meter"
+            aria-valuemax={100}
+            aria-valuemin={0}
+            aria-valuenow={catalogDiagnostics.coveragePercent}
+          >
+            <span style={{ width: `${catalogDiagnostics.coveragePercent}%` }} />
+          </div>
+          <div className="catalog-issue-grid" aria-label="Pendientes por tipo de dato">
+            {catalogDiagnostics.issueStats.map((issue) => (
+              <button
+                aria-pressed={issueFilter === issue.id}
+                className={issueFilter === issue.id ? 'catalog-issue-card active' : 'catalog-issue-card'}
+                disabled={issue.count === 0}
+                key={issue.id}
+                type="button"
+                onClick={() => focusCatalogIssue(issue.id)}
+              >
+                <span>{issue.label}</span>
+                <strong>{issue.count}</strong>
+                <small>{issue.detail}</small>
+              </button>
+            ))}
+          </div>
+          {issueFilter !== 'all' && (
+            <div className="catalog-active-issue">
+              <span>Viendo {catalogIssueLabels[issueFilter].toLowerCase()}</span>
+              <button className="ghost-button" type="button" onClick={() => setIssueFilter('all')}>
+                Quitar foco
+              </button>
+            </div>
+          )}
+        </section>
         {reviewQueue.length > 0 && (
           <section className="catalog-review-panel" aria-label="Revision prioritaria del catalogo">
             <div className="catalog-review-heading">
@@ -2497,7 +2573,10 @@ function CurationTab({ library }: { library: LibrarySurface }) {
                 className={qualityFilter === filter.id ? 'catalog-filter-chip active' : 'catalog-filter-chip'}
                 key={filter.id}
                 type="button"
-                onClick={() => setQualityFilter(filter.id)}
+                onClick={() => {
+                  setQualityFilter(filter.id)
+                  if (filter.id !== 'needs-work') setIssueFilter('all')
+                }}
               >
                 <span>{filter.label}</span>
                 <strong>{filter.value}</strong>
@@ -4191,13 +4270,17 @@ function publicCatalogTagsFromCandidate(candidate: DiscoveryCandidate) {
   return uniqueValues(candidate.tags.filter((tag) => !technicalTags.has(normalizeKey(tag))))
 }
 
+function catalogQualityIssueKeys(item: Pick<PublicCatalogItem, 'description' | 'genres' | 'posterUrl' | 'tags'>): CatalogIssueKey[] {
+  const issues: CatalogIssueKey[] = []
+  if (!item.description?.trim()) issues.push('description')
+  if (!item.genres.length) issues.push('genres')
+  if (!item.tags.length) issues.push('tags')
+  if (!item.posterUrl?.trim()) issues.push('poster')
+  return issues
+}
+
 function catalogQualityWarnings(item: Pick<PublicCatalogItem, 'description' | 'genres' | 'posterUrl' | 'tags'>) {
-  const warnings: string[] = []
-  if (!item.description?.trim()) warnings.push('Sin descripcion')
-  if (!item.genres.length) warnings.push('Sin generos')
-  if (!item.tags.length) warnings.push('Sin tags')
-  if (!item.posterUrl?.trim()) warnings.push('Sin portada')
-  return warnings
+  return catalogQualityIssueKeys(item).map((issue) => catalogIssueLabels[issue])
 }
 
 function draftCatalogQualityWarnings(draft: { description?: string; genresText: string; posterUrl?: string; tagsText: string }) {
@@ -4219,6 +4302,45 @@ function getCatalogReviewQueue(items: PublicCatalogItem[]) {
       return right.item.updatedAt.localeCompare(left.item.updatedAt) || left.item.title.localeCompare(right.item.title, 'es')
     })
     .slice(0, 3)
+}
+
+function getCatalogDiagnostics(items: PublicCatalogItem[]) {
+  const issueStats = (Object.keys(catalogIssueLabels) as CatalogIssueKey[]).map((issue) => {
+    const count = items.filter((item) => catalogQualityIssueKeys(item).includes(issue)).length
+
+    return {
+      count,
+      detail: count === 1 ? '1 ficha pendiente' : `${count} fichas pendientes`,
+      id: issue,
+      label: catalogIssueShortLabels[issue],
+    }
+  })
+  const readyCount = items.filter((item) => catalogQualityIssueKeys(item).length === 0).length
+  const coveragePercent = items.length ? Math.round((readyCount / items.length) * 100) : 0
+  const strongestIssue = [...issueStats].sort((left, right) => right.count - left.count)[0]
+  const summaryLabel =
+    items.length === 0
+      ? 'Catalogo por empezar'
+      : readyCount === items.length
+        ? 'Catalogo listo'
+        : `${items.length - readyCount} fichas por pulir`
+  const summaryCopy =
+    items.length === 0
+      ? 'Crea una ficha o importa un seed para empezar la curacion compartida.'
+      : readyCount === items.length
+        ? 'Todas las entradas activas tienen descripcion, taxonomia y portada.'
+        : strongestIssue && strongestIssue.count > 0
+          ? `${strongestIssue.label} es el foco con mas trabajo ahora mismo.`
+          : 'Revisa las senales pendientes antes de la beta.'
+
+  return {
+    coveragePercent,
+    issueStats,
+    readyCount,
+    summaryCopy,
+    summaryLabel,
+    totalItems: items.length,
+  }
 }
 
 function upsertVisibleCatalogItem(items: PublicCatalogItem[], nextItem: PublicCatalogItem) {
