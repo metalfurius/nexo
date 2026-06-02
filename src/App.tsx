@@ -1811,6 +1811,10 @@ function SettingsTab({
   const accountInitial = accountLabel.slice(0, 1).toUpperCase()
   const queuedDiscoveryCount = library.discoveryCandidates.filter((candidate) => candidate.status === 'queued').length
   const resolvedDiscoveryCount = library.discoveryCandidates.length - queuedDiscoveryCount
+  const privateDataHealth = useMemo(
+    () => getPrivateDataHealth(library.items, library.discoveryCandidates),
+    [library.items, library.discoveryCandidates],
+  )
   const hasUnsavedChanges =
     draft.theme !== theme ||
     draft.explorerDefaultType !== library.settings.explorerDefaultType ||
@@ -2046,6 +2050,59 @@ function SettingsTab({
               <small>guardados o descartados</small>
             </div>
           </div>
+          <section className="private-health-card" aria-label="Salud de datos privados" data-testid="private-data-health">
+            <div className="private-health-header">
+              <div>
+                <span className="eyebrow">Salud de datos</span>
+                <strong>{privateDataHealth.summaryLabel}</strong>
+                <p>{privateDataHealth.summaryCopy}</p>
+              </div>
+              <span className={privateDataHealth.needsAttention ? 'mode-pill warning' : 'mode-pill moderator'}>
+                {privateDataHealth.needsAttention ? 'Revisar' : 'Lista'}
+              </span>
+            </div>
+            <div
+              aria-label={`Cobertura de taxonomia ${privateDataHealth.taxonomyCoveragePercent}%`}
+              className="private-health-meter"
+              role="meter"
+              aria-valuemax={100}
+              aria-valuemin={0}
+              aria-valuenow={privateDataHealth.taxonomyCoveragePercent}
+            >
+              <span style={{ width: `${privateDataHealth.taxonomyCoveragePercent}%` }} />
+            </div>
+            <div className="private-health-signals">
+              <div>
+                <span>Taxonomia</span>
+                <strong>
+                  {privateDataHealth.taxonomyReadyCount}/{privateDataHealth.totalItems}
+                </strong>
+                <small>
+                  {privateDataHealth.missingTaxonomyCount
+                    ? `${privateDataHealth.missingTaxonomyCount} sin generos/tags`
+                    : 'Dado entiende el tono'}
+                </small>
+              </div>
+              <div>
+                <span>Catalogo Nexo</span>
+                <strong>{privateDataHealth.publicCopyCount}</strong>
+                <small>copias con snapshot publico</small>
+              </div>
+              <div>
+                <span>Dado</span>
+                <strong>{privateDataHealth.diceReadyCount}</strong>
+                <small>{privateDataHealth.cooldownCount ? `${privateDataHealth.cooldownCount} en cooldown` : 'candidatos disponibles'}</small>
+              </div>
+            </div>
+            <div className="private-health-review" aria-label="Revisiones sugeridas">
+              {privateDataHealth.reviewItems.map((item) => (
+                <div className={item.tone === 'good' ? 'private-health-review-item good' : 'private-health-review-item'} key={item.label}>
+                  <span>{item.label}</span>
+                  <small>{item.detail}</small>
+                </div>
+              ))}
+            </div>
+          </section>
           <div className="data-safety-note">
             <ShieldCheck size={17} />
             <span>Tus notas, ratings, progreso y pesos viven bajo tu usuario. El catalogo Nexo no recibe esos cambios privados.</span>
@@ -4264,6 +4321,93 @@ function getRecentRecommendationItems(items: ListItem[]) {
     .filter((item) => Boolean(item.lastRecommendedAt))
     .sort((left, right) => (right.lastRecommendedAt ?? '').localeCompare(left.lastRecommendedAt ?? ''))
     .slice(0, 4)
+}
+
+function getPrivateDataHealth(items: ListItem[], candidates: DiscoveryCandidate[]) {
+  const now = Date.now()
+  const totalItems = items.length
+  const taxonomyReadyCount = items.filter((item) => item.genres.length + item.tags.length + item.moodTags.length > 0).length
+  const missingTaxonomyCount = totalItems - taxonomyReadyCount
+  const publicCopyCount = items.filter((item) => Boolean(item.publicItemId)).length
+  const contextualizedCount = items.filter((item) => typeof item.rating === 'number' || Boolean(item.notes?.trim())).length
+  const cooldownCount = items.filter((item) => {
+    if (!item.recommendationCooldownUntil) return false
+    const timestamp = Date.parse(item.recommendationCooldownUntil)
+    return Number.isFinite(timestamp) && timestamp > now
+  }).length
+  const diceReadyCount = items.filter((item) => {
+    if (item.status === 'completed' || item.status === 'dropped') return false
+    if (!item.recommendationCooldownUntil) return true
+    const timestamp = Date.parse(item.recommendationCooldownUntil)
+    return !Number.isFinite(timestamp) || timestamp <= now
+  }).length
+  const queuedDiscoveryCount = candidates.filter((candidate) => candidate.status === 'queued').length
+  const taxonomyCoveragePercent = totalItems ? Math.round((taxonomyReadyCount / totalItems) * 100) : 0
+  const needsAttention = totalItems === 0 || missingTaxonomyCount > 0 || diceReadyCount === 0
+  const summaryLabel =
+    totalItems === 0 ? 'Sin biblioteca todavia' : needsAttention ? 'Faltan senales privadas' : 'Biblioteca preparada'
+  const summaryCopy =
+    totalItems === 0
+      ? 'Crea o importa entradas para activar recomendaciones y backup con contenido.'
+      : needsAttention
+        ? 'Completa taxonomia o entradas vivas para que Dado y Explorador lean mejor tu biblioteca.'
+        : 'Taxonomia, privacidad y backup estan listos para seguir creciendo.'
+  const reviewItems: Array<{ label: string; detail: string; tone?: 'good' }> = []
+
+  if (totalItems === 0) {
+    reviewItems.push({
+      label: 'Primera entrada pendiente',
+      detail: 'Importa markdown, busca en Explorador o crea una ficha manual.',
+    })
+  } else {
+    if (missingTaxonomyCount > 0) {
+      reviewItems.push({
+        label: `${missingTaxonomyCount} sin taxonomia`,
+        detail: 'Anade generos, tags o mood tags para que el dado razone mejor.',
+      })
+    }
+    if (contextualizedCount < totalItems) {
+      reviewItems.push({
+        label: `${totalItems - contextualizedCount} sin rating ni notas`,
+        detail: 'No bloquea nada, pero baja la calidad de lectura personal.',
+      })
+    }
+    if (queuedDiscoveryCount > 0) {
+      reviewItems.push({
+        label: `${queuedDiscoveryCount} hallazgos pendientes`,
+        detail: 'Guarda o descarta la cola para mantener limpio el Explorador.',
+      })
+    }
+    if (cooldownCount > 0) {
+      reviewItems.push({
+        label: `${cooldownCount} en cooldown`,
+        detail: 'No entran hoy en el dado para evitar repeticion.',
+      })
+    }
+  }
+
+  if (reviewItems.length === 0) {
+    reviewItems.push({
+      label: 'Sin pendientes criticos',
+      detail: 'Tu biblioteca privada esta lista para backup y recomendaciones.',
+      tone: 'good',
+    })
+  }
+
+  return {
+    contextualizedCount,
+    cooldownCount,
+    diceReadyCount,
+    missingTaxonomyCount,
+    needsAttention,
+    publicCopyCount,
+    reviewItems: reviewItems.slice(0, 3),
+    summaryCopy,
+    summaryLabel,
+    taxonomyCoveragePercent,
+    taxonomyReadyCount,
+    totalItems,
+  }
 }
 
 function formatRecentRecommendationTime(value?: string) {
