@@ -2765,6 +2765,32 @@ function ItemEditor({
     setDraft((current) => ({ ...current, [key]: value }))
   }
   const editorTitle = draft.title.trim() || 'Nueva entrada'
+  const selectedGenres = splitList(draft.genresText)
+  const selectedTags = splitList(draft.tagsText)
+  const selectedMoodTags = splitList(draft.moodText)
+  const selectedGenreKeys = new Set(selectedGenres.map(normalizeKey))
+  const selectedTagKeys = new Set(selectedTags.map(normalizeKey))
+  const selectedMoodKeys = new Set(selectedMoodTags.map(normalizeKey))
+  const genrePresets = catalogGenrePresets[draft.type].slice(0, 10)
+  const tagPresets = catalogTagPresets[draft.type].slice(0, 8)
+  const moodPresets = catalogMoodPresets.slice(0, 9)
+  const taxonomyTemplates = catalogTaxonomyTemplates[draft.type].slice(0, 3)
+
+  function toggleDraftTextPreset(field: 'genresText' | 'tagsText' | 'moodText', value: string) {
+    setDraft((current) => ({
+      ...current,
+      [field]: toggleListTextValue(current[field], value),
+    }))
+  }
+
+  function applyDraftTaxonomyTemplate(template: CatalogTaxonomyTemplate) {
+    setDraft((current) => ({
+      ...current,
+      genresText: mergeListText(current.genresText, template.genres),
+      tagsText: mergeListText(current.tagsText, template.tags),
+      moodText: mergeListText(current.moodText, template.moodTags),
+    }))
+  }
 
   return (
     <div className="modal-backdrop" role="presentation">
@@ -2884,7 +2910,12 @@ function ItemEditor({
         </section>
 
         <section className="editor-section">
-          <h3>Taxonomia</h3>
+          <div className="editor-section-heading">
+            <div>
+              <h3>Taxonomia</h3>
+              <p>{selectedGenres.length + selectedTags.length + selectedMoodTags.length} senales para busqueda y dado</p>
+            </div>
+          </div>
           <label>
             Generos
             <input value={draft.genresText} onChange={(event) => update('genresText', event.target.value)} />
@@ -2897,6 +2928,39 @@ function ItemEditor({
             Mood tags
             <input value={draft.moodText} onChange={(event) => update('moodText', event.target.value)} />
           </label>
+          <div className="taxonomy-assistant">
+            <div className="taxonomy-template-list compact" aria-label={`Plantillas personales para ${typeLabels[draft.type]}`}>
+              {taxonomyTemplates.map((template) => (
+                <button className="taxonomy-template-button" key={template.label} type="button" onClick={() => applyDraftTaxonomyTemplate(template)}>
+                  <span>
+                    <Sparkles size={15} />
+                    <strong>{template.label}</strong>
+                  </span>
+                  <small>{template.detail}</small>
+                </button>
+              ))}
+            </div>
+            <div className="personal-taxonomy-grid">
+              <PresetChipGroup
+                label="Generos"
+                values={genrePresets}
+                selectedKeys={selectedGenreKeys}
+                onToggle={(value) => toggleDraftTextPreset('genresText', value)}
+              />
+              <PresetChipGroup
+                label="Tags"
+                values={tagPresets}
+                selectedKeys={selectedTagKeys}
+                onToggle={(value) => toggleDraftTextPreset('tagsText', value)}
+              />
+              <PresetChipGroup
+                label="Tono"
+                values={moodPresets}
+                selectedKeys={selectedMoodKeys}
+                onToggle={(value) => toggleDraftTextPreset('moodText', value)}
+              />
+            </div>
+          </div>
         </section>
 
         <section className="editor-section">
@@ -2906,7 +2970,7 @@ function ItemEditor({
               Prioridad
               <input
                 min="0"
-                step="0.1"
+                step="0.05"
                 type="number"
                 value={draft.weights.priority}
                 onChange={(event) => update('weights', { ...draft.weights, priority: Number(event.target.value) || 0 })}
@@ -2916,7 +2980,7 @@ function ItemEditor({
               Sorpresa
               <input
                 min="0"
-                step="0.1"
+                step="0.05"
                 type="number"
                 value={draft.weights.surprise}
                 onChange={(event) => update('weights', { ...draft.weights, surprise: Number(event.target.value) || 0 })}
@@ -2926,7 +2990,7 @@ function ItemEditor({
               Reto
               <input
                 min="0"
-                step="0.1"
+                step="0.05"
                 type="number"
                 value={draft.weights.challenge}
                 onChange={(event) => update('weights', { ...draft.weights, challenge: Number(event.target.value) || 0 })}
@@ -3303,6 +3367,45 @@ function PreferencePreview({ label, tone, values }: { label: string; tone?: 'dan
   )
 }
 
+function PresetChipGroup({
+  label,
+  onToggle,
+  selectedKeys,
+  values,
+}: {
+  label: string
+  onToggle: (value: string) => void
+  selectedKeys: Set<string>
+  values: string[]
+}) {
+  return (
+    <div className="preset-chip-panel compact">
+      <div className="preset-chip-heading">
+        <div>
+          <strong>{label}</strong>
+          <span>{values.filter((value) => selectedKeys.has(normalizeKey(value))).length} activos</span>
+        </div>
+      </div>
+      <div className="preset-chip-row" aria-label={`Sugerencias de ${label.toLowerCase()}`}>
+        {values.map((value) => {
+          const isActive = selectedKeys.has(normalizeKey(value))
+          return (
+            <button
+              aria-pressed={isActive}
+              className={isActive ? 'preset-chip active' : 'preset-chip'}
+              key={value}
+              type="button"
+              onClick={() => onToggle(value)}
+            >
+              {value}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 function OriginSummary({ item }: { item: ListItem }) {
   const externalRefs = getExternalRefEntries(item.externalRefs)
   const importNotes = item.importNotes ?? []
@@ -3495,6 +3598,16 @@ function splitList(value: string) {
 
 function mergeListText(currentText: string, additions: string[]) {
   return uniqueValues([...splitList(currentText), ...additions]).join(', ')
+}
+
+function toggleListTextValue(currentText: string, value: string) {
+  const currentValues = splitList(currentText)
+  const valueKey = normalizeKey(value)
+  const nextValues = currentValues.some((entry) => normalizeKey(entry) === valueKey)
+    ? currentValues.filter((entry) => normalizeKey(entry) !== valueKey)
+    : [...currentValues, value]
+
+  return nextValues.join(', ')
 }
 
 function getExternalRefEntries(refs?: ExternalRefs) {

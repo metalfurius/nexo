@@ -2094,6 +2094,34 @@ button:active:not(:disabled),
   gap: 8px;
 }
 
+.taxonomy-assistant {
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  padding: 11px;
+}
+
+.taxonomy-template-list.compact {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.taxonomy-template-list.compact .taxonomy-template-button {
+  gap: 4px;
+  padding: 9px;
+}
+
+.taxonomy-template-list.compact .taxonomy-template-button em {
+  display: none;
+}
+
+.personal-taxonomy-grid {
+  display: grid;
+  gap: 9px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .taxonomy-template-button {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -2177,6 +2205,12 @@ button:active:not(:disabled),
   display: grid;
   gap: 9px;
   padding: 11px;
+}
+
+.preset-chip-panel.compact {
+  background: var(--surface);
+  gap: 8px;
+  padding: 9px;
 }
 
 .preset-chip-panel strong {
@@ -2696,6 +2730,11 @@ textarea:focus-visible {
   }
 
   .origin-fact-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .taxonomy-template-list.compact,
+  .personal-taxonomy-grid {
     grid-template-columns: 1fr;
   }
 
