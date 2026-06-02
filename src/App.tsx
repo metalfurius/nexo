@@ -3126,6 +3126,8 @@ function PublicItemEditor({
   const tagPresets = catalogTagPresets[draft.type]
   const taxonomyTemplates = catalogTaxonomyTemplates[draft.type]
   const primaryTemplate = taxonomyTemplates[0]
+  const featuredGenrePresets = genrePresets.slice(0, 12)
+  const featuredTagPresets = tagPresets.slice(0, 10)
   const selectedTaxonomyCount = selectedGenres.length + selectedTags.length + selectedMoodTags.length
   const taxonomySignals = uniqueNormalizedValues([...selectedGenres, ...selectedTags, ...selectedMoodTags])
   const qualityChecklist = [
@@ -3185,6 +3187,27 @@ function PublicItemEditor({
     setDraft((current) => ({ ...current, genresText: '', tagsText: '', moodText: '' }))
   }
 
+  function changeDraftType(type: ItemType) {
+    setDraft((current) => {
+      if (current.type === type) return current
+
+      const hasTaxonomy =
+        splitList(current.genresText).length + splitList(current.tagsText).length + splitList(current.moodText).length > 0
+
+      if (hasTaxonomy) return { ...current, type }
+
+      const template = catalogTaxonomyTemplates[type][0]
+
+      return {
+        ...current,
+        type,
+        genresText: mergeListText('', template?.genres ?? []),
+        tagsText: mergeListText('', template?.tags ?? []),
+        moodText: mergeListText('', template?.moodTags ?? []),
+      }
+    })
+  }
+
   function completeMinimumDraft() {
     setDraft((current) => {
       const template = catalogTaxonomyTemplates[current.type][0]
@@ -3228,6 +3251,26 @@ function PublicItemEditor({
           <button className="icon-button" type="button" onClick={onClose} title="Cerrar">
             <X size={18} />
           </button>
+        </div>
+
+        <div className="catalog-type-switcher" role="group" aria-label="Medio publico de la entrada">
+          {ITEM_TYPES.map((type) => {
+            const Icon = typeIcons[type]
+            const isActive = draft.type === type
+
+            return (
+              <button
+                aria-pressed={isActive}
+                className={isActive ? 'catalog-type-button active' : 'catalog-type-button'}
+                key={type}
+                type="button"
+                onClick={() => changeDraftType(type)}
+              >
+                <Icon size={15} />
+                <span>{typeLabels[type]}</span>
+              </button>
+            )
+          })}
         </div>
 
         <div className="editor-hero catalog-editor-hero">
@@ -3297,7 +3340,7 @@ function PublicItemEditor({
               <div className="form-grid">
                 <label>
                   Tipo
-                  <select value={draft.type} onChange={(event) => setDraft((current) => ({ ...current, type: event.target.value as ItemType }))}>
+                  <select value={draft.type} onChange={(event) => changeDraftType(event.target.value as ItemType)}>
                     {ITEM_TYPES.map((type) => (
                       <option key={type} value={type}>
                         {typeLabels[type]}
@@ -3326,6 +3369,57 @@ function PublicItemEditor({
                 Poster o portada
                 <input value={draft.posterUrl ?? ''} onChange={(event) => setDraft((current) => ({ ...current, posterUrl: event.target.value || undefined }))} />
               </label>
+            </section>
+
+            <section className="editor-section catalog-taxonomy-workbench">
+              <div className="editor-section-heading">
+                <div>
+                  <h3>Taxonomia guiada</h3>
+                  <p>Usa chips predefinidos y deja el texto libre solo para ajustes finos.</p>
+                </div>
+                <span>{selectedTaxonomyCount} activos</span>
+              </div>
+              <div className="catalog-taxonomy-board">
+                <CatalogPresetField
+                  title="Generos"
+                  inputLabel="Generos"
+                  hint={selectedGenres.length ? `${selectedGenres.length} seleccionados` : 'Elige uno o varios'}
+                  value={draft.genresText}
+                  values={featuredGenrePresets}
+                  selectedKeys={selectedGenreKeys}
+                  suggestionsLabel={`Sugerencias de taxonomia para ${typeLabels[draft.type]}`}
+                  clearLabel="Limpiar generos"
+                  onChange={(value) => setDraft((current) => ({ ...current, genresText: value }))}
+                  onClear={() => clearTextPreset('genresText')}
+                  onToggle={(value) => toggleTextPreset('genresText', value)}
+                />
+                <CatalogPresetField
+                  title="Tags"
+                  inputLabel="Tags"
+                  hint={selectedTags.length ? `${selectedTags.length} seleccionados` : 'Senales para busqueda y dado'}
+                  value={draft.tagsText}
+                  values={featuredTagPresets}
+                  selectedKeys={selectedTagKeys}
+                  suggestionsLabel={`Sugerencias de tags para ${typeLabels[draft.type]}`}
+                  clearLabel="Limpiar tags"
+                  onChange={(value) => setDraft((current) => ({ ...current, tagsText: value }))}
+                  onClear={() => clearTextPreset('tagsText')}
+                  onToggle={(value) => toggleTextPreset('tagsText', value)}
+                />
+                <CatalogPresetField
+                  title="Tono"
+                  inputLabel="Mood tags"
+                  hint={selectedMoodTags.length ? `${selectedMoodTags.length} seleccionados` : 'Como se siente la obra'}
+                  value={draft.moodText}
+                  values={catalogMoodPresets}
+                  selectedKeys={selectedMoodKeys}
+                  suggestionsLabel="Sugerencias de tono"
+                  clearLabel="Limpiar tono"
+                  onChange={(value) => setDraft((current) => ({ ...current, moodText: value }))}
+                  onClear={() => clearTextPreset('moodText')}
+                  onToggle={(value) => toggleTextPreset('moodText', value)}
+                />
+              </div>
             </section>
           </div>
 
@@ -3361,108 +3455,6 @@ function PublicItemEditor({
                 ))}
               </div>
             </section>
-
-            <section className="editor-section">
-              <h3>Generos</h3>
-              <label>
-                Generos
-                <input value={draft.genresText} onChange={(event) => setDraft((current) => ({ ...current, genresText: event.target.value }))} />
-              </label>
-              <div className="preset-chip-panel">
-                <div className="preset-chip-heading">
-                  <div>
-                    <strong>Generos predefinidos</strong>
-                    <span>{selectedGenres.length ? `${selectedGenres.length} seleccionados` : 'Elige uno o varios'}</span>
-                  </div>
-                  {selectedGenres.length > 0 && (
-                    <button className="micro-icon-button" type="button" onClick={() => clearTextPreset('genresText')} title="Limpiar generos" aria-label="Limpiar generos">
-                      <X size={14} />
-                    </button>
-                  )}
-                </div>
-                <div className="preset-chip-row" aria-label={`Sugerencias de taxonomia para ${typeLabels[draft.type]}`}>
-                  {genrePresets.map((genre) => (
-                    <button
-                      aria-pressed={selectedGenreKeys.has(normalizeKey(genre))}
-                      className={selectedGenreKeys.has(normalizeKey(genre)) ? 'preset-chip active' : 'preset-chip'}
-                      key={genre}
-                      type="button"
-                      onClick={() => toggleTextPreset('genresText', genre)}
-                    >
-                      {genre}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </section>
-
-            <section className="editor-section">
-              <h3>Tags</h3>
-              <label>
-                Tags
-                <input value={draft.tagsText} onChange={(event) => setDraft((current) => ({ ...current, tagsText: event.target.value }))} />
-              </label>
-              <div className="preset-chip-panel">
-                <div className="preset-chip-heading">
-                  <div>
-                    <strong>Tags frecuentes</strong>
-                    <span>{selectedTags.length ? `${selectedTags.length} seleccionados` : 'Senales para busqueda y dado'}</span>
-                  </div>
-                  {selectedTags.length > 0 && (
-                    <button className="micro-icon-button" type="button" onClick={() => clearTextPreset('tagsText')} title="Limpiar tags" aria-label="Limpiar tags">
-                      <X size={14} />
-                    </button>
-                  )}
-                </div>
-                <div className="preset-chip-row" aria-label={`Sugerencias de tags para ${typeLabels[draft.type]}`}>
-                  {tagPresets.map((tag) => (
-                    <button
-                      aria-pressed={selectedTagKeys.has(normalizeKey(tag))}
-                      className={selectedTagKeys.has(normalizeKey(tag)) ? 'preset-chip active' : 'preset-chip'}
-                      key={tag}
-                      type="button"
-                      onClick={() => toggleTextPreset('tagsText', tag)}
-                    >
-                      {tag}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </section>
-
-            <section className="editor-section">
-              <h3>Tono</h3>
-              <label>
-                Mood tags
-                <input value={draft.moodText} onChange={(event) => setDraft((current) => ({ ...current, moodText: event.target.value }))} />
-              </label>
-              <div className="preset-chip-panel">
-                <div className="preset-chip-heading">
-                  <div>
-                    <strong>Tono predefinido</strong>
-                    <span>{selectedMoodTags.length ? `${selectedMoodTags.length} seleccionados` : 'Como se siente la obra'}</span>
-                  </div>
-                  {selectedMoodTags.length > 0 && (
-                    <button className="micro-icon-button" type="button" onClick={() => clearTextPreset('moodText')} title="Limpiar tono" aria-label="Limpiar tono">
-                      <X size={14} />
-                    </button>
-                  )}
-                </div>
-                <div className="preset-chip-row" aria-label="Sugerencias de tono">
-                  {catalogMoodPresets.map((moodTag) => (
-                    <button
-                      aria-pressed={selectedMoodKeys.has(normalizeKey(moodTag))}
-                      className={selectedMoodKeys.has(normalizeKey(moodTag)) ? 'preset-chip active' : 'preset-chip'}
-                      key={moodTag}
-                      type="button"
-                      onClick={() => toggleTextPreset('moodText', moodTag)}
-                    >
-                      {moodTag}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </section>
           </aside>
         </div>
 
@@ -3481,6 +3473,71 @@ function PublicItemEditor({
           </button>
         </div>
       </form>
+    </div>
+  )
+}
+
+function CatalogPresetField({
+  clearLabel,
+  hint,
+  inputLabel,
+  onChange,
+  onClear,
+  onToggle,
+  selectedKeys,
+  suggestionsLabel,
+  title,
+  value,
+  values,
+}: {
+  clearLabel: string
+  hint: string
+  inputLabel: string
+  onChange: (value: string) => void
+  onClear: () => void
+  onToggle: (value: string) => void
+  selectedKeys: Set<string>
+  suggestionsLabel: string
+  title: string
+  value: string
+  values: string[]
+}) {
+  const hasValue = splitList(value).length > 0
+
+  return (
+    <div className="catalog-preset-field">
+      <div className="preset-chip-heading">
+        <div>
+          <strong>{title}</strong>
+          <span>{hint}</span>
+        </div>
+        {hasValue && (
+          <button className="micro-icon-button" type="button" onClick={onClear} title={clearLabel} aria-label={clearLabel}>
+            <X size={14} />
+          </button>
+        )}
+      </div>
+      <label className="catalog-preset-input">
+        {inputLabel}
+        <input value={value} onChange={(event) => onChange(event.target.value)} />
+      </label>
+      <div className="preset-chip-row" aria-label={suggestionsLabel}>
+        {values.map((preset) => {
+          const isActive = selectedKeys.has(normalizeKey(preset))
+
+          return (
+            <button
+              aria-pressed={isActive}
+              className={isActive ? 'preset-chip active' : 'preset-chip'}
+              key={preset}
+              type="button"
+              onClick={() => onToggle(preset)}
+            >
+              {preset}
+            </button>
+          )
+        })}
+      </div>
     </div>
   )
 }

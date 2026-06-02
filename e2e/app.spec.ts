@@ -241,6 +241,7 @@ test('moderator curation can create a public catalog item in demo mode', async (
   await page.getByRole('button', { name: 'Crear Libros' }).click()
   const editor = page.locator('.item-editor')
   await expect(editor.getByLabel('Tipo')).toHaveValue('book')
+  await expect(editor.getByRole('group', { name: 'Medio publico de la entrada' })).toContainText('Libros')
   await editor.getByLabel('Titulo').fill('Solaris')
   await expect(editor.getByLabel('Curacion rapida')).toContainText('Falta Descripcion')
   await editor.getByRole('button', { name: 'Completar minimo' }).click()
