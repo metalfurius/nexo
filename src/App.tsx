@@ -1254,6 +1254,7 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
   const queuedPromptCount = queuedCandidates.filter((candidate) => candidate.source === 'prompt').length
   const activeSourceLabel = explorerSourceFilters.find((filter) => filter.id === sourceFilter)?.label ?? 'Todo'
   const isSourceFilteredEmpty = sourceFilter !== 'all' && candidatesInView.length > 0 && visibleCandidates.length === 0
+  const totalDiscoveryCount = library.discoveryCandidates.length
 
   async function changeSearchType(nextType: ExplorerSearchType) {
     setMessage(undefined)
@@ -1384,82 +1385,110 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
   return (
     <section className="content-grid">
       <section className="workspace-panel wide">
-        <div className="panel-heading">
-          <div>
-            <h2>Explorador</h2>
-            <p>Catalogo Nexo y APIs publicas en una cola ligera</p>
+        <div className="explorer-command">
+          <div className="explorer-command-heading">
+            <div>
+              <span className="eyebrow">Explorador</span>
+              <h2>Encuentra la proxima entrada</h2>
+              <p>Busca en Nexo y APIs publicas, manda resultados a una cola y decide sin ensuciar tu biblioteca.</p>
+            </div>
+            <button className="secondary-button" type="button" onClick={addPromptCard}>
+              <Sparkles size={17} />
+              Carta sorpresa
+            </button>
           </div>
-          <button className="secondary-button" type="button" onClick={addPromptCard}>
-            <Sparkles size={17} />
-            Carta sorpresa
-          </button>
+
+          <form
+            className="explorer-search explorer-command-search"
+            onSubmit={(event) => {
+              event.preventDefault()
+              void runDiscoverySearch()
+            }}
+          >
+            <label className="search-field explorer-query-field">
+              <Search size={18} />
+              <input
+                aria-label="Buscar en explorador"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Odisea, Arrival, metroidvania raro..."
+              />
+            </label>
+            <select
+              aria-label="Tipo de busqueda en explorador"
+              value={type}
+              onChange={(event) => void changeSearchType(event.target.value as ExplorerSearchType)}
+            >
+              <option value="any">Todo</option>
+              <option value="watch">Ver</option>
+              <option value="game">Juego</option>
+              <option value="book">Libro</option>
+              <option value="anime">Anime</option>
+              <option value="manga">Manga</option>
+              <option value="manhwa">Manhwa</option>
+            </select>
+            <button className="primary-button" disabled={loading} type="submit">
+              <Search size={18} />
+              {loading ? 'Buscando' : 'Buscar'}
+            </button>
+          </form>
+
+          <div className="explorer-command-summary" aria-label="Resumen del explorador">
+            <span>
+              <strong>{discoveryCounts.queued}</strong>
+              Cola
+            </span>
+            <span>
+              <strong>{discoveryCounts.saved}</strong>
+              Guardados
+            </span>
+            <span>
+              <strong>{discoveryCounts.dismissed}</strong>
+              Descartes
+            </span>
+            <span>
+              <strong>{totalDiscoveryCount}</strong>
+              Historial
+            </span>
+          </div>
         </div>
 
-        <form
-          className="explorer-search"
-          onSubmit={(event) => {
-            event.preventDefault()
-            void runDiscoverySearch()
-          }}
-        >
-          <input
-            aria-label="Buscar en explorador"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Odisea, Arrival, metroidvania raro..."
-          />
-          <select
-            aria-label="Tipo de busqueda en explorador"
-            value={type}
-            onChange={(event) => void changeSearchType(event.target.value as ExplorerSearchType)}
-          >
-            <option value="any">Todo</option>
-            <option value="watch">Ver</option>
-            <option value="game">Juego</option>
-            <option value="book">Libro</option>
-            <option value="anime">Anime</option>
-            <option value="manga">Manga</option>
-            <option value="manhwa">Manhwa</option>
-          </select>
-          <button className="primary-button" disabled={loading} type="submit">
-            <Search size={18} />
-            {loading ? 'Buscando' : 'Buscar'}
-          </button>
-        </form>
         {loading && <FeedbackMessage tone="loading">Buscando en Nexo y fuera...</FeedbackMessage>}
         {message && <FeedbackMessage tone={feedbackToneFromText(message)}>{message}</FeedbackMessage>}
 
-        <div className="explorer-status-strip" role="tablist" aria-label="Estado de descubrimiento">
-          {(['queued', 'saved', 'dismissed'] as const).map((status) => (
-            <button
-              aria-selected={view === status}
-              className={view === status ? 'stat-chip active' : 'stat-chip'}
-              data-status={status}
-              key={status}
-              role="tab"
-              type="button"
-              onClick={() => setView(status)}
-            >
-              <span>{discoveryStatusLabels[status]}</span>
-              <strong>{discoveryCounts[status]}</strong>
-            </button>
-          ))}
-        </div>
+        <div className="explorer-control-deck">
+          <div className="explorer-status-strip" role="tablist" aria-label="Estado de descubrimiento">
+            {(['queued', 'saved', 'dismissed'] as const).map((status) => (
+              <button
+                aria-selected={view === status}
+                className={view === status ? 'stat-chip active' : 'stat-chip'}
+                data-status={status}
+                key={status}
+                role="tab"
+                type="button"
+                onClick={() => setView(status)}
+              >
+                <span>{discoveryStatusLabels[status]}</span>
+                <strong>{discoveryCounts[status]}</strong>
+              </button>
+            ))}
+          </div>
 
-        <div className="explorer-source-strip" role="group" aria-label="Filtrar descubrimientos por origen">
-          {explorerSourceFilters.map((filter) => (
-            <button
-              aria-pressed={sourceFilter === filter.id}
-              className={sourceFilter === filter.id ? 'source-filter-chip active' : 'source-filter-chip'}
-              key={filter.id}
-              type="button"
-              onClick={() => setSourceFilter(filter.id)}
-            >
-              <span>{filter.label}</span>
-              <small>{filter.detail}</small>
-              <strong>{sourceCounts[filter.id]}</strong>
-            </button>
-          ))}
+          <div className="explorer-source-strip" role="group" aria-label="Filtrar descubrimientos por origen">
+            {explorerSourceFilters.map((filter) => (
+              <button
+                aria-pressed={sourceFilter === filter.id}
+                className={sourceFilter === filter.id ? 'source-filter-chip active' : 'source-filter-chip'}
+                key={filter.id}
+                type="button"
+                onClick={() => setSourceFilter(filter.id)}
+              >
+                <span>{filter.label}</span>
+                <small>{filter.detail}</small>
+                <strong>{sourceCounts[filter.id]}</strong>
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="candidate-feed-header">

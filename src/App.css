@@ -568,6 +568,81 @@
   grid-template-columns: minmax(0, 1fr) 140px;
 }
 
+.explorer-command {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--accent-soft) 64%, transparent), transparent 62%),
+    var(--surface-muted);
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border));
+  border-radius: 8px;
+  display: grid;
+  gap: 14px;
+  margin: 0 0 16px;
+  padding: 14px;
+}
+
+.explorer-command-heading {
+  align-items: flex-start;
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+}
+
+.explorer-command-heading h2 {
+  color: var(--text-strong);
+  font-size: 22px;
+  line-height: 1.08;
+  margin: 3px 0 0;
+}
+
+.explorer-command-heading p {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+  margin: 6px 0 0;
+  max-width: 650px;
+}
+
+.explorer-command-heading .secondary-button {
+  flex: 0 0 auto;
+}
+
+.explorer-command-search {
+  margin-bottom: 0;
+}
+
+.explorer-query-field {
+  background: var(--surface-raised);
+}
+
+.explorer-command-summary {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.explorer-command-summary span {
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  display: grid;
+  gap: 2px;
+  min-height: 50px;
+  padding: 9px 10px;
+}
+
+.explorer-command-summary strong {
+  color: var(--text-strong);
+  font-size: 18px;
+  line-height: 1;
+}
+
+.explorer-control-deck {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 16px;
+}
+
 .curation-starter-strip {
   align-items: center;
   background: var(--surface-muted);
@@ -1188,12 +1263,13 @@ label {
 }
 
 .explorer-status-strip {
-  border-block: 1px solid var(--border);
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 16px 0;
-  padding: 12px 0;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: 6px;
 }
 
 .stat-chip {
@@ -1269,7 +1345,7 @@ label {
   display: grid;
   gap: 8px;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  margin: -4px 0 16px;
+  margin: 0;
 }
 
 .source-filter-chip {
@@ -3774,6 +3850,23 @@ textarea:focus-visible {
   .catalog-review-heading {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .explorer-command-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .explorer-command-heading .secondary-button {
+    width: 100%;
+  }
+
+  .explorer-command-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .explorer-status-strip {
+    grid-template-columns: 1fr;
   }
 
   .curation-speed-heading {
