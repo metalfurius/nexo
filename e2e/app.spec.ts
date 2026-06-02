@@ -92,10 +92,21 @@ test('pwa metadata is present', async ({ page }) => {
   const response = await page.request.get('/manifest.webmanifest')
   expect(response.ok()).toBe(true)
   const manifest = await response.json()
-  expect(manifest).toEqual(expect.objectContaining({ display: 'standalone', name: 'Nexo' }))
+  expect(manifest).toEqual(expect.objectContaining({ display: 'standalone', id: '/', name: 'Nexo' }))
   expect(manifest.icons).toEqual(
     expect.arrayContaining([expect.objectContaining({ src: '/icons/nexo.svg', purpose: 'any maskable' })]),
   )
+  expect(manifest.shortcuts).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ name: 'Dado ponderado', url: '/?tab=dice' }),
+      expect.objectContaining({ name: 'Explorador', url: '/?tab=explorer' }),
+    ]),
+  )
+
+  await page.goto('/?tab=dice')
+  await expect(page.getByRole('heading', { name: 'Elige el siguiente hilo' })).toBeVisible()
+  await page.getByRole('button', { name: 'Explorador' }).click()
+  await expect(page).toHaveURL(/tab=explorer/)
 })
 
 test('settings show pending changes before saving preferences', async ({ page }) => {

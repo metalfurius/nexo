@@ -245,6 +245,22 @@ const promptDeck = [
 ]
 
 const curationStarterTypes: ItemType[] = ['book', 'game', 'movie', 'series', 'anime', 'manga']
+const urlAddressableTabs: AppTab[] = ['library', 'dice', 'explorer', 'settings']
+
+function readInitialAppTab(): AppTab {
+  const tab = new URLSearchParams(window.location.search).get('tab')
+  return urlAddressableTabs.includes(tab as AppTab) ? (tab as AppTab) : 'library'
+}
+
+function writeAppTabToUrl(tab: AppTab) {
+  const url = new URL(window.location.href)
+  if (tab === 'library' || !urlAddressableTabs.includes(tab)) {
+    url.searchParams.delete('tab')
+  } else {
+    url.searchParams.set('tab', tab)
+  }
+  window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`)
+}
 
 const explorerSourceFilters: Array<{ id: ExplorerSourceFilter; label: string; detail: string }> = [
   { id: 'all', label: 'Todo', detail: 'Toda la vista' },
@@ -343,7 +359,7 @@ const blankItem = (): ListItem => ({
 function App() {
   const auth = useAuth()
   const library = useLibrary(auth.user)
-  const [activeTab, setActiveTab] = useState<AppTab>('library')
+  const [activeTab, setActiveTabState] = useState<AppTab>(() => readInitialAppTab())
   const [theme, setTheme] = useState<ThemeMode>(() => {
     const stored = window.localStorage.getItem(themeStorageKey)
     return stored === 'light' || stored === 'dark' ? stored : DEFAULT_SETTINGS.theme
@@ -360,6 +376,15 @@ function App() {
     document.documentElement.dataset.theme = theme
     window.localStorage.setItem(themeStorageKey, theme)
   }, [theme])
+
+  useEffect(() => {
+    function syncTabFromUrl() {
+      setActiveTabState(readInitialAppTab())
+    }
+
+    window.addEventListener('popstate', syncTabFromUrl)
+    return () => window.removeEventListener('popstate', syncTabFromUrl)
+  }, [])
 
   if (auth.loading) {
     return <ShellState title="Cargando acceso" />
@@ -389,6 +414,11 @@ function App() {
   ]
   const activeNavItem = navItems.find((item) => item.id === activeTab) ?? navItems[0]
   const shellTitle = activeTab === 'library' ? 'Biblioteca privada' : activeNavItem.label
+
+  function changeActiveTab(nextTab: AppTab) {
+    setActiveTabState(nextTab)
+    writeAppTabToUrl(nextTab)
+  }
 
   return (
     <main className="app-shell">
@@ -434,7 +464,7 @@ function App() {
                 className={activeTab === item.id ? 'tab-button active' : 'tab-button'}
                 key={item.id}
                 type="button"
-                onClick={() => setActiveTab(item.id)}
+                onClick={() => changeActiveTab(item.id)}
               >
                 <Icon size={17} />
                 <span className="tab-label">

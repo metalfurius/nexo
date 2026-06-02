@@ -1,6 +1,7 @@
 {
   "name": "Nexo",
   "short_name": "Nexo",
+  "id": "/",
   "description": "Biblioteca privada, descubrimientos y recomendaciones ponderadas.",
   "lang": "es",
   "start_url": "/",
@@ -16,6 +17,22 @@
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Dado ponderado",
+      "short_name": "Dado",
+      "description": "Abrir una recomendacion ponderada.",
+      "url": "/?tab=dice",
+      "icons": [{ "src": "/icons/nexo.svg", "sizes": "any", "type": "image/svg+xml" }]
+    },
+    {
+      "name": "Explorador",
+      "short_name": "Explorar",
+      "description": "Buscar catalogo Nexo y fuentes externas.",
+      "url": "/?tab=explorer",
+      "icons": [{ "src": "/icons/nexo.svg", "sizes": "any", "type": "image/svg+xml" }]
     }
   ]
 }
