@@ -108,6 +108,12 @@ const noveltyLabels: Record<NoveltyLevel, string> = {
   surprise: 'Sorpresa',
 }
 
+const catalogSortLabels: Record<CatalogSortMode, string> = {
+  quality: 'Prioridad',
+  title: 'Titulo',
+  updated: 'Recientes',
+}
+
 const sourceLabels: Record<DiscoveryCandidate['source'], string> = {
   nexo: 'Nexo',
   tmdb: 'TMDB',
@@ -183,6 +189,8 @@ function feedbackToneFromText(message: string): FeedbackTone {
 }
 
 type AppTab = 'library' | 'dice' | 'explorer' | 'settings' | 'curation'
+type CatalogQualityFilter = 'all' | 'needs-work' | 'ready'
+type CatalogSortMode = 'quality' | 'title' | 'updated'
 
 interface AuthUserSummary {
   uid: string
@@ -1975,6 +1983,9 @@ function AdminRolesPanel({
 
 function CurationTab({ library }: { library: LibrarySurface }) {
   const [query, setQuery] = useState('')
+  const [qualityFilter, setQualityFilter] = useState<CatalogQualityFilter>('all')
+  const [typeFilter, setTypeFilter] = useState<ItemType | 'all'>('all')
+  const [sortMode, setSortMode] = useState<CatalogSortMode>('quality')
   const [items, setItems] = useState<PublicCatalogItem[]>([])
   const [editingItem, setEditingItem] = useState<PublicCatalogItem | undefined>()
   const [archiveTarget, setArchiveTarget] = useState<PublicCatalogItem | undefined>()
@@ -1983,7 +1994,25 @@ function CurationTab({ library }: { library: LibrarySurface }) {
   const [status, setStatus] = useState<string | undefined>()
   const [initialLibrary] = useState(() => library)
   const incompleteCount = items.filter((item) => catalogQualityWarnings(item).length > 0).length
+  const completeCount = items.length - incompleteCount
   const typeCount = new Set(items.map((item) => item.type)).size
+  const hasActiveCatalogFilters = qualityFilter !== 'all' || typeFilter !== 'all' || sortMode !== 'quality'
+  const visibleCatalogItems = useMemo(() => {
+    return items
+      .filter((item) => typeFilter === 'all' || item.type === typeFilter)
+      .filter((item) => {
+        const warningCount = catalogQualityWarnings(item).length
+        if (qualityFilter === 'needs-work') return warningCount > 0
+        if (qualityFilter === 'ready') return warningCount === 0
+        return true
+      })
+      .sort((left, right) => sortCatalogItems(left, right, sortMode))
+  }, [items, qualityFilter, sortMode, typeFilter])
+  const qualityFilters: Array<{ id: CatalogQualityFilter; label: string; value: number }> = [
+    { id: 'all', label: 'Todo', value: items.length },
+    { id: 'needs-work', label: 'Pendientes', value: incompleteCount },
+    { id: 'ready', label: 'Completas', value: completeCount },
+  ]
 
   useEffect(() => {
     let isAlive = true
@@ -2034,6 +2063,12 @@ function CurationTab({ library }: { library: LibrarySurface }) {
     setArchiveTarget(undefined)
   }
 
+  function resetCatalogFilters() {
+    setQualityFilter('all')
+    setTypeFilter('all')
+    setSortMode('quality')
+  }
+
   return (
     <section className="content-grid">
       <section className="workspace-panel wide">
@@ -2065,6 +2100,61 @@ function CurationTab({ library }: { library: LibrarySurface }) {
             {isLoading ? 'Buscando' : 'Buscar'}
           </button>
         </form>
+        <div className="catalog-curation-toolbar">
+          <div className="catalog-filter-tabs" role="group" aria-label="Calidad del catalogo">
+            {qualityFilters.map((filter) => (
+              <button
+                aria-pressed={qualityFilter === filter.id}
+                className={qualityFilter === filter.id ? 'catalog-filter-chip active' : 'catalog-filter-chip'}
+                key={filter.id}
+                type="button"
+                onClick={() => setQualityFilter(filter.id)}
+              >
+                <span>{filter.label}</span>
+                <strong>{filter.value}</strong>
+              </button>
+            ))}
+          </div>
+          <div className="catalog-curation-tools">
+            <label>
+              Tipo
+              <select
+                aria-label="Filtrar catalogo por tipo"
+                value={typeFilter}
+                onChange={(event) => setTypeFilter(event.target.value as ItemType | 'all')}
+              >
+                <option value="all">Todos</option>
+                {ITEM_TYPES.map((itemType) => (
+                  <option key={itemType} value={itemType}>
+                    {typeLabels[itemType]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Orden
+              <select
+                aria-label="Ordenar catalogo"
+                value={sortMode}
+                onChange={(event) => setSortMode(event.target.value as CatalogSortMode)}
+              >
+                {(Object.keys(catalogSortLabels) as CatalogSortMode[]).map((mode) => (
+                  <option key={mode} value={mode}>
+                    {catalogSortLabels[mode]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {hasActiveCatalogFilters && (
+              <button className="ghost-button" type="button" onClick={resetCatalogFilters}>
+                Quitar filtros
+              </button>
+            )}
+          </div>
+        </div>
+        <p className="catalog-count-line" aria-live="polite">
+          {visibleCatalogItems.length} de {items.length} entradas visibles
+        </p>
         {status && <FeedbackMessage tone={feedbackToneFromText(status)}>{status}</FeedbackMessage>}
 
         {isLoading && items.length === 0 ? (
@@ -2086,9 +2176,21 @@ function CurationTab({ library }: { library: LibrarySurface }) {
               </button>
             }
           />
+        ) : hasLoaded && visibleCatalogItems.length === 0 ? (
+          <EmptyState
+            icon={Search}
+            tone="muted"
+            title="Sin entradas con esos filtros"
+            detail="Cambia calidad, tipo u orden para volver a la cola completa."
+            action={
+              <button className="secondary-button" type="button" onClick={resetCatalogFilters}>
+                Ver todo el catalogo
+              </button>
+            }
+          />
         ) : (
           <div className="candidate-grid">
-            {items.map((item) => {
+            {visibleCatalogItems.map((item) => {
               const warnings = catalogQualityWarnings(item)
               const qualityLabel = warnings.length ? `${warnings.length} pendiente${warnings.length === 1 ? '' : 's'}` : 'Completa'
 
@@ -3286,6 +3388,15 @@ function draftCatalogQualityWarnings(draft: { description?: string; genresText: 
 
 function upsertVisibleCatalogItem(items: PublicCatalogItem[], nextItem: PublicCatalogItem) {
   return [nextItem, ...items.filter((item) => item.id !== nextItem.id)].sort((left, right) => left.title.localeCompare(right.title, 'es'))
+}
+
+function sortCatalogItems(left: PublicCatalogItem, right: PublicCatalogItem, mode: CatalogSortMode) {
+  if (mode === 'updated') return right.updatedAt.localeCompare(left.updatedAt) || left.title.localeCompare(right.title, 'es')
+  if (mode === 'title') return left.title.localeCompare(right.title, 'es')
+
+  const leftWarnings = catalogQualityWarnings(left).length
+  const rightWarnings = catalogQualityWarnings(right).length
+  return rightWarnings - leftWarnings || right.updatedAt.localeCompare(left.updatedAt) || left.title.localeCompare(right.title, 'es')
 }
 
 function sameList(left: string[], right: string[]) {
