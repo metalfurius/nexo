@@ -2435,7 +2435,7 @@ button:active:not(:disabled),
 .discovery-card {
   align-items: stretch;
   gap: 0;
-  grid-template-columns: minmax(0, 1fr) minmax(120px, 146px);
+  grid-template-columns: minmax(0, 1fr) minmax(148px, 176px);
   padding: 0;
 }
 
@@ -2613,6 +2613,85 @@ button:active:not(:disabled),
   grid-template-columns: 1fr;
 }
 
+.candidate-action-rail {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.candidate-action-kicker {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.candidate-save-action {
+  align-items: center;
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 44%, var(--border));
+  border-radius: 8px;
+  color: var(--accent-dark);
+  cursor: pointer;
+  display: grid;
+  gap: 9px;
+  grid-template-columns: 30px minmax(0, 1fr);
+  min-height: 54px;
+  padding: 8px 10px;
+  text-align: left;
+  transition:
+    background var(--motion-fast) ease,
+    border-color var(--motion-fast) ease,
+    transform var(--motion-fast) var(--motion-ease);
+}
+
+.candidate-save-action:hover {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.candidate-save-action > svg {
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+  border-radius: 8px;
+  height: 30px;
+  padding: 7px;
+  width: 30px;
+}
+
+.candidate-save-action span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.candidate-save-action strong,
+.candidate-save-action small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.candidate-save-action strong {
+  color: var(--accent-dark);
+  font-size: 13px;
+  line-height: 1;
+}
+
+.candidate-save-action small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.candidate-secondary-strip {
+  display: grid;
+  gap: 7px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .candidate-primary-action {
   background: var(--accent-soft);
   border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
@@ -2634,7 +2713,23 @@ button:active:not(:disabled),
   background: var(--surface);
   color: var(--muted);
   padding: 0;
-  width: 40px;
+  width: 100%;
+}
+
+.candidate-icon-action.danger {
+  color: var(--danger-text);
+}
+
+.candidate-icon-action:hover {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+  color: var(--text-strong);
+  transform: translateY(-1px);
+}
+
+.candidate-icon-action.danger:hover {
+  background: var(--danger-bg);
+  border-color: var(--danger-border);
+  color: var(--danger-text);
 }
 
 .candidate-card-actions .card-menu-wrap {
@@ -3670,7 +3765,7 @@ textarea:focus-visible {
   .candidate-card-actions {
     border-left: 0;
     border-top: 1px solid var(--border);
-    grid-template-columns: minmax(116px, 1fr) 40px;
+    grid-template-columns: 1fr;
   }
 
   .candidate-card-actions.resolved {

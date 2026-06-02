@@ -2354,26 +2354,29 @@ function DiscoveryCard({
       </div>
       <div className={isQueued ? 'candidate-card-actions' : 'candidate-card-actions resolved'}>
         {isQueued ? (
-          <>
-            <button className="candidate-primary-action" type="button" onClick={onSave} aria-label={`Guardar ${candidate.title}`}>
-              <Plus size={16} />
-              <span>Guardar</span>
+          <div className="candidate-action-rail" aria-label={`Acciones rapidas ${candidate.title}`}>
+            <span className="candidate-action-kicker">Decidir</span>
+            <button className="candidate-save-action" type="button" onClick={onSave} aria-label={`Guardar ${candidate.title}`}>
+              <Plus size={17} />
+              <span>
+                <strong>Guardar</strong>
+                <small>Biblioteca</small>
+              </span>
             </button>
-            {onCurate && (
-              <button className="candidate-primary-action secondary" type="button" onClick={onCurate} aria-label={`${catalogActionLabel} ${candidate.title}`}>
-                <ShieldCheck size={16} />
-                <span>Catalogo</span>
+            <div className="candidate-secondary-strip">
+              {onCurate && (
+                <button className="candidate-icon-action" type="button" onClick={onCurate} aria-label={`${catalogActionLabel} ${candidate.title}`} title={catalogActionLabel}>
+                  <ShieldCheck size={16} />
+                </button>
+              )}
+              <button className="candidate-icon-action" type="button" onClick={onDetails} aria-label={`Abrir ficha ${candidate.title}`} title="Detalles">
+                <Eye size={16} />
               </button>
-            )}
-            <ActionMenu
-              label={candidate.title}
-              triggerClassName="candidate-icon-action card-menu-trigger"
-              items={[
-                { ariaLabel: `Ver detalles ${candidate.title}`, Icon: Eye, label: 'Detalles', onSelect: onDetails },
-                { ariaLabel: `Descartar ${candidate.title}`, Icon: X, label: 'Descartar', onSelect: onDismiss, tone: 'danger' },
-              ]}
-            />
-          </>
+              <button className="candidate-icon-action danger" type="button" onClick={onDismiss} aria-label={`Descartar ${candidate.title}`} title="Descartar">
+                <X size={16} />
+              </button>
+            </div>
+          </div>
         ) : (
           <>
             <span className="candidate-footnote">
