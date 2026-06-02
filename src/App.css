@@ -759,7 +759,7 @@ label {
 }
 
 .candidate-grid {
-  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+  grid-template-columns: 1fr;
 }
 
 .item-card,
@@ -1316,7 +1316,13 @@ button:hover:not(:disabled),
   margin-bottom: 4px;
 }
 
-.discovery-card,
+.discovery-card {
+  align-items: stretch;
+  gap: 0;
+  grid-template-columns: minmax(0, 1fr) minmax(120px, 146px);
+  padding: 0;
+}
+
 .catalog-card {
   gap: 12px;
   padding: 12px;
@@ -1330,15 +1336,47 @@ button:hover:not(:disabled),
   opacity: 0.82;
 }
 
-.discovery-card .cover-art,
+.candidate-main .cover-art,
 .catalog-card .cover-art,
 .detail-dialog .cover-art {
   border-radius: 8px;
 }
 
+.candidate-main {
+  align-items: stretch;
+  border-radius: 8px 0 0 8px;
+  color: inherit;
+  cursor: pointer;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(92px, 132px) minmax(0, 1fr);
+  min-width: 0;
+  padding: 12px;
+  text-align: left;
+  transition:
+    background 160ms ease,
+    color 160ms ease;
+}
+
+.candidate-main:hover {
+  background: color-mix(in srgb, var(--accent-soft) 34%, transparent);
+}
+
+.candidate-main:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -4px;
+}
+
+.candidate-main .cover-art {
+  aspect-ratio: 3 / 4;
+  min-height: 128px;
+}
+
 .discovery-body {
+  align-content: start;
   display: grid;
   gap: 6px;
+  min-width: 0;
 }
 
 .candidate-meta,
@@ -1445,15 +1483,18 @@ button:hover:not(:disabled),
 }
 
 .candidate-card-actions {
-  border-top: 1px solid var(--border);
+  align-content: center;
+  border-left: 1px solid var(--border);
   display: grid;
-  margin-top: 2px;
-  padding-top: 10px;
-  grid-template-columns: minmax(116px, 1fr) 40px;
+  gap: 8px;
+  grid-template-columns: 1fr;
+  margin: 0;
+  min-width: 0;
+  padding: 12px;
 }
 
 .candidate-card-actions.resolved {
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: 1fr;
 }
 
 .candidate-primary-action {
@@ -1480,13 +1521,17 @@ button:hover:not(:disabled),
   width: 40px;
 }
 
+.candidate-card-actions .card-menu-wrap {
+  justify-self: center;
+}
+
 .candidate-footnote {
   color: var(--muted);
   font-size: 12px;
+  line-height: 1.3;
   min-width: 0;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  text-align: center;
 }
 
 .editor-hero {
@@ -2021,6 +2066,25 @@ textarea:focus-visible {
   .list-card .card-actions {
     border-left: 0;
     border-top: 1px solid var(--border);
+  }
+
+  .discovery-card {
+    grid-template-columns: 1fr;
+  }
+
+  .candidate-main {
+    border-radius: 8px 8px 0 0;
+    grid-template-columns: minmax(88px, 118px) minmax(0, 1fr);
+  }
+
+  .candidate-card-actions {
+    border-left: 0;
+    border-top: 1px solid var(--border);
+    grid-template-columns: minmax(116px, 1fr) 40px;
+  }
+
+  .candidate-card-actions.resolved {
+    grid-template-columns: 1fr;
   }
 
   .dice-hero h2 {

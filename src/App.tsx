@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type KeyboardEvent, type ReactNode } from 'react'
 import {
   AlertTriangle,
   Archive,
@@ -1738,21 +1738,37 @@ function DiscoveryCard({
 }) {
   const isQueued = candidate.status === 'queued'
 
+  function openDetailsFromKeyboard(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key !== 'Enter' && event.key !== ' ') return
+
+    event.preventDefault()
+    onDetails()
+  }
+
   return (
     <article className={`discovery-card ${candidate.status}`}>
-      <CoverArt title={candidate.title} type={candidate.type} posterUrl={candidate.posterUrl} />
-      <div className="discovery-body">
-        <div className="candidate-meta">
-          <span className="source-pill">{sourceLabels[candidate.source]}</span>
-          {!isQueued && <span className={`candidate-status ${candidate.status}`}>{discoveryStatusLabels[candidate.status]}</span>}
-        </div>
-        <h3>{candidate.title}</h3>
-        <p>{candidate.overview || `${typeLabels[candidate.type]} para explorar`}</p>
-        <div className="tag-row">
-          {candidate.releaseYear && <span>{candidate.releaseYear}</span>}
-          {candidate.genres.slice(0, 2).map((genre) => (
-            <span key={genre}>{genre}</span>
-          ))}
+      <div
+        aria-label={`Ver detalles ${candidate.title}`}
+        className="candidate-main"
+        role="button"
+        tabIndex={0}
+        onClick={onDetails}
+        onKeyDown={openDetailsFromKeyboard}
+      >
+        <CoverArt title={candidate.title} type={candidate.type} posterUrl={candidate.posterUrl} />
+        <div className="discovery-body">
+          <div className="candidate-meta">
+            <span className="source-pill">{sourceLabels[candidate.source]}</span>
+            {!isQueued && <span className={`candidate-status ${candidate.status}`}>{discoveryStatusLabels[candidate.status]}</span>}
+          </div>
+          <h3>{candidate.title}</h3>
+          <p>{candidate.overview || `${typeLabels[candidate.type]} para explorar`}</p>
+          <div className="tag-row">
+            {candidate.releaseYear && <span>{candidate.releaseYear}</span>}
+            {candidate.genres.slice(0, 2).map((genre) => (
+              <span key={genre}>{genre}</span>
+            ))}
+          </div>
         </div>
       </div>
       <div className={isQueued ? 'candidate-card-actions' : 'candidate-card-actions resolved'}>
@@ -1776,10 +1792,6 @@ function DiscoveryCard({
             <span className="candidate-footnote">
               {candidate.status === 'saved' ? 'Ya esta en tu biblioteca' : 'Apartado de tus pendientes'}
             </span>
-            <button className="candidate-primary-action secondary" type="button" onClick={onDetails} aria-label={`Ver detalles ${candidate.title}`}>
-              <Eye size={16} />
-              <span>Detalles</span>
-            </button>
           </>
         )}
       </div>
