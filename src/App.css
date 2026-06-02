@@ -1544,6 +1544,56 @@ button:hover:not(:disabled),
   padding: 12px;
 }
 
+.preset-chip-panel {
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: grid;
+  gap: 9px;
+  padding: 11px;
+}
+
+.preset-chip-panel strong {
+  color: var(--text-strong);
+  font-size: 12px;
+}
+
+.preset-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.preset-chip {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  min-height: 32px;
+  padding: 0 10px;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+.preset-chip.active {
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--border));
+  color: var(--accent-dark);
+}
+
+.preset-chip:hover {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+  color: var(--text-strong);
+  transform: translateY(-1px);
+}
+
 .quality-panel.warning {
   background: var(--surface-muted);
   border-color: var(--danger-border);

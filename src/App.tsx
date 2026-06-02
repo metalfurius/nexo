@@ -65,7 +65,7 @@ import { useLibrary } from './hooks/useLibrary'
 import { buildPublicCatalogItem, promptToDiscovery } from './lib/catalog'
 import { createLibraryExportPayload, parseLibraryImportPayload } from './lib/libraryBackup'
 import { recommendItem, scoreCandidates } from './lib/recommendations'
-import { slugify, uniqueValues } from './lib/strings'
+import { normalizeKey, slugify, uniqueValues } from './lib/strings'
 
 const typeLabels: Record<ItemType | 'any' | 'watch', string> = {
   any: 'Todo',
@@ -198,6 +198,18 @@ const promptDeck = [
   'Una obra que cambie de textura a mitad',
   'Un pendiente que merezca segunda oportunidad',
 ]
+
+const catalogGenrePresets: Record<ItemType, string[]> = {
+  game: ['Accion', 'Aventura', 'RPG', 'Estrategia', 'Metroidvania', 'Roguelike', 'Puzzle', 'Terror'],
+  book: ['Clasico', 'Fantasia', 'Ciencia ficcion', 'Misterio', 'Ensayo', 'Historia', 'Aventura', 'Romance'],
+  movie: ['Drama', 'Ciencia ficcion', 'Thriller', 'Terror', 'Comedia', 'Animacion', 'Fantasia', 'Documental'],
+  series: ['Drama', 'Ciencia ficcion', 'Thriller', 'Comedia', 'Fantasia', 'Crimen', 'Animacion', 'Documental'],
+  anime: ['Shonen', 'Seinen', 'Slice of life', 'Mecha', 'Fantasia', 'Drama', 'Romance', 'Comedia'],
+  manga: ['Shonen', 'Seinen', 'Shojo', 'Josei', 'Fantasia', 'Drama', 'Romance', 'Terror'],
+  manhwa: ['Fantasia', 'Accion', 'Romance', 'Drama', 'Isekai', 'Historico', 'Comedia', 'Thriller'],
+  comic: ['Superheroes', 'Fantasia', 'Ciencia ficcion', 'Crimen', 'Aventura', 'Drama', 'Terror', 'Humor'],
+  other: ['Aventura', 'Drama', 'Ciencia ficcion', 'Fantasia', 'Misterio', 'Ligero', 'Denso', 'Experimental'],
+}
 
 const blankItem = (): ListItem => ({
   id: `manual-${Date.now()}`,
@@ -2219,6 +2231,24 @@ function PublicItemEditor({
     moodText: item.moodTags.join(', '),
   })
   const warnings = draftCatalogQualityWarnings(draft)
+  const selectedGenres = splitList(draft.genresText)
+  const selectedGenreKeys = new Set(selectedGenres.map(normalizeKey))
+  const genrePresets = catalogGenrePresets[draft.type]
+
+  function toggleGenrePreset(genre: string) {
+    setDraft((current) => {
+      const currentGenres = splitList(current.genresText)
+      const genreKey = normalizeKey(genre)
+      const nextGenres = currentGenres.some((entry) => normalizeKey(entry) === genreKey)
+        ? currentGenres.filter((entry) => normalizeKey(entry) !== genreKey)
+        : [...currentGenres, genre]
+
+      return {
+        ...current,
+        genresText: nextGenres.join(', '),
+      }
+    })
+  }
 
   return (
     <div className="modal-backdrop" role="presentation">
@@ -2289,6 +2319,22 @@ function PublicItemEditor({
           Generos
           <input value={draft.genresText} onChange={(event) => setDraft((current) => ({ ...current, genresText: event.target.value }))} />
         </label>
+        <div className="preset-chip-panel">
+          <strong>Generos frecuentes</strong>
+          <div className="preset-chip-row" aria-label={`Sugerencias de taxonomia para ${typeLabels[draft.type]}`}>
+            {genrePresets.map((genre) => (
+              <button
+                aria-pressed={selectedGenreKeys.has(normalizeKey(genre))}
+                className={selectedGenreKeys.has(normalizeKey(genre)) ? 'preset-chip active' : 'preset-chip'}
+                key={genre}
+                type="button"
+                onClick={() => toggleGenrePreset(genre)}
+              >
+                {genre}
+              </button>
+            ))}
+          </div>
+        </div>
         <label>
           Tags
           <input value={draft.tagsText} onChange={(event) => setDraft((current) => ({ ...current, tagsText: event.target.value }))} />

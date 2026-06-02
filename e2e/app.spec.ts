@@ -118,7 +118,8 @@ test('moderator curation can create a public catalog item in demo mode', async (
   const editor = page.locator('.item-editor')
   await editor.getByLabel('Titulo').fill('Solaris')
   await editor.getByLabel('Descripcion').fill('Ciencia ficcion introspectiva.')
-  await editor.getByLabel('Generos').fill('Ciencia ficcion')
+  await editor.getByRole('button', { name: 'Ciencia ficcion' }).click()
+  await expect(editor.getByLabel('Generos', { exact: true })).toHaveValue('Ciencia ficcion')
   await editor.getByLabel('Tags', { exact: true }).fill('clasico, introspectivo')
   await editor.getByRole('button', { name: 'Guardar en catalogo' }).click()
 
