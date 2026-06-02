@@ -177,8 +177,11 @@ test('explorer searches public catalog and saves to private library', async ({ p
   await page.getByLabel('Buscar en explorador').fill('Odisea')
   await page.getByRole('button', { name: 'Buscar' }).click()
 
+  await expect(page.getByTestId('explorer-decision-panel')).toContainText('Bandeja activa')
+  await expect(page.getByTestId('explorer-decision-panel')).toContainText('Odisea')
   await expect(page.getByRole('button', { name: /APIs/ })).toBeVisible()
   await page.getByRole('button', { name: /APIs/ }).click()
+  await expect(page.getByTestId('explorer-decision-panel')).toContainText('APIs activo')
   await expect(page.getByText('Odisea').first()).toBeVisible()
   await page.getByRole('button', { name: /Nexo/ }).click()
   await expect(page.getByRole('heading', { name: 'Sin resultados Nexo' })).toBeVisible()
@@ -209,6 +212,25 @@ test('explorer searches public catalog and saves to private library', async ({ p
   await expect(editor).toContainText('Origen')
   await expect(editor).toContainText('API externa')
   await expect(editor).toContainText('Esta ficha vive solo en tu biblioteca privada.')
+})
+
+test('explorer can clean a filtered queued view', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Explorador' }).click()
+  await page.getByLabel('Tipo de busqueda en explorador').selectOption('book')
+  await page.getByLabel('Buscar en explorador').fill('Odisea')
+  await page.getByRole('button', { name: 'Buscar' }).click()
+
+  await page.getByRole('button', { name: /APIs/ }).click()
+  await expect(page.getByTestId('explorer-decision-panel')).toContainText('APIs activo')
+  await expect(page.getByTestId('explorer-decision-panel')).toContainText('Descartar vista')
+  await page.getByRole('button', { name: 'Descartar vista' }).click()
+
+  await expect(page.getByText('Odisea descartado de la vista APIs.')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Sin resultados APIs' })).toBeVisible()
+  await page.getByRole('button', { name: 'Ver todos los origenes' }).click()
+  await expect(page.getByTestId('candidate-spotlight')).toContainText('Nexo')
+  await expect(page.getByTestId('candidate-spotlight')).toContainText('Odisea')
 })
 
 test('library editor explains private copies from the Nexo catalog', async ({ page }) => {

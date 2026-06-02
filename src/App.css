@@ -1941,6 +1941,130 @@ label {
   color: var(--accent-dark);
 }
 
+.explorer-decision-panel {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--accent-soft) 48%, transparent), transparent 70%),
+    var(--surface-muted);
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border));
+  border-radius: 8px;
+  display: grid;
+  gap: 11px;
+  margin: 0 0 14px;
+  padding: 12px;
+}
+
+.explorer-decision-main {
+  align-items: start;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.explorer-decision-main > div:first-child {
+  min-width: 0;
+}
+
+.explorer-decision-main strong {
+  color: var(--text-strong);
+  display: block;
+  font-size: 18px;
+  line-height: 1.1;
+  margin-top: 3px;
+}
+
+.explorer-decision-main p {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+  margin: 5px 0 0;
+}
+
+.explorer-progress-badge {
+  align-items: end;
+  background: color-mix(in srgb, var(--surface) 76%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: grid;
+  justify-items: end;
+  min-width: 112px;
+  padding: 10px;
+}
+
+.explorer-progress-badge strong {
+  font-size: 24px;
+  margin: 0;
+}
+
+.explorer-progress-badge span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 850;
+  line-height: 1.2;
+  text-align: right;
+}
+
+.explorer-decision-meter {
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  height: 8px;
+  overflow: hidden;
+}
+
+.explorer-decision-meter span {
+  background: linear-gradient(90deg, var(--accent-warm), var(--accent-dark));
+  border-radius: inherit;
+  display: block;
+  height: 100%;
+  min-width: 6px;
+  transition: width var(--motion-slow) var(--motion-ease);
+}
+
+.explorer-decision-facts {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.explorer-decision-facts span {
+  background: color-mix(in srgb, var(--surface) 68%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  display: grid;
+  font-size: 11px;
+  font-weight: 850;
+  gap: 4px;
+  line-height: 1;
+  min-width: 0;
+  padding: 9px;
+}
+
+.explorer-decision-facts strong {
+  color: var(--text-strong);
+  font-size: 13px;
+  line-height: 1.1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.explorer-decision-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.explorer-decision-actions:empty {
+  display: none;
+}
+
+.explorer-decision-actions button {
+  min-height: 34px;
+}
+
 .candidate-feed-header {
   align-items: flex-end;
   display: flex;
@@ -4818,6 +4942,29 @@ textarea:focus-visible {
   }
 
   .catalog-active-issue .ghost-button {
+    width: 100%;
+  }
+
+  .explorer-decision-main {
+    grid-template-columns: 1fr;
+  }
+
+  .explorer-progress-badge {
+    align-items: start;
+    justify-items: start;
+    width: 100%;
+  }
+
+  .explorer-decision-facts {
+    grid-template-columns: 1fr;
+  }
+
+  .explorer-decision-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .explorer-decision-actions button {
     width: 100%;
   }
 

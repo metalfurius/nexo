@@ -1440,6 +1440,24 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
   const activeSourceLabel = explorerSourceFilters.find((filter) => filter.id === sourceFilter)?.label ?? 'Todo'
   const isSourceFilteredEmpty = sourceFilter !== 'all' && candidatesInView.length > 0 && visibleCandidates.length === 0
   const totalDiscoveryCount = library.discoveryCandidates.length
+  const decisionProgressPercent = totalDiscoveryCount
+    ? Math.round(((discoveryCounts.saved + discoveryCounts.dismissed) / totalDiscoveryCount) * 100)
+    : 0
+  const visibleQueuedCount = view === 'queued' ? visibleCandidates.length : 0
+  const canDismissVisibleQueue = view === 'queued' && sourceFilter !== 'all' && visibleQueuedCount > 0
+  const dominantSourceLabel = getDominantExplorerSourceLabel(sourceCounts)
+  const decisionSummaryTitle =
+    view === 'queued'
+      ? visibleQueuedCount
+        ? `${visibleQueuedCount} por decidir`
+        : 'Sin decisiones visibles'
+      : `${visibleCandidates.length} ${discoveryStatusLabels[view].toLowerCase()}`
+  const decisionSummaryDetail =
+    view === 'queued'
+      ? sourceFilter === 'all'
+        ? 'Trabaja la cola completa o filtra por origen para limpiar ruido.'
+        : `${activeSourceLabel} activo: limpia solo esta vista sin tocar otros origenes.`
+      : 'Consulta decisiones pasadas y recupera descartes si cambias de idea.'
 
   async function changeSearchType(nextType: ExplorerSearchType) {
     setMessage(undefined)
@@ -1529,6 +1547,22 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
     }
   }
 
+  async function dismissVisibleQueue() {
+    const candidatesToDismiss = view === 'queued' ? visibleCandidates : []
+    if (!candidatesToDismiss.length) return
+
+    try {
+      await Promise.all(candidatesToDismiss.map((candidate) => library.dismissDiscoveryCandidate(candidate.id)))
+      setMessage(
+        candidatesToDismiss.length === 1
+          ? `${candidatesToDismiss[0].title} descartado de la vista ${activeSourceLabel}.`
+          : `${candidatesToDismiss.length} hallazgos descartados de la vista ${activeSourceLabel}.`,
+      )
+    } catch (reason) {
+      setMessage(reason instanceof Error ? reason.message : 'No se pudo limpiar la vista.')
+    }
+  }
+
   async function saveSelectedCandidate(candidate: DiscoveryCandidate) {
     if (await saveCandidate(candidate)) setSelected(undefined)
   }
@@ -1556,11 +1590,7 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
     }
   }
 
-  const emptyExplorerAction = isSourceFilteredEmpty ? (
-    <button className="secondary-button" type="button" onClick={() => setSourceFilter('all')}>
-      Ver todos los origenes
-    </button>
-  ) : view === 'queued' ? (
+  const emptyExplorerAction = isSourceFilteredEmpty ? undefined : view === 'queued' ? (
     <button className="secondary-button" type="button" onClick={addPromptCard}>
       <Sparkles size={16} />
       Anadir carta sorpresa
@@ -1675,6 +1705,57 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
             ))}
           </div>
         </div>
+
+        <section className="explorer-decision-panel" aria-label="Estado de decision del explorador" data-testid="explorer-decision-panel">
+          <div className="explorer-decision-main">
+            <div>
+              <span className="eyebrow">Bandeja activa</span>
+              <strong>{decisionSummaryTitle}</strong>
+              <p>{decisionSummaryDetail}</p>
+            </div>
+            <div className="explorer-progress-badge">
+              <strong>{decisionProgressPercent}%</strong>
+              <span>historial decidido</span>
+            </div>
+          </div>
+          <div
+            aria-label={`Progreso de decision ${decisionProgressPercent}%`}
+            className="explorer-decision-meter"
+            role="meter"
+            aria-valuemax={100}
+            aria-valuemin={0}
+            aria-valuenow={decisionProgressPercent}
+          >
+            <span style={{ width: `${decisionProgressPercent}%` }} />
+          </div>
+          <div className="explorer-decision-facts">
+            <span>
+              <strong>{spotlightCandidate?.title ?? 'Sin siguiente'}</strong>
+              Siguiente
+            </span>
+            <span>
+              <strong>{dominantSourceLabel}</strong>
+              Origen fuerte
+            </span>
+            <span>
+              <strong>{activeSourceLabel}</strong>
+              Filtro
+            </span>
+          </div>
+          <div className="explorer-decision-actions">
+            {sourceFilter !== 'all' && (
+              <button className="secondary-button" type="button" onClick={() => setSourceFilter('all')}>
+                Ver todos los origenes
+              </button>
+            )}
+            {canDismissVisibleQueue && (
+              <button className="ghost-button danger-ghost" type="button" onClick={() => void dismissVisibleQueue()}>
+                <X size={16} />
+                Descartar vista
+              </button>
+            )}
+          </div>
+        </section>
 
         <div className="candidate-feed-header">
           <div>
@@ -2958,6 +3039,15 @@ function getDiscoverySourceFilter(candidate: DiscoveryCandidate): ExplorerSource
   if (candidate.source === 'nexo') return 'nexo'
   if (candidate.source === 'prompt') return 'prompt'
   return 'external'
+}
+
+function getDominantExplorerSourceLabel(counts: Record<ExplorerSourceFilter, number>) {
+  const dominant = (['nexo', 'external', 'prompt'] as const)
+    .map((source) => ({ count: counts[source], source }))
+    .sort((left, right) => right.count - left.count)[0]
+
+  if (!dominant || dominant.count === 0) return 'Sin origen'
+  return explorerSourceFilters.find((filter) => filter.id === dominant.source)?.label ?? 'Todo'
 }
 
 function getLibraryFocusItems(items: ListItem[]) {
