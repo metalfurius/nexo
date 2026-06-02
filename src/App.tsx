@@ -632,11 +632,25 @@ function LibraryTab({ library, setTheme }: { library: LibrarySurface; setTheme: 
           </div>
         ) : library.loading ? null : (
           <EmptyState
+            icon={hasActiveLibraryFilters ? Search : Library}
             title={hasActiveLibraryFilters ? 'Sin resultados' : 'Nada por aqui'}
             detail={
               hasActiveLibraryFilters
                 ? 'Limpia filtros o prueba una busqueda menos concreta para volver a ver tu biblioteca.'
                 : 'Importa tu biblioteca, guarda algo desde Explorador o anade una entrada manual.'
+            }
+            action={
+              hasActiveLibraryFilters ? (
+                <button className="secondary-button" type="button" onClick={resetLibraryFilters}>
+                  <X size={16} />
+                  Quitar filtros
+                </button>
+              ) : (
+                <button className="primary-button" type="button" onClick={() => setEditingItem(blankItem())}>
+                  <Plus size={16} />
+                  Crear primera entrada
+                </button>
+              )
             }
           />
         )}
@@ -860,6 +874,7 @@ function DiceTab({ library }: { library: LibrarySurface }) {
           </ol>
         ) : (
           <EmptyState
+            icon={Dice5}
             title="Sin candidatas"
             detail="Afloja filtros, incluye pausados o anade pendientes desde Biblioteca y Explorador."
           />
@@ -941,9 +956,14 @@ function DiceTab({ library }: { library: LibrarySurface }) {
             </div>
           </div>
         ) : !hasCandidates ? (
-          <EmptyState title="No hay tirada posible" detail="Cambia medio, tiempo, tags bloqueados o incluye pausados para abrir el abanico." />
+          <EmptyState
+            icon={AlertTriangle}
+            tone="warning"
+            title="No hay tirada posible"
+            detail="Cambia medio, tiempo, tags bloqueados o incluye pausados para abrir el abanico."
+          />
         ) : (
-          <EmptyState title="El dado espera" detail="Ajusta el clima de la sesion y tira cuando quieras una recomendacion." />
+          <EmptyState icon={Dice5} title="El dado espera" detail="Ajusta el clima de la sesion y tira cuando quieras una recomendacion." />
         )}
       </section>
     </section>
@@ -1143,7 +1163,20 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
             ))}
           </div>
         ) : (
-          <EmptyState title={discoveryEmptyCopy[view].title} detail={discoveryEmptyCopy[view].detail} />
+          <EmptyState
+            icon={view === 'queued' ? Sparkles : view === 'saved' ? CheckCircle2 : X}
+            tone={view === 'dismissed' ? 'muted' : 'neutral'}
+            title={discoveryEmptyCopy[view].title}
+            detail={discoveryEmptyCopy[view].detail}
+            action={
+              view === 'queued' ? (
+                <button className="secondary-button" type="button" onClick={addPromptCard}>
+                  <Sparkles size={16} />
+                  Anadir carta sorpresa
+                </button>
+              ) : undefined
+            }
+          />
         )}
       </section>
 
@@ -1416,7 +1449,11 @@ function AdminRolesPanel({
           })}
         </div>
       ) : (
-        <EmptyState title="Sin usuarios" detail="Los perfiles apareceran aqui cuando inicien sesion por primera vez." />
+        <EmptyState
+          icon={ShieldCheck}
+          title="Sin usuarios"
+          detail="Los perfiles apareceran aqui cuando inicien sesion por primera vez."
+        />
       )}
 
       {status && <FeedbackMessage tone={feedbackToneFromText(status)}>{status}</FeedbackMessage>}
@@ -1519,9 +1556,24 @@ function CurationTab({ library }: { library: LibrarySurface }) {
         {status && <FeedbackMessage tone={feedbackToneFromText(status)}>{status}</FeedbackMessage>}
 
         {isLoading && items.length === 0 ? (
-          <EmptyState title="Cargando catalogo" detail="Recuperando las entradas publicas curadas." />
+          <EmptyState
+            icon={LoaderCircle}
+            tone="loading"
+            title="Cargando catalogo"
+            detail="Recuperando las entradas publicas curadas."
+          />
         ) : hasLoaded && items.length === 0 ? (
-          <EmptyState title="Sin entradas publicas" detail="Crea la primera ficha curada o prueba otra busqueda." />
+          <EmptyState
+            icon={BookOpen}
+            title="Sin entradas publicas"
+            detail="Crea la primera ficha curada o prueba otra busqueda."
+            action={
+              <button className="primary-button" type="button" onClick={() => setEditingItem(blankPublicCatalogItem())}>
+                <Plus size={16} />
+                Crear ficha publica
+              </button>
+            }
+          />
         ) : (
           <div className="candidate-grid">
             {items.map((item) => {
@@ -2531,12 +2583,27 @@ function PreferencePreview({ label, tone, values }: { label: string; tone?: 'dan
   )
 }
 
-function EmptyState({ detail, title }: { title: string; detail: string }) {
+function EmptyState({
+  action,
+  detail,
+  icon: Icon = Sparkles,
+  title,
+  tone = 'neutral',
+}: {
+  title: string
+  detail: string
+  icon?: typeof Sparkles
+  tone?: 'neutral' | 'loading' | 'muted' | 'warning'
+  action?: ReactNode
+}) {
   return (
-    <div className="empty-state">
-      <Sparkles size={22} />
+    <div className={`empty-state ${tone}`}>
+      <span className="empty-state-icon">
+        <Icon size={22} />
+      </span>
       <h3>{title}</h3>
       <p>{detail}</p>
+      {action && <div className="empty-state-action">{action}</div>}
     </div>
   )
 }

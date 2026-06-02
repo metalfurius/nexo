@@ -16,7 +16,7 @@ test('library and weighted dice work in demo mode', async ({ page }) => {
   await page.getByLabel('Buscar en biblioteca').fill('zzzz no match')
   await expect(page.getByRole('heading', { name: 'Sin resultados' })).toBeVisible()
   await expect(page.getByText('0 de 7 entradas')).toBeVisible()
-  await page.getByRole('button', { name: 'Limpiar filtros' }).click()
+  await page.getByRole('button', { name: 'Quitar filtros' }).click()
   await expect(page.getByTestId('library-grid')).toContainText('Outer Wilds')
   await page.locator('.item-main').filter({ hasText: 'Outer Wilds' }).click()
   await expect(page.getByRole('dialog', { name: 'Entrada' })).toBeVisible()

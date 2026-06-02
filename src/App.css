@@ -1820,10 +1820,56 @@ button:active:not(:disabled),
 .empty-state {
   align-items: center;
   background: var(--surface-muted);
+  border-style: dashed;
   display: grid;
+  gap: 10px;
   justify-items: center;
   padding: 40px 20px;
   text-align: center;
+}
+
+.empty-state-icon {
+  align-items: center;
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 38%, var(--border));
+  border-radius: 8px;
+  color: var(--accent-dark);
+  display: inline-flex;
+  justify-content: center;
+  min-height: 46px;
+  width: 46px;
+}
+
+.empty-state h3 {
+  margin-top: 2px;
+}
+
+.empty-state p {
+  max-width: 460px;
+}
+
+.empty-state-action {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 4px;
+}
+
+.empty-state.loading .empty-state-icon svg {
+  animation: feedback-spin 900ms linear infinite;
+}
+
+.empty-state.muted .empty-state-icon {
+  background: var(--surface);
+  border-color: var(--border);
+  color: var(--muted);
+}
+
+.empty-state.warning .empty-state-icon {
+  background: var(--danger-bg);
+  border-color: var(--danger-border);
+  color: var(--danger-text);
 }
 
 .error-line {
