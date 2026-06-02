@@ -1421,6 +1421,38 @@ label {
   position: relative;
 }
 
+.item-card::before {
+  background: var(--muted);
+  border-radius: 8px 0 0 8px;
+  bottom: 0;
+  content: '';
+  left: 0;
+  position: absolute;
+  top: 0;
+  width: 4px;
+  z-index: 1;
+}
+
+.item-card[data-status='wishlist']::before {
+  background: var(--mark-watch-text);
+}
+
+.item-card[data-status='in_progress']::before {
+  background: var(--mark-game-text);
+}
+
+.item-card[data-status='paused']::before {
+  background: var(--accent-warm);
+}
+
+.item-card[data-status='completed']::before {
+  background: var(--accent-dark);
+}
+
+.item-card[data-status='dropped']::before {
+  background: var(--danger-text);
+}
+
 .item-card.list-card {
   align-items: stretch;
   grid-template-columns: minmax(0, 1fr) minmax(178px, 220px);
@@ -1577,6 +1609,34 @@ label {
   color: var(--muted);
   font-size: 12px;
   margin: 0;
+}
+
+.item-signal-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: -2px;
+}
+
+.item-signal-strip span {
+  background: color-mix(in srgb, var(--surface-muted) 72%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 850;
+  line-height: 1;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 6px 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.item-signal-strip span.strong {
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+  color: var(--accent-dark);
 }
 
 .item-status {

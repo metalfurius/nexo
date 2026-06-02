@@ -2468,11 +2468,12 @@ function ItemCard({
   }
 
   return (
-    <article className={layout === 'list' ? 'item-card list-card' : 'item-card'}>
+    <article className={layout === 'list' ? 'item-card list-card' : 'item-card'} data-status={item.status}>
       <button className="item-main" type="button" onClick={onEdit}>
         <CoverArt title={item.title} type={item.type} posterUrl={item.posterUrl} />
         <div className="item-body">
           <ItemIdentity item={item} />
+          <ItemSignalStrip item={item} />
           {visibleChips.length ? (
             <div className="tag-row item-tag-row">
               {visibleChips.map((chip) => (
@@ -2508,6 +2509,20 @@ function ItemCard({
         />
       </div>
     </article>
+  )
+}
+
+function ItemSignalStrip({ item }: { item: ListItem }) {
+  const signals = getItemSignals(item)
+
+  return (
+    <div className="item-signal-strip" aria-label={`Senales rapidas de ${item.title}`}>
+      {signals.map((signal) => (
+        <span className={signal.tone === 'strong' ? 'strong' : undefined} key={signal.label}>
+          {signal.label}
+        </span>
+      ))}
+    </div>
   )
 }
 
@@ -3856,11 +3871,45 @@ function getVisibleItemChips(item: ListItem) {
   ]).slice(0, 4)
 }
 
+function getItemSignals(item: ListItem): Array<{ label: string; tone?: 'strong' }> {
+  const sourceSignal: { label: string; tone?: 'strong' } = {
+    label: item.publicItemId ? 'Catalogo Nexo' : itemSourceLabels[item.source],
+    tone: item.publicItemId ? 'strong' : undefined,
+  }
+
+  return [
+    sourceSignal,
+    { label: getItemEffortSignal(item) },
+    { label: item.lastRecommendedAt ? `Dado ${formatRelativeShortTime(item.lastRecommendedAt)}` : `Editado ${formatRelativeShortTime(item.updatedAt)}` },
+  ].filter((signal) => Boolean(signal.label))
+}
+
+function getItemEffortSignal(item: ListItem) {
+  if (item.progress?.trim()) return item.progress
+  if (item.durationMinHours || item.durationMaxHours) return formatDuration(item)
+  if (item.weights.priority >= 1.15) return 'Alta prioridad'
+  if (item.weights.surprise >= 0.75) return 'Sorpresa alta'
+  if (item.weights.challenge >= 0.75) return 'Reto alto'
+  return statusLabels[item.status]
+}
+
 function formatDuration(item: ListItem) {
   if (item.durationMinHours && item.durationMaxHours && item.durationMinHours !== item.durationMaxHours) {
     return `${item.durationMinHours}-${item.durationMaxHours}h`
   }
   return `${item.durationMaxHours ?? item.durationMinHours}h`
+}
+
+function formatRelativeShortTime(value: string) {
+  const timestamp = Date.parse(value)
+  if (!Number.isFinite(timestamp)) return formatDateLabel(value)
+
+  const elapsedMs = Date.now() - timestamp
+  if (elapsedMs < 60_000) return 'Ahora'
+  if (elapsedMs < 3_600_000) return `${Math.max(1, Math.floor(elapsedMs / 60_000))}min`
+  if (elapsedMs < 86_400_000) return `${Math.max(1, Math.floor(elapsedMs / 3_600_000))}h`
+  if (elapsedMs < 604_800_000) return `${Math.max(1, Math.floor(elapsedMs / 86_400_000))}d`
+  return formatDateLabel(value)
 }
 
 export default App
