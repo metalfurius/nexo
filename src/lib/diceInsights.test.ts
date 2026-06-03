@@ -14,6 +14,7 @@ import {
   getActiveDiceFilters,
   getDiceEligibilityBreakdown,
   getDiceScoreMeterWidth,
+  getRecommendationLearningSignals,
   getRecommendationSessionPlan,
   matchesDiceMedium,
 } from './diceInsights'
@@ -153,6 +154,27 @@ describe('dice insights', () => {
       ],
       signals: ['Drama', 'Calma', 'lento'],
       title: 'Continuar una obra activa',
+    })
+  })
+
+  it('finds new learnable taste signals without duplicating current settings', () => {
+    expect(
+      getRecommendationLearningSignals(
+        item({
+          genres: ['Sci-Fi', 'Drama', 'sci fi'],
+          tags: ['pelicula', 'Terror', 'pelicula', 'raro'],
+        }),
+        {
+          ...DEFAULT_SETTINGS,
+          blockedTags: ['terror'],
+          favoriteGenres: ['Drama'],
+          favoriteTags: ['raro'],
+        },
+      ),
+    ).toEqual({
+      genres: ['Sci-Fi'],
+      tags: ['pelicula'],
+      total: 2,
     })
   })
 })

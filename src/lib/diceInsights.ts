@@ -29,6 +29,12 @@ export interface RecommendationSessionPlan {
   title: string
 }
 
+export interface RecommendationLearningSignals {
+  genres: string[]
+  tags: string[]
+  total: number
+}
+
 const diceTypeLabels: Record<ExplorerSearchType, string> = {
   any: 'Todo',
   watch: 'Ver',
@@ -156,4 +162,41 @@ export function getRecommendationSessionPlan(
     signals,
     title,
   }
+}
+
+export function getRecommendationLearningSignals(
+  item: ListItem,
+  settings: UserSettings,
+  limit = 6,
+): RecommendationLearningSignals {
+  const favoriteGenreKeys = new Set(settings.favoriteGenres.map(normalizeKey))
+  const favoriteTagKeys = new Set(settings.favoriteTags.map(normalizeKey))
+  const blockedTagKeys = new Set(settings.blockedTags.map(normalizeKey))
+  const genres = collectNewLearningSignals(item.genres, favoriteGenreKeys).slice(0, limit)
+  const tags = collectNewLearningSignals(item.tags, new Set([...favoriteTagKeys, ...blockedTagKeys])).slice(
+    0,
+    Math.max(0, limit - genres.length),
+  )
+
+  return {
+    genres,
+    tags,
+    total: genres.length + tags.length,
+  }
+}
+
+function collectNewLearningSignals(values: string[], existingKeys: Set<string>) {
+  const seen = new Set<string>()
+  const nextValues: string[] = []
+
+  for (const value of values) {
+    const label = value.trim()
+    const key = normalizeKey(label)
+    if (!key || seen.has(key) || existingKeys.has(key)) continue
+
+    seen.add(key)
+    nextValues.push(label)
+  }
+
+  return nextValues
 }

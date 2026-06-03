@@ -4897,6 +4897,62 @@ button:active:not(:disabled),
   justify-content: flex-end;
 }
 
+.recommendation-learning {
+  align-items: center;
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 12px;
+}
+
+.recommendation-learning-main {
+  display: grid;
+  gap: 9px;
+  min-width: 0;
+}
+
+.recommendation-learning-main strong {
+  color: var(--text-strong);
+  display: block;
+  font-size: 15px;
+  line-height: 1.2;
+  margin-top: 3px;
+}
+
+.recommendation-learning-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.recommendation-learning-chips span {
+  align-items: center;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-strong);
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 850;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 8px;
+}
+
+.recommendation-learning-chips small {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.recommendation-learning .secondary-button {
+  flex-shrink: 0;
+}
+
 .recent-rolls {
   border-top: 1px solid var(--border);
   display: grid;
@@ -6658,6 +6714,7 @@ textarea:focus-visible {
 
   .session-plan-grid,
   .recommendation-decision,
+  .recommendation-learning,
   .catalog-genre-shortcuts-heading {
     grid-template-columns: 1fr;
   }
@@ -6668,6 +6725,10 @@ textarea:focus-visible {
   }
 
   .recommendation-actions button {
+    width: 100%;
+  }
+
+  .recommendation-learning .secondary-button {
     width: 100%;
   }
 

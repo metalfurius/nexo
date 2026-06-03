@@ -98,6 +98,7 @@ import {
   getActiveDiceFilters,
   getDiceEligibilityBreakdown,
   getDiceScoreMeterWidth,
+  getRecommendationLearningSignals,
   getRecommendationSessionPlan,
   type DiceEligibilityBreakdown,
   type RecommendationSessionPlan,
@@ -1226,6 +1227,9 @@ type DiceUndoAction =
   | { kind: 'cooldowns'; items: ListItem[] }
 type DiceSettingsUndo = {
   allowPausedByDefault: boolean
+  favoriteGenres: string[]
+  favoriteTags: string[]
+  kind: 'preferences' | 'taste'
   preferences: RecommendationPreferences
   surprisePercent: number
 }
@@ -2360,6 +2364,10 @@ function DiceTab({
   const poolSize = Math.min(scoredCandidates.length, Math.max(3, Math.ceil(3 + preferences.surprisePercent / 8)))
   const activeDiceFilters = getActiveDiceFilters(preferences, library.settings)
   const recentRecommendations = useMemo(() => getRecentRecommendationItems(library.items), [library.items])
+  const recommendationLearningSignals = useMemo(
+    () => (recommendation ? getRecommendationLearningSignals(recommendation.item, library.settings) : undefined),
+    [library.settings, recommendation],
+  )
   const hasCandidates = scoredCandidates.length > 0
   const cooldownRecoveryItems = useMemo(
     () =>
@@ -2417,6 +2425,17 @@ function DiceTab({
     setDraftPreferences((current) => (typeof update === 'function' ? update(current ?? preferences) : update))
   }
 
+  function getDiceSettingsUndo(kind: DiceSettingsUndo['kind']): DiceSettingsUndo {
+    return {
+      allowPausedByDefault: library.settings.allowPausedByDefault,
+      favoriteGenres: [...library.settings.favoriteGenres],
+      favoriteTags: [...library.settings.favoriteTags],
+      kind,
+      preferences: cloneRecommendationPreferences(persistedPreferences),
+      surprisePercent: library.settings.surprisePercent,
+    }
+  }
+
   async function rollRecommendation() {
     if (!hasCandidates) {
       setRecommendation(undefined)
@@ -2456,11 +2475,7 @@ function DiceTab({
   async function savePreferences() {
     if (!hasUnsavedDicePreferences) return
 
-    const previousDiceSettings: DiceSettingsUndo = {
-      allowPausedByDefault: library.settings.allowPausedByDefault,
-      preferences: cloneRecommendationPreferences(persistedPreferences),
-      surprisePercent: library.settings.surprisePercent,
-    }
+    const previousDiceSettings = getDiceSettingsUndo('preferences')
     const nextPreferences = cloneRecommendationPreferences(preferences)
 
     try {
@@ -2487,19 +2502,36 @@ function DiceTab({
   async function undoDicePreferencesSave() {
     if (!diceSettingsUndo) return
 
+    const undoStatus =
+      diceSettingsUndo.kind === 'taste' ? 'Gustos del dado recuperados' : 'Ajustes del dado recuperados'
+    const undoActivityLabel = diceSettingsUndo.kind === 'taste' ? 'Gustos recuperados' : 'Preferencias recuperadas'
+    const undoActivityDetail =
+      diceSettingsUndo.kind === 'taste'
+        ? `${diceSettingsUndo.favoriteGenres.length + diceSettingsUndo.favoriteTags.length} gustos previos`
+        : `${diceSettingsUndo.preferences.surprisePercent}% sorpresa / ${typeLabels[diceSettingsUndo.preferences.medium]}`
+
     try {
-      await library.saveSettings({
-        recommendationPreferences: cloneRecommendationPreferences(diceSettingsUndo.preferences),
-        surprisePercent: diceSettingsUndo.surprisePercent,
-        allowPausedByDefault: diceSettingsUndo.allowPausedByDefault,
-      })
-      setDraftPreferences(undefined)
+      await library.saveSettings(
+        diceSettingsUndo.kind === 'taste'
+          ? {
+              favoriteGenres: [...diceSettingsUndo.favoriteGenres],
+              favoriteTags: [...diceSettingsUndo.favoriteTags],
+            }
+          : {
+              favoriteGenres: [...diceSettingsUndo.favoriteGenres],
+              favoriteTags: [...diceSettingsUndo.favoriteTags],
+              recommendationPreferences: cloneRecommendationPreferences(diceSettingsUndo.preferences),
+              surprisePercent: diceSettingsUndo.surprisePercent,
+              allowPausedByDefault: diceSettingsUndo.allowPausedByDefault,
+            },
+      )
+      if (diceSettingsUndo.kind === 'preferences') setDraftPreferences(undefined)
       setDiceSettingsUndo(undefined)
       setDiceUndoAction(undefined)
-      setStatus('Ajustes del dado recuperados')
+      setStatus(undoStatus)
       onActivity({
-        detail: `${diceSettingsUndo.preferences.surprisePercent}% sorpresa / ${typeLabels[diceSettingsUndo.preferences.medium]}`,
-        label: 'Preferencias recuperadas',
+        detail: undoActivityDetail,
+        label: undoActivityLabel,
         tab: 'dice',
         tone: 'success',
       })
@@ -2529,6 +2561,30 @@ function DiceTab({
       })
     } catch (reason) {
       setStatus(reason instanceof Error ? reason.message : 'No se pudo actualizar el estado.')
+    }
+  }
+
+  async function learnRecommendationTaste() {
+    if (!recommendation || !recommendationLearningSignals?.total) return
+
+    const learnedLabels = [...recommendationLearningSignals.genres, ...recommendationLearningSignals.tags]
+    try {
+      await library.saveSettings({
+        favoriteGenres: uniqueNormalizedValues([...library.settings.favoriteGenres, ...recommendationLearningSignals.genres]),
+        favoriteTags: uniqueNormalizedValues([...library.settings.favoriteTags, ...recommendationLearningSignals.tags]),
+      })
+      setDiceSettingsUndo(getDiceSettingsUndo('taste'))
+      setDiceUndoAction(undefined)
+      setStatus(`${recommendation.item.title}: ${learnedLabels.length} gustos aprendidos`)
+      onActivity({
+        detail: learnedLabels.slice(0, 4).join(', '),
+        label: 'Gustos aprendidos',
+        tab: 'dice',
+        target: { kind: 'item', id: recommendation.item.id },
+        tone: 'success',
+      })
+    } catch (reason) {
+      setStatus(reason instanceof Error ? reason.message : 'No se pudieron aprender estos gustos.')
     }
   }
 
@@ -2646,6 +2702,11 @@ function DiceTab({
     if (diceUndoAction.kind === 'status') return 'Deshacer estado'
     if (diceUndoAction.kind === 'snooze') return 'Deshacer enfriado'
     return 'Deshacer reactivacion'
+  }
+
+  function getDiceSettingsUndoLabel() {
+    if (!diceSettingsUndo) return 'Deshacer ajustes del dado'
+    return diceSettingsUndo.kind === 'taste' ? 'Deshacer gustos' : 'Deshacer ajustes del dado'
   }
 
   return (
@@ -2810,7 +2871,7 @@ function DiceTab({
             {diceSettingsUndo && (
               <button className="secondary-button" type="button" onClick={() => void undoDicePreferencesSave()}>
                 <RotateCcw size={16} />
-                Deshacer ajustes del dado
+                {getDiceSettingsUndoLabel()}
               </button>
             )}
             {diceUndoAction && (
@@ -2876,6 +2937,34 @@ function DiceTab({
                 ))}
               </ul>
             </section>
+            {recommendationLearningSignals && recommendationLearningSignals.total > 0 && (
+              <section className="recommendation-learning" aria-label="Aprendizaje de gustos del dado" data-testid="dice-learning">
+                <div className="recommendation-learning-main">
+                  <div>
+                    <span className="eyebrow">Aprendizaje</span>
+                    <strong>Senales para recordar</strong>
+                  </div>
+                  <div className="recommendation-learning-chips">
+                    {recommendationLearningSignals.genres.map((genre) => (
+                      <span key={`genre-${normalizeKey(genre)}`}>
+                        <small>Genero</small>
+                        {genre}
+                      </span>
+                    ))}
+                    {recommendationLearningSignals.tags.map((tag) => (
+                      <span key={`tag-${normalizeKey(tag)}`}>
+                        <small>Tag</small>
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <button className="secondary-button" type="button" onClick={() => void learnRecommendationTaste()}>
+                  <Sparkles size={16} />
+                  Aprender gustos
+                </button>
+              </section>
+            )}
             <section className="recommendation-decision" aria-label="Decision de la tirada">
               <div>
                 <span className="eyebrow">Decision</span>
