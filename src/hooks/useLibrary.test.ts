@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { DiscoveryCandidate } from '../domain/types'
+import type { ActivityEntry, DiscoveryCandidate } from '../domain/types'
 import { useLibrary } from './useLibrary'
 
 const repositoryMock = vi.hoisted(() => ({
@@ -241,6 +241,23 @@ describe('useLibrary', () => {
 
     expect(result.current.activityEntries).toEqual([])
     expect(repositoryMock.clearActivityEntries).toHaveBeenCalled()
+
+    const restoredEntry: ActivityEntry = {
+      id: 'activity-restored',
+      detail: 'Arrival',
+      label: 'Ficha guardada',
+      tab: 'library',
+      target: { kind: 'item', id: 'game-outer-wilds' },
+      tone: 'success',
+      createdAt: '2026-06-03T12:00:00.000Z',
+    }
+
+    await act(async () => {
+      await result.current.restoreActivityEntries([restoredEntry])
+    })
+
+    expect(result.current.activityEntries).toEqual([restoredEntry])
+    expect(repositoryMock.saveActivityEntry).toHaveBeenCalledWith(restoredEntry)
   })
 
   it('does not requeue discovery candidates already saved by the user', async () => {

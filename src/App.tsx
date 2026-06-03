@@ -260,6 +260,7 @@ function feedbackToneFromText(message: string): FeedbackTone {
     normalized.includes('enviados') ||
     normalized.includes('marcado') ||
     normalized.includes('descartado') ||
+    normalized.includes('limpiad') ||
     normalized.includes('recuperad') ||
     normalized.includes('ahora es')
   ) {
@@ -524,12 +525,20 @@ const blankItem = (): ListItem => ({
   updatedAt: nowIso(),
 })
 
+function cloneActivityEntry(entry: ActivityEntry): ActivityEntry {
+  return {
+    ...entry,
+    target: entry.target ? { ...entry.target } : undefined,
+  }
+}
+
 function App() {
   const auth = useAuth()
   const library = useLibrary(auth.user)
   const [activeTab, setActiveTabState] = useState<AppTab>(() => readInitialAppTab())
   const [pendingNavigation, setPendingNavigation] = useState<PendingNavigation | undefined>()
   const [activityFocus, setActivityFocus] = useState<ActivityFocus | undefined>(() => readInitialActivityFocus())
+  const [activityClearUndo, setActivityClearUndo] = useState<ActivityEntry[]>([])
   const [libraryDraftRequest, setLibraryDraftRequest] = useState<ListItem | undefined>()
   const [quickSearchOpen, setQuickSearchOpen] = useState(false)
   const [tabsWithUnsavedChanges, setTabsWithUnsavedChanges] = useState<Partial<Record<AppTab, boolean>>>({})
@@ -608,6 +617,27 @@ function App() {
   )
   const clearActivityFocus = useCallback(() => setActivityFocus(undefined), [])
   const clearLibraryDraftRequest = useCallback(() => setLibraryDraftRequest(undefined), [])
+  const recordVisibleActivity = useCallback(
+    (entry: Omit<ActivityEntry, 'createdAt' | 'id'>) => {
+      setActivityClearUndo([])
+      library.recordActivity(entry)
+    },
+    [library],
+  )
+
+  async function clearSessionActivity() {
+    const snapshot = library.activityEntries.map(cloneActivityEntry)
+    if (!snapshot.length) return
+    await library.clearActivityEntries()
+    setActivityClearUndo(snapshot)
+  }
+
+  async function undoClearSessionActivity() {
+    if (!activityClearUndo.length) return
+    await library.restoreActivityEntries(activityClearUndo)
+    setActivityClearUndo([])
+  }
+
   if (auth.loading) {
     return <ShellState title="Cargando acceso" />
   }
@@ -789,7 +819,9 @@ function App() {
         )}
         <SessionActivityPanel
           entries={library.activityEntries.slice(0, sessionActivityLimit)}
-          onClear={() => void library.clearActivityEntries()}
+          clearedCount={activityClearUndo.length}
+          onClear={() => void clearSessionActivity()}
+          onUndoClear={() => void undoClearSessionActivity()}
           onSelect={(entry) => changeActiveTab(getActivityDestinationTab(entry), getActivityFocus(entry))}
         />
         {activeTab === 'library' && (
@@ -797,7 +829,7 @@ function App() {
             activityFocusItemId={activityFocus?.kind === 'item' ? activityFocus.id : undefined}
             draftRequest={libraryDraftRequest}
             library={library}
-            onActivity={library.recordActivity}
+            onActivity={recordVisibleActivity}
             onActivityFocusHandled={clearActivityFocus}
             onDraftRequestHandled={clearLibraryDraftRequest}
             onNavigate={changeActiveTab}
@@ -805,13 +837,13 @@ function App() {
           />
         )}
         {activeTab === 'dice' && (
-          <DiceTab library={library} onActivity={library.recordActivity} onUnsavedChange={reportDiceUnsavedChanges} />
+          <DiceTab library={library} onActivity={recordVisibleActivity} onUnsavedChange={reportDiceUnsavedChanges} />
         )}
-        {activeTab === 'explorer' && <ExplorerTab library={library} onActivity={library.recordActivity} />}
+        {activeTab === 'explorer' && <ExplorerTab library={library} onActivity={recordVisibleActivity} />}
         {activeTab === 'settings' && (
           <SettingsTab
             library={library}
-            onActivity={library.recordActivity}
+            onActivity={recordVisibleActivity}
             onNavigate={changeActiveTab}
             onUnsavedChange={reportSettingsUnsavedChanges}
             setTheme={setTheme}
@@ -819,7 +851,9 @@ function App() {
             user={auth.user}
           />
         )}
-        {activeTab === 'curation' && library.isModerator && <CurationTab library={library} onActivity={library.recordActivity} />}
+        {activeTab === 'curation' && library.isModerator && (
+          <CurationTab library={library} onActivity={recordVisibleActivity} />
+        )}
       </section>
     </main>
   )
@@ -1076,15 +1110,19 @@ function QuickSearchDialog({
 }
 
 function SessionActivityPanel({
+  clearedCount,
   entries,
   onClear,
+  onUndoClear,
   onSelect,
 }: {
+  clearedCount: number
   entries: ActivityEntry[]
   onClear: () => void
+  onUndoClear: () => void
   onSelect: (entry: ActivityEntry) => void
 }) {
-  if (!entries.length) return null
+  if (!entries.length && !clearedCount) return null
   const continuity = getActivityContinuitySummary(entries)
   const primaryDestination = continuity ? activityTabLabels[getActivityDestinationTab(continuity.primaryEntry)] : undefined
 
@@ -1097,11 +1135,24 @@ function SessionActivityPanel({
         </div>
         <div className="session-activity-actions">
           <span>{entries.length === 1 ? '1 ultima' : `${entries.length} ultimas`}</span>
-          <button className="ghost-button" type="button" onClick={onClear}>
-            Limpiar
-          </button>
+          {entries.length > 0 && (
+            <button className="ghost-button" type="button" onClick={onClear}>
+              Limpiar
+            </button>
+          )}
         </div>
       </div>
+      {clearedCount > 0 && (
+        <div className="feedback-action-row" aria-label="Accion reciente de actividad">
+          <FeedbackMessage tone="success">
+            {clearedCount === 1 ? 'Actividad limpiada' : `${clearedCount} actividades limpiadas`}
+          </FeedbackMessage>
+          <button className="secondary-button" type="button" onClick={onUndoClear}>
+            <RotateCcw size={16} />
+            Deshacer limpieza
+          </button>
+        </div>
+      )}
       {continuity && primaryDestination && (
         <div className="session-continuity-card" data-testid="session-continuity">
           <div className="session-continuity-main">
@@ -1136,31 +1187,33 @@ function SessionActivityPanel({
           </div>
         </div>
       )}
-      <ol className="session-activity-list">
-        {entries.map((entry) => {
-          const Icon = getActivityIcon(entry.tone)
-          const tabLabel = activityTabLabels[entry.tab]
-          const destinationLabel = activityTabLabels[getActivityDestinationTab(entry)]
+      {entries.length > 0 && (
+        <ol className="session-activity-list">
+          {entries.map((entry) => {
+            const Icon = getActivityIcon(entry.tone)
+            const tabLabel = activityTabLabels[entry.tab]
+            const destinationLabel = activityTabLabels[getActivityDestinationTab(entry)]
 
-          return (
-            <li key={entry.id}>
-              <button
-                aria-label={`Abrir ${entry.label} en ${destinationLabel}`}
-                className={`session-activity-item ${entry.tone}`}
-                type="button"
-                onClick={() => onSelect(entry)}
-              >
-                <Icon size={16} />
-                <span>
-                  <strong>{entry.label}</strong>
-                  <small>{entry.detail}</small>
-                </span>
-                <em>{tabLabel}</em>
-              </button>
-            </li>
-          )
-        })}
-      </ol>
+            return (
+              <li key={entry.id}>
+                <button
+                  aria-label={`Abrir ${entry.label} en ${destinationLabel}`}
+                  className={`session-activity-item ${entry.tone}`}
+                  type="button"
+                  onClick={() => onSelect(entry)}
+                >
+                  <Icon size={16} />
+                  <span>
+                    <strong>{entry.label}</strong>
+                    <small>{entry.detail}</small>
+                  </span>
+                  <em>{tabLabel}</em>
+                </button>
+              </li>
+            )
+          })}
+        </ol>
+      )}
     </section>
   )
 }
@@ -1261,6 +1314,7 @@ interface LibrarySurface {
   updateUserRole: (targetUserId: string, role: UserRole) => Promise<void>
   recordActivity: ActivityRecorder
   clearActivityEntries: () => Promise<void>
+  restoreActivityEntries: (entries: ActivityEntry[]) => Promise<void>
   publicItemToDiscovery: (item: PublicCatalogItem) => DiscoveryCandidate
   externalCandidateToDiscovery: (candidate: ExternalCandidate) => DiscoveryCandidate
 }

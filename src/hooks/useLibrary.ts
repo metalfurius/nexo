@@ -467,6 +467,19 @@ export function useLibrary(user?: SignedInUserProfile | null) {
     }
   }
 
+  async function restoreActivityEntries(entries: ActivityEntry[]) {
+    setActivityEntries((current) => mergeActivityEntries(entries, current))
+    if (repository) {
+      try {
+        for (const entry of entries) {
+          await repository.saveActivityEntry(entry)
+        }
+      } catch (reason) {
+        setError(reason instanceof Error ? reason.message : 'No se pudo restaurar la actividad reciente.')
+      }
+    }
+  }
+
   function candidateToItem(candidate: ExternalCandidate): ListItem {
     return {
       id: `${candidate.type}-${slugify(candidate.title)}-${candidate.sourceId}`.slice(0, 120),
@@ -519,6 +532,7 @@ export function useLibrary(user?: SignedInUserProfile | null) {
     updateUserRole,
     recordActivity,
     clearActivityEntries,
+    restoreActivityEntries,
     candidateToItem,
     publicItemToDiscovery,
     externalCandidateToDiscovery,
@@ -527,6 +541,14 @@ export function useLibrary(user?: SignedInUserProfile | null) {
 
 function limitActivityEntries(entries: ActivityEntry[]) {
   return [...entries].sort((left, right) => right.createdAt.localeCompare(left.createdAt)).slice(0, activityEntryLimit)
+}
+
+function mergeActivityEntries(restoredEntries: ActivityEntry[], currentEntries: ActivityEntry[]) {
+  const byId = new Map(currentEntries.map((entry) => [entry.id, entry]))
+  for (const entry of restoredEntries) {
+    byId.set(entry.id, entry)
+  }
+  return limitActivityEntries([...byId.values()])
 }
 
 function toUserProfileSeed(user: SignedInUserProfile): Partial<UserProfile> {
