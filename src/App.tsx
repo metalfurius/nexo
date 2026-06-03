@@ -92,6 +92,16 @@ import {
   type DiceEligibilityBreakdown,
 } from './lib/diceInsights'
 import {
+  discoveryEmptyCopy,
+  discoverySourceLabels as sourceLabels,
+  discoveryStatusLabels,
+  explorerSourceFilters,
+  getCandidateDecisionBrief,
+  getExplorerDecisionState,
+  type CandidateDecisionBrief,
+  type ExplorerSourceFilter,
+} from './lib/explorerInsights'
+import {
   getLibraryLaunchGuide,
   getLibrarySmartViewOptions,
   hasItemTaxonomy,
@@ -154,37 +164,6 @@ const librarySortLabels: Record<LibrarySortMode, string> = {
   title: 'Titulo',
   priority: 'Prioridad',
   rating: 'Rating',
-}
-
-const sourceLabels: Record<DiscoveryCandidate['source'], string> = {
-  nexo: 'Nexo',
-  tmdb: 'TMDB',
-  rawg: 'RAWG',
-  openLibrary: 'Open Library',
-  anilist: 'AniList',
-  wikidata: 'Wikidata',
-  prompt: 'Explorador',
-}
-
-const discoveryStatusLabels: Record<DiscoveryStatus, string> = {
-  queued: 'En cola',
-  saved: 'Guardados',
-  dismissed: 'Descartados',
-}
-
-const discoveryEmptyCopy: Record<DiscoveryStatus, { title: string; detail: string }> = {
-  queued: {
-    title: 'La cola esta limpia',
-    detail: 'Busca en el catalogo Nexo, tira una carta sorpresa o guarda hallazgos externos.',
-  },
-  saved: {
-    title: 'Aun no has guardado hallazgos',
-    detail: 'Cuando algo pase a Biblioteca quedara registrado aqui para recordar de donde vino.',
-  },
-  dismissed: {
-    title: 'No hay descartes',
-    detail: 'Lo que apartes de la cola aparece aqui sin ensuciar tus pendientes.',
-  },
 }
 
 const roleLabels: Record<UserRole, string> = {
@@ -265,19 +244,11 @@ function feedbackToneFromText(message: string): FeedbackTone {
 }
 
 type AppTab = 'library' | 'dice' | 'explorer' | 'settings' | 'curation'
-type ExplorerSourceFilter = 'all' | 'nexo' | 'external' | 'prompt'
 
 interface RecommendationSessionPlan {
   detail: string
   facts: Array<{ detail: string; label: string; value: string }>
   signals: string[]
-  title: string
-}
-
-interface CandidateDecisionBrief {
-  action: string
-  detail: string
-  facts: Array<{ label: string; value: string }>
   title: string
 }
 
@@ -330,13 +301,6 @@ function writeAppTabToUrl(tab: AppTab) {
   }
   window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`)
 }
-
-const explorerSourceFilters: Array<{ id: ExplorerSourceFilter; label: string; detail: string }> = [
-  { id: 'all', label: 'Todo', detail: 'Toda la vista' },
-  { id: 'nexo', label: 'Nexo', detail: 'Catalogo local' },
-  { id: 'external', label: 'APIs', detail: 'Fuentes externas' },
-  { id: 'prompt', label: 'Ideas', detail: 'Cartas manuales' },
-]
 
 const dicePreferencePresets: Array<{
   id: string
@@ -1549,52 +1513,30 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
   const [selected, setSelected] = useState<DiscoveryCandidate | undefined>()
   const [catalogDraft, setCatalogDraft] = useState<PublicCatalogItem | undefined>()
   const type = library.settings.explorerDefaultType
-  const discoveryCounts = useMemo(() => {
-    const counts: Record<DiscoveryStatus, number> = { queued: 0, saved: 0, dismissed: 0 }
-    for (const candidate of library.discoveryCandidates) {
-      counts[candidate.status] += 1
-    }
-    return counts
-  }, [library.discoveryCandidates])
-  const candidatesInView = library.discoveryCandidates.filter((candidate) => candidate.status === view)
-  const sourceCounts = useMemo(() => {
-    const counts: Record<ExplorerSourceFilter, number> = { all: candidatesInView.length, nexo: 0, external: 0, prompt: 0 }
-    for (const candidate of candidatesInView) {
-      counts[getDiscoverySourceFilter(candidate)] += 1
-    }
-    return counts
-  }, [candidatesInView])
-  const visibleCandidates =
-    sourceFilter === 'all'
-      ? candidatesInView
-      : candidatesInView.filter((candidate) => getDiscoverySourceFilter(candidate) === sourceFilter)
-  const spotlightCandidate = view === 'queued' ? visibleCandidates[0] : undefined
-  const feedCandidates = spotlightCandidate ? visibleCandidates.slice(1) : visibleCandidates
-  const queuedCandidates = library.discoveryCandidates.filter((candidate) => candidate.status === 'queued')
-  const queuedNexoCount = queuedCandidates.filter((candidate) => candidate.source === 'nexo').length
-  const queuedExternalCount = queuedCandidates.filter((candidate) => candidate.source !== 'nexo' && candidate.source !== 'prompt').length
-  const queuedPromptCount = queuedCandidates.filter((candidate) => candidate.source === 'prompt').length
-  const activeSourceLabel = explorerSourceFilters.find((filter) => filter.id === sourceFilter)?.label ?? 'Todo'
-  const isSourceFilteredEmpty = sourceFilter !== 'all' && candidatesInView.length > 0 && visibleCandidates.length === 0
-  const totalDiscoveryCount = library.discoveryCandidates.length
-  const decisionProgressPercent = totalDiscoveryCount
-    ? Math.round(((discoveryCounts.saved + discoveryCounts.dismissed) / totalDiscoveryCount) * 100)
-    : 0
-  const visibleQueuedCount = view === 'queued' ? visibleCandidates.length : 0
-  const canDismissVisibleQueue = view === 'queued' && sourceFilter !== 'all' && visibleQueuedCount > 0
-  const dominantSourceLabel = getDominantExplorerSourceLabel(sourceCounts)
-  const decisionSummaryTitle =
-    view === 'queued'
-      ? visibleQueuedCount
-        ? `${visibleQueuedCount} por decidir`
-        : 'Sin decisiones visibles'
-      : `${visibleCandidates.length} ${discoveryStatusLabels[view].toLowerCase()}`
-  const decisionSummaryDetail =
-    view === 'queued'
-      ? sourceFilter === 'all'
-        ? 'Trabaja la cola completa o filtra por origen para limpiar ruido.'
-        : `${activeSourceLabel} activo: limpia solo esta vista sin tocar otros origenes.`
-      : 'Consulta decisiones pasadas y recupera descartes si cambias de idea.'
+  const explorerDecision = useMemo(
+    () => getExplorerDecisionState(library.discoveryCandidates, view, sourceFilter),
+    [library.discoveryCandidates, sourceFilter, view],
+  )
+  const {
+    activeSourceLabel,
+    canDismissVisibleQueue,
+    candidatesInView,
+    decisionProgressPercent,
+    decisionSummaryDetail,
+    decisionSummaryTitle,
+    discoveryCounts,
+    dominantSourceLabel,
+    feedCandidates,
+    isSourceFilteredEmpty,
+    queuedSourceCounts,
+    sourceCounts,
+    spotlightCandidate,
+    totalDiscoveryCount,
+    visibleCandidates,
+  } = explorerDecision
+  const queuedNexoCount = queuedSourceCounts.nexo
+  const queuedExternalCount = queuedSourceCounts.external
+  const queuedPromptCount = queuedSourceCounts.prompt
 
   async function changeSearchType(nextType: ExplorerSearchType) {
     setMessage(undefined)
@@ -3348,59 +3290,6 @@ function CandidateDecisionBriefView({ brief }: { brief: CandidateDecisionBrief }
       </div>
     </section>
   )
-}
-
-function getDiscoverySourceFilter(candidate: DiscoveryCandidate): ExplorerSourceFilter {
-  if (candidate.source === 'nexo') return 'nexo'
-  if (candidate.source === 'prompt') return 'prompt'
-  return 'external'
-}
-
-function getCandidateDecisionBrief(candidate: DiscoveryCandidate, canCurate: boolean): CandidateDecisionBrief {
-  if (candidate.source === 'nexo') {
-    return {
-      action: 'Guardar copia privada',
-      detail: 'Guarda una copia en tu biblioteca. Tus notas, rating y dado no cambian el catalogo publico.',
-      facts: [
-        { label: 'Origen', value: sourceLabels[candidate.source] },
-        { label: 'Privacidad', value: 'Copia privada' },
-      ],
-      title: 'Ficha curada de Nexo',
-    }
-  }
-
-  if (candidate.source === 'prompt') {
-    return {
-      action: 'Convertir en pendiente',
-      detail: 'Es una carta de exploracion. Guardarla crea una entrada privada para pensarla luego.',
-      facts: [
-        { label: 'Origen', value: sourceLabels[candidate.source] },
-        { label: 'Riesgo', value: 'Sin catalogo' },
-      ],
-      title: 'Idea ligera',
-    }
-  }
-
-  return {
-    action: canCurate ? 'Guardar o curar catalogo' : 'Revisar y guardar',
-    detail: canCurate
-      ? 'Puedes guardarlo para ti o convertirlo en ficha publica si merece vivir en Nexo.'
-      : 'Guardarlo crea una entrada privada sin publicar nada en el catalogo compartido.',
-    facts: [
-      { label: 'Origen', value: sourceLabels[candidate.source] },
-      { label: 'Catalogo', value: canCurate ? 'Curable' : 'Privado' },
-    ],
-    title: 'Resultado externo',
-  }
-}
-
-function getDominantExplorerSourceLabel(counts: Record<ExplorerSourceFilter, number>) {
-  const dominant = (['nexo', 'external', 'prompt'] as const)
-    .map((source) => ({ count: counts[source], source }))
-    .sort((left, right) => right.count - left.count)[0]
-
-  if (!dominant || dominant.count === 0) return 'Sin origen'
-  return explorerSourceFilters.find((filter) => filter.id === dominant.source)?.label ?? 'Todo'
 }
 
 function getLibraryFocusItems(items: ListItem[]) {
