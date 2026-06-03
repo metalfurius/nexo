@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState, type KeyboardEvent, type ReactNode } from 'react'
 import {
   AlertTriangle,
   Archive,
@@ -343,6 +343,12 @@ function buildItemShareUrl(itemId: string) {
   url.searchParams.delete('tab')
   url.searchParams.set('item', itemId)
   return url.toString()
+}
+
+function getSearchQueryFromItemId(itemId: string) {
+  const parts = itemId.split(/[-_]+/).filter(Boolean)
+  const searchParts = ITEM_TYPES.includes(parts[0] as ItemType) ? parts.slice(1) : parts
+  return searchParts.join(' ') || itemId
 }
 
 async function writeClipboardText(value: string) {
@@ -939,6 +945,7 @@ function LibraryTab({
   )
   const focusedActivityItem = activityFocusItemId ? library.items.find((item) => item.id === activityFocusItemId) : undefined
   const missingActivityFocus = Boolean(activityFocusItemId && !library.loading && !focusedActivityItem)
+  const missingActivitySearchQuery = activityFocusItemId ? getSearchQueryFromItemId(activityFocusItemId) : ''
   const editorItem = editingItem ?? focusedActivityItem
 
   async function prepareLibraryImportFile(file?: File) {
@@ -1171,6 +1178,16 @@ function LibraryTab({
   function clearMissingActivityFocus() {
     onActivityFocusHandled()
     writeAppTabToUrl('library')
+  }
+
+  function searchMissingActivityFocus() {
+    setQuery(missingActivitySearchQuery)
+    setTypeFilter('all')
+    setStatusFilter('all')
+    setSmartView('all')
+    setSortMode('focus')
+    setImportStatus(`Buscando "${missingActivitySearchQuery}" en tu biblioteca`)
+    clearMissingActivityFocus()
   }
 
   async function saveLibraryEditorItem(item: ListItem) {
@@ -1472,7 +1489,13 @@ function LibraryTab({
         )}
         {missingActivityFocus && (
           <div className="feedback-action-row" aria-label="Actividad sin entrada">
-            <FeedbackMessage>Esa actividad ya no tiene una entrada en la biblioteca.</FeedbackMessage>
+            <FeedbackMessage>
+              Esa actividad ya no tiene una entrada en la biblioteca. Puedes buscar algo parecido a "{missingActivitySearchQuery}".
+            </FeedbackMessage>
+            <button className="secondary-button" type="button" onClick={searchMissingActivityFocus}>
+              <Search size={16} />
+              Buscar parecido
+            </button>
             <button className="ghost-button" type="button" onClick={clearMissingActivityFocus}>
               Cerrar aviso
             </button>
@@ -1739,7 +1762,7 @@ function DiceTab({
     [library.items],
   )
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     onUnsavedChange(hasUnsavedDicePreferences)
     return () => onUnsavedChange(false)
   }, [hasUnsavedDicePreferences, onUnsavedChange])
@@ -3055,7 +3078,7 @@ function SettingsTab({
     !sameList(draftFavoriteGenres, library.settings.favoriteGenres) ||
     !sameList(draftBlockedTags, library.settings.blockedTags)
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     onUnsavedChange(hasUnsavedChanges)
     return () => onUnsavedChange(false)
   }, [hasUnsavedChanges, onUnsavedChange])

@@ -276,6 +276,15 @@ test('library item deep links open and close the focused editor', async ({ page 
   await expect(page.getByRole('dialog', { name: 'Entrada' }).getByLabel('Titulo')).toHaveValue('Outer Wilds')
 })
 
+test('missing item deep links can recover through library search', async ({ page }) => {
+  await page.goto('/?item=outer-wilds')
+  await expect(page.getByLabel('Actividad sin entrada')).toContainText('outer wilds')
+  await page.getByRole('button', { name: 'Buscar parecido' }).click()
+  await expect(page).not.toHaveURL(/item=outer-wilds/)
+  await expect(page.getByLabel('Buscar en biblioteca')).toHaveValue('outer wilds')
+  await expect(page.getByTestId('library-grid')).toContainText('Outer Wilds')
+})
+
 test('dice item activity opens the linked library editor', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
