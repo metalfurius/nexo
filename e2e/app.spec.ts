@@ -270,6 +270,27 @@ test('library item deep links open and close the focused editor', async ({ page 
   await expect(page.getByRole('dialog', { name: 'Entrada' }).getByLabel('Titulo')).toHaveValue('Outer Wilds')
 })
 
+test('dice item activity opens the linked library editor', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await page.getByTestId('roll-button').click()
+  await expect(page.getByTestId('recommendation-result')).toBeVisible()
+  await page.getByRole('button', { name: 'Afinar ficha recomendada' }).click()
+
+  const diceEditor = page.getByRole('dialog', { name: 'Entrada' })
+  const recommendedTitle = await diceEditor.getByLabel('Titulo').inputValue()
+  await diceEditor.getByRole('textbox', { name: 'Progreso' }).fill('Vuelta desde actividad del dado.')
+  await diceEditor.getByRole('button', { name: 'Guardar' }).click()
+  await expect(page.getByTestId('session-activity')).toContainText('Ficha afinada')
+
+  await page
+    .getByTestId('session-activity')
+    .getByRole('button', { name: 'Abrir Ficha afinada en Biblioteca' })
+    .click()
+  await expect(page).toHaveURL(/item=/)
+  await expect(page.getByRole('dialog', { name: 'Entrada' }).getByLabel('Titulo')).toHaveValue(recommendedTitle)
+})
+
 test('pwa metadata is present', async ({ page }) => {
   await page.goto('/')
 

@@ -620,7 +620,7 @@ function App() {
         <SessionActivityPanel
           entries={library.activityEntries.slice(0, sessionActivityLimit)}
           onClear={() => void library.clearActivityEntries()}
-          onSelect={(entry) => changeActiveTab(entry.tab, getActivityFocus(entry))}
+          onSelect={(entry) => changeActiveTab(getActivityDestinationTab(entry), getActivityFocus(entry))}
         />
         {activeTab === 'library' && (
           <LibraryTab
@@ -682,11 +682,12 @@ function SessionActivityPanel({
         {entries.map((entry) => {
           const Icon = getActivityIcon(entry.tone)
           const tabLabel = activityTabLabels[entry.tab]
+          const destinationLabel = activityTabLabels[getActivityDestinationTab(entry)]
 
           return (
             <li key={entry.id}>
               <button
-                aria-label={`Abrir ${entry.label} en ${tabLabel}`}
+                aria-label={`Abrir ${entry.label} en ${destinationLabel}`}
                 className={`session-activity-item ${entry.tone}`}
                 type="button"
                 onClick={() => onSelect(entry)}
@@ -707,7 +708,11 @@ function SessionActivityPanel({
 }
 
 function getActivityFocus(entry: ActivityEntry): ActivityFocus | undefined {
-  return entry.tab === 'library' && entry.target?.kind === 'item' ? entry.target : undefined
+  return entry.target?.kind === 'item' ? entry.target : undefined
+}
+
+function getActivityDestinationTab(entry: ActivityEntry): AppTab {
+  return entry.target?.kind === 'item' ? 'library' : entry.tab
 }
 
 function getActivityIcon(tone: FeedbackTone) {
@@ -1755,6 +1760,7 @@ function DiceTab({
         detail: next.item.title,
         label: 'Tirada registrada',
         tab: 'dice',
+        target: { kind: 'item', id: next.item.id },
         tone: 'success',
       })
     }
@@ -1831,6 +1837,7 @@ function DiceTab({
         detail: recommendation.item.title,
         label: 'Recomendacion iniciada',
         tab: 'dice',
+        target: { kind: 'item', id: recommendation.item.id },
         tone: 'success',
       })
     } catch (reason) {
@@ -1850,6 +1857,7 @@ function DiceTab({
         detail: recommendation.item.title,
         label: 'Recomendacion enfriada',
         tab: 'dice',
+        target: { kind: 'item', id: recommendation.item.id },
         tone: 'success',
       })
     } catch (reason) {
@@ -1890,6 +1898,7 @@ function DiceTab({
         detail: item.title || 'Entrada sin titulo',
         label: 'Ficha afinada',
         tab: 'dice',
+        target: { kind: 'item', id: item.id },
         tone: 'success',
       })
     } catch (reason) {
@@ -1912,6 +1921,7 @@ function DiceTab({
           detail: `${diceUndoAction.title} -> ${statusLabels[diceUndoAction.previousStatus]}`,
           label: 'Decision recuperada',
           tab: 'dice',
+          target: { kind: 'item', id: diceUndoAction.itemId },
           tone: 'success',
         })
       } else if (diceUndoAction.kind === 'snooze') {
@@ -1922,6 +1932,7 @@ function DiceTab({
           detail: diceUndoAction.title,
           label: 'Recomendacion recuperada',
           tab: 'dice',
+          target: { kind: 'item', id: diceUndoAction.recommendation.item.id },
           tone: 'success',
         })
       } else {
@@ -2408,6 +2419,7 @@ function ExplorerTab({
         detail: item.title,
         label: 'Hallazgo guardado',
         tab: 'explorer',
+        target: { kind: 'item', id: item.id },
         tone: 'success',
       })
       return true
@@ -2533,6 +2545,7 @@ function ExplorerTab({
         detail: item.title || 'Entrada sin titulo',
         label: 'Ficha afinada',
         tab: 'explorer',
+        target: { kind: 'item', id: item.id },
         tone: 'success',
       })
     } catch (reason) {
@@ -3117,6 +3130,7 @@ function SettingsTab({
       detail: item.title || 'Entrada sin titulo',
       label: 'Ficha guardada',
       tab: 'settings',
+      target: { kind: 'item', id: item.id },
       tone: 'success',
     })
   }
