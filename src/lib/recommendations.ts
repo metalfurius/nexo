@@ -95,6 +95,7 @@ function scoreItem(
   }
 
   score += scoreEnergy(item, preferences, reasons)
+  score += scoreIntensity(item, preferences, reasons)
   score += scoreNovelty(item, preferences, reasons)
   score += item.weights.surprise * (preferences.surprisePercent / 5)
 
@@ -123,15 +124,16 @@ function scoreDuration(item: ListItem, budget?: number) {
 
 function scoreEnergy(item: ListItem, preferences: RecommendationPreferences, reasons: string[]) {
   const challenge = item.weights.challenge
+  const moodKeys = getMoodKeys(item)
   if (preferences.energy === 'low') {
-    if (item.moodTags.includes('ligero') || item.moodTags.includes('rapido')) {
+    if (hasAnySignal(moodKeys, ['ligero', 'rapido'])) {
       reasons.push('energia baja')
       return 16
     }
     return -challenge * 12
   }
   if (preferences.energy === 'high') {
-    if (item.moodTags.includes('intenso') || item.moodTags.includes('denso')) {
+    if (hasAnySignal(moodKeys, ['intenso', 'denso'])) {
       reasons.push('energia alta')
       return 16
     }
@@ -140,10 +142,46 @@ function scoreEnergy(item: ListItem, preferences: RecommendationPreferences, rea
   return 4
 }
 
+function scoreIntensity(item: ListItem, preferences: RecommendationPreferences, reasons: string[]) {
+  const challenge = item.weights.challenge
+  const moodKeys = getMoodKeys(item)
+
+  if (preferences.intensity === 'soft') {
+    if (hasAnySignal(moodKeys, ['ligero', 'rapido', 'confort', 'calma', 'amable'])) {
+      reasons.push('intensidad suave')
+      return 16
+    }
+    if (challenge <= 0.35) {
+      reasons.push('reto suave')
+      return 12
+    }
+    return -challenge * 14
+  }
+
+  if (preferences.intensity === 'intense') {
+    if (hasAnySignal(moodKeys, ['intenso', 'denso', 'maraton', 'oscuro', 'raro'])) {
+      reasons.push('intensidad intensa')
+      return 16
+    }
+    if (challenge >= 0.7) {
+      reasons.push('reto alto')
+      return 12
+    }
+    return challenge * 4 - 4
+  }
+
+  const balanceDistance = Math.abs(challenge - 0.5)
+  if (balanceDistance <= 0.18) {
+    reasons.push('intensidad equilibrada')
+    return 7
+  }
+  return Math.max(0, 4 - balanceDistance * 8)
+}
+
 function scoreNovelty(item: ListItem, preferences: RecommendationPreferences, reasons: string[]) {
   if (preferences.novelty === 'comfort') {
     const comfort = item.rating && item.rating >= 7 ? 8 : 0
-    return comfort + (item.moodTags.includes('ligero') ? 8 : 0)
+    return comfort + (hasAnySignal(getMoodKeys(item), ['ligero']) ? 8 : 0)
   }
   if (preferences.novelty === 'surprise') {
     reasons.push('punto de sorpresa')
@@ -163,6 +201,14 @@ function collectLikedSignals(items: ListItem[], settings: UserSettings) {
   }
 
   return { tags, genres }
+}
+
+function getMoodKeys(item: ListItem) {
+  return item.moodTags.map(normalizeKey)
+}
+
+function hasAnySignal(values: string[], targets: string[]) {
+  return targets.some((target) => values.includes(target))
 }
 
 function seededRandom(seed: string) {
