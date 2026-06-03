@@ -1538,13 +1538,21 @@ function DiceTab({ library }: { library: LibrarySurface }) {
 
                 return (
                   <li key={item.id}>
-                    <span className={`recent-roll-icon ${item.type}`}>
-                      <Icon size={14} />
-                    </span>
-                    <span>
-                      <strong>{item.title}</strong>
-                      <small>{formatRecentRecommendationTime(item.lastRecommendedAt)}</small>
-                    </span>
+                    <button
+                      aria-label={`Afinar tirada reciente ${item.title}`}
+                      type="button"
+                      onClick={() =>
+                        setEditingDiceItem(library.items.find((libraryItem) => libraryItem.id === item.id) ?? item)
+                      }
+                    >
+                      <span className={`recent-roll-icon ${item.type}`}>
+                        <Icon size={14} />
+                      </span>
+                      <span>
+                        <strong>{item.title}</strong>
+                        <small>{formatRecentRecommendationTime(item.lastRecommendedAt)}</small>
+                      </span>
+                    </button>
                   </li>
                 )
               })}

@@ -138,6 +138,12 @@ test('library and weighted dice work in demo mode', async ({ page }) => {
   await diceEditor.getByRole('button', { name: 'Guardar' }).click()
   await expect(page.getByText(/afinada desde el dado\./)).toBeVisible()
   await expect(page.getByTestId('recent-rolls')).toContainText('Ahora mismo')
+  await page.getByTestId('recent-rolls').getByRole('button', { name: /Afinar tirada reciente/ }).click()
+  const recentEditor = page.getByRole('dialog', { name: 'Entrada' })
+  await expect(recentEditor.getByLabel('Notas')).toHaveValue('Afinada desde el dado.')
+  await recentEditor.getByRole('textbox', { name: 'Progreso' }).fill('Revisada desde historial.')
+  await recentEditor.getByRole('button', { name: 'Guardar' }).click()
+  await expect(page.getByText(/afinada desde el dado\./)).toBeVisible()
 
   await page.getByRole('button', { name: 'Biblioteca', exact: true }).click()
   await page.getByRole('button', { name: 'Mas acciones Outer Wilds' }).click()
