@@ -38,6 +38,12 @@ export interface LibraryImportSummary {
   settingsIncluded: boolean
 }
 
+export interface LibraryImportRollbackPlan {
+  newItemIds: string[]
+  previousItems: ListItem[]
+  previousSettings?: UserSettings
+}
+
 export function createLibraryExportPayload(
   items: ListItem[],
   settings: UserSettings,
@@ -74,6 +80,26 @@ export function getLibraryImportSummary(payload: ParsedLibraryImport, currentIte
   }
 }
 
+export function getLibraryImportRollbackPlan(
+  payload: ParsedLibraryImport,
+  currentItems: ListItem[],
+  currentSettings?: UserSettings,
+): LibraryImportRollbackPlan {
+  const currentById = new Map(currentItems.map((item) => [item.id, item]))
+  const importedIds = uniqueValues(payload.items.map((item) => item.id))
+  const newItemIds = importedIds.filter((id) => !currentById.has(id))
+  const previousItems = importedIds.flatMap((id) => {
+    const item = currentById.get(id)
+    return item ? [cloneListItem(item)] : []
+  })
+
+  return {
+    newItemIds,
+    previousItems,
+    previousSettings: payload.settings && currentSettings ? cloneUserSettingsSnapshot(currentSettings) : undefined,
+  }
+}
+
 export function parseLibraryImportPayload(payload: unknown, importedAt = nowIso()): ParsedLibraryImport {
   const root = asRecord(payload, 'El archivo no es un JSON de Nexo valido')
 
@@ -87,6 +113,39 @@ export function parseLibraryImportPayload(payload: unknown, importedAt = nowIso(
   return {
     items: root.items.map((item, index) => normalizeListItem(item, index, importedAt)),
     settings: root.settings ? normalizeSettings(root.settings) : undefined,
+  }
+}
+
+function cloneListItem(item: ListItem): ListItem {
+  return {
+    ...item,
+    ...(item.externalRefs ? { externalRefs: { ...item.externalRefs } } : {}),
+    genres: [...item.genres],
+    ...(item.importNotes ? { importNotes: [...item.importNotes] } : {}),
+    moodTags: [...item.moodTags],
+    ...(item.publicSnapshot
+      ? {
+          publicSnapshot: {
+            ...item.publicSnapshot,
+            externalRefs: { ...item.publicSnapshot.externalRefs },
+            genres: [...item.publicSnapshot.genres],
+            moodTags: [...item.publicSnapshot.moodTags],
+            tags: [...item.publicSnapshot.tags],
+          },
+        }
+      : {}),
+    tags: [...item.tags],
+    weights: { ...item.weights },
+  }
+}
+
+function cloneUserSettingsSnapshot(settings: UserSettings): UserSettings {
+  return {
+    ...settings,
+    blockedTags: [...settings.blockedTags],
+    favoriteGenres: [...settings.favoriteGenres],
+    favoriteTags: [...settings.favoriteTags],
+    recommendationPreferences: { ...settings.recommendationPreferences },
   }
 }
 

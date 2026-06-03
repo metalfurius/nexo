@@ -156,8 +156,10 @@ import {
 } from './lib/privateDataInsights'
 import {
   createLibraryExportPayload,
+  getLibraryImportRollbackPlan,
   getLibraryImportSummary,
   parseLibraryImportPayload,
+  type LibraryImportRollbackPlan,
   type LibraryImportSummary,
   type ParsedLibraryImport,
 } from './lib/libraryBackup'
@@ -241,6 +243,7 @@ function feedbackToneFromText(message: string): FeedbackTone {
   if (
     normalized.includes('guardad') ||
     normalized.includes('borrad') ||
+    normalized.includes('deshech') ||
     normalized.includes('archivad') ||
     normalized.includes('importadas') ||
     normalized.includes('descargad') ||
@@ -1315,6 +1318,7 @@ function LibraryTab({
   const [deletedLibraryUndo, setDeletedLibraryUndo] = useState<ListItem[]>([])
   const [statusUndo, setStatusUndo] = useState<LibraryStatusUndo | undefined>()
   const [pendingLibraryImport, setPendingLibraryImport] = useState<PendingBackupImport | undefined>()
+  const [libraryImportUndo, setLibraryImportUndo] = useState<LibraryImportRollbackPlan | undefined>()
   const [libraryLinkCopy, setLibraryLinkCopy] = useState<{ title: string; url: string } | undefined>()
   const [importStatus, setImportStatus] = useState<string | undefined>()
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -1400,6 +1404,7 @@ function LibraryTab({
     setDeletedItemUndo(undefined)
     setDeletedLibraryUndo([])
     setStatusUndo(undefined)
+    setLibraryImportUndo(undefined)
     try {
       const payload = parseLibraryImportPayload(JSON.parse(await file.text()))
       const summary = getLibraryImportSummary(payload, library.items)
@@ -1418,6 +1423,7 @@ function LibraryTab({
     setImportStatus('Importando biblioteca...')
     try {
       const { payload, summary } = pendingLibraryImport
+      const rollbackPlan = getLibraryImportRollbackPlan(payload, library.items, library.settings)
 
       for (const item of payload.items) {
         await library.saveItem(item)
@@ -1437,6 +1443,10 @@ function LibraryTab({
         tab: 'library',
         tone: 'success',
       })
+      setDeletedItemUndo(undefined)
+      setDeletedLibraryUndo([])
+      setStatusUndo(undefined)
+      setLibraryImportUndo(rollbackPlan)
       setPendingLibraryImport(undefined)
       setSelectedItemIds([])
     } catch (reason) {
@@ -1449,6 +1459,36 @@ function LibraryTab({
     setImportStatus('Importacion de backup cancelada')
   }
 
+  async function undoLibraryImportFile() {
+    if (!libraryImportUndo) return
+
+    setImportStatus('Deshaciendo importacion de backup...')
+    try {
+      for (const id of libraryImportUndo.newItemIds) {
+        await library.deleteItem(id)
+      }
+      for (const item of libraryImportUndo.previousItems) {
+        await library.saveItem(item)
+      }
+      if (libraryImportUndo.previousSettings) {
+        await library.saveSettings(libraryImportUndo.previousSettings)
+        setTheme(libraryImportUndo.previousSettings.theme)
+      }
+      setImportStatus(formatLibraryImportRollbackStatus(libraryImportUndo))
+      onActivity({
+        detail: formatLibraryImportRollbackDetail(libraryImportUndo),
+        label: 'Backup privado deshecho',
+        tab: 'library',
+        tone: 'success',
+      })
+      setLibraryImportUndo(undefined)
+      setPendingLibraryImport(undefined)
+      setSelectedItemIds([])
+    } catch (reason) {
+      setImportStatus(reason instanceof Error ? reason.message : 'No se pudo deshacer el backup.')
+    }
+  }
+
   async function deleteEntireLibrary() {
     const deletedItems = library.items.map((item) => ({ ...item }))
     setImportStatus('Borrando tu biblioteca...')
@@ -1456,6 +1496,7 @@ function LibraryTab({
     setDeletedLibraryUndo([])
     setStatusUndo(undefined)
     setPendingLibraryImport(undefined)
+    setLibraryImportUndo(undefined)
     await library.deleteAllItems()
     setDeletedLibraryUndo(deletedItems)
     setSelectedItemIds([])
@@ -1480,6 +1521,7 @@ function LibraryTab({
     setDeletedLibraryUndo([])
     setStatusUndo(undefined)
     setPendingLibraryImport(undefined)
+    setLibraryImportUndo(undefined)
     setDeleteTarget(undefined)
     setSelectedItemIds((current) => current.filter((id) => id !== deleteTarget.id))
     setImportStatus(`${deletedTitle} borrado`)
@@ -1506,6 +1548,7 @@ function LibraryTab({
       })
       setDeletedItemUndo(undefined)
       setPendingLibraryImport(undefined)
+      setLibraryImportUndo(undefined)
     } catch (reason) {
       setImportStatus(reason instanceof Error ? reason.message : 'No se pudo deshacer el borrado.')
     }
@@ -1528,6 +1571,7 @@ function LibraryTab({
       })
       setDeletedLibraryUndo([])
       setPendingLibraryImport(undefined)
+      setLibraryImportUndo(undefined)
     } catch (reason) {
       setImportStatus(reason instanceof Error ? reason.message : 'No se pudo deshacer el borrado total.')
     }
@@ -1536,6 +1580,7 @@ function LibraryTab({
   async function snoozeLibraryItem(item: ListItem) {
     try {
       await library.snoozeRecommendation(item.id)
+      setLibraryImportUndo(undefined)
       setImportStatus(`${item.title} enfriado para el dado`)
       onActivity({
         detail: item.title,
@@ -1552,6 +1597,7 @@ function LibraryTab({
   async function reactivateLibraryItem(item: ListItem) {
     try {
       await library.reactivateRecommendation(item.id)
+      setLibraryImportUndo(undefined)
       setImportStatus(`${item.title} reactivado para el dado`)
       onActivity({
         detail: item.title,
@@ -1572,6 +1618,7 @@ function LibraryTab({
       setDeletedLibraryUndo([])
       setStatusUndo({ id: item.id, kind: 'single', previousStatus: item.status, title: item.title })
       setPendingLibraryImport(undefined)
+      setLibraryImportUndo(undefined)
       setImportStatus(`${item.title} ahora es ${statusLabels[status]}`)
       onActivity({
         detail: `${item.title} -> ${statusLabels[status]}`,
@@ -1602,6 +1649,7 @@ function LibraryTab({
         })
         setStatusUndo(undefined)
         setPendingLibraryImport(undefined)
+        setLibraryImportUndo(undefined)
         return
       }
 
@@ -1616,6 +1664,7 @@ function LibraryTab({
       })
       setStatusUndo(undefined)
       setPendingLibraryImport(undefined)
+      setLibraryImportUndo(undefined)
     } catch (reason) {
       setImportStatus(reason instanceof Error ? reason.message : 'No se pudo deshacer el cambio de estado.')
     }
@@ -1656,6 +1705,7 @@ function LibraryTab({
         kind: 'bulk',
       })
       setPendingLibraryImport(undefined)
+      setLibraryImportUndo(undefined)
       setSelectedItemIds([])
       setImportStatus(`${changedItems.length} entradas ahora son ${statusLabels[bulkStatus]}`)
       onActivity({
@@ -1683,6 +1733,7 @@ function LibraryTab({
       setDeletedItemUndo(undefined)
       setDeletedLibraryUndo([])
       setPendingLibraryImport(undefined)
+      setLibraryImportUndo(undefined)
       setSelectedItemIds([])
       setImportStatus(`${itemsToSnooze.length} entradas enfriadas para el dado`)
       onActivity({
@@ -1710,6 +1761,7 @@ function LibraryTab({
       setDeletedItemUndo(undefined)
       setDeletedLibraryUndo([])
       setPendingLibraryImport(undefined)
+      setLibraryImportUndo(undefined)
       setSelectedItemIds([])
       setImportStatus(`${itemsToReactivate.length} entradas reactivadas para el dado`)
       onActivity({
@@ -1763,6 +1815,7 @@ function LibraryTab({
       await library.saveItem(item)
       setDeletedItemUndo(undefined)
       setPendingLibraryImport(undefined)
+      setLibraryImportUndo(undefined)
       setEditingItem(undefined)
       onActivityFocusHandled()
       onDraftRequestHandled()
@@ -2227,8 +2280,14 @@ function LibraryTab({
             </div>
           </div>
         )}
-        {(deletedItemUndo || deletedLibraryUndo.length > 0 || statusUndo) && (
+        {(deletedItemUndo || deletedLibraryUndo.length > 0 || statusUndo || libraryImportUndo) && (
           <div className="feedback-action-row" aria-label="Accion reciente de biblioteca">
+            {libraryImportUndo && (
+              <button className="secondary-button" type="button" onClick={() => void undoLibraryImportFile()}>
+                <RotateCcw size={16} />
+                Deshacer backup
+              </button>
+            )}
             {deletedItemUndo && (
               <button className="secondary-button" type="button" onClick={() => void undoDeleteSingleItem()}>
                 <RotateCcw size={16} />
@@ -3889,6 +3948,20 @@ function formatBackupImportSummary(summary: LibraryImportSummary) {
   return parts.join(' / ')
 }
 
+function formatLibraryImportRollbackDetail(plan: LibraryImportRollbackPlan) {
+  const parts = [
+    plan.newItemIds.length ? `${plan.newItemIds.length} nuevas eliminadas` : undefined,
+    plan.previousItems.length ? `${plan.previousItems.length} restauradas` : undefined,
+    plan.previousSettings ? 'ajustes recuperados' : undefined,
+  ].filter((part): part is string => Boolean(part))
+
+  return parts.length ? parts.join(' / ') : 'Sin cambios que revertir'
+}
+
+function formatLibraryImportRollbackStatus(plan: LibraryImportRollbackPlan) {
+  return `Backup deshecho: ${formatLibraryImportRollbackDetail(plan)}`
+}
+
 function formatCatalogSeedSummary(summary: PublicCatalogSeedSummary) {
   return [
     `${summary.newItems} ${summary.newItems === 1 ? 'nueva' : 'nuevas'}`,
@@ -3947,6 +4020,7 @@ function SettingsTab({
   const [status, setStatus] = useState<string | undefined>()
   const [settingsUndo, setSettingsUndo] = useState<UserSettings | undefined>()
   const [privateTaxonomyUndoItems, setPrivateTaxonomyUndoItems] = useState<ListItem[]>([])
+  const [settingsImportUndo, setSettingsImportUndo] = useState<LibraryImportRollbackPlan | undefined>()
   const [editingItem, setEditingItem] = useState<ListItem | undefined>()
   const [pendingBackupImport, setPendingBackupImport] = useState<PendingBackupImport | undefined>()
   const draftFavoriteTags = splitList(draft.favoriteTags)
@@ -4028,6 +4102,7 @@ function SettingsTab({
     await library.saveSettings(nextSettings)
     setPendingBackupImport(undefined)
     setPrivateTaxonomyUndoItems([])
+    setSettingsImportUndo(undefined)
     setSettingsUndo(previousSettings)
     setStatus('Ajustes guardados')
     onActivity({
@@ -4049,6 +4124,7 @@ function SettingsTab({
       setSettingsUndo(undefined)
       setPendingBackupImport(undefined)
       setPrivateTaxonomyUndoItems([])
+      setSettingsImportUndo(undefined)
       setStatus('Ajustes recuperados')
       onActivity({
         detail: `${previousSettings.theme === 'dark' ? 'Oscuro' : 'Claro'} / ${typeLabels[previousSettings.explorerDefaultType]}`,
@@ -4086,6 +4162,7 @@ function SettingsTab({
       const payload = parseLibraryImportPayload(JSON.parse(await file.text()))
       const summary = getLibraryImportSummary(payload, library.items)
       setPrivateTaxonomyUndoItems([])
+      setSettingsImportUndo(undefined)
       setPendingBackupImport({ fileName: file.name, payload, summary })
       setStatus(`Backup preparado: ${formatBackupImportSummary(summary)}`)
     } catch (reason) {
@@ -4100,6 +4177,7 @@ function SettingsTab({
     setStatus('Importando backup JSON...')
     try {
       const { payload, summary } = pendingBackupImport
+      const rollbackPlan = getLibraryImportRollbackPlan(payload, library.items, library.settings)
 
       for (const item of payload.items) {
         await library.saveItem(item)
@@ -4111,6 +4189,8 @@ function SettingsTab({
         setSettingsUndo(undefined)
       }
       setPrivateTaxonomyUndoItems([])
+      setSettingsUndo(undefined)
+      setSettingsImportUndo(rollbackPlan)
       setStatus(
         payload.settings
           ? `Importadas ${summary.totalItems} entradas y ajustes desde backup`
@@ -4133,10 +4213,41 @@ function SettingsTab({
     setStatus('Importacion de backup cancelada')
   }
 
+  async function undoSettingsImport() {
+    if (!settingsImportUndo) return
+
+    setStatus('Deshaciendo importacion de backup...')
+    try {
+      for (const id of settingsImportUndo.newItemIds) {
+        await library.deleteItem(id)
+      }
+      for (const item of settingsImportUndo.previousItems) {
+        await library.saveItem(item)
+      }
+      if (settingsImportUndo.previousSettings) {
+        await library.saveSettings(settingsImportUndo.previousSettings)
+        setTheme(settingsImportUndo.previousSettings.theme)
+        setDraft(settingsDraftFromSettings(settingsImportUndo.previousSettings))
+      }
+      setSettingsImportUndo(undefined)
+      setPrivateTaxonomyUndoItems([])
+      setStatus(formatLibraryImportRollbackStatus(settingsImportUndo))
+      onActivity({
+        detail: formatLibraryImportRollbackDetail(settingsImportUndo),
+        label: 'Backup privado deshecho',
+        tab: 'settings',
+        tone: 'success',
+      })
+    } catch (reason) {
+      setStatus(reason instanceof Error ? reason.message : 'No se pudo deshacer el backup.')
+    }
+  }
+
   async function savePrivateItemFromSettings(item: ListItem) {
     await library.saveItem(item)
     setEditingItem(undefined)
     setPrivateTaxonomyUndoItems([])
+    setSettingsImportUndo(undefined)
     setStatus(`${item.title || 'Entrada'} guardada`)
     onActivity({
       detail: item.title || 'Entrada sin titulo',
@@ -4160,6 +4271,7 @@ function SettingsTab({
       setPendingBackupImport(undefined)
       setSettingsUndo(undefined)
       setPrivateTaxonomyUndoItems(privateTaxonomyRepairs.map((entry) => entry.original))
+      setSettingsImportUndo(undefined)
       setStatus(
         `Taxonomia privada completada en ${privateTaxonomyRepairs.length} ficha${privateTaxonomyRepairs.length === 1 ? '' : 's'}`,
       )
@@ -4434,8 +4546,14 @@ function SettingsTab({
         </div>
 
         {status && <FeedbackMessage tone={feedbackToneFromText(status)}>{status}</FeedbackMessage>}
-        {(settingsUndo || privateTaxonomyUndoItems.length > 0) && !hasUnsavedChanges && (
+        {(settingsUndo || privateTaxonomyUndoItems.length > 0 || settingsImportUndo) && !hasUnsavedChanges && (
           <div className="feedback-action-row" aria-label="Accion reciente de ajustes">
+            {settingsImportUndo && (
+              <button className="secondary-button" type="button" onClick={() => void undoSettingsImport()}>
+                <RotateCcw size={16} />
+                Deshacer backup
+              </button>
+            )}
             {settingsUndo && (
               <button className="secondary-button" type="button" onClick={() => void undoSettingsSave()}>
                 <RotateCcw size={16} />

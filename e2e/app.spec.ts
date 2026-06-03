@@ -645,6 +645,54 @@ test('settings can repair private taxonomy from the maintenance plan', async ({ 
   await expect(page.getByTestId('private-data-health')).toContainText('7/8')
 })
 
+test('settings can undo a private backup import with settings', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Ajustes', exact: true }).click()
+  await page.getByLabel('Importar backup JSON').setInputFiles({
+    name: 'nexo-settings-rollback.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(
+      JSON.stringify({
+        schemaVersion: 1,
+        exportedAt: '2026-06-03T00:00:00.000Z',
+        settings: {
+          theme: 'light',
+          favoriteTags: ['backup'],
+          favoriteGenres: [],
+          blockedTags: [],
+          explorerDefaultType: 'book',
+          libraryViewMode: 'list',
+        },
+        items: [
+          {
+            title: 'Settings Rollback Probe',
+            type: 'book',
+            status: 'wishlist',
+            genres: ['Ensayo'],
+            tags: ['rollback'],
+            moodTags: [],
+            weights: { priority: 1, surprise: 0.5, challenge: 0.5 },
+            source: 'manual',
+            createdAt: '2026-06-01T00:00:00.000Z',
+            updatedAt: '2026-06-01T00:00:00.000Z',
+          },
+        ],
+      }),
+    ),
+  })
+
+  await expect(page.getByText('Backup preparado: 1 nueva / 0 actualizadas / ajustes')).toBeVisible()
+  await page.getByRole('button', { name: 'Aplicar backup' }).click()
+  await expect(page.getByText('Importadas 1 entradas y ajustes desde backup')).toBeVisible()
+  await expect(page.getByTestId('settings-confidence')).toContainText('Claro')
+  await expect(page.getByRole('button', { name: 'Deshacer backup' })).toBeVisible()
+  await page.getByRole('button', { name: 'Deshacer backup' }).click()
+  await expect(page.getByText('Backup deshecho: 1 nuevas eliminadas / ajustes recuperados')).toBeVisible()
+  await expect(page.getByTestId('settings-confidence')).toContainText('Oscuro')
+  await page.getByRole('button', { name: 'Biblioteca', exact: true }).click()
+  await expect(page.getByTestId('library-grid')).not.toContainText('Settings Rollback Probe')
+})
+
 test('library quick import previews a backup before applying it', async ({ page }) => {
   await page.goto('/')
   await page.getByLabel('Importar biblioteca desde JSON').setInputFiles({
@@ -678,6 +726,10 @@ test('library quick import previews a backup before applying it', async ({ page 
   await page.getByRole('button', { name: 'Aplicar backup' }).click()
   await expect(page.getByText('Importadas 1 entradas')).toBeVisible()
   await expect(page.getByTestId('library-grid')).toContainText('Preview Probe')
+  await expect(page.getByRole('button', { name: 'Deshacer backup' })).toBeVisible()
+  await page.getByRole('button', { name: 'Deshacer backup' }).click()
+  await expect(page.getByText('Backup deshecho: 1 nuevas eliminadas')).toBeVisible()
+  await expect(page.getByTestId('library-grid')).not.toContainText('Preview Probe')
 })
 
 test('explorer searches public catalog and saves to private library', async ({ page }) => {

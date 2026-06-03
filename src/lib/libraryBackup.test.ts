@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_SETTINGS, DEFAULT_WEIGHTS, type ListItem } from '../domain/types'
-import { createLibraryExportPayload, getLibraryImportSummary, parseLibraryImportPayload } from './libraryBackup'
+import {
+  createLibraryExportPayload,
+  getLibraryImportRollbackPlan,
+  getLibraryImportSummary,
+  parseLibraryImportPayload,
+} from './libraryBackup'
 
 const baseItem: ListItem = {
   id: 'game-outer-wilds',
@@ -73,6 +78,33 @@ describe('library backup schema', () => {
       duplicateItems: 1,
       settingsIncluded: true,
     })
+  })
+
+  it('builds rollback plans for new items, overwritten items and imported settings', () => {
+    const currentSettings = { ...DEFAULT_SETTINGS, favoriteTags: ['actual'], recommendationPreferences: { ...DEFAULT_SETTINGS.recommendationPreferences } }
+    const overwritten = { ...baseItem, title: 'Outer Wilds before import', tags: ['before'] }
+    const parsed = parseLibraryImportPayload(
+      createLibraryExportPayload(
+        [
+          { ...baseItem, title: 'Outer Wilds imported', tags: ['after'] },
+          { ...baseItem, id: 'book-solaris', title: 'Solaris', type: 'book' },
+          { ...baseItem, id: 'book-solaris', title: 'Solaris duplicate', type: 'book' },
+        ],
+        { ...DEFAULT_SETTINGS, favoriteTags: ['imported'] },
+        '2026-01-02T00:00:00.000Z',
+      ),
+      '2026-01-03T00:00:00.000Z',
+    )
+
+    const rollback = getLibraryImportRollbackPlan(parsed, [overwritten], currentSettings)
+
+    expect(rollback.newItemIds).toEqual(['book-solaris'])
+    expect(rollback.previousItems).toEqual([overwritten])
+    expect(rollback.previousItems[0]).not.toBe(overwritten)
+    expect(rollback.previousItems[0].tags).not.toBe(overwritten.tags)
+    expect(rollback.previousSettings).toEqual(currentSettings)
+    expect(rollback.previousSettings).not.toBe(currentSettings)
+    expect(rollback.previousSettings?.favoriteTags).not.toBe(currentSettings.favoriteTags)
   })
 
   it('normalizes missing optional arrays and weights from older backups', () => {
