@@ -32,6 +32,7 @@ import {
   Trash2,
   Upload,
   X,
+  type LucideIcon,
 } from 'lucide-react'
 import './App.css'
 import {
@@ -121,10 +122,12 @@ import {
   getLibraryNextPlanFacts,
   getLibraryNextPlanSignals,
   getLibraryNextPlanTitle,
+  getLibraryReviewQueues,
   getLibrarySmartViewOptions,
   hasItemTaxonomy,
   isItemReadyForDicePulse,
   matchesLibrarySmartView,
+  type LibraryReviewQueue,
   type LibraryLaunchGuide,
   type LibraryLaunchStep,
   type LibrarySmartView,
@@ -1336,6 +1339,7 @@ function LibraryTab({
     () => getLibraryLaunchGuide(library.items, library.discoveryCandidates),
     [library.discoveryCandidates, library.items],
   )
+  const reviewQueues = useMemo(() => getLibraryReviewQueues(library.items), [library.items])
   const focusedActivityItem = activityFocusItemId ? library.items.find((item) => item.id === activityFocusItemId) : undefined
   const missingActivityFocus = Boolean(activityFocusItemId && !library.loading && !focusedActivityItem)
   const missingActivitySearchQuery = activityFocusItemId ? getSearchQueryFromItemId(activityFocusItemId) : ''
@@ -1775,6 +1779,29 @@ function LibraryTab({
     setSortMode('focus')
   }
 
+  function openLibrarySmartView(view: LibrarySmartView, label: string) {
+    setQuery('')
+    setTypeFilter('all')
+    setStatusFilter('all')
+    setSmartView(view)
+    setSortMode('focus')
+    setImportStatus(`Vista de repaso: ${label}`)
+  }
+
+  function runLibraryReviewQueue(queue: LibraryReviewQueue) {
+    if (queue.action === 'open-dice') {
+      onNavigate('dice')
+      return
+    }
+
+    if (queue.action === 'open-item' && queue.item) {
+      openLibraryEditor(queue.item)
+      return
+    }
+
+    openLibrarySmartView(queue.id, queue.label)
+  }
+
   function createItemFromCurrentSearch() {
     const draft = blankItem()
     openLibraryEditor({
@@ -1918,6 +1945,54 @@ function LibraryTab({
             </div>
           </div>
         </section>
+
+        {reviewQueues.length > 0 && (
+          <section className="library-review-panel" aria-label="Repaso guiado de biblioteca" data-testid="library-review-queue">
+            <div className="library-review-heading">
+              <div>
+                <span className="eyebrow">Repaso guiado</span>
+                <h3>Colas que mejoran el dado</h3>
+              </div>
+              <span>{reviewQueues.length} activas</span>
+            </div>
+            <div className="library-review-grid">
+              {reviewQueues.map((queue) => {
+                const Icon = getLibraryReviewQueueIcon(queue.id)
+                const canOpenView = queue.id !== 'all' && queue.action !== 'open-dice'
+
+                return (
+                  <article className={queue.primary ? 'library-review-card primary' : 'library-review-card'} key={queue.id}>
+                    <div className="library-review-main">
+                      <span className="library-review-icon" aria-hidden="true">
+                        <Icon size={16} />
+                      </span>
+                      <div>
+                        <strong>{queue.label}</strong>
+                        <p>{queue.detail}</p>
+                        {queue.item && <small>Siguiente: {queue.item.title}</small>}
+                      </div>
+                      <em>{queue.count}</em>
+                    </div>
+                    <div className="library-review-actions">
+                      <button
+                        className={queue.primary ? 'primary-button' : 'secondary-button'}
+                        type="button"
+                        onClick={() => runLibraryReviewQueue(queue)}
+                      >
+                        {getLibraryReviewQueueActionLabel(queue)}
+                      </button>
+                      {canOpenView && (
+                        <button className="ghost-button" type="button" onClick={() => openLibrarySmartView(queue.id, queue.label)}>
+                          Ver cola
+                        </button>
+                      )}
+                    </div>
+                  </article>
+                )
+              })}
+            </div>
+          </section>
+        )}
 
         <div className="stats-row">
           <button
@@ -5785,6 +5860,25 @@ function getSecondaryItemAction(status: ItemStatus): { Icon: typeof Play; label:
     default:
       return { Icon: Check, label: 'Completar', nextStatus: 'completed' }
   }
+}
+
+function getLibraryReviewQueueIcon(id: LibraryReviewQueue['id']): LucideIcon {
+  const icons: Record<LibraryReviewQueue['id'], LucideIcon> = {
+    all: Library,
+    cooldown: RotateCcw,
+    'dice-ready': Dice5,
+    'needs-context': Info,
+    'needs-taxonomy': Sparkles,
+    nexo: ShieldCheck,
+  }
+
+  return icons[id]
+}
+
+function getLibraryReviewQueueActionLabel(queue: LibraryReviewQueue) {
+  if (queue.action === 'open-dice') return 'Abrir Dado'
+  if (queue.action === 'open-item') return queue.id === 'needs-taxonomy' ? 'Afinar ficha' : 'Completar ficha'
+  return 'Abrir vista'
 }
 
 function CoverArt({ posterUrl, title, type }: { posterUrl?: string; title: string; type: ItemType }) {

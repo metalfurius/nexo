@@ -7,6 +7,7 @@ import {
   getLibraryNextPlanFacts,
   getLibraryNextPlanSignals,
   getLibraryNextPlanTitle,
+  getLibraryReviewQueues,
   getLibrarySmartViewOptions,
   hasItemTaxonomy,
   isItemReadyForDicePulse,
@@ -90,16 +91,43 @@ describe('library insights', () => {
     expect(matchesLibrarySmartView(items[1], 'needs-context', now)).toBe(true)
     expect(matchesLibrarySmartView(items[2], 'needs-taxonomy', now)).toBe(true)
     expect(matchesLibrarySmartView(items[3], 'nexo', now)).toBe(true)
+    expect(matchesLibrarySmartView(items[5], 'cooldown', now)).toBe(true)
 
     const counts = Object.fromEntries(getLibrarySmartViewOptions(items, now).map((option) => [option.id, option.count]))
 
     expect(counts).toEqual({
       all: 6,
+      cooldown: 1,
       'dice-ready': 4,
       'needs-context': 3,
       'needs-taxonomy': 1,
       nexo: 1,
     })
+  })
+
+  it('builds actionable review queues from private library gaps', () => {
+    const queues = getLibraryReviewQueues(
+      [
+        item({ id: 'taxonomy', title: 'Needs taxonomy', status: 'wishlist', notes: 'Tiene nota' }),
+        item({ id: 'context', title: 'Needs context', genres: ['Drama'], status: 'in_progress' }),
+        item({
+          id: 'cooldown',
+          title: 'Cooldown',
+          genres: ['rpg'],
+          recommendationCooldownUntil: '2026-06-04T12:00:00.000Z',
+        }),
+        item({ id: 'nexo', title: 'Nexo copy', genres: ['Clasico'], publicItemId: 'public-1' }),
+      ],
+      now,
+    )
+
+    expect(queues.map((queue) => [queue.id, queue.count, queue.item?.id])).toEqual([
+      ['needs-taxonomy', 1, 'taxonomy'],
+      ['needs-context', 3, 'context'],
+      ['dice-ready', 3, 'context'],
+      ['cooldown', 1, 'cooldown'],
+    ])
+    expect(queues[0]).toMatchObject({ action: 'open-item', label: 'Afinar taxonomia', primary: true })
   })
 
   it('builds a launch guide that highlights incomplete taxonomy and queued discovery', () => {

@@ -3,7 +3,7 @@ import { formatDuration, itemSourceLabels, itemTypeLabels } from './libraryItemI
 import { uniqueValues } from './strings'
 
 export type LibraryLaunchAction = 'add' | 'edit-taxonomy' | 'open-dice' | 'open-explorer'
-export type LibrarySmartView = 'all' | 'dice-ready' | 'needs-context' | 'needs-taxonomy' | 'nexo'
+export type LibrarySmartView = 'all' | 'cooldown' | 'dice-ready' | 'needs-context' | 'needs-taxonomy' | 'nexo'
 
 export interface LibraryLaunchStep {
   action?: LibraryLaunchAction
@@ -34,6 +34,16 @@ export interface LibrarySmartViewOption {
 export interface LibraryNextPlanFact {
   label: string
   value: string
+}
+
+export interface LibraryReviewQueue {
+  action: 'open-dice' | 'open-item' | 'open-view'
+  count: number
+  detail: string
+  id: LibrarySmartView
+  item?: ListItem
+  label: string
+  primary: boolean
 }
 
 export function isItemReadyForDicePulse(item: ListItem, now: number) {
@@ -146,7 +156,91 @@ export function getLibrarySmartViewOptions(items: ListItem[], now = Date.now()):
       id: 'nexo',
       label: 'Catalogo Nexo',
     },
+    {
+      count: count('cooldown'),
+      detail: 'Apartadas por el dado',
+      id: 'cooldown',
+      label: 'En cooldown',
+    },
   ]
+}
+
+export function getLibraryReviewQueues(items: ListItem[], now = Date.now()): LibraryReviewQueue[] {
+  const needsTaxonomyItems = getLibraryReviewItems(items.filter((item) => !hasItemTaxonomy(item)))
+  const needsContextItems = getLibraryReviewItems(
+    items.filter((item) => typeof item.rating !== 'number' && !item.notes?.trim()),
+  )
+  const diceReadyItems = getLibraryFocusItems(items.filter((item) => isItemReadyForDicePulse(item, now)))
+  const cooldownItems = getLibraryFocusItems(
+    items.filter((item) => {
+      if (item.status === 'completed' || item.status === 'dropped' || !item.recommendationCooldownUntil) return false
+      const timestamp = Date.parse(item.recommendationCooldownUntil)
+      return Number.isFinite(timestamp) && timestamp > now
+    }),
+  )
+  const nexoItems = getLibraryFocusItems(items.filter((item) => Boolean(item.publicItemId)))
+
+  const queues: LibraryReviewQueue[] = [
+    {
+      action: 'open-item',
+      count: items.filter((item) => !hasItemTaxonomy(item)).length,
+      detail: 'Anade generos, tags o mood tags',
+      id: 'needs-taxonomy',
+      item: needsTaxonomyItems[0],
+      label: 'Afinar taxonomia',
+      primary: true,
+    },
+    {
+      action: 'open-item',
+      count: items.filter((item) => typeof item.rating !== 'number' && !item.notes?.trim()).length,
+      detail: 'Completa rating o notas privadas',
+      id: 'needs-context',
+      item: needsContextItems[0],
+      label: 'Dar contexto',
+      primary: false,
+    },
+    {
+      action: 'open-dice',
+      count: items.filter((item) => isItemReadyForDicePulse(item, now)).length,
+      detail: 'Candidatas vivas para tirar',
+      id: 'dice-ready',
+      item: diceReadyItems[0],
+      label: 'Probar dado',
+      primary: false,
+    },
+    {
+      action: 'open-view',
+      count: items.filter((item) => {
+        if (item.status === 'completed' || item.status === 'dropped' || !item.recommendationCooldownUntil) return false
+        const timestamp = Date.parse(item.recommendationCooldownUntil)
+        return Number.isFinite(timestamp) && timestamp > now
+      }).length,
+      detail: 'Entradas apartadas temporalmente',
+      id: 'cooldown',
+      item: cooldownItems[0],
+      label: 'Revisar cooldowns',
+      primary: false,
+    },
+    {
+      action: 'open-view',
+      count: items.filter((item) => Boolean(item.publicItemId)).length,
+      detail: 'Copias conectadas al catalogo',
+      id: 'nexo',
+      item: nexoItems[0],
+      label: 'Revisar Nexo',
+      primary: false,
+    },
+  ]
+
+  return queues
+    .filter((queue) => queue.count > 0)
+    .sort(
+      (left, right) =>
+        reviewQueueRank(left.id) - reviewQueueRank(right.id) ||
+        right.count - left.count ||
+        left.label.localeCompare(right.label, 'es'),
+    )
+    .slice(0, 4)
 }
 
 export function matchesLibrarySmartView(item: ListItem, view: LibrarySmartView, now = Date.now()) {
@@ -155,6 +249,11 @@ export function matchesLibrarySmartView(item: ListItem, view: LibrarySmartView, 
   if (view === 'needs-context') return typeof item.rating !== 'number' && !item.notes?.trim()
   if (view === 'needs-taxonomy') return !hasItemTaxonomy(item)
   if (view === 'nexo') return Boolean(item.publicItemId)
+  if (view === 'cooldown') {
+    if (item.status === 'completed' || item.status === 'dropped' || !item.recommendationCooldownUntil) return false
+    const timestamp = Date.parse(item.recommendationCooldownUntil)
+    return Number.isFinite(timestamp) && timestamp > now
+  }
   return true
 }
 
@@ -222,4 +321,38 @@ export function getLibraryNextPlanFacts(item: ListItem, signalCount: number): Li
 
 function getLibraryFocusWeight(item: ListItem) {
   return item.weights.priority + item.weights.challenge * 0.4 + item.weights.surprise * 0.25
+}
+
+function getLibraryReviewItems(items: ListItem[]) {
+  const statusRank: Record<ListItem['status'], number> = {
+    in_progress: 0,
+    wishlist: 1,
+    paused: 2,
+    completed: 3,
+    dropped: 4,
+  }
+
+  return [...items].sort((left, right) => {
+    const statusDelta = statusRank[left.status] - statusRank[right.status]
+    if (statusDelta !== 0) return statusDelta
+
+    const leftWeight = getLibraryFocusWeight(left)
+    const rightWeight = getLibraryFocusWeight(right)
+    if (leftWeight !== rightWeight) return rightWeight - leftWeight
+
+    return right.updatedAt.localeCompare(left.updatedAt)
+  })
+}
+
+function reviewQueueRank(id: LibraryReviewQueue['id']) {
+  const ranks: Record<LibraryReviewQueue['id'], number> = {
+    all: 99,
+    cooldown: 3,
+    'dice-ready': 2,
+    'needs-context': 1,
+    'needs-taxonomy': 0,
+    nexo: 4,
+  }
+
+  return ranks[id]
 }
