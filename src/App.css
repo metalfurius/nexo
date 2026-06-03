@@ -3457,8 +3457,7 @@ button:active:not(:disabled),
   min-width: 0;
 }
 
-.dice-preset-card strong,
-.dice-preset-card small {
+.dice-preset-card strong {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3473,6 +3472,9 @@ button:active:not(:disabled),
 .dice-preset-card small {
   color: var(--muted);
   font-size: 11px;
+  line-height: 1.25;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .dice-preset-card:hover {
@@ -3551,6 +3553,7 @@ button:active:not(:disabled),
   display: grid;
   gap: 3px;
   min-width: 0;
+  overflow: hidden;
 }
 
 .dice-candidate-main > strong {
@@ -3784,8 +3787,125 @@ button:active:not(:disabled),
   flex: 0 0 auto;
 }
 
+.session-plan-card {
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border));
+  border-radius: 8px;
+  display: grid;
+  gap: 11px;
+  padding: 12px;
+}
+
+.session-plan-heading {
+  display: grid;
+  gap: 4px;
+}
+
+.session-plan-heading > div {
+  display: grid;
+  gap: 4px;
+}
+
+.session-plan-heading strong {
+  color: var(--text-strong);
+  font-size: 17px;
+  line-height: 1.15;
+}
+
+.session-plan-heading p {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.session-plan-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.session-plan-grid div {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px;
+}
+
+.session-plan-grid span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.session-plan-grid strong {
+  color: var(--text-strong);
+  font-size: 15px;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
+.session-plan-grid small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 750;
+  overflow-wrap: anywhere;
+}
+
+.session-signal-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.session-signal-row span,
+.session-signal-row small {
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--border));
+  border-radius: 8px;
+  color: var(--accent-dark);
+  font-size: 11px;
+  font-weight: 850;
+  padding: 5px 8px;
+}
+
+.recommendation-decision {
+  align-items: center;
+  background: color-mix(in srgb, var(--accent-soft) 64%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--border));
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 12px;
+}
+
+.recommendation-decision > div:first-child {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.recommendation-decision strong {
+  color: var(--text-strong);
+  font-size: 16px;
+}
+
+.recommendation-decision p {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 750;
+  margin: 0;
+}
+
 .recommendation-actions {
-  justify-content: flex-start;
+  justify-content: flex-end;
 }
 
 .recent-rolls {
@@ -4710,6 +4830,66 @@ button:active:not(:disabled),
   color: var(--text);
 }
 
+.catalog-genre-shortcuts {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--surface) 72%, transparent), transparent 56%),
+    var(--surface-muted);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  border-radius: 8px;
+  display: grid;
+  gap: 11px;
+  padding: 12px;
+}
+
+.catalog-genre-shortcuts-heading {
+  align-items: center;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.catalog-genre-shortcuts-heading > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.catalog-genre-shortcuts-heading strong {
+  color: var(--text-strong);
+  font-size: 17px;
+  line-height: 1.15;
+}
+
+.catalog-genre-shortcuts-heading p {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 750;
+  margin: 0;
+}
+
+.catalog-genre-shortcuts-heading > span {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--accent-dark);
+  font-size: 12px;
+  font-weight: 900;
+  padding: 7px 9px;
+  white-space: nowrap;
+}
+
+.catalog-genre-shortcut-row .preset-chip {
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  min-height: 36px;
+}
+
+.catalog-genre-shortcut-row .preset-chip.active {
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+}
+
 .public-editor-body {
   align-items: start;
   display: grid;
@@ -5424,6 +5604,21 @@ textarea:focus-visible {
 
   .dice-readiness-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .session-plan-grid,
+  .recommendation-decision,
+  .catalog-genre-shortcuts-heading {
+    grid-template-columns: 1fr;
+  }
+
+  .recommendation-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .recommendation-actions button {
+    width: 100%;
   }
 
   .dice-candidate-list li {

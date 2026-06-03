@@ -282,6 +282,13 @@ interface LibraryLaunchGuide {
   total: number
 }
 
+interface RecommendationSessionPlan {
+  detail: string
+  facts: Array<{ detail: string; label: string; value: string }>
+  signals: string[]
+  title: string
+}
+
 interface DiceEligibilityBreakdown {
   available: number
   blockedTags: number
@@ -1395,6 +1402,7 @@ function DiceTab({ library }: { library: LibrarySurface }) {
                 </div>
               </div>
             </div>
+            <RecommendationSessionPlanView plan={getRecommendationSessionPlan(recommendation, preferences)} />
             <section className="reason-stack" aria-label="Razones de la recomendacion">
               <h3>Por que sale</h3>
               <ul>
@@ -1406,24 +1414,31 @@ function DiceTab({ library }: { library: LibrarySurface }) {
                 ))}
               </ul>
             </section>
-            <div className="action-row recommendation-actions">
-              <button
-                className="primary-button"
-                type="button"
-                onClick={startRecommendation}
-              >
-                <Play size={16} />
-                Empezar
-              </button>
-              <button
-                className="secondary-button"
-                type="button"
-                onClick={skipRecommendation}
-              >
-                <X size={16} />
-                No hoy
-              </button>
-            </div>
+            <section className="recommendation-decision" aria-label="Decision de la tirada">
+              <div>
+                <span className="eyebrow">Decision</span>
+                <strong>Te lo llevas ahora?</strong>
+                <p>Empezar lo marca en curso. No hoy lo aparta hasta manana para que el dado no insista.</p>
+              </div>
+              <div className="action-row recommendation-actions">
+                <button
+                  className="primary-button"
+                  type="button"
+                  onClick={startRecommendation}
+                >
+                  <Play size={16} />
+                  Empezar
+                </button>
+                <button
+                  className="secondary-button"
+                  type="button"
+                  onClick={skipRecommendation}
+                >
+                  <X size={16} />
+                  No hoy
+                </button>
+              </div>
+            </section>
           </div>
         ) : !hasCandidates ? (
           <EmptyState
@@ -3912,6 +3927,7 @@ function PublicItemEditor({
   const tagPresets = catalogTagPresets[draft.type]
   const taxonomyTemplates = catalogTaxonomyTemplates[draft.type]
   const primaryTemplate = taxonomyTemplates[0]
+  const featuredGenrePresets = uniqueValues([...taxonomyTemplates.flatMap((template) => template.genres), ...genrePresets]).slice(0, 14)
   const featuredTagPresets = tagPresets.slice(0, 10)
   const selectedTaxonomyCount = selectedGenres.length + selectedTags.length + selectedMoodTags.length
   const taxonomySignals = uniqueNormalizedValues([...selectedGenres, ...selectedTags, ...selectedMoodTags])
@@ -4125,6 +4141,38 @@ function PublicItemEditor({
             ) : (
               <small>Sin taxonomia activa</small>
             )}
+          </div>
+        </section>
+
+        <section
+          className="catalog-genre-shortcuts"
+          aria-label={`Generos predefinidos principales para ${typeLabels[draft.type]}`}
+          data-testid="catalog-genre-shortcuts"
+        >
+          <div className="catalog-genre-shortcuts-heading">
+            <div>
+              <span className="eyebrow">Generos predefinidos</span>
+              <strong>Marca la base de la ficha</strong>
+              <p>Primero elige generos; despues ajusta tags y tono si hace falta.</p>
+            </div>
+            <span>{selectedGenres.length ? `${selectedGenres.length} activos` : 'Sin elegir'}</span>
+          </div>
+          <div className="preset-chip-row catalog-genre-shortcut-row">
+            {featuredGenrePresets.map((genre) => {
+              const isActive = selectedGenreKeys.has(normalizeKey(genre))
+
+              return (
+                <button
+                  aria-pressed={isActive}
+                  className={isActive ? 'preset-chip active' : 'preset-chip'}
+                  key={genre}
+                  type="button"
+                  onClick={() => toggleTextPreset('genresText', genre)}
+                >
+                  {genre}
+                </button>
+              )
+            })}
           </div>
         </section>
 
@@ -4393,6 +4441,32 @@ function LaunchGuideCard({
       ) : (
         <p className="launch-guide-next done">Nexo esta listo para seguir creciendo.</p>
       )}
+    </section>
+  )
+}
+
+function RecommendationSessionPlanView({ plan }: { plan: RecommendationSessionPlan }) {
+  return (
+    <section className="session-plan-card" aria-label="Plan de sesion recomendado">
+      <div className="session-plan-heading">
+        <div>
+          <span className="eyebrow">Plan de sesion</span>
+          <strong>{plan.title}</strong>
+          <p>{plan.detail}</p>
+        </div>
+      </div>
+      <div className="session-plan-grid">
+        {plan.facts.map((fact) => (
+          <div key={fact.label}>
+            <span>{fact.label}</span>
+            <strong>{fact.value}</strong>
+            <small>{fact.detail}</small>
+          </div>
+        ))}
+      </div>
+      <div className="session-signal-row" aria-label="Senales de la sesion">
+        {plan.signals.length ? plan.signals.map((signal) => <span key={signal}>{signal}</span>) : <small>Sin senales todavia</small>}
+      </div>
     </section>
   )
 }
@@ -4885,6 +4959,35 @@ function sortCatalogItems(left: PublicCatalogItem, right: PublicCatalogItem, mod
 function getDiceScoreMeterWidth(score: number, maxScore: number) {
   if (maxScore <= 0) return '0%'
   return `${Math.min(100, Math.max(8, (score / maxScore) * 100))}%`
+}
+
+function getRecommendationSessionPlan(
+  recommendation: RecommendationResult,
+  preferences: RecommendationPreferences,
+): RecommendationSessionPlan {
+  const item = recommendation.item
+  const duration = item.durationMinHours || item.durationMaxHours ? formatDuration(item) : 'Sin duracion'
+  const budget = preferences.timeBudgetHours ? `${preferences.timeBudgetHours}h max.` : 'Sin limite'
+  const signals = uniqueValues([...item.genres, ...item.moodTags, ...item.tags]).slice(0, 6)
+  const title =
+    item.status === 'in_progress'
+      ? 'Continuar una obra activa'
+      : item.status === 'paused'
+        ? 'Retomar sin perder contexto'
+        : 'Nueva sesion recomendada'
+  const detail = `${typeLabels[item.type]} con intensidad ${intensityLabels[preferences.intensity].toLowerCase()} y ${preferences.surprisePercent}% de sorpresa.`
+
+  return {
+    detail,
+    facts: [
+      { detail: `${energyLabels[preferences.energy]} energia`, label: 'Clima', value: intensityLabels[preferences.intensity] },
+      { detail: budget, label: 'Tiempo', value: duration },
+      { detail: typeLabels[item.type], label: 'Estado', value: statusLabels[item.status] },
+      { detail: `Pool ${recommendation.poolSize}`, label: 'Azar', value: `${Math.round(recommendation.roll * 100)}%` },
+    ],
+    signals,
+    title,
+  }
 }
 
 function getDiceEligibilityBreakdown(
