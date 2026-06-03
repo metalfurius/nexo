@@ -586,6 +586,11 @@ type DiceUndoAction =
   | { kind: 'status'; itemId: string; previousStatus: ItemStatus; title: string }
   | { kind: 'snooze'; recommendation: RecommendationResult; title: string }
   | { kind: 'cooldowns'; items: ListItem[] }
+type DiceSettingsUndo = {
+  allowPausedByDefault: boolean
+  preferences: RecommendationPreferences
+  surprisePercent: number
+}
 
 interface PendingCatalogSeedImport {
   fileName: string
@@ -1293,6 +1298,7 @@ function DiceTab({ library }: { library: LibrarySurface }) {
   const [showFullDicePool, setShowFullDicePool] = useState(false)
   const [status, setStatus] = useState<string | undefined>()
   const [diceUndoAction, setDiceUndoAction] = useState<DiceUndoAction | undefined>()
+  const [diceSettingsUndo, setDiceSettingsUndo] = useState<DiceSettingsUndo | undefined>()
   const persistedPreferences = library.settings.recommendationPreferences ?? DEFAULT_RECOMMENDATION_PREFERENCES
   const preferences = draftPreferences ?? persistedPreferences
   const hasUnsavedDicePreferences = !sameRecommendationPreferences(preferences, persistedPreferences)
@@ -1359,6 +1365,7 @@ function DiceTab({ library }: { library: LibrarySurface }) {
   ) => {
     setStatus(undefined)
     setDiceUndoAction(undefined)
+    setDiceSettingsUndo(undefined)
     setDraftPreferences((current) => (typeof update === 'function' ? update(current ?? preferences) : update))
   }
 
@@ -1372,6 +1379,7 @@ function DiceTab({ library }: { library: LibrarySurface }) {
     setIsRolling(true)
     setStatus(undefined)
     setDiceUndoAction(undefined)
+    setDiceSettingsUndo(undefined)
     setRecommendation(undefined)
     const next = recommendItem(
       library.items,
@@ -1390,20 +1398,52 @@ function DiceTab({ library }: { library: LibrarySurface }) {
 
   async function savePreferences() {
     if (!hasUnsavedDicePreferences) return
-    await library.saveSettings({
-      recommendationPreferences: preferences,
-      surprisePercent: preferences.surprisePercent,
-      allowPausedByDefault: preferences.includePaused,
-    })
-    setDraftPreferences(undefined)
-    setDiceUndoAction(undefined)
-    setStatus('Ajustes del dado guardados')
+
+    const previousDiceSettings: DiceSettingsUndo = {
+      allowPausedByDefault: library.settings.allowPausedByDefault,
+      preferences: cloneRecommendationPreferences(persistedPreferences),
+      surprisePercent: library.settings.surprisePercent,
+    }
+    const nextPreferences = cloneRecommendationPreferences(preferences)
+
+    try {
+      await library.saveSettings({
+        recommendationPreferences: nextPreferences,
+        surprisePercent: nextPreferences.surprisePercent,
+        allowPausedByDefault: nextPreferences.includePaused,
+      })
+      setDraftPreferences(undefined)
+      setDiceUndoAction(undefined)
+      setDiceSettingsUndo(previousDiceSettings)
+      setStatus('Ajustes del dado guardados')
+    } catch (reason) {
+      setStatus(reason instanceof Error ? reason.message : 'No se pudieron guardar los ajustes del dado.')
+    }
+  }
+
+  async function undoDicePreferencesSave() {
+    if (!diceSettingsUndo) return
+
+    try {
+      await library.saveSettings({
+        recommendationPreferences: cloneRecommendationPreferences(diceSettingsUndo.preferences),
+        surprisePercent: diceSettingsUndo.surprisePercent,
+        allowPausedByDefault: diceSettingsUndo.allowPausedByDefault,
+      })
+      setDraftPreferences(undefined)
+      setDiceSettingsUndo(undefined)
+      setDiceUndoAction(undefined)
+      setStatus('Ajustes del dado recuperados')
+    } catch (reason) {
+      setStatus(reason instanceof Error ? reason.message : 'No se pudieron recuperar los ajustes del dado.')
+    }
   }
 
   async function startRecommendation() {
     if (!recommendation) return
     try {
       await library.setStatus(recommendation.item.id, 'in_progress')
+      setDiceSettingsUndo(undefined)
       setDiceUndoAction({
         kind: 'status',
         itemId: recommendation.item.id,
@@ -1420,6 +1460,7 @@ function DiceTab({ library }: { library: LibrarySurface }) {
     if (!recommendation) return
     try {
       await library.snoozeRecommendation(recommendation.item.id)
+      setDiceSettingsUndo(undefined)
       setDiceUndoAction({ kind: 'snooze', recommendation, title: recommendation.item.title })
       setStatus(`${recommendation.item.title} queda fuera hasta manana.`)
       setRecommendation(undefined)
@@ -1434,6 +1475,7 @@ function DiceTab({ library }: { library: LibrarySurface }) {
     const recoverySnapshot = cooldownRecoveryItems.map((item) => ({ ...item }))
     try {
       await Promise.all(cooldownRecoveryItems.map((item) => library.reactivateRecommendation(item.id)))
+      setDiceSettingsUndo(undefined)
       setDiceUndoAction({ kind: 'cooldowns', items: recoverySnapshot })
       setRecommendation(undefined)
       setStatus(count === 1 ? '1 entrada reactivada para el dado' : `${count} entradas reactivadas para el dado`)
@@ -1448,6 +1490,7 @@ function DiceTab({ library }: { library: LibrarySurface }) {
       setEditingDiceItem(undefined)
       setRecommendation((current) => (current?.item.id === item.id ? { ...current, item } : current))
       setDiceUndoAction(undefined)
+      setDiceSettingsUndo(undefined)
       setStatus(`${item.title || 'Entrada'} afinada desde el dado.`)
     } catch (reason) {
       setStatus(reason instanceof Error ? reason.message : 'No se pudo guardar la ficha.')
@@ -1646,12 +1689,20 @@ function DiceTab({ library }: { library: LibrarySurface }) {
         </div>
         <PreferenceControls preferences={preferences} setPreferences={setPreferences} />
         {status && <FeedbackMessage tone={feedbackToneFromText(status)}>{status}</FeedbackMessage>}
-        {diceUndoAction && (
+        {(diceSettingsUndo || diceUndoAction) && (
           <div className="feedback-action-row" aria-label="Accion reciente del dado">
-            <button className="secondary-button" type="button" onClick={() => void undoDiceDecision()}>
-              <RotateCcw size={16} />
-              {getDiceUndoLabel()}
-            </button>
+            {diceSettingsUndo && (
+              <button className="secondary-button" type="button" onClick={() => void undoDicePreferencesSave()}>
+                <RotateCcw size={16} />
+                Deshacer ajustes del dado
+              </button>
+            )}
+            {diceUndoAction && (
+              <button className="secondary-button" type="button" onClick={() => void undoDiceDecision()}>
+                <RotateCcw size={16} />
+                {getDiceUndoLabel()}
+              </button>
+            )}
           </div>
         )}
       </section>
@@ -2381,13 +2432,17 @@ function formatCatalogSeedSummary(summary: PublicCatalogSeedSummary) {
   ].join(' / ')
 }
 
+function cloneRecommendationPreferences(preferences: RecommendationPreferences): RecommendationPreferences {
+  return { ...preferences }
+}
+
 function cloneUserSettings(settings: UserSettings): UserSettings {
   return {
     ...settings,
     favoriteGenres: [...settings.favoriteGenres],
     favoriteTags: [...settings.favoriteTags],
     blockedTags: [...settings.blockedTags],
-    recommendationPreferences: { ...settings.recommendationPreferences },
+    recommendationPreferences: cloneRecommendationPreferences(settings.recommendationPreferences),
   }
 }
 
