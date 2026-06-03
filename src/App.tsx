@@ -821,14 +821,21 @@ function LibraryTab({
                   <strong>{nextFocusItem.title}</strong>
                   <p>{getLibraryFocusReason(nextFocusItem)}</p>
                 </div>
-                <button
-                  className="primary-button"
-                  type="button"
-                  onClick={() => void library.setStatus(nextFocusItem.id, nextFocusAction.nextStatus)}
-                >
-                  <nextFocusAction.Icon size={16} />
-                  {nextFocusAction.label}
-                </button>
+                <LibraryNextPlan item={nextFocusItem} />
+                <div className="library-next-actions">
+                  <button
+                    className="primary-button"
+                    type="button"
+                    onClick={() => void library.setStatus(nextFocusItem.id, nextFocusAction.nextStatus)}
+                  >
+                    <nextFocusAction.Icon size={16} />
+                    {nextFocusAction.label}
+                  </button>
+                  <button className="secondary-button" type="button" onClick={() => setEditingItem(nextFocusItem)}>
+                    <Info size={16} />
+                    Afinar ficha
+                  </button>
+                </div>
               </>
             ) : (
               <>
@@ -3283,6 +3290,31 @@ function getLibraryFocusReason(item: ListItem) {
   return `${typeLabels[item.type]} pendiente`
 }
 
+function getLibraryNextPlanTitle(item: ListItem) {
+  if (item.status === 'in_progress') return 'Continuar sin perder contexto'
+  if (item.status === 'paused') return 'Retomar con una sesion corta'
+  if (item.status === 'wishlist') return 'Listo para empezar'
+  if (item.status === 'completed') return 'Reabrir si vuelve a apetecer'
+  return 'Revisar antes de descartar'
+}
+
+function getLibraryNextPlanFacts(item: ListItem, signalCount: number) {
+  return [
+    {
+      label: 'Tiempo',
+      value: item.durationMinHours || item.durationMaxHours ? formatDuration(item) : 'Sin duracion',
+    },
+    {
+      label: 'Origen',
+      value: item.publicItemId ? 'Nexo' : itemSourceLabels[item.source],
+    },
+    {
+      label: 'Senales',
+      value: signalCount ? `${signalCount}` : '0',
+    },
+  ]
+}
+
 function downloadLibraryBackup(items: ListItem[], settings: UserSettings, prefix: string) {
   downloadJsonFile(createLibraryExportPayload(items, settings), `${prefix}-${new Date().toISOString().slice(0, 10)}.json`)
 }
@@ -4536,6 +4568,31 @@ function RecommendationSessionPlanView({ plan }: { plan: RecommendationSessionPl
       </div>
       <div className="session-signal-row" aria-label="Senales de la sesion">
         {plan.signals.length ? plan.signals.map((signal) => <span key={signal}>{signal}</span>) : <small>Sin senales todavia</small>}
+      </div>
+    </section>
+  )
+}
+
+function LibraryNextPlan({ item }: { item: ListItem }) {
+  const signals = uniqueValues([...item.genres, ...item.moodTags, ...item.tags]).slice(0, 4)
+  const facts = getLibraryNextPlanFacts(item, signals.length)
+
+  return (
+    <section className="library-next-plan" aria-label={`Plan rapido para ${item.title}`} data-testid="library-next-plan">
+      <div className="library-next-plan-heading">
+        <span className="eyebrow">Plan rapido</span>
+        <strong>{getLibraryNextPlanTitle(item)}</strong>
+      </div>
+      <div className="library-next-facts">
+        {facts.map((fact) => (
+          <span key={fact.label}>
+            <small>{fact.label}</small>
+            <strong>{fact.value}</strong>
+          </span>
+        ))}
+      </div>
+      <div className="library-next-signals" aria-label={`Senales rapidas del plan ${item.title}`}>
+        {signals.length ? signals.map((signal) => <span key={signal}>{signal}</span>) : <small>Sin senales todavia</small>}
       </div>
     </section>
   )
