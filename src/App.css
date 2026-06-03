@@ -343,6 +343,90 @@
   padding: 0 10px;
 }
 
+.session-continuity-card {
+  align-items: stretch;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--accent-soft) 44%, transparent), transparent 72%),
+    var(--surface-muted);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 10px;
+}
+
+.session-continuity-main {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.session-continuity-main strong {
+  color: var(--text-strong);
+  font-size: 14px;
+  line-height: 1.15;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-continuity-main p {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.25;
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-continuity-card > .secondary-button {
+  align-self: center;
+  min-height: 34px;
+}
+
+.session-continuity-groups {
+  display: grid;
+  gap: 7px;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(auto-fit, minmax(116px, 1fr));
+}
+
+.session-continuity-groups button {
+  align-items: center;
+  background: color-mix(in srgb, var(--surface) 76%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  cursor: pointer;
+  display: grid;
+  font: inherit;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-height: 34px;
+  padding: 0 8px;
+  text-align: left;
+}
+
+.session-continuity-groups span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 850;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-continuity-groups strong {
+  color: var(--accent-dark);
+  font-size: 13px;
+  line-height: 1;
+}
+
 .session-activity-list {
   display: grid;
   gap: 8px;
@@ -6768,6 +6852,19 @@ textarea:focus-visible {
   .topbar-pulse {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     max-width: none;
+    width: 100%;
+  }
+
+  .session-activity-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .session-continuity-card {
+    grid-template-columns: 1fr;
+  }
+
+  .session-continuity-card > .secondary-button {
     width: 100%;
   }
 

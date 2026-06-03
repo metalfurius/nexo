@@ -73,6 +73,7 @@ import {
   type CatalogTaxonomyTemplate,
 } from './data/catalogPresets'
 import { buildPublicCatalogItem, promptToDiscovery } from './lib/catalog'
+import { getActivityContinuitySummary, getActivityDestinationTab } from './lib/activityInsights'
 import {
   blankPublicCatalogItem,
   buildCatalogDescriptionDraft,
@@ -1073,6 +1074,8 @@ function SessionActivityPanel({
   onSelect: (entry: ActivityEntry) => void
 }) {
   if (!entries.length) return null
+  const continuity = getActivityContinuitySummary(entries)
+  const primaryDestination = continuity ? activityTabLabels[getActivityDestinationTab(continuity.primaryEntry)] : undefined
 
   return (
     <section className="session-activity-panel" aria-label="Actividad reciente" data-testid="session-activity">
@@ -1088,6 +1091,40 @@ function SessionActivityPanel({
           </button>
         </div>
       </div>
+      {continuity && primaryDestination && (
+        <div className="session-continuity-card" data-testid="session-continuity">
+          <div className="session-continuity-main">
+            <span className="eyebrow">Continuar sesion</span>
+            <strong>{continuity.primaryEntry.label}</strong>
+            <p>{continuity.primaryEntry.detail}</p>
+          </div>
+          <button
+            className="secondary-button"
+            type="button"
+            aria-label={`Continuar desde ${continuity.primaryEntry.label} en ${primaryDestination}`}
+            onClick={() => onSelect(continuity.primaryEntry)}
+          >
+            Abrir {primaryDestination}
+          </button>
+          <div className="session-continuity-groups" aria-label="Actividad por zona">
+            {continuity.groups.map((group) => {
+              const label = activityTabLabels[group.tab]
+
+              return (
+                <button
+                  aria-label={`Abrir ultima actividad de ${label}`}
+                  key={group.tab}
+                  type="button"
+                  onClick={() => onSelect(group.entry)}
+                >
+                  <span>{label}</span>
+                  <strong>{group.count}</strong>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
       <ol className="session-activity-list">
         {entries.map((entry) => {
           const Icon = getActivityIcon(entry.tone)
@@ -1119,10 +1156,6 @@ function SessionActivityPanel({
 
 function getActivityFocus(entry: ActivityEntry): ActivityFocus | undefined {
   return entry.target?.kind === 'item' ? entry.target : undefined
-}
-
-function getActivityDestinationTab(entry: ActivityEntry): AppTab {
-  return entry.target?.kind === 'item' ? 'library' : entry.tab
 }
 
 function getActivityIcon(tone: FeedbackTone) {

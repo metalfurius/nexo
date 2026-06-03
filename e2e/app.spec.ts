@@ -83,6 +83,9 @@ test('library and weighted dice work in demo mode', async ({ page }) => {
   await expect(quickEditor.getByTestId('personal-readiness')).toContainText('Ficha lista')
   await quickEditor.getByRole('button', { name: 'Guardar' }).click()
   await expect(page.getByText('Manual de prueba guardada en Biblioteca')).toBeVisible()
+  await expect(page.getByTestId('session-continuity')).toContainText('Continuar sesion')
+  await expect(page.getByTestId('session-continuity')).toContainText('Ficha guardada')
+  await expect(page.getByTestId('session-continuity')).toContainText('Biblioteca')
   await expect(page.getByTestId('session-activity')).toContainText('Ficha guardada')
   await expect(page.getByTestId('session-activity')).toContainText('Manual de prueba')
   await page.getByTestId('session-activity').getByRole('button', { name: 'Limpiar' }).click()
@@ -381,10 +384,7 @@ test('activity entries navigate through the pending-change guard', async ({ page
   await page.getByLabel('Energia').selectOption('high')
   await expect(page.getByText('Cambios pendientes')).toBeVisible()
 
-  await page
-    .getByTestId('session-activity')
-    .getByRole('button', { name: 'Abrir Ficha guardada en Biblioteca' })
-    .click()
+  await page.getByTestId('session-continuity').getByRole('button', { name: 'Continuar desde Ficha guardada en Biblioteca' }).click()
   await expect(page.getByLabel('Salida con cambios pendientes')).toContainText('Cambios pendientes en Dado')
   await expect(page.getByRole('heading', { name: 'Elige el siguiente hilo' })).toBeVisible()
 
