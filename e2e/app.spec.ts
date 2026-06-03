@@ -233,6 +233,26 @@ test('mobile layout keeps the core controls reachable', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Tirar dado ponderado' })).toBeVisible()
 })
 
+test('quick search opens library items through the pending-change guard', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Elige el siguiente hilo' })).toBeVisible()
+  await page.getByLabel('Energia').selectOption('high')
+  await expect(page.getByText('Cambios pendientes')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Busqueda rapida' }).click()
+  const quickSearch = page.getByRole('dialog', { name: 'Abrir ficha' })
+  await expect(quickSearch).toBeVisible()
+  await quickSearch.getByLabel('Buscar ficha').fill('outer')
+  await quickSearch.getByRole('button', { name: 'Abrir Outer Wilds' }).click()
+
+  await expect(page.getByLabel('Salida con cambios pendientes')).toContainText('Cambios pendientes en Dado')
+  await expect(page).toHaveURL(/tab=dice/)
+  await page.getByLabel('Salida con cambios pendientes').getByRole('button', { name: 'Descartar cambios' }).click()
+  await expect(page).toHaveURL(/item=game-outer-wilds/)
+  await expect(page.getByRole('dialog', { name: 'Entrada' }).getByLabel('Titulo')).toHaveValue('Outer Wilds')
+})
+
 test('activity entries navigate through the pending-change guard', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Anadir' }).click()

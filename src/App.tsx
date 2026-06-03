@@ -468,6 +468,7 @@ function App() {
   const [activeTab, setActiveTabState] = useState<AppTab>(() => readInitialAppTab())
   const [pendingNavigation, setPendingNavigation] = useState<PendingNavigation | undefined>()
   const [activityFocus, setActivityFocus] = useState<ActivityFocus | undefined>(() => readInitialActivityFocus())
+  const [quickSearchOpen, setQuickSearchOpen] = useState(false)
   const [tabsWithUnsavedChanges, setTabsWithUnsavedChanges] = useState<Partial<Record<AppTab, boolean>>>({})
   const [theme, setTheme] = useState<ThemeMode>(() => {
     const stored = window.localStorage.getItem(themeStorageKey)
@@ -485,6 +486,18 @@ function App() {
     document.documentElement.dataset.theme = theme
     window.localStorage.setItem(themeStorageKey, theme)
   }, [theme])
+
+  useEffect(() => {
+    function openQuickSearchWithShortcut(event: globalThis.KeyboardEvent) {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault()
+        setQuickSearchOpen(true)
+      }
+    }
+
+    window.addEventListener('keydown', openQuickSearchWithShortcut)
+    return () => window.removeEventListener('keydown', openQuickSearchWithShortcut)
+  }, [])
 
   useEffect(() => {
     function syncTabFromUrl() {
@@ -600,6 +613,15 @@ function App() {
           {!auth.isFirebaseConfigured && <span className="mode-pill">Demo local</span>}
           {library.isModerator && <span className="mode-pill moderator">{roleLabels[library.userRole]}</span>}
           <button
+            aria-label="Busqueda rapida"
+            className="icon-button"
+            type="button"
+            onClick={() => setQuickSearchOpen(true)}
+            title="Busqueda rapida"
+          >
+            <Search size={18} />
+          </button>
+          <button
             aria-label={theme === 'dark' ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'}
             className="icon-button"
             type="button"
@@ -644,16 +666,26 @@ function App() {
           })}
       </nav>
 
-      {pendingNavigation && pendingNavItem && (
-        <NavigationDiscardPrompt
-          currentLabel={activeNavItem.label}
-          nextLabel={pendingNavItem.label}
-          onDiscard={discardPendingNavigation}
-          onKeepEditing={() => setPendingNavigation(undefined)}
+      {quickSearchOpen && (
+        <QuickSearchDialog
+          items={library.items}
+          onClose={() => setQuickSearchOpen(false)}
+          onOpenItem={(item) => {
+            setQuickSearchOpen(false)
+            changeActiveTab('library', { kind: 'item', id: item.id })
+          }}
         />
       )}
 
       <section className="tab-stage">
+        {pendingNavigation && pendingNavItem && (
+          <NavigationDiscardPrompt
+            currentLabel={activeNavItem.label}
+            nextLabel={pendingNavItem.label}
+            onDiscard={discardPendingNavigation}
+            onKeepEditing={() => setPendingNavigation(undefined)}
+          />
+        )}
         <SessionActivityPanel
           entries={library.activityEntries.slice(0, sessionActivityLimit)}
           onClear={() => void library.clearActivityEntries()}
@@ -687,6 +719,136 @@ function App() {
         {activeTab === 'curation' && library.isModerator && <CurationTab library={library} onActivity={library.recordActivity} />}
       </section>
     </main>
+  )
+}
+
+function QuickSearchDialog({
+  items,
+  onClose,
+  onOpenItem,
+}: {
+  items: ListItem[]
+  onClose: () => void
+  onOpenItem: (item: ListItem) => void
+}) {
+  const [query, setQuery] = useState('')
+  const normalizedQuery = normalizeKey(query)
+  const focusItems = useMemo(() => getLibraryFocusItems(items), [items])
+  const results = useMemo(() => {
+    if (!normalizedQuery) return focusItems.slice(0, 6)
+
+    const tokens = normalizedQuery.split(' ').filter(Boolean)
+    return items
+      .map((item, index) => {
+        const titleKey = normalizeKey(item.title)
+        const itemText = normalizeKey(
+          [
+            item.title,
+            typeLabels[item.type],
+            statusLabels[item.status],
+            getItemSubtitle(item),
+            ...item.genres,
+            ...item.tags,
+            ...item.moodTags,
+          ].join(' '),
+        )
+        if (!tokens.every((token) => itemText.includes(token))) return undefined
+
+        const score =
+          (titleKey === normalizedQuery ? 50 : 0) +
+          (titleKey.startsWith(normalizedQuery) ? 30 : 0) +
+          (titleKey.includes(normalizedQuery) ? 15 : 0) +
+          (item.status === 'in_progress' ? 8 : 0) +
+          (item.status === 'wishlist' ? 4 : 0)
+
+        return { item, index, score }
+      })
+      .filter((entry): entry is { item: ListItem; index: number; score: number } => Boolean(entry))
+      .sort((a, b) => b.score - a.score || a.item.title.localeCompare(b.item.title) || a.index - b.index)
+      .slice(0, 8)
+      .map((entry) => entry.item)
+  }, [focusItems, items, normalizedQuery])
+  const resultLabel = normalizedQuery ? 'Resultados' : 'Foco actual'
+
+  return (
+    <div className="modal-backdrop" role="presentation">
+      <section
+        className="quick-search-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="quick-search-title"
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') onClose()
+        }}
+      >
+        <div className="panel-heading compact">
+          <div>
+            <span className="eyebrow">Busqueda rapida</span>
+            <h2 id="quick-search-title">Abrir ficha</h2>
+          </div>
+          <button className="icon-button" type="button" onClick={onClose} title="Cerrar">
+            <X size={18} />
+          </button>
+        </div>
+
+        <label className="quick-search-field">
+          <Search size={18} />
+          <span className="sr-only">Buscar ficha</span>
+          <input
+            aria-label="Buscar ficha"
+            autoFocus
+            placeholder="Buscar ficha"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </label>
+
+        <div className="quick-search-section-heading">
+          <strong>{resultLabel}</strong>
+          <span>
+            {results.length} de {items.length}
+          </span>
+        </div>
+
+        {items.length === 0 ? (
+          <div className="quick-search-empty">
+            <Library size={20} />
+            <span>Biblioteca vacia</span>
+          </div>
+        ) : results.length ? (
+          <ul className="quick-search-results" aria-label={resultLabel}>
+            {results.map((item) => {
+              const Icon = typeIcons[item.type]
+
+              return (
+                <li key={item.id}>
+                  <button
+                    className="quick-search-result"
+                    type="button"
+                    aria-label={`Abrir ${item.title}`}
+                    onClick={() => onOpenItem(item)}
+                  >
+                    <span className={`quick-search-type ${item.type}`} aria-hidden="true">
+                      <Icon size={16} />
+                    </span>
+                    <span>
+                      <strong>{item.title}</strong>
+                      <small>{getItemSubtitle(item)}</small>
+                    </span>
+                    <em>{statusLabels[item.status]}</em>
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        ) : (
+          <div className="quick-search-empty">
+            <Search size={20} />
+            <span>Sin resultados</span>
+          </div>
+        )}
+      </section>
+    </div>
   )
 }
 
