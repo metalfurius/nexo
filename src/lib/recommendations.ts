@@ -13,8 +13,9 @@ export function recommendItem(
   items: ListItem[],
   preferences: RecommendationPreferences,
   settings: UserSettings,
+  now = Date.now(),
 ): RecommendationResult | undefined {
-  const candidates = scoreCandidates(items, preferences, settings)
+  const candidates = scoreCandidates(items, preferences, settings, now)
   if (!candidates.length) return undefined
 
   const surprise = clamp(preferences.surprisePercent, 0, 100)
@@ -45,9 +46,9 @@ export function scoreCandidates(
   items: ListItem[],
   preferences: RecommendationPreferences,
   settings: UserSettings,
+  now = Date.now(),
 ) {
   const likedSignals = collectLikedSignals(items, settings)
-  const now = Date.now()
 
   return items
     .filter((item) => {
@@ -60,7 +61,7 @@ export function scoreCandidates(
       if (preferences.medium !== 'any' && item.type !== preferences.medium) return false
       return !settings.blockedTags.some((tag) => item.tags.map(normalizeKey).includes(normalizeKey(tag)))
     })
-    .map((item) => scoreItem(item, preferences, likedSignals))
+    .map((item) => scoreItem(item, preferences, likedSignals, now))
     .sort((a, b) => b.score - a.score || a.item.title.localeCompare(b.item.title, 'es'))
 }
 
@@ -68,6 +69,7 @@ function scoreItem(
   item: ListItem,
   preferences: RecommendationPreferences,
   likedSignals: ReturnType<typeof collectLikedSignals>,
+  now: number,
 ): RecommendationResult {
   let score = 50 * item.weights.priority
   const reasons: string[] = []
@@ -97,6 +99,7 @@ function scoreItem(
   score += scoreEnergy(item, preferences, reasons)
   score += scoreIntensity(item, preferences, reasons)
   score += scoreNovelty(item, preferences, reasons)
+  score += scoreRecentMemory(item, now)
   score += item.weights.surprise * (preferences.surprisePercent / 5)
 
   if (!reasons.length) reasons.push('encaja como opcion equilibrada')
@@ -188,6 +191,20 @@ function scoreNovelty(item: ListItem, preferences: RecommendationPreferences, re
     return 10 + item.weights.surprise * 12
   }
   return 4
+}
+
+function scoreRecentMemory(item: ListItem, now: number) {
+  if (!item.lastRecommendedAt) return 0
+
+  const timestamp = Date.parse(item.lastRecommendedAt)
+  if (!Number.isFinite(timestamp)) return 0
+
+  const ageHours = Math.max(0, now - timestamp) / 3_600_000
+  if (ageHours < 0.5) return -34
+  if (ageHours < 6) return -24
+  if (ageHours < 24) return -16
+  if (ageHours < 24 * 7) return -8
+  return 0
 }
 
 function collectLikedSignals(items: ListItem[], settings: UserSettings) {

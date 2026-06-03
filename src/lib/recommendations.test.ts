@@ -25,6 +25,7 @@ const prefs: RecommendationPreferences = {
   surprisePercent: 0,
   seed: 'test',
 }
+const now = Date.parse('2026-06-03T12:00:00.000Z')
 
 describe('recommendations', () => {
   it('excludes completed and dropped entries', () => {
@@ -65,6 +66,59 @@ describe('recommendations', () => {
 
     expect(result?.poolSize).toBeGreaterThan(1)
     expect(result?.item.status).not.toBe('completed')
+  })
+
+  it('penalizes very recent recommendations so the dice does not repeat the same top item', () => {
+    const candidates = scoreCandidates(
+      [
+        baseItem({
+          id: 'recent',
+          title: 'Recent',
+          lastRecommendedAt: '2026-06-03T11:50:00.000Z',
+          weights: { ...DEFAULT_WEIGHTS, priority: 1.2 },
+        }),
+        baseItem({ id: 'fresh', title: 'Fresh' }),
+      ],
+      prefs,
+      DEFAULT_SETTINGS,
+      now,
+    )
+
+    expect(candidates.map((candidate) => candidate.item.id)).toEqual(['fresh', 'recent'])
+    expect(candidates[0].score).toBeGreaterThan(candidates[1].score)
+  })
+
+  it('uses recommendation memory when selecting the deterministic top roll', () => {
+    const result = recommendItem(
+      [
+        baseItem({
+          id: 'recent',
+          title: 'Recent',
+          lastRecommendedAt: '2026-06-03T11:50:00.000Z',
+          weights: { ...DEFAULT_WEIGHTS, priority: 1.2 },
+        }),
+        baseItem({ id: 'fresh', title: 'Fresh' }),
+      ],
+      prefs,
+      DEFAULT_SETTINGS,
+      now,
+    )
+
+    expect(result?.item.id).toBe('fresh')
+  })
+
+  it('does not punish stale or invalid recommendation memory', () => {
+    const candidates = scoreCandidates(
+      [
+        baseItem({ id: 'old', title: 'Old', lastRecommendedAt: '2026-05-01T12:00:00.000Z' }),
+        baseItem({ id: 'unknown', title: 'Unknown', lastRecommendedAt: 'not-a-date' }),
+      ],
+      prefs,
+      DEFAULT_SETTINGS,
+      now,
+    )
+
+    expect(candidates.map((candidate) => candidate.score)).toEqual([65, 65])
   })
 
   it('uses soft intensity to favor light low-challenge entries', () => {
