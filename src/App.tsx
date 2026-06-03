@@ -887,6 +887,7 @@ function LibraryTab({
   const [deletedLibraryUndo, setDeletedLibraryUndo] = useState<ListItem[]>([])
   const [statusUndo, setStatusUndo] = useState<{ id: string; title: string; previousStatus: ItemStatus } | undefined>()
   const [pendingLibraryImport, setPendingLibraryImport] = useState<PendingBackupImport | undefined>()
+  const [libraryLinkCopy, setLibraryLinkCopy] = useState<{ title: string; url: string } | undefined>()
   const [importStatus, setImportStatus] = useState<string | undefined>()
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
@@ -1208,6 +1209,20 @@ function LibraryTab({
     await library.saveSettings({ libraryViewMode: nextViewMode })
   }
 
+  async function copyLibraryItemLink(item: ListItem) {
+    const itemUrl = buildItemShareUrl(item.id)
+    const copied = await writeClipboardText(itemUrl)
+    setLibraryLinkCopy(copied ? undefined : { title: item.title, url: itemUrl })
+    setImportStatus(copied ? `Enlace de ${item.title} copiado` : `Enlace de ${item.title} listo para copiar manualmente`)
+    onActivity({
+      detail: item.title,
+      label: copied ? 'Enlace copiado' : 'Enlace preparado',
+      tab: 'library',
+      target: { kind: 'item', id: item.id },
+      tone: copied ? 'success' : 'info',
+    })
+  }
+
   function resetLibraryFilters() {
     setQuery('')
     setTypeFilter('all')
@@ -1445,6 +1460,16 @@ function LibraryTab({
         {library.loading && <FeedbackMessage tone="loading">Cargando biblioteca...</FeedbackMessage>}
         {library.error && <FeedbackMessage tone="danger">{library.error}</FeedbackMessage>}
         {importStatus && <FeedbackMessage tone={feedbackToneFromText(importStatus)}>{importStatus}</FeedbackMessage>}
+        {libraryLinkCopy && (
+          <div className="link-copy-feedback" aria-label={`Enlace listo para ${libraryLinkCopy.title}`}>
+            <input
+              aria-label="Enlace de ficha"
+              readOnly
+              value={libraryLinkCopy.url}
+              onFocus={(event) => event.currentTarget.select()}
+            />
+          </div>
+        )}
         {missingActivityFocus && (
           <div className="feedback-action-row" aria-label="Actividad sin entrada">
             <FeedbackMessage>Esa actividad ya no tiene una entrada en la biblioteca.</FeedbackMessage>
@@ -1544,6 +1569,7 @@ function LibraryTab({
                 key={item.id}
                 layout={viewMode}
                 onEdit={() => openLibraryEditor(item)}
+                onCopyLink={() => void copyLibraryItemLink(item)}
                 onStatus={(status) => void changeLibraryItemStatus(item, status)}
                 onSnooze={() => void snoozeLibraryItem(item)}
                 onReactivate={() => void reactivateLibraryItem(item)}
@@ -4651,6 +4677,7 @@ function ItemCard({
   layout = 'cards',
   onDelete,
   onEdit,
+  onCopyLink,
   onReactivate,
   onSnooze,
   onStatus,
@@ -4658,6 +4685,7 @@ function ItemCard({
   item: ListItem
   layout?: 'cards' | 'list'
   onEdit: () => void
+  onCopyLink: () => void
   onDelete: () => void
   onReactivate: () => void
   onSnooze: () => void
@@ -4725,6 +4753,7 @@ function ItemCard({
               label: secondaryAction.label,
               onSelect: () => applyStatus(secondaryAction.nextStatus),
             },
+            { Icon: Copy, label: 'Copiar enlace', onSelect: onCopyLink },
             ...(canControlDiceCooldown
               ? [
                   diceCooldownAction,
