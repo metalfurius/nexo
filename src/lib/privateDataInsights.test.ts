@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import type { DiscoveryCandidate, ListItem } from '../domain/types'
-import { formatRecentRecommendationTime, getPrivateDataHealth, getRecentRecommendationItems } from './privateDataInsights'
+import {
+  formatRecentRecommendationTime,
+  getPrivateDataHealth,
+  getPrivateTaxonomyRepairDraft,
+  getRecentRecommendationItems,
+} from './privateDataInsights'
 
 const now = Date.parse('2026-06-03T12:00:00.000Z')
 
@@ -179,6 +184,48 @@ describe('private data insights', () => {
       { kind: 'tag', label: 'reflexivo', sourceCount: 1 },
       { kind: 'tag', label: 'sci fi', sourceCount: 1 },
     ])
+  })
+
+  it('builds private taxonomy repairs only for entries without signals', () => {
+    const template = {
+      genres: ['Drama', 'Drama'],
+      tags: ['autor'],
+      moodTags: ['denso'],
+    }
+    const original = item({
+      id: 'missing',
+      title: 'Missing',
+      genres: [],
+      tags: [],
+      moodTags: [],
+      updatedAt: '2026-06-01T00:00:00.000Z',
+    })
+
+    const repair = getPrivateTaxonomyRepairDraft(original, template, '2026-06-03T12:00:00.000Z')
+
+    expect(repair).toMatchObject({
+      signalCount: 3,
+      item: {
+        genres: ['Drama'],
+        moodTags: ['denso'],
+        tags: ['autor'],
+        updatedAt: '2026-06-03T12:00:00.000Z',
+      },
+    })
+    expect(original.genres).toEqual([])
+    expect(repair?.item.genres).not.toBe(template.genres)
+  })
+
+  it('skips private taxonomy repairs when signals or templates already exist', () => {
+    expect(getPrivateTaxonomyRepairDraft(item({ id: 'ready' }), { genres: ['Drama'], tags: [], moodTags: [] })).toBeUndefined()
+    expect(getPrivateTaxonomyRepairDraft(item({ id: 'empty', genres: [], tags: [], moodTags: [] }))).toBeUndefined()
+    expect(
+      getPrivateTaxonomyRepairDraft(item({ id: 'empty-template', genres: [], tags: [], moodTags: [] }), {
+        genres: [],
+        tags: [],
+        moodTags: [],
+      }),
+    ).toBeUndefined()
   })
 
   it('orders recent recommendations newest-first and limits the list', () => {

@@ -150,6 +150,7 @@ import {
 import {
   formatRecentRecommendationTime,
   getPrivateDataHealth,
+  getPrivateTaxonomyRepairDraft,
   getRecentRecommendationItems,
   type PrivateTasteSuggestion,
 } from './lib/privateDataInsights'
@@ -246,6 +247,7 @@ function feedbackToneFromText(message: string): FeedbackTone {
     normalized.includes('copiad') ||
     normalized.includes('anadid') ||
     normalized.includes('afinad') ||
+    normalized.includes('completad') ||
     normalized.includes('enfriado') ||
     normalized.includes('reparad') ||
     normalized.includes('reactivad') ||
@@ -3944,6 +3946,7 @@ function SettingsTab({
   const [draft, setDraft] = useState<SettingsDraft>(() => settingsDraftFromSettings({ ...library.settings, theme }))
   const [status, setStatus] = useState<string | undefined>()
   const [settingsUndo, setSettingsUndo] = useState<UserSettings | undefined>()
+  const [privateTaxonomyUndoItems, setPrivateTaxonomyUndoItems] = useState<ListItem[]>([])
   const [editingItem, setEditingItem] = useState<ListItem | undefined>()
   const [pendingBackupImport, setPendingBackupImport] = useState<PendingBackupImport | undefined>()
   const draftFavoriteTags = splitList(draft.favoriteTags)
@@ -3958,6 +3961,16 @@ function SettingsTab({
     () => getPrivateDataHealth(library.items, library.discoveryCandidates),
     [library.items, library.discoveryCandidates],
   )
+  const privateTaxonomyRepairs = useMemo(() => {
+    return library.items
+      .map((item) => ({
+        original: item,
+        repair: getPrivateTaxonomyRepairDraft(item, catalogTaxonomyTemplates[item.type][0], item.updatedAt),
+      }))
+      .filter((entry): entry is { original: ListItem; repair: NonNullable<ReturnType<typeof getPrivateTaxonomyRepairDraft>> } =>
+        Boolean(entry.repair),
+      )
+  }, [library.items])
   const pendingTasteSuggestions = privateDataHealth.tasteSuggestions.filter((suggestion) => {
     const currentValues = suggestion.kind === 'genre' ? draftFavoriteGenres : draftFavoriteTags
     const suggestionKey = normalizeKey(suggestion.label)
@@ -4014,6 +4027,7 @@ function SettingsTab({
     setTheme(draft.theme)
     await library.saveSettings(nextSettings)
     setPendingBackupImport(undefined)
+    setPrivateTaxonomyUndoItems([])
     setSettingsUndo(previousSettings)
     setStatus('Ajustes guardados')
     onActivity({
@@ -4034,6 +4048,7 @@ function SettingsTab({
       setDraft(settingsDraftFromSettings(previousSettings))
       setSettingsUndo(undefined)
       setPendingBackupImport(undefined)
+      setPrivateTaxonomyUndoItems([])
       setStatus('Ajustes recuperados')
       onActivity({
         detail: `${previousSettings.theme === 'dark' ? 'Oscuro' : 'Claro'} / ${typeLabels[previousSettings.explorerDefaultType]}`,
@@ -4070,6 +4085,7 @@ function SettingsTab({
     try {
       const payload = parseLibraryImportPayload(JSON.parse(await file.text()))
       const summary = getLibraryImportSummary(payload, library.items)
+      setPrivateTaxonomyUndoItems([])
       setPendingBackupImport({ fileName: file.name, payload, summary })
       setStatus(`Backup preparado: ${formatBackupImportSummary(summary)}`)
     } catch (reason) {
@@ -4094,6 +4110,7 @@ function SettingsTab({
         setDraft(settingsDraftFromSettings(payload.settings))
         setSettingsUndo(undefined)
       }
+      setPrivateTaxonomyUndoItems([])
       setStatus(
         payload.settings
           ? `Importadas ${summary.totalItems} entradas y ajustes desde backup`
@@ -4119,6 +4136,7 @@ function SettingsTab({
   async function savePrivateItemFromSettings(item: ListItem) {
     await library.saveItem(item)
     setEditingItem(undefined)
+    setPrivateTaxonomyUndoItems([])
     setStatus(`${item.title || 'Entrada'} guardada`)
     onActivity({
       detail: item.title || 'Entrada sin titulo',
@@ -4129,8 +4147,68 @@ function SettingsTab({
     })
   }
 
+  async function repairPrivateTaxonomy() {
+    if (!privateTaxonomyRepairs.length) {
+      setStatus('No hay taxonomia privada que completar')
+      return
+    }
+
+    try {
+      for (const entry of privateTaxonomyRepairs) {
+        await library.saveItem(entry.repair.item)
+      }
+      setPendingBackupImport(undefined)
+      setSettingsUndo(undefined)
+      setPrivateTaxonomyUndoItems(privateTaxonomyRepairs.map((entry) => entry.original))
+      setStatus(
+        `Taxonomia privada completada en ${privateTaxonomyRepairs.length} ficha${privateTaxonomyRepairs.length === 1 ? '' : 's'}`,
+      )
+      onActivity({
+        detail: `${privateTaxonomyRepairs.length} ficha${privateTaxonomyRepairs.length === 1 ? '' : 's'} privadas`,
+        label: 'Taxonomia privada completada',
+        tab: 'settings',
+        tone: 'success',
+      })
+    } catch (reason) {
+      setStatus(reason instanceof Error ? reason.message : 'No se pudo completar la taxonomia privada.')
+    }
+  }
+
+  async function undoPrivateTaxonomyRepair() {
+    if (!privateTaxonomyUndoItems.length) return
+
+    try {
+      for (const item of privateTaxonomyUndoItems) {
+        await library.saveItem(item)
+      }
+      setPrivateTaxonomyUndoItems([])
+      setStatus(
+        privateTaxonomyUndoItems.length === 1
+          ? 'Taxonomia privada recuperada en 1 ficha'
+          : `Taxonomia privada recuperada en ${privateTaxonomyUndoItems.length} fichas`,
+      )
+      onActivity({
+        detail: `${privateTaxonomyUndoItems.length} ficha${privateTaxonomyUndoItems.length === 1 ? '' : 's'} privadas`,
+        label: 'Taxonomia privada recuperada',
+        tab: 'settings',
+        tone: 'success',
+      })
+    } catch (reason) {
+      setStatus(reason instanceof Error ? reason.message : 'No se pudo deshacer la taxonomia privada.')
+    }
+  }
+
   const privateDataActions: PrivateDataAction[] = [
-    firstMissingTaxonomyItem
+    privateTaxonomyRepairs.length
+      ? {
+          detail: `${privateTaxonomyRepairs.length} con plantillas seguras`,
+          Icon: Sparkles,
+          id: 'repair-taxonomy',
+          label: 'Completar taxonomia',
+          onClick: () => void repairPrivateTaxonomy(),
+          primary: true,
+        }
+      : firstMissingTaxonomyItem
       ? {
           detail: firstMissingTaxonomyItem.title,
           Icon: Info,
@@ -4356,12 +4434,20 @@ function SettingsTab({
         </div>
 
         {status && <FeedbackMessage tone={feedbackToneFromText(status)}>{status}</FeedbackMessage>}
-        {settingsUndo && !hasUnsavedChanges && (
+        {(settingsUndo || privateTaxonomyUndoItems.length > 0) && !hasUnsavedChanges && (
           <div className="feedback-action-row" aria-label="Accion reciente de ajustes">
-            <button className="secondary-button" type="button" onClick={() => void undoSettingsSave()}>
-              <RotateCcw size={16} />
-              Deshacer ajustes
-            </button>
+            {settingsUndo && (
+              <button className="secondary-button" type="button" onClick={() => void undoSettingsSave()}>
+                <RotateCcw size={16} />
+                Deshacer ajustes
+              </button>
+            )}
+            {privateTaxonomyUndoItems.length > 0 && (
+              <button className="secondary-button" type="button" onClick={() => void undoPrivateTaxonomyRepair()}>
+                <RotateCcw size={16} />
+                Deshacer taxonomia
+              </button>
+            )}
           </div>
         )}
       </form>

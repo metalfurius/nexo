@@ -598,6 +598,53 @@ test('settings show pending changes before saving preferences', async ({ page })
   await expect(page.getByRole('button', { name: 'Guardado', exact: true })).toBeDisabled()
 })
 
+test('settings can repair private taxonomy from the maintenance plan', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Ajustes', exact: true }).click()
+  await page.getByLabel('Importar backup JSON').setInputFiles({
+    name: 'nexo-taxonomy-repair.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(
+      JSON.stringify({
+        schemaVersion: 1,
+        exportedAt: '2026-06-03T00:00:00.000Z',
+        items: [
+          {
+            title: 'Taxonomy Repair Probe',
+            type: 'movie',
+            status: 'wishlist',
+            genres: [],
+            tags: [],
+            moodTags: [],
+            weights: { priority: 1, surprise: 0.5, challenge: 0.5 },
+            source: 'manual',
+            createdAt: '2026-06-01T00:00:00.000Z',
+            updatedAt: '2026-06-01T00:00:00.000Z',
+          },
+        ],
+      }),
+    ),
+  })
+
+  await expect(page.getByText('Backup preparado: 1 nueva / 0 actualizadas')).toBeVisible()
+  await page.getByRole('button', { name: 'Aplicar backup' }).click()
+  await expect(page.getByText('Importadas 1 entradas desde backup')).toBeVisible()
+  await expect(page.getByTestId('private-data-health')).toContainText('7/8')
+  await expect(page.getByTestId('private-data-health')).toContainText('1 sin generos/tags')
+  await expect(page.getByTestId('private-action-plan')).toContainText('Completar taxonomia')
+
+  await page.getByTestId('private-action-plan').getByRole('button', { name: /Completar taxonomia/ }).click()
+  await expect(page.getByRole('status').filter({ hasText: 'Taxonomia privada completada en 1 ficha' })).toBeVisible()
+  await expect(page.getByTestId('private-data-health')).toContainText('8/8')
+  await expect(page.getByTestId('private-data-health')).toContainText('Dado entiende el tono')
+  await expect(page.getByRole('button', { name: 'Deshacer taxonomia' })).toBeVisible()
+  await expect(page.getByTestId('session-activity')).toContainText('Taxonomia privada completada')
+
+  await page.getByRole('button', { name: 'Deshacer taxonomia' }).click()
+  await expect(page.getByRole('status').filter({ hasText: 'Taxonomia privada recuperada en 1 ficha' })).toBeVisible()
+  await expect(page.getByTestId('private-data-health')).toContainText('7/8')
+})
+
 test('library quick import previews a backup before applying it', async ({ page }) => {
   await page.goto('/')
   await page.getByLabel('Importar biblioteca desde JSON').setInputFiles({

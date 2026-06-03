@@ -1,5 +1,6 @@
 import type { DiscoveryCandidate, ListItem } from '../domain/types'
-import { normalizeKey } from './strings'
+import { nowIso } from '../domain/types'
+import { normalizeKey, uniqueValues } from './strings'
 
 export interface PrivateDataReviewItem {
   detail: string
@@ -11,6 +12,17 @@ export interface PrivateTasteSuggestion {
   kind: 'genre' | 'tag'
   label: string
   sourceCount: number
+}
+
+export interface PrivateTaxonomyRepairTemplate {
+  genres: string[]
+  moodTags: string[]
+  tags: string[]
+}
+
+export interface PrivateTaxonomyRepairDraft {
+  item: ListItem
+  signalCount: number
 }
 
 export interface PrivateDataHealth {
@@ -131,6 +143,31 @@ export function getPrivateTasteSuggestions(items: ListItem[], limit = 6): Privat
         left.label.localeCompare(right.label, 'es', { sensitivity: 'base' }),
     )
     .slice(0, limit)
+}
+
+export function getPrivateTaxonomyRepairDraft(
+  item: ListItem,
+  template?: PrivateTaxonomyRepairTemplate,
+  timestamp = nowIso(),
+): PrivateTaxonomyRepairDraft | undefined {
+  if (item.genres.length + item.tags.length + item.moodTags.length > 0 || !template) return undefined
+
+  const genres = uniqueValues(template.genres)
+  const tags = uniqueValues(template.tags)
+  const moodTags = uniqueValues(template.moodTags)
+  const signalCount = genres.length + tags.length + moodTags.length
+  if (signalCount === 0) return undefined
+
+  return {
+    item: {
+      ...item,
+      genres,
+      moodTags,
+      tags,
+      updatedAt: timestamp,
+    },
+    signalCount,
+  }
 }
 
 export function getRecentRecommendationItems(items: ListItem[], limit = 4) {
