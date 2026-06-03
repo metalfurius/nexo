@@ -1,9 +1,16 @@
 import type { DiscoveryCandidate, ListItem } from '../domain/types'
+import { normalizeKey } from './strings'
 
 export interface PrivateDataReviewItem {
   detail: string
   label: string
   tone?: 'good'
+}
+
+export interface PrivateTasteSuggestion {
+  kind: 'genre' | 'tag'
+  label: string
+  sourceCount: number
 }
 
 export interface PrivateDataHealth {
@@ -18,6 +25,7 @@ export interface PrivateDataHealth {
   summaryLabel: string
   taxonomyCoveragePercent: number
   taxonomyReadyCount: number
+  tasteSuggestions: PrivateTasteSuggestion[]
   totalItems: number
 }
 
@@ -36,6 +44,7 @@ export function getPrivateDataHealth(
   const queuedDiscoveryCount = candidates.filter((candidate) => candidate.status === 'queued').length
   const taxonomyCoveragePercent = totalItems ? Math.round((taxonomyReadyCount / totalItems) * 100) : 0
   const needsAttention = totalItems === 0 || missingTaxonomyCount > 0 || diceReadyCount === 0
+  const tasteSuggestions = getPrivateTasteSuggestions(items)
   const summaryLabel =
     totalItems === 0 ? 'Sin biblioteca todavia' : needsAttention ? 'Faltan senales privadas' : 'Biblioteca preparada'
   const summaryCopy =
@@ -98,8 +107,30 @@ export function getPrivateDataHealth(
     summaryLabel,
     taxonomyCoveragePercent,
     taxonomyReadyCount,
+    tasteSuggestions,
     totalItems,
   }
+}
+
+export function getPrivateTasteSuggestions(items: ListItem[], limit = 6): PrivateTasteSuggestion[] {
+  const suggestions = new Map<string, PrivateTasteSuggestion>()
+
+  for (const item of items) {
+    if (!isPositiveTasteSignal(item)) continue
+
+    const seenForItem = new Set<string>()
+    collectSuggestionValues(suggestions, seenForItem, 'genre', item.genres)
+    collectSuggestionValues(suggestions, seenForItem, 'tag', item.tags)
+  }
+
+  return [...suggestions.values()]
+    .sort(
+      (left, right) =>
+        right.sourceCount - left.sourceCount ||
+        suggestionKindRank(left.kind) - suggestionKindRank(right.kind) ||
+        left.label.localeCompare(right.label, 'es', { sensitivity: 'base' }),
+    )
+    .slice(0, limit)
 }
 
 export function getRecentRecommendationItems(items: ListItem[], limit = 4) {
@@ -134,4 +165,35 @@ function isItemPrivateDiceReady(item: ListItem, now: number) {
   if (!item.recommendationCooldownUntil) return true
   const timestamp = Date.parse(item.recommendationCooldownUntil)
   return !Number.isFinite(timestamp) || timestamp <= now
+}
+
+function collectSuggestionValues(
+  suggestions: Map<string, PrivateTasteSuggestion>,
+  seenForItem: Set<string>,
+  kind: PrivateTasteSuggestion['kind'],
+  values: string[],
+) {
+  for (const value of values) {
+    const label = value.trim()
+    const key = normalizeKey(label)
+    const suggestionKey = `${kind}:${key}`
+
+    if (!key || seenForItem.has(suggestionKey)) continue
+
+    const current = suggestions.get(suggestionKey)
+    if (current) {
+      current.sourceCount += 1
+    } else {
+      suggestions.set(suggestionKey, { kind, label, sourceCount: 1 })
+    }
+    seenForItem.add(suggestionKey)
+  }
+}
+
+function isPositiveTasteSignal(item: ListItem) {
+  return item.status === 'completed' && typeof item.rating === 'number' && item.rating >= 7.5
+}
+
+function suggestionKindRank(kind: PrivateTasteSuggestion['kind']) {
+  return kind === 'genre' ? 0 : 1
 }

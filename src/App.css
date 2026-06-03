@@ -2728,6 +2728,108 @@
   gap: 10px;
 }
 
+.taste-suggestions {
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+}
+
+.taste-suggestions-heading {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.taste-suggestions-heading > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.taste-suggestions-heading strong {
+  color: var(--text-strong);
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.taste-suggestions-heading span {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+.taste-suggestions-heading .secondary-button {
+  flex-shrink: 0;
+  font-size: 12px;
+  min-height: 34px;
+  padding: 0 10px;
+}
+
+.taste-suggestion-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.taste-suggestion-chip {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  cursor: pointer;
+  display: grid;
+  font: inherit;
+  gap: 6px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  max-width: 100%;
+  min-height: 34px;
+  padding: 0 8px;
+  text-align: left;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+.taste-suggestion-chip span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.taste-suggestion-chip strong {
+  color: var(--text-strong);
+  font-size: 12px;
+  line-height: 1.1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.taste-suggestion-chip small {
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+  border-radius: 999px;
+  color: var(--accent-dark);
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+  min-width: 20px;
+  padding: 4px 6px;
+  text-align: center;
+}
+
+.taste-suggestion-chip.applied {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+
 .preference-preview-group {
   background: var(--surface-muted);
   border: 1px solid var(--border);
@@ -6660,6 +6762,15 @@ textarea:focus-visible {
 
   .settings-confidence-panel > button {
     justify-self: stretch;
+  }
+
+  .taste-suggestions-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .taste-suggestions-heading .secondary-button {
+    width: 100%;
   }
 
   .private-action-list {

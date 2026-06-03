@@ -56,6 +56,7 @@ describe('private data insights', () => {
       summaryLabel: 'Sin biblioteca todavia',
       taxonomyCoveragePercent: 0,
       taxonomyReadyCount: 0,
+      tasteSuggestions: [],
       totalItems: 0,
     })
     expect(getPrivateDataHealth([], [], now).reviewItems).toEqual([
@@ -128,6 +129,55 @@ describe('private data insights', () => {
         detail: 'Tu biblioteca privada esta lista para backup y recomendaciones.',
         tone: 'good',
       },
+    ])
+  })
+
+  it('suggests favorite tastes from highly rated completed entries', () => {
+    const health = getPrivateDataHealth(
+      [
+        item({
+          id: 'matrix',
+          title: 'Matrix',
+          status: 'completed',
+          rating: 8.5,
+          genres: ['Sci-Fi', 'Accion'],
+          tags: ['pelicula', 'sci fi'],
+        }),
+        item({
+          id: 'arrival',
+          title: 'Arrival',
+          status: 'completed',
+          rating: 9,
+          genres: ['sci fi'],
+          tags: ['reflexivo'],
+        }),
+        item({
+          id: 'flat',
+          title: 'Flat',
+          status: 'completed',
+          rating: 6,
+          genres: ['Drama'],
+          tags: ['lento'],
+        }),
+        item({
+          id: 'active',
+          title: 'Active',
+          status: 'in_progress',
+          rating: 10,
+          genres: ['Anime'],
+          tags: ['actual'],
+        }),
+      ],
+      [],
+      now,
+    )
+
+    expect(health.tasteSuggestions).toEqual([
+      { kind: 'genre', label: 'Sci-Fi', sourceCount: 2 },
+      { kind: 'genre', label: 'Accion', sourceCount: 1 },
+      { kind: 'tag', label: 'pelicula', sourceCount: 1 },
+      { kind: 'tag', label: 'reflexivo', sourceCount: 1 },
+      { kind: 'tag', label: 'sci fi', sourceCount: 1 },
     ])
   })
 

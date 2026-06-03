@@ -144,6 +144,7 @@ import {
   formatRecentRecommendationTime,
   getPrivateDataHealth,
   getRecentRecommendationItems,
+  type PrivateTasteSuggestion,
 } from './lib/privateDataInsights'
 import {
   createLibraryExportPayload,
@@ -3753,6 +3754,11 @@ function SettingsTab({
     () => getPrivateDataHealth(library.items, library.discoveryCandidates),
     [library.items, library.discoveryCandidates],
   )
+  const pendingTasteSuggestions = privateDataHealth.tasteSuggestions.filter((suggestion) => {
+    const currentValues = suggestion.kind === 'genre' ? draftFavoriteGenres : draftFavoriteTags
+    const suggestionKey = normalizeKey(suggestion.label)
+    return !currentValues.some((value) => normalizeKey(value) === suggestionKey)
+  })
   const hasUnsavedChanges =
     draft.theme !== theme ||
     draft.explorerDefaultType !== library.settings.explorerDefaultType ||
@@ -3768,6 +3774,28 @@ function SettingsTab({
   function updateDraft(updater: (current: SettingsDraft) => SettingsDraft) {
     setSettingsUndo(undefined)
     setDraft(updater)
+  }
+
+  function applyTasteSuggestion(suggestion: PrivateTasteSuggestion) {
+    updateDraft((current) =>
+      suggestion.kind === 'genre'
+        ? { ...current, favoriteGenres: mergeListText(current.favoriteGenres, [suggestion.label]) }
+        : { ...current, favoriteTags: mergeListText(current.favoriteTags, [suggestion.label]) },
+    )
+    setStatus(`${suggestion.kind === 'genre' ? 'Genero' : 'Tag'} sugerido anadido`)
+  }
+
+  function applyTasteSuggestions() {
+    if (!pendingTasteSuggestions.length) return
+
+    const genres = pendingTasteSuggestions.filter((suggestion) => suggestion.kind === 'genre').map((suggestion) => suggestion.label)
+    const tags = pendingTasteSuggestions.filter((suggestion) => suggestion.kind === 'tag').map((suggestion) => suggestion.label)
+    updateDraft((current) => ({
+      ...current,
+      favoriteGenres: genres.length ? mergeListText(current.favoriteGenres, genres) : current.favoriteGenres,
+      favoriteTags: tags.length ? mergeListText(current.favoriteTags, tags) : current.favoriteTags,
+    }))
+    setStatus(`${pendingTasteSuggestions.length} sugerencias anadidas`)
   }
 
   async function saveSettings() {
@@ -4076,6 +4104,46 @@ function SettingsTab({
             Tags bloqueados
             <input value={draft.blockedTags} onChange={(event) => updateDraft((current) => ({ ...current, blockedTags: event.target.value }))} />
           </label>
+          {privateDataHealth.tasteSuggestions.length > 0 && (
+            <div className="taste-suggestions" aria-label="Sugerencias de gusto" data-testid="taste-suggestions">
+              <div className="taste-suggestions-heading">
+                <div>
+                  <strong>Sugerencias de gusto</strong>
+                  <span>Desde completadas con rating alto</span>
+                </div>
+                {pendingTasteSuggestions.length > 0 && (
+                  <button className="secondary-button" type="button" onClick={applyTasteSuggestions}>
+                    <Sparkles size={15} />
+                    Aplicar sugerencias
+                  </button>
+                )}
+              </div>
+              <div className="taste-suggestion-row">
+                {privateDataHealth.tasteSuggestions.map((suggestion) => {
+                  const suggestionKey = `${suggestion.kind}:${normalizeKey(suggestion.label)}`
+                  const isApplied = !pendingTasteSuggestions.some(
+                    (pending) => pending.kind === suggestion.kind && normalizeKey(pending.label) === normalizeKey(suggestion.label),
+                  )
+                  const suggestionKindLabel = suggestion.kind === 'genre' ? 'Genero' : 'Tag'
+
+                  return (
+                    <button
+                      aria-label={`${isApplied ? 'Sugerencia aplicada' : 'Anadir'} ${suggestionKindLabel.toLowerCase()} ${suggestion.label}`}
+                      className={isApplied ? 'taste-suggestion-chip applied' : 'taste-suggestion-chip'}
+                      disabled={isApplied}
+                      key={suggestionKey}
+                      type="button"
+                      onClick={() => applyTasteSuggestion(suggestion)}
+                    >
+                      <span>{suggestionKindLabel}</span>
+                      <strong>{suggestion.label}</strong>
+                      <small>{suggestion.sourceCount}</small>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="preference-preview" aria-label="Resumen de preferencias">
@@ -6789,8 +6857,8 @@ function PreferencePreview({ label, tone, values }: { label: string; tone?: 'dan
       <strong>{label}</strong>
       {values.length ? (
         <div className="preference-chip-row">
-          {values.slice(0, 8).map((value) => (
-            <span key={value}>{value}</span>
+          {values.slice(0, 8).map((value, index) => (
+            <span key={`${normalizeKey(value)}-${index}`}>{value}</span>
           ))}
           {values.length > 8 && <span>+{values.length - 8}</span>}
         </div>
