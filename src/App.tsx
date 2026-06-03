@@ -248,6 +248,7 @@ function feedbackToneFromText(message: string): FeedbackTone {
 }
 
 type AppTab = 'library' | 'dice' | 'explorer' | 'settings' | 'curation'
+type PendingNavigation = { source: 'app' | 'history'; tab: AppTab }
 
 interface PrivateDataAction {
   detail: string
@@ -289,14 +290,22 @@ function readInitialAppTab(): AppTab {
   return urlAddressableTabs.includes(tab as AppTab) ? (tab as AppTab) : 'library'
 }
 
-function writeAppTabToUrl(tab: AppTab) {
+function writeAppTabToUrl(tab: AppTab, mode: 'push' | 'replace' = 'replace') {
   const url = new URL(window.location.href)
   if (tab === 'library' || !urlAddressableTabs.includes(tab)) {
     url.searchParams.delete('tab')
   } else {
     url.searchParams.set('tab', tab)
   }
-  window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`)
+  const nextUrl = `${url.pathname}${url.search}${url.hash}`
+  const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`
+  if (nextUrl === currentUrl) return
+
+  if (mode === 'push') {
+    window.history.pushState(null, '', nextUrl)
+  } else {
+    window.history.replaceState(null, '', nextUrl)
+  }
 }
 
 const dicePreferencePresets: Array<{
@@ -390,7 +399,7 @@ function App() {
   const auth = useAuth()
   const library = useLibrary(auth.user)
   const [activeTab, setActiveTabState] = useState<AppTab>(() => readInitialAppTab())
-  const [pendingNavigation, setPendingNavigation] = useState<AppTab | undefined>()
+  const [pendingNavigation, setPendingNavigation] = useState<PendingNavigation | undefined>()
   const [tabsWithUnsavedChanges, setTabsWithUnsavedChanges] = useState<Partial<Record<AppTab, boolean>>>({})
   const [theme, setTheme] = useState<ThemeMode>(() => {
     const stored = window.localStorage.getItem(themeStorageKey)
@@ -411,19 +420,30 @@ function App() {
 
   useEffect(() => {
     function syncTabFromUrl() {
-      setActiveTabState(readInitialAppTab())
+      const nextTab = readInitialAppTab()
+      if (nextTab === activeTab) return
+
+      if (tabsWithUnsavedChanges[activeTab]) {
+        setPendingNavigation({ source: 'history', tab: nextTab })
+        writeAppTabToUrl(activeTab)
+        return
+      }
+
+      setPendingNavigation(undefined)
+      setActiveTabState(nextTab)
     }
 
     window.addEventListener('popstate', syncTabFromUrl)
     return () => window.removeEventListener('popstate', syncTabFromUrl)
-  }, [])
+  }, [activeTab, tabsWithUnsavedChanges])
 
   const reportUnsavedChanges = useCallback((tab: AppTab, hasUnsavedChanges: boolean) => {
     setTabsWithUnsavedChanges((current) => {
       if (Boolean(current[tab]) === hasUnsavedChanges) return current
       return { ...current, [tab]: hasUnsavedChanges }
     })
-  }, [])
+    if (tab === activeTab && !hasUnsavedChanges) setPendingNavigation(undefined)
+  }, [activeTab])
   const reportDiceUnsavedChanges = useCallback(
     (hasUnsavedChanges: boolean) => reportUnsavedChanges('dice', hasUnsavedChanges),
     [reportUnsavedChanges],
@@ -460,27 +480,27 @@ function App() {
     { id: 'curation', label: 'Curacion', description: 'Catalogo Nexo', icon: ShieldCheck, hidden: !library.isModerator },
   ]
   const activeNavItem = navItems.find((item) => item.id === activeTab) ?? navItems[0]
-  const pendingNavItem = pendingNavigation ? navItems.find((item) => item.id === pendingNavigation) : undefined
+  const pendingNavItem = pendingNavigation ? navItems.find((item) => item.id === pendingNavigation.tab) : undefined
   const shellTitle = activeTab === 'library' ? 'Biblioteca privada' : activeNavItem.label
 
   function changeActiveTab(nextTab: AppTab) {
     if (nextTab === activeTab) return
     if (tabsWithUnsavedChanges[activeTab]) {
-      setPendingNavigation(nextTab)
+      setPendingNavigation({ source: 'app', tab: nextTab })
       return
     }
     setActiveTabState(nextTab)
-    writeAppTabToUrl(nextTab)
+    writeAppTabToUrl(nextTab, 'push')
   }
 
   function discardPendingNavigation() {
     if (!pendingNavigation) return
 
-    const nextTab = pendingNavigation
+    const { source, tab: nextTab } = pendingNavigation
     setTabsWithUnsavedChanges((current) => ({ ...current, [activeTab]: false }))
     setPendingNavigation(undefined)
     setActiveTabState(nextTab)
-    writeAppTabToUrl(nextTab)
+    writeAppTabToUrl(nextTab, source === 'history' ? 'replace' : 'push')
   }
 
   return (

@@ -247,6 +247,27 @@ test('pwa metadata is present', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Elige el siguiente hilo' })).toBeVisible()
   await page.getByRole('button', { name: 'Explorador', exact: true }).click()
   await expect(page).toHaveURL(/tab=explorer/)
+  await page.goBack()
+  await expect(page).toHaveURL(/tab=dice/)
+  await expect(page.getByRole('heading', { name: 'Elige el siguiente hilo' })).toBeVisible()
+})
+
+test('browser history asks before leaving pending dice preferences', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await expect(page).toHaveURL(/tab=dice/)
+  await page.getByRole('button', { name: 'Explorador', exact: true }).click()
+  await expect(page).toHaveURL(/tab=explorer/)
+  await page.goBack()
+  await expect(page).toHaveURL(/tab=dice/)
+  await page.getByLabel('Energia').selectOption('high')
+  await expect(page.getByText('Cambios pendientes')).toBeVisible()
+  await page.goBack()
+  await expect(page.getByLabel('Salida con cambios pendientes')).toContainText('Cambios pendientes en Dado')
+  await expect(page).toHaveURL(/tab=dice/)
+  await page.getByLabel('Salida con cambios pendientes').getByRole('button', { name: 'Descartar cambios' }).click()
+  await expect(page.getByRole('heading', { name: 'Biblioteca privada' })).toBeVisible()
+  await expect(page).not.toHaveURL(/tab=dice/)
 })
 
 test('settings show pending changes before saving preferences', async ({ page }) => {
