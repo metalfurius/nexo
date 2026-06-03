@@ -1244,6 +1244,7 @@ interface LibrarySurface {
   setStatus: (id: string, status: ItemStatus) => Promise<void>
   snoozeRecommendation: (id: string) => Promise<void>
   reactivateRecommendation: (id: string) => Promise<void>
+  setRecommendationCooldown: (id: string, cooldownUntil?: string) => Promise<void>
   recordRecommendation: (itemId: string, reasons: string[]) => Promise<void>
   searchExternal: (query: string, type: string) => Promise<ExternalCandidate[]>
   listPublicCatalog: () => Promise<PublicCatalogItem[]>
@@ -1285,6 +1286,9 @@ type DiceSettingsUndo = {
 type LibraryStatusUndo =
   | { id: string; kind: 'single'; previousStatus: ItemStatus; title: string }
   | { changes: Array<{ id: string; previousStatus: ItemStatus; title: string }>; kind: 'bulk' }
+interface LibraryCooldownUndo {
+  changes: Array<{ id: string; previousCooldownUntil?: string; title: string }>
+}
 
 interface PendingCatalogSeedImport {
   fileName: string
@@ -1322,6 +1326,7 @@ function LibraryTab({
   const [deletedItemUndo, setDeletedItemUndo] = useState<ListItem | undefined>()
   const [deletedLibraryUndo, setDeletedLibraryUndo] = useState<ListItem[]>([])
   const [statusUndo, setStatusUndo] = useState<LibraryStatusUndo | undefined>()
+  const [cooldownUndo, setCooldownUndo] = useState<LibraryCooldownUndo | undefined>()
   const [pendingLibraryImport, setPendingLibraryImport] = useState<PendingBackupImport | undefined>()
   const [libraryImportUndo, setLibraryImportUndo] = useState<LibraryImportRollbackPlan | undefined>()
   const [libraryLinkCopy, setLibraryLinkCopy] = useState<{ title: string; url: string } | undefined>()
@@ -1409,6 +1414,7 @@ function LibraryTab({
     setDeletedItemUndo(undefined)
     setDeletedLibraryUndo([])
     setStatusUndo(undefined)
+    setCooldownUndo(undefined)
     setLibraryImportUndo(undefined)
     try {
       const payload = parseLibraryImportPayload(JSON.parse(await file.text()))
@@ -1451,6 +1457,7 @@ function LibraryTab({
       setDeletedItemUndo(undefined)
       setDeletedLibraryUndo([])
       setStatusUndo(undefined)
+      setCooldownUndo(undefined)
       setLibraryImportUndo(rollbackPlan)
       setPendingLibraryImport(undefined)
       setSelectedItemIds([])
@@ -1488,6 +1495,7 @@ function LibraryTab({
       })
       setLibraryImportUndo(undefined)
       setPendingLibraryImport(undefined)
+      setCooldownUndo(undefined)
       setSelectedItemIds([])
     } catch (reason) {
       setImportStatus(reason instanceof Error ? reason.message : 'No se pudo deshacer el backup.')
@@ -1500,6 +1508,7 @@ function LibraryTab({
     setDeletedItemUndo(undefined)
     setDeletedLibraryUndo([])
     setStatusUndo(undefined)
+    setCooldownUndo(undefined)
     setPendingLibraryImport(undefined)
     setLibraryImportUndo(undefined)
     await library.deleteAllItems()
@@ -1525,6 +1534,7 @@ function LibraryTab({
     setDeletedItemUndo(deleteTarget)
     setDeletedLibraryUndo([])
     setStatusUndo(undefined)
+    setCooldownUndo(undefined)
     setPendingLibraryImport(undefined)
     setLibraryImportUndo(undefined)
     setDeleteTarget(undefined)
@@ -1554,6 +1564,7 @@ function LibraryTab({
       setDeletedItemUndo(undefined)
       setPendingLibraryImport(undefined)
       setLibraryImportUndo(undefined)
+      setCooldownUndo(undefined)
     } catch (reason) {
       setImportStatus(reason instanceof Error ? reason.message : 'No se pudo deshacer el borrado.')
     }
@@ -1577,6 +1588,7 @@ function LibraryTab({
       setDeletedLibraryUndo([])
       setPendingLibraryImport(undefined)
       setLibraryImportUndo(undefined)
+      setCooldownUndo(undefined)
     } catch (reason) {
       setImportStatus(reason instanceof Error ? reason.message : 'No se pudo deshacer el borrado total.')
     }
@@ -1585,6 +1597,11 @@ function LibraryTab({
   async function snoozeLibraryItem(item: ListItem) {
     try {
       await library.snoozeRecommendation(item.id)
+      setDeletedItemUndo(undefined)
+      setDeletedLibraryUndo([])
+      setStatusUndo(undefined)
+      setCooldownUndo({ changes: [{ id: item.id, previousCooldownUntil: item.recommendationCooldownUntil, title: item.title }] })
+      setPendingLibraryImport(undefined)
       setLibraryImportUndo(undefined)
       setImportStatus(`${item.title} enfriado para el dado`)
       onActivity({
@@ -1602,6 +1619,11 @@ function LibraryTab({
   async function reactivateLibraryItem(item: ListItem) {
     try {
       await library.reactivateRecommendation(item.id)
+      setDeletedItemUndo(undefined)
+      setDeletedLibraryUndo([])
+      setStatusUndo(undefined)
+      setCooldownUndo({ changes: [{ id: item.id, previousCooldownUntil: item.recommendationCooldownUntil, title: item.title }] })
+      setPendingLibraryImport(undefined)
       setLibraryImportUndo(undefined)
       setImportStatus(`${item.title} reactivado para el dado`)
       onActivity({
@@ -1622,6 +1644,7 @@ function LibraryTab({
       setDeletedItemUndo(undefined)
       setDeletedLibraryUndo([])
       setStatusUndo({ id: item.id, kind: 'single', previousStatus: item.status, title: item.title })
+      setCooldownUndo(undefined)
       setPendingLibraryImport(undefined)
       setLibraryImportUndo(undefined)
       setImportStatus(`${item.title} ahora es ${statusLabels[status]}`)
@@ -1653,6 +1676,7 @@ function LibraryTab({
           tone: 'success',
         })
         setStatusUndo(undefined)
+        setCooldownUndo(undefined)
         setPendingLibraryImport(undefined)
         setLibraryImportUndo(undefined)
         return
@@ -1668,10 +1692,33 @@ function LibraryTab({
         tone: 'success',
       })
       setStatusUndo(undefined)
+      setCooldownUndo(undefined)
       setPendingLibraryImport(undefined)
       setLibraryImportUndo(undefined)
     } catch (reason) {
       setImportStatus(reason instanceof Error ? reason.message : 'No se pudo deshacer el cambio de estado.')
+    }
+  }
+
+  async function undoLibraryCooldownChange() {
+    if (!cooldownUndo) return
+
+    try {
+      for (const change of cooldownUndo.changes) {
+        await library.setRecommendationCooldown(change.id, change.previousCooldownUntil)
+      }
+      setImportStatus(formatLibraryCooldownRollbackStatus(cooldownUndo))
+      onActivity({
+        detail: formatLibraryCooldownRollbackDetail(cooldownUndo),
+        label: 'Dado recuperado',
+        tab: 'library',
+        tone: 'success',
+      })
+      setCooldownUndo(undefined)
+      setPendingLibraryImport(undefined)
+      setLibraryImportUndo(undefined)
+    } catch (reason) {
+      setImportStatus(reason instanceof Error ? reason.message : 'No se pudo deshacer el cambio del dado.')
     }
   }
 
@@ -1709,6 +1756,7 @@ function LibraryTab({
         changes: changedItems.map((item) => ({ id: item.id, previousStatus: item.status, title: item.title })),
         kind: 'bulk',
       })
+      setCooldownUndo(undefined)
       setPendingLibraryImport(undefined)
       setLibraryImportUndo(undefined)
       setSelectedItemIds([])
@@ -1737,6 +1785,14 @@ function LibraryTab({
       }
       setDeletedItemUndo(undefined)
       setDeletedLibraryUndo([])
+      setStatusUndo(undefined)
+      setCooldownUndo({
+        changes: itemsToSnooze.map((item) => ({
+          id: item.id,
+          previousCooldownUntil: item.recommendationCooldownUntil,
+          title: item.title,
+        })),
+      })
       setPendingLibraryImport(undefined)
       setLibraryImportUndo(undefined)
       setSelectedItemIds([])
@@ -1765,6 +1821,14 @@ function LibraryTab({
       }
       setDeletedItemUndo(undefined)
       setDeletedLibraryUndo([])
+      setStatusUndo(undefined)
+      setCooldownUndo({
+        changes: itemsToReactivate.map((item) => ({
+          id: item.id,
+          previousCooldownUntil: item.recommendationCooldownUntil,
+          title: item.title,
+        })),
+      })
       setPendingLibraryImport(undefined)
       setLibraryImportUndo(undefined)
       setSelectedItemIds([])
@@ -1821,6 +1885,7 @@ function LibraryTab({
       setDeletedItemUndo(undefined)
       setPendingLibraryImport(undefined)
       setLibraryImportUndo(undefined)
+      setCooldownUndo(undefined)
       setEditingItem(undefined)
       onActivityFocusHandled()
       onDraftRequestHandled()
@@ -2285,7 +2350,7 @@ function LibraryTab({
             </div>
           </div>
         )}
-        {(deletedItemUndo || deletedLibraryUndo.length > 0 || statusUndo || libraryImportUndo) && (
+        {(deletedItemUndo || deletedLibraryUndo.length > 0 || statusUndo || cooldownUndo || libraryImportUndo) && (
           <div className="feedback-action-row" aria-label="Accion reciente de biblioteca">
             {libraryImportUndo && (
               <button className="secondary-button" type="button" onClick={() => void undoLibraryImportFile()}>
@@ -2309,6 +2374,12 @@ function LibraryTab({
               <button className="secondary-button" type="button" onClick={() => void undoLibraryStatusChange()}>
                 <RotateCcw size={16} />
                 Deshacer estado
+              </button>
+            )}
+            {cooldownUndo && (
+              <button className="secondary-button" type="button" onClick={() => void undoLibraryCooldownChange()}>
+                <RotateCcw size={16} />
+                Deshacer dado
               </button>
             )}
           </div>
@@ -2857,7 +2928,7 @@ function DiceTab({
         })
       } else {
         for (const item of diceUndoAction.items) {
-          await library.saveItem(item)
+          await library.setRecommendationCooldown(item.id, item.recommendationCooldownUntil)
         }
         setRecommendation(undefined)
         setStatus(diceUndoAction.items.length === 1 ? '1 cooldown recuperado' : `${diceUndoAction.items.length} cooldowns recuperados`)
@@ -3965,6 +4036,25 @@ function formatLibraryImportRollbackDetail(plan: LibraryImportRollbackPlan) {
 
 function formatLibraryImportRollbackStatus(plan: LibraryImportRollbackPlan) {
   return `Backup deshecho: ${formatLibraryImportRollbackDetail(plan)}`
+}
+
+function formatLibraryCooldownRollbackDetail(plan: LibraryCooldownUndo) {
+  const restoredCooldowns = plan.changes.filter((change) => Boolean(change.previousCooldownUntil)).length
+  const reactivatedItems = plan.changes.length - restoredCooldowns
+  const parts = [
+    restoredCooldowns
+      ? `${restoredCooldowns} ${restoredCooldowns === 1 ? 'cooldown recuperado' : 'cooldowns recuperados'}`
+      : undefined,
+    reactivatedItems
+      ? `${reactivatedItems} ${reactivatedItems === 1 ? 'reactivada' : 'reactivadas'}`
+      : undefined,
+  ].filter((part): part is string => Boolean(part))
+
+  return parts.length ? parts.join(' / ') : 'Sin cambios que revertir'
+}
+
+function formatLibraryCooldownRollbackStatus(plan: LibraryCooldownUndo) {
+  return `Dado deshecho: ${formatLibraryCooldownRollbackDetail(plan)}`
 }
 
 function formatCatalogSeedSummary(summary: PublicCatalogSeedSummary) {

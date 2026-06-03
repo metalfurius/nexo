@@ -22,6 +22,7 @@ const repositoryMock = vi.hoisted(() => ({
   saveSettings: vi.fn(),
   searchExternal: vi.fn(),
   searchPublicCatalog: vi.fn(),
+  setRecommendationCooldown: vi.fn(),
   setStatus: vi.fn(),
   snoozeRecommendation: vi.fn(),
   reactivateRecommendation: vi.fn(),
@@ -173,6 +174,26 @@ describe('useLibrary', () => {
     })
 
     expect(repositoryMock.reactivateRecommendation).toHaveBeenCalledWith('game-outer-wilds')
+  })
+
+  it('delegates exact recommendation cooldown restores to the signed-in repository', async () => {
+    const user = {
+      uid: 'user-1',
+      email: null,
+      displayName: null,
+    }
+    const { result } = renderHook(() => useLibrary(user))
+
+    await waitFor(() => expect(repositoryMock.subscribeItems).toHaveBeenCalled())
+
+    await act(async () => {
+      await result.current.setRecommendationCooldown('game-outer-wilds', '2026-06-04T12:00:00.000Z')
+    })
+
+    expect(repositoryMock.setRecommendationCooldown).toHaveBeenCalledWith(
+      'game-outer-wilds',
+      '2026-06-04T12:00:00.000Z',
+    )
   })
 
   it('records and clears recent activity for signed-in users', async () => {

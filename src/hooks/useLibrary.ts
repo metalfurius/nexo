@@ -244,6 +244,25 @@ export function useLibrary(user?: SignedInUserProfile | null) {
     }
   }
 
+  async function setRecommendationCooldown(id: string, cooldownUntil?: string) {
+    if (repository) {
+      await repository.setRecommendationCooldown(id, cooldownUntil)
+    } else {
+      setDemoLibrary((current) =>
+        current.map((item) => {
+          if (item.id !== id) return item
+          const nextItem = { ...item, updatedAt: nowIso() }
+          if (cooldownUntil) {
+            nextItem.recommendationCooldownUntil = cooldownUntil
+          } else {
+            delete nextItem.recommendationCooldownUntil
+          }
+          return nextItem
+        }),
+      )
+    }
+  }
+
   async function recordRecommendation(itemId: string, reasons: string[]) {
     const recommendedAt = nowIso()
     if (repository) {
@@ -483,6 +502,7 @@ export function useLibrary(user?: SignedInUserProfile | null) {
     setStatus,
     snoozeRecommendation,
     reactivateRecommendation,
+    setRecommendationCooldown,
     recordRecommendation,
     searchExternal,
     listPublicCatalog,

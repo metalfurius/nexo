@@ -160,6 +160,32 @@ describe('createFirestoreRepository', () => {
     )
   })
 
+  it('restores exact recommendation cooldowns with a partial item update', async () => {
+    const repository = createFirestoreRepository('user-1')
+
+    await repository?.setRecommendationCooldown(item.id, '2026-06-04T12:00:00.000Z')
+    await repository?.setRecommendationCooldown(item.id)
+
+    expect(mocks.setDoc).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ path: 'users/user-1/items/movie-arrival' }),
+      expect.objectContaining({
+        recommendationCooldownUntil: '2026-06-04T12:00:00.000Z',
+        updatedAt: expect.any(String),
+      }),
+      { merge: true },
+    )
+    expect(mocks.setDoc).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ path: 'users/user-1/items/movie-arrival' }),
+      expect.objectContaining({
+        recommendationCooldownUntil: { kind: 'deleteField' },
+        updatedAt: expect.any(String),
+      }),
+      { merge: true },
+    )
+  })
+
   it('creates user profiles as user and updates safe account fields later', async () => {
     const repository = createFirestoreRepository('user-1')
 
