@@ -91,6 +91,13 @@ test('library and weighted dice work in demo mode', async ({ page }) => {
   await page.getByRole('button', { name: 'Empezar Outer Wilds' }).click()
   await expect(page.getByText('Outer Wilds ahora es En progreso')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Completar Outer Wilds' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Deshacer estado' })).toBeVisible()
+  await page.getByRole('button', { name: 'Deshacer estado' }).click()
+  await expect(page.getByText('Outer Wilds recuperado como Pendiente')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Empezar Outer Wilds' })).toBeVisible()
+  await page.getByRole('button', { name: 'Empezar Outer Wilds' }).click()
+  await expect(page.getByText('Outer Wilds ahora es En progreso')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Completar Outer Wilds' })).toBeVisible()
 
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Elige el siguiente hilo' })).toBeVisible()

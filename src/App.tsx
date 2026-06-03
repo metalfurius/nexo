@@ -576,6 +576,7 @@ function LibraryTab({
   const [deleteTarget, setDeleteTarget] = useState<ListItem | undefined>()
   const [deletedItemUndo, setDeletedItemUndo] = useState<ListItem | undefined>()
   const [deletedLibraryUndo, setDeletedLibraryUndo] = useState<ListItem[]>([])
+  const [statusUndo, setStatusUndo] = useState<{ id: string; title: string; previousStatus: ItemStatus } | undefined>()
   const [importStatus, setImportStatus] = useState<string | undefined>()
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
@@ -632,6 +633,7 @@ function LibraryTab({
     setImportStatus('Importando biblioteca...')
     setDeletedItemUndo(undefined)
     setDeletedLibraryUndo([])
+    setStatusUndo(undefined)
     try {
       const payload = parseLibraryImportPayload(JSON.parse(await file.text()))
 
@@ -657,6 +659,7 @@ function LibraryTab({
     setImportStatus('Borrando tu biblioteca...')
     setDeletedItemUndo(undefined)
     setDeletedLibraryUndo([])
+    setStatusUndo(undefined)
     await library.deleteAllItems()
     setDeletedLibraryUndo(deletedItems)
     setDeleteDialogOpen(false)
@@ -672,6 +675,7 @@ function LibraryTab({
     await library.deleteItem(deleteTarget.id)
     setDeletedItemUndo(deleteTarget)
     setDeletedLibraryUndo([])
+    setStatusUndo(undefined)
     setDeleteTarget(undefined)
     setImportStatus(`${deletedTitle} borrado`)
   }
@@ -724,9 +728,24 @@ function LibraryTab({
   async function changeLibraryItemStatus(item: ListItem, status: ItemStatus) {
     try {
       await library.setStatus(item.id, status)
+      setDeletedItemUndo(undefined)
+      setDeletedLibraryUndo([])
+      setStatusUndo({ id: item.id, title: item.title, previousStatus: item.status })
       setImportStatus(`${item.title} ahora es ${statusLabels[status]}`)
     } catch (reason) {
       setImportStatus(reason instanceof Error ? reason.message : 'No se pudo actualizar el estado.')
+    }
+  }
+
+  async function undoLibraryStatusChange() {
+    if (!statusUndo) return
+
+    try {
+      await library.setStatus(statusUndo.id, statusUndo.previousStatus)
+      setImportStatus(`${statusUndo.title} recuperado como ${statusLabels[statusUndo.previousStatus]}`)
+      setStatusUndo(undefined)
+    } catch (reason) {
+      setImportStatus(reason instanceof Error ? reason.message : 'No se pudo deshacer el cambio de estado.')
     }
   }
 
@@ -987,7 +1006,7 @@ function LibraryTab({
         {library.loading && <FeedbackMessage tone="loading">Cargando biblioteca...</FeedbackMessage>}
         {library.error && <FeedbackMessage tone="danger">{library.error}</FeedbackMessage>}
         {importStatus && <FeedbackMessage tone={feedbackToneFromText(importStatus)}>{importStatus}</FeedbackMessage>}
-        {(deletedItemUndo || deletedLibraryUndo.length > 0) && (
+        {(deletedItemUndo || deletedLibraryUndo.length > 0 || statusUndo) && (
           <div className="feedback-action-row" aria-label="Accion reciente de biblioteca">
             {deletedItemUndo && (
               <button className="secondary-button" type="button" onClick={() => void undoDeleteSingleItem()}>
@@ -999,6 +1018,12 @@ function LibraryTab({
               <button className="secondary-button" type="button" onClick={() => void undoDeleteEntireLibrary()}>
                 <RotateCcw size={16} />
                 Deshacer borrado total
+              </button>
+            )}
+            {statusUndo && (
+              <button className="secondary-button" type="button" onClick={() => void undoLibraryStatusChange()}>
+                <RotateCcw size={16} />
+                Deshacer estado
               </button>
             )}
           </div>
