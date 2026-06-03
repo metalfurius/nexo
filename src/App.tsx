@@ -131,6 +131,7 @@ import {
   getItemSubtitle,
   getPersonalEditorReadiness,
   getVisibleItemChips,
+  isItemInCooldown,
   itemSourceLabels,
   itemStatusLabels as statusLabels,
   itemTypeLabels as typeLabels,
@@ -214,6 +215,7 @@ function feedbackToneFromText(message: string): FeedbackTone {
     normalized.includes('copiado') ||
     normalized.includes('anadida') ||
     normalized.includes('enfriado') ||
+    normalized.includes('reactivado') ||
     normalized.includes('enviados') ||
     normalized.includes('marcado') ||
     normalized.includes('descartado') ||
@@ -536,6 +538,7 @@ interface LibrarySurface {
   deleteAllItems: () => Promise<void>
   setStatus: (id: string, status: ItemStatus) => Promise<void>
   snoozeRecommendation: (id: string) => Promise<void>
+  reactivateRecommendation: (id: string) => Promise<void>
   recordRecommendation: (itemId: string, reasons: string[]) => Promise<void>
   searchExternal: (query: string, type: string) => Promise<ExternalCandidate[]>
   searchPublicCatalog: (query: string, type?: string) => Promise<PublicCatalogItem[]>
@@ -665,6 +668,15 @@ function LibraryTab({
       setImportStatus(`${item.title} enfriado para el dado`)
     } catch (reason) {
       setImportStatus(reason instanceof Error ? reason.message : 'No se pudo enfriar la entrada.')
+    }
+  }
+
+  async function reactivateLibraryItem(item: ListItem) {
+    try {
+      await library.reactivateRecommendation(item.id)
+      setImportStatus(`${item.title} reactivado para el dado`)
+    } catch (reason) {
+      setImportStatus(reason instanceof Error ? reason.message : 'No se pudo reactivar la entrada.')
     }
   }
 
@@ -966,6 +978,7 @@ function LibraryTab({
                 onEdit={() => setEditingItem(item)}
                 onStatus={library.setStatus}
                 onSnooze={() => void snoozeLibraryItem(item)}
+                onReactivate={() => void reactivateLibraryItem(item)}
                 onDelete={() => setDeleteTarget(item)}
               />
             ))}
@@ -3295,6 +3308,7 @@ function ItemCard({
   layout = 'cards',
   onDelete,
   onEdit,
+  onReactivate,
   onSnooze,
   onStatus,
 }: {
@@ -3302,13 +3316,25 @@ function ItemCard({
   layout?: 'cards' | 'list'
   onEdit: () => void
   onDelete: () => void
+  onReactivate: () => void
   onSnooze: () => void
   onStatus: (id: string, status: ItemStatus) => void
 }) {
   const primaryAction = getPrimaryItemAction(item.status)
   const secondaryAction = getSecondaryItemAction(item.status)
   const visibleChips = getVisibleItemChips(item)
-  const canSnoozeDice = item.status !== 'completed' && item.status !== 'dropped'
+  const canControlDiceCooldown = item.status !== 'completed' && item.status !== 'dropped'
+  const diceCooldownAction = isItemInCooldown(item)
+    ? {
+        Icon: RotateCcw,
+        label: 'Reactivar dado',
+        onSelect: onReactivate,
+      }
+    : {
+        Icon: Moon,
+        label: 'Enfriar dado',
+        onSelect: onSnooze,
+      }
 
   function applyStatus(status: ItemStatus) {
     onStatus(item.id, status)
@@ -3356,13 +3382,9 @@ function ItemCard({
               label: secondaryAction.label,
               onSelect: () => applyStatus(secondaryAction.nextStatus),
             },
-            ...(canSnoozeDice
+            ...(canControlDiceCooldown
               ? [
-                  {
-                    Icon: Moon,
-                    label: 'Enfriar dado',
-                    onSelect: onSnooze,
-                  },
+                  diceCooldownAction,
                 ]
               : []),
             { Icon: Trash2, label: 'Borrar', onSelect: deleteItem, tone: 'danger' },

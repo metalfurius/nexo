@@ -142,6 +142,21 @@ describe('createFirestoreRepository', () => {
     )
   })
 
+  it('clears recommendation cooldowns with a partial item update', async () => {
+    const repository = createFirestoreRepository('user-1')
+
+    await repository?.reactivateRecommendation(item.id)
+
+    expect(mocks.setDoc).toHaveBeenCalledWith(
+      expect.objectContaining({ path: 'users/user-1/items/movie-arrival' }),
+      expect.objectContaining({
+        recommendationCooldownUntil: { kind: 'deleteField' },
+        updatedAt: expect.any(String),
+      }),
+      { merge: true },
+    )
+  })
+
   it('creates user profiles as user and updates safe account fields later', async () => {
     const repository = createFirestoreRepository('user-1')
 

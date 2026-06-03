@@ -19,6 +19,7 @@ const repositoryMock = vi.hoisted(() => ({
   searchPublicCatalog: vi.fn(),
   setStatus: vi.fn(),
   snoozeRecommendation: vi.fn(),
+  reactivateRecommendation: vi.fn(),
   subscribeDiscoveryCandidates: vi.fn(),
   subscribeItems: vi.fn(),
   subscribeSettings: vi.fn(),
@@ -143,6 +144,23 @@ describe('useLibrary', () => {
     })
 
     expect(repositoryMock.snoozeRecommendation).toHaveBeenCalledWith('game-outer-wilds')
+  })
+
+  it('delegates recommendation reactivations to the signed-in repository', async () => {
+    const user = {
+      uid: 'user-1',
+      email: null,
+      displayName: null,
+    }
+    const { result } = renderHook(() => useLibrary(user))
+
+    await waitFor(() => expect(repositoryMock.subscribeItems).toHaveBeenCalled())
+
+    await act(async () => {
+      await result.current.reactivateRecommendation('game-outer-wilds')
+    })
+
+    expect(repositoryMock.reactivateRecommendation).toHaveBeenCalledWith('game-outer-wilds')
   })
 
   it('does not requeue discovery candidates already saved by the user', async () => {

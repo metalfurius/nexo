@@ -222,6 +222,18 @@ export function useLibrary(user?: SignedInUserProfile | null) {
     }
   }
 
+  async function reactivateRecommendation(id: string) {
+    if (repository) {
+      await repository.reactivateRecommendation(id)
+    } else {
+      setDemoLibrary((current) =>
+        current.map((item) =>
+          item.id === id ? { ...item, recommendationCooldownUntil: undefined, updatedAt: nowIso() } : item,
+        ),
+      )
+    }
+  }
+
   async function recordRecommendation(itemId: string, reasons: string[]) {
     const recommendedAt = nowIso()
     if (repository) {
@@ -398,6 +410,7 @@ export function useLibrary(user?: SignedInUserProfile | null) {
     deleteAllItems,
     setStatus,
     snoozeRecommendation,
+    reactivateRecommendation,
     recordRecommendation,
     searchExternal,
     searchPublicCatalog,

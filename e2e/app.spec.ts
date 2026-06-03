@@ -139,6 +139,11 @@ test('library and weighted dice work in demo mode', async ({ page }) => {
   await page.getByRole('menuitem', { name: 'Enfriar dado Outer Wilds' }).click()
   await expect(page.getByText('Outer Wilds enfriado para el dado')).toBeVisible()
   await expect(outerWildsCard.getByLabel('Pulso de Outer Wilds')).toContainText('Cooldown')
+  await page.getByRole('button', { name: 'Mas acciones Outer Wilds' }).click()
+  await expect(page.getByRole('menuitem', { name: 'Reactivar dado Outer Wilds' })).toBeVisible()
+  await page.getByRole('menuitem', { name: 'Reactivar dado Outer Wilds' }).click()
+  await expect(page.getByText('Outer Wilds reactivado para el dado')).toBeVisible()
+  await expect(outerWildsCard.getByLabel('Pulso de Outer Wilds')).toContainText('Continuar')
 })
 
 test('mobile layout keeps the core controls reachable', async ({ page }) => {

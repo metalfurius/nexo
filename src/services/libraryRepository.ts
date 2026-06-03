@@ -35,6 +35,7 @@ export interface LibraryRepository {
   deleteAllItems: () => Promise<void>
   setStatus: (id: string, status: ItemStatus) => Promise<void>
   snoozeRecommendation: (id: string) => Promise<void>
+  reactivateRecommendation: (id: string) => Promise<void>
   recordRecommendation: (itemId: string, reasons: string[]) => Promise<void>
   searchExternal: (query: string, type: string) => Promise<ExternalCandidate[]>
   searchPublicCatalog: (query: string, type?: string) => Promise<PublicCatalogItem[]>
@@ -115,6 +116,16 @@ export function createFirestoreRepository(userId: string): LibraryRepository | u
         itemDocument(id),
         {
           recommendationCooldownUntil: tomorrow.toISOString(),
+          updatedAt: nowIso(),
+        },
+        { merge: true },
+      )
+    },
+    reactivateRecommendation(id) {
+      return setDoc(
+        itemDocument(id),
+        {
+          recommendationCooldownUntil: deleteField(),
           updatedAt: nowIso(),
         },
         { merge: true },
