@@ -523,10 +523,15 @@
   width: 100%;
 }
 
-.quick-search-result:hover {
+.quick-search-result:hover,
+.quick-search-result.active {
   background: color-mix(in srgb, var(--accent-soft) 34%, var(--surface-muted));
   border-color: color-mix(in srgb, var(--accent) 46%, var(--border));
   transform: translateY(-1px);
+}
+
+.quick-search-result.active {
+  box-shadow: inset 3px 0 0 var(--accent);
 }
 
 .quick-search-result > span:not(.quick-search-type) {

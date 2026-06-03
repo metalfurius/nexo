@@ -489,7 +489,12 @@ function App() {
 
   useEffect(() => {
     function openQuickSearchWithShortcut(event: globalThis.KeyboardEvent) {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+      const target = event.target instanceof HTMLElement ? event.target : undefined
+      const isTypingTarget =
+        target?.isContentEditable || target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.tagName === 'SELECT'
+      const isCommandShortcut = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k'
+      const isSearchShortcut = event.key === '/' && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && !isTypingTarget
+      if (isCommandShortcut || isSearchShortcut) {
         event.preventDefault()
         setQuickSearchOpen(true)
       }
@@ -732,6 +737,7 @@ function QuickSearchDialog({
   onOpenItem: (item: ListItem) => void
 }) {
   const [query, setQuery] = useState('')
+  const [activeResultIndex, setActiveResultIndex] = useState(0)
   const normalizedQuery = normalizeKey(query)
   const focusItems = useMemo(() => getLibraryFocusItems(items), [items])
   const results = useMemo(() => {
@@ -769,6 +775,33 @@ function QuickSearchDialog({
       .map((entry) => entry.item)
   }, [focusItems, items, normalizedQuery])
   const resultLabel = normalizedQuery ? 'Resultados' : 'Foco actual'
+  const activeItem = results[Math.min(activeResultIndex, Math.max(results.length - 1, 0))]
+
+  function updateQuery(nextQuery: string) {
+    setQuery(nextQuery)
+    setActiveResultIndex(0)
+  }
+
+  function openActiveResult() {
+    if (activeItem) onOpenItem(activeItem)
+  }
+
+  function handleSearchKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === 'ArrowDown' && results.length) {
+      event.preventDefault()
+      setActiveResultIndex((current) => (current + 1) % results.length)
+      return
+    }
+    if (event.key === 'ArrowUp' && results.length) {
+      event.preventDefault()
+      setActiveResultIndex((current) => (current - 1 + results.length) % results.length)
+      return
+    }
+    if (event.key === 'Enter' && activeItem) {
+      event.preventDefault()
+      openActiveResult()
+    }
+  }
 
   return (
     <div className="modal-backdrop" role="presentation">
@@ -796,10 +829,13 @@ function QuickSearchDialog({
           <span className="sr-only">Buscar ficha</span>
           <input
             aria-label="Buscar ficha"
+            aria-activedescendant={activeItem ? `quick-search-result-${activeItem.id}` : undefined}
+            aria-controls="quick-search-results"
             autoFocus
             placeholder="Buscar ficha"
             value={query}
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={(event) => updateQuery(event.target.value)}
+            onKeyDown={handleSearchKeyDown}
           />
         </label>
 
@@ -816,17 +852,21 @@ function QuickSearchDialog({
             <span>Biblioteca vacia</span>
           </div>
         ) : results.length ? (
-          <ul className="quick-search-results" aria-label={resultLabel}>
-            {results.map((item) => {
+          <ul className="quick-search-results" id="quick-search-results" aria-label={resultLabel}>
+            {results.map((item, index) => {
               const Icon = typeIcons[item.type]
+              const isActive = item.id === activeItem?.id
 
               return (
                 <li key={item.id}>
                   <button
-                    className="quick-search-result"
+                    className={isActive ? 'quick-search-result active' : 'quick-search-result'}
+                    id={`quick-search-result-${item.id}`}
                     type="button"
                     aria-label={`Abrir ${item.title}`}
+                    aria-current={isActive ? 'true' : undefined}
                     onClick={() => onOpenItem(item)}
+                    onMouseEnter={() => setActiveResultIndex(index)}
                   >
                     <span className={`quick-search-type ${item.type}`} aria-hidden="true">
                       <Icon size={16} />

@@ -253,6 +253,20 @@ test('quick search opens library items through the pending-change guard', async 
   await expect(page.getByRole('dialog', { name: 'Entrada' }).getByLabel('Titulo')).toHaveValue('Outer Wilds')
 })
 
+test('quick search opens the active result from the keyboard', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.getByRole('heading', { name: 'Biblioteca privada' })).toBeVisible()
+  await page.keyboard.press('/')
+  const quickSearch = page.getByRole('dialog', { name: 'Abrir ficha' })
+  await expect(quickSearch).toBeVisible()
+  const searchInput = quickSearch.getByLabel('Buscar ficha')
+  await searchInput.fill('outer')
+  await expect(quickSearch.getByRole('button', { name: 'Abrir Outer Wilds' })).toHaveAttribute('aria-current', 'true')
+  await searchInput.press('Enter')
+  await expect(page).toHaveURL(/item=game-outer-wilds/)
+  await expect(page.getByRole('dialog', { name: 'Entrada' }).getByLabel('Titulo')).toHaveValue('Outer Wilds')
+})
+
 test('activity entries navigate through the pending-change guard', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Anadir' }).click()
