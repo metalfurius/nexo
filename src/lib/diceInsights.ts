@@ -1,5 +1,16 @@
-import type { ExplorerSearchType, ItemType, ListItem, RecommendationPreferences, UserSettings } from '../domain/types'
-import { normalizeKey } from './strings'
+import type {
+  EnergyLevel,
+  ExplorerSearchType,
+  IntensityLevel,
+  ItemType,
+  ListItem,
+  NoveltyLevel,
+  RecommendationPreferences,
+  RecommendationResult,
+  UserSettings,
+} from '../domain/types'
+import { formatDuration, itemStatusLabels, itemTypeLabels } from './libraryItemInsights'
+import { normalizeKey, uniqueValues } from './strings'
 
 export interface DiceEligibilityBreakdown {
   available: number
@@ -9,6 +20,13 @@ export interface DiceEligibilityBreakdown {
   paused: number
   resolved: number
   total: number
+}
+
+export interface RecommendationSessionPlan {
+  detail: string
+  facts: Array<{ detail: string; label: string; value: string }>
+  signals: string[]
+  title: string
 }
 
 const diceTypeLabels: Record<ExplorerSearchType, string> = {
@@ -25,17 +43,23 @@ const diceTypeLabels: Record<ExplorerSearchType, string> = {
   other: 'Otro',
 }
 
-const diceEnergyLabels = {
+export const diceEnergyLabels: Record<EnergyLevel, string> = {
   low: 'Baja',
   medium: 'Media',
   high: 'Alta',
-} as const
+}
 
-const diceNoveltyLabels = {
+export const diceIntensityLabels: Record<IntensityLevel, string> = {
+  soft: 'Suave',
+  balanced: 'Equilibrada',
+  intense: 'Intensa',
+}
+
+export const diceNoveltyLabels: Record<NoveltyLevel, string> = {
   comfort: 'Confort',
   balanced: 'Balance',
   surprise: 'Sorpresa',
-} as const
+}
 
 const watchTypes: ItemType[] = ['movie', 'series', 'anime', 'manga', 'manhwa', 'comic']
 
@@ -98,4 +122,38 @@ export function getActiveDiceFilters(preferences: RecommendationPreferences, set
     preferences.includePaused ? 'Incluye pausados' : 'Pausados fuera',
     settings.blockedTags.length ? `${settings.blockedTags.length} tags bloqueados` : 'Sin tags bloqueados',
   ]
+}
+
+export function getDiceScoreMeterWidth(score: number, maxScore: number) {
+  if (maxScore <= 0) return '0%'
+  return `${Math.min(100, Math.max(8, (score / maxScore) * 100))}%`
+}
+
+export function getRecommendationSessionPlan(
+  recommendation: RecommendationResult,
+  preferences: RecommendationPreferences,
+): RecommendationSessionPlan {
+  const item = recommendation.item
+  const duration = item.durationMinHours || item.durationMaxHours ? formatDuration(item) : 'Sin duracion'
+  const budget = preferences.timeBudgetHours ? `${preferences.timeBudgetHours}h max.` : 'Sin limite'
+  const signals = uniqueValues([...item.genres, ...item.moodTags, ...item.tags]).slice(0, 6)
+  const title =
+    item.status === 'in_progress'
+      ? 'Continuar una obra activa'
+      : item.status === 'paused'
+        ? 'Retomar sin perder contexto'
+        : 'Nueva sesion recomendada'
+  const detail = `${itemTypeLabels[item.type]} con intensidad ${diceIntensityLabels[preferences.intensity].toLowerCase()} y ${preferences.surprisePercent}% de sorpresa.`
+
+  return {
+    detail,
+    facts: [
+      { detail: `${diceEnergyLabels[preferences.energy]} energia`, label: 'Clima', value: diceIntensityLabels[preferences.intensity] },
+      { detail: budget, label: 'Tiempo', value: duration },
+      { detail: itemTypeLabels[item.type], label: 'Estado', value: itemStatusLabels[item.status] },
+      { detail: `Pool ${recommendation.poolSize}`, label: 'Azar', value: `${Math.round(recommendation.roll * 100)}%` },
+    ],
+    signals,
+    title,
+  }
 }

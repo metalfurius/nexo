@@ -5,8 +5,18 @@ import {
   DEFAULT_WEIGHTS,
   type ListItem,
   type RecommendationPreferences,
+  type RecommendationResult,
 } from '../domain/types'
-import { getActiveDiceFilters, getDiceEligibilityBreakdown, matchesDiceMedium } from './diceInsights'
+import {
+  diceEnergyLabels,
+  diceIntensityLabels,
+  diceNoveltyLabels,
+  getActiveDiceFilters,
+  getDiceEligibilityBreakdown,
+  getDiceScoreMeterWidth,
+  getRecommendationSessionPlan,
+  matchesDiceMedium,
+} from './diceInsights'
 
 const now = Date.parse('2026-06-03T12:00:00.000Z')
 
@@ -77,6 +87,9 @@ describe('dice insights', () => {
   })
 
   it('summarizes active filters for the dice recovery panel and readiness metrics', () => {
+    expect(diceEnergyLabels.medium).toBe('Media')
+    expect(diceIntensityLabels.intense).toBe('Intensa')
+    expect(diceNoveltyLabels.comfort).toBe('Confort')
     expect(
       getActiveDiceFilters(
         {
@@ -97,5 +110,49 @@ describe('dice insights', () => {
       'Incluye pausados',
       '2 tags bloqueados',
     ])
+  })
+
+  it('clamps candidate score meter widths', () => {
+    expect(getDiceScoreMeterWidth(0, 0)).toBe('0%')
+    expect(getDiceScoreMeterWidth(1, 100)).toBe('8%')
+    expect(getDiceScoreMeterWidth(25, 100)).toBe('25%')
+    expect(getDiceScoreMeterWidth(120, 100)).toBe('100%')
+  })
+
+  it('builds a recommendation session plan from the selected item and dice preferences', () => {
+    const recommendation: RecommendationResult = {
+      item: item({
+        durationMinHours: 2,
+        durationMaxHours: 5,
+        genres: ['Drama'],
+        moodTags: ['Calma'],
+        status: 'in_progress',
+        tags: ['lento', 'Drama'],
+        type: 'series',
+      }),
+      poolSize: 7,
+      reasons: ['ready'],
+      roll: 0.424,
+      score: 3.5,
+    }
+
+    expect(
+      getRecommendationSessionPlan(recommendation, {
+        ...preferences,
+        energy: 'low',
+        intensity: 'intense',
+        surprisePercent: 35,
+      }),
+    ).toEqual({
+      detail: 'Series con intensidad intensa y 35% de sorpresa.',
+      facts: [
+        { detail: 'Baja energia', label: 'Clima', value: 'Intensa' },
+        { detail: '15h max.', label: 'Tiempo', value: '2-5h' },
+        { detail: 'Series', label: 'Estado', value: 'En progreso' },
+        { detail: 'Pool 7', label: 'Azar', value: '42%' },
+      ],
+      signals: ['Drama', 'Calma', 'lento'],
+      title: 'Continuar una obra activa',
+    })
   })
 })

@@ -44,15 +44,12 @@ import {
   USER_ROLES,
   type DiscoveryCandidate,
   type DiscoveryStatus,
-  type EnergyLevel,
   type ExternalRefs,
   type ExplorerSearchType,
-  type IntensityLevel,
   type ItemStatus,
   type ItemType,
   type LibraryViewMode,
   type ListItem,
-  type NoveltyLevel,
   type PublicCatalogItem,
   type RecommendationPreferences,
   type RecommendationResult,
@@ -87,9 +84,15 @@ import {
   type CatalogSortMode,
 } from './lib/catalogInsights'
 import {
+  diceEnergyLabels as energyLabels,
+  diceIntensityLabels as intensityLabels,
+  diceNoveltyLabels as noveltyLabels,
   getActiveDiceFilters,
   getDiceEligibilityBreakdown,
+  getDiceScoreMeterWidth,
+  getRecommendationSessionPlan,
   type DiceEligibilityBreakdown,
+  type RecommendationSessionPlan,
 } from './lib/diceInsights'
 import {
   discoveryEmptyCopy,
@@ -102,7 +105,12 @@ import {
   type ExplorerSourceFilter,
 } from './lib/explorerInsights'
 import {
+  getLibraryFocusItems,
+  getLibraryFocusReason,
   getLibraryLaunchGuide,
+  getLibraryNextPlanFacts,
+  getLibraryNextPlanSignals,
+  getLibraryNextPlanTitle,
   getLibrarySmartViewOptions,
   hasItemTaxonomy,
   isItemReadyForDicePulse,
@@ -113,7 +121,6 @@ import {
 } from './lib/libraryInsights'
 import {
   formatDateLabel,
-  formatDuration,
   getItemPulse,
   getItemSignals,
   getItemSubtitle,
@@ -133,24 +140,6 @@ import { sortLibraryItems, type LibrarySortMode } from './lib/librarySorting'
 import { createPublicCatalogSeedTemplate, parsePublicCatalogSeed } from './lib/publicCatalogSeed'
 import { recommendItem, scoreCandidates } from './lib/recommendations'
 import { normalizeKey, slugify, uniqueValues } from './lib/strings'
-
-const energyLabels: Record<EnergyLevel, string> = {
-  low: 'Baja',
-  medium: 'Media',
-  high: 'Alta',
-}
-
-const intensityLabels: Record<IntensityLevel, string> = {
-  soft: 'Suave',
-  balanced: 'Equilibrada',
-  intense: 'Intensa',
-}
-
-const noveltyLabels: Record<NoveltyLevel, string> = {
-  comfort: 'Confort',
-  balanced: 'Balance',
-  surprise: 'Sorpresa',
-}
 
 const librarySortLabels: Record<LibrarySortMode, string> = {
   focus: 'Foco',
@@ -231,13 +220,6 @@ function feedbackToneFromText(message: string): FeedbackTone {
 }
 
 type AppTab = 'library' | 'dice' | 'explorer' | 'settings' | 'curation'
-
-interface RecommendationSessionPlan {
-  detail: string
-  facts: Array<{ detail: string; label: string; value: string }>
-  signals: string[]
-  title: string
-}
 
 interface PrivateDataAction {
   detail: string
@@ -3279,64 +3261,6 @@ function CandidateDecisionBriefView({ brief }: { brief: CandidateDecisionBrief }
   )
 }
 
-function getLibraryFocusItems(items: ListItem[]) {
-  const statusRank: Record<ItemStatus, number> = {
-    in_progress: 0,
-    wishlist: 1,
-    paused: 2,
-    completed: 3,
-    dropped: 4,
-  }
-
-  return items
-    .filter((item) => item.status === 'in_progress' || item.status === 'wishlist' || item.status === 'paused')
-    .sort((left, right) => {
-      const statusDelta = statusRank[left.status] - statusRank[right.status]
-      if (statusDelta !== 0) return statusDelta
-
-      const leftWeight = left.weights.priority + left.weights.challenge * 0.4 + left.weights.surprise * 0.25
-      const rightWeight = right.weights.priority + right.weights.challenge * 0.4 + right.weights.surprise * 0.25
-      if (leftWeight !== rightWeight) return rightWeight - leftWeight
-
-      return right.updatedAt.localeCompare(left.updatedAt)
-    })
-    .slice(0, 3)
-}
-
-function getLibraryFocusReason(item: ListItem) {
-  if (item.status === 'in_progress') return item.progress || 'Ya empezada, pide cierre'
-  if (item.status === 'paused') return 'Pausada, lista para retomar'
-  if (item.weights.priority >= 1.15) return 'Alta prioridad'
-  if (item.weights.surprise >= 0.75) return 'Buena candidata sorpresa'
-  if (item.weights.challenge >= 0.7) return 'Reto interesante'
-  return `${typeLabels[item.type]} pendiente`
-}
-
-function getLibraryNextPlanTitle(item: ListItem) {
-  if (item.status === 'in_progress') return 'Continuar sin perder contexto'
-  if (item.status === 'paused') return 'Retomar con una sesion corta'
-  if (item.status === 'wishlist') return 'Listo para empezar'
-  if (item.status === 'completed') return 'Reabrir si vuelve a apetecer'
-  return 'Revisar antes de descartar'
-}
-
-function getLibraryNextPlanFacts(item: ListItem, signalCount: number) {
-  return [
-    {
-      label: 'Tiempo',
-      value: item.durationMinHours || item.durationMaxHours ? formatDuration(item) : 'Sin duracion',
-    },
-    {
-      label: 'Origen',
-      value: item.publicItemId ? 'Nexo' : itemSourceLabels[item.source],
-    },
-    {
-      label: 'Senales',
-      value: signalCount ? `${signalCount}` : '0',
-    },
-  ]
-}
-
 function downloadLibraryBackup(items: ListItem[], settings: UserSettings, prefix: string) {
   downloadJsonFile(createLibraryExportPayload(items, settings), `${prefix}-${new Date().toISOString().slice(0, 10)}.json`)
 }
@@ -4596,7 +4520,7 @@ function RecommendationSessionPlanView({ plan }: { plan: RecommendationSessionPl
 }
 
 function LibraryNextPlan({ item }: { item: ListItem }) {
-  const signals = uniqueValues([...item.genres, ...item.moodTags, ...item.tags]).slice(0, 4)
+  const signals = getLibraryNextPlanSignals(item)
   const facts = getLibraryNextPlanFacts(item, signals.length)
 
   return (
@@ -4973,40 +4897,6 @@ function getShellPulseItems(
 
 function upsertVisibleCatalogItem(items: PublicCatalogItem[], nextItem: PublicCatalogItem) {
   return [nextItem, ...items.filter((item) => item.id !== nextItem.id)].sort((left, right) => left.title.localeCompare(right.title, 'es'))
-}
-
-function getDiceScoreMeterWidth(score: number, maxScore: number) {
-  if (maxScore <= 0) return '0%'
-  return `${Math.min(100, Math.max(8, (score / maxScore) * 100))}%`
-}
-
-function getRecommendationSessionPlan(
-  recommendation: RecommendationResult,
-  preferences: RecommendationPreferences,
-): RecommendationSessionPlan {
-  const item = recommendation.item
-  const duration = item.durationMinHours || item.durationMaxHours ? formatDuration(item) : 'Sin duracion'
-  const budget = preferences.timeBudgetHours ? `${preferences.timeBudgetHours}h max.` : 'Sin limite'
-  const signals = uniqueValues([...item.genres, ...item.moodTags, ...item.tags]).slice(0, 6)
-  const title =
-    item.status === 'in_progress'
-      ? 'Continuar una obra activa'
-      : item.status === 'paused'
-        ? 'Retomar sin perder contexto'
-        : 'Nueva sesion recomendada'
-  const detail = `${typeLabels[item.type]} con intensidad ${intensityLabels[preferences.intensity].toLowerCase()} y ${preferences.surprisePercent}% de sorpresa.`
-
-  return {
-    detail,
-    facts: [
-      { detail: `${energyLabels[preferences.energy]} energia`, label: 'Clima', value: intensityLabels[preferences.intensity] },
-      { detail: budget, label: 'Tiempo', value: duration },
-      { detail: typeLabels[item.type], label: 'Estado', value: statusLabels[item.status] },
-      { detail: `Pool ${recommendation.poolSize}`, label: 'Azar', value: `${Math.round(recommendation.roll * 100)}%` },
-    ],
-    signals,
-    title,
-  }
 }
 
 function buildCatalogDescriptionDraft(title: string, type: ItemType, signals: string[]) {

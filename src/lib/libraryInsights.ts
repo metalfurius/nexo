@@ -1,4 +1,6 @@
 import type { DiscoveryCandidate, ListItem } from '../domain/types'
+import { formatDuration, itemSourceLabels, itemTypeLabels } from './libraryItemInsights'
+import { uniqueValues } from './strings'
 
 export type LibraryLaunchAction = 'add' | 'edit-taxonomy' | 'open-dice' | 'open-explorer'
 export type LibrarySmartView = 'all' | 'dice-ready' | 'needs-context' | 'needs-taxonomy' | 'nexo'
@@ -27,6 +29,11 @@ export interface LibrarySmartViewOption {
   detail: string
   id: LibrarySmartView
   label: string
+}
+
+export interface LibraryNextPlanFact {
+  label: string
+  value: string
 }
 
 export function isItemReadyForDicePulse(item: ListItem, now: number) {
@@ -149,4 +156,70 @@ export function matchesLibrarySmartView(item: ListItem, view: LibrarySmartView, 
   if (view === 'needs-taxonomy') return !hasItemTaxonomy(item)
   if (view === 'nexo') return Boolean(item.publicItemId)
   return true
+}
+
+export function getLibraryFocusItems(items: ListItem[]) {
+  const statusRank: Record<ListItem['status'], number> = {
+    in_progress: 0,
+    wishlist: 1,
+    paused: 2,
+    completed: 3,
+    dropped: 4,
+  }
+
+  return items
+    .filter((item) => item.status === 'in_progress' || item.status === 'wishlist' || item.status === 'paused')
+    .sort((left, right) => {
+      const statusDelta = statusRank[left.status] - statusRank[right.status]
+      if (statusDelta !== 0) return statusDelta
+
+      const leftWeight = getLibraryFocusWeight(left)
+      const rightWeight = getLibraryFocusWeight(right)
+      if (leftWeight !== rightWeight) return rightWeight - leftWeight
+
+      return right.updatedAt.localeCompare(left.updatedAt)
+    })
+    .slice(0, 3)
+}
+
+export function getLibraryFocusReason(item: ListItem) {
+  if (item.status === 'in_progress') return item.progress || 'Ya empezada, pide cierre'
+  if (item.status === 'paused') return 'Pausada, lista para retomar'
+  if (item.weights.priority >= 1.15) return 'Alta prioridad'
+  if (item.weights.surprise >= 0.75) return 'Buena candidata sorpresa'
+  if (item.weights.challenge >= 0.7) return 'Reto interesante'
+  return `${itemTypeLabels[item.type]} pendiente`
+}
+
+export function getLibraryNextPlanTitle(item: ListItem) {
+  if (item.status === 'in_progress') return 'Continuar sin perder contexto'
+  if (item.status === 'paused') return 'Retomar con una sesion corta'
+  if (item.status === 'wishlist') return 'Listo para empezar'
+  if (item.status === 'completed') return 'Reabrir si vuelve a apetecer'
+  return 'Revisar antes de descartar'
+}
+
+export function getLibraryNextPlanSignals(item: ListItem) {
+  return uniqueValues([...item.genres, ...item.moodTags, ...item.tags]).slice(0, 4)
+}
+
+export function getLibraryNextPlanFacts(item: ListItem, signalCount: number): LibraryNextPlanFact[] {
+  return [
+    {
+      label: 'Tiempo',
+      value: item.durationMinHours || item.durationMaxHours ? formatDuration(item) : 'Sin duracion',
+    },
+    {
+      label: 'Origen',
+      value: item.publicItemId ? 'Nexo' : itemSourceLabels[item.source],
+    },
+    {
+      label: 'Senales',
+      value: signalCount ? `${signalCount}` : '0',
+    },
+  ]
+}
+
+function getLibraryFocusWeight(item: ListItem) {
+  return item.weights.priority + item.weights.challenge * 0.4 + item.weights.surprise * 0.25
 }
