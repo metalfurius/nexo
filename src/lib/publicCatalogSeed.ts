@@ -1,5 +1,6 @@
 import { ITEM_TYPES, type ExternalRefs, type ItemType, type PublicCatalogItem } from '../domain/types'
 import { buildPublicCatalogItem, createCanonicalKey } from './catalog'
+import { uniqueValues } from './strings'
 
 export interface PublicCatalogSeedFile {
   generatedAt?: string
@@ -32,6 +33,11 @@ export interface PublicCatalogSeedSummary {
   totalItems: number
   newItems: number
   updatedItems: number
+}
+
+export interface PublicCatalogSeedRollbackPlan {
+  newItemIds: string[]
+  previousItems: PublicCatalogItem[]
 }
 
 export function createPublicCatalogSeedTemplate(): PublicCatalogSeedFile {
@@ -124,6 +130,22 @@ export function getPublicCatalogSeedSummary(
   }
 }
 
+export function getPublicCatalogSeedRollbackPlan(
+  result: Pick<PublicCatalogSeedResult, 'items'>,
+  currentItems: PublicCatalogItem[],
+): PublicCatalogSeedRollbackPlan {
+  const currentById = new Map(currentItems.map((item) => [item.id, item]))
+  const importedIds = uniqueValues(result.items.map((item) => item.id))
+
+  return {
+    newItemIds: importedIds.filter((id) => !currentById.has(id)),
+    previousItems: importedIds.flatMap((id) => {
+      const currentItem = currentById.get(id)
+      return currentItem ? [clonePublicCatalogItem(currentItem)] : []
+    }),
+  }
+}
+
 function normalizeSeedEntry(value: unknown, index: number, errors: string[]): PublicCatalogSeedEntry | undefined {
   if (!isRecord(value)) {
     errors.push(`items[${index}] must be an object.`)
@@ -196,4 +218,15 @@ function readOptionalNumber(value: unknown) {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value))
+}
+
+function clonePublicCatalogItem(item: PublicCatalogItem): PublicCatalogItem {
+  return {
+    ...item,
+    externalRefs: { ...item.externalRefs },
+    genres: [...item.genres],
+    moodTags: [...item.moodTags],
+    searchTokens: [...item.searchTokens],
+    tags: [...item.tags],
+  }
 }

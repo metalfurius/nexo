@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { DEFAULT_WEIGHTS, type ListItem } from '../domain/types'
+import { DEFAULT_WEIGHTS, type ListItem, type PublicCatalogItem } from '../domain/types'
 import { createFirestoreRepository } from './libraryRepository'
 
 const mocks = vi.hoisted(() => ({
@@ -399,29 +399,41 @@ describe('createFirestoreRepository', () => {
 
   it('uses Firestore for public catalog search and moderator writes', async () => {
     const repository = createFirestoreRepository('user-1')
+    const activePublicItem: PublicCatalogItem = {
+      id: 'movie-arrival',
+      title: 'Arrival',
+      type: 'movie',
+      genres: [],
+      tags: [],
+      moodTags: [],
+      externalRefs: {},
+      searchTokens: ['arrival'],
+      canonicalKey: 'movie:arrival',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      createdBy: 'moderator',
+      updatedBy: 'moderator',
+    }
     mocks.getDocs.mockResolvedValueOnce({
       docs: [
         {
-          data: () => ({
-            id: 'movie-arrival',
-            title: 'Arrival',
-            type: 'movie',
-            genres: [],
-            tags: [],
-            moodTags: [],
-            externalRefs: {},
-            searchTokens: ['arrival'],
-            canonicalKey: 'movie:arrival',
-            createdAt: '2026-01-01T00:00:00.000Z',
-            updatedAt: '2026-01-01T00:00:00.000Z',
-            createdBy: 'moderator',
-            updatedBy: 'moderator',
-          }),
+          data: () => activePublicItem,
+        },
+      ],
+    })
+    mocks.getDocs.mockResolvedValueOnce({
+      docs: [
+        {
+          data: () => ({ ...activePublicItem, title: 'Archived Arrival', archivedAt: '2026-01-02T00:00:00.000Z' }),
+        },
+        {
+          data: () => activePublicItem,
         },
       ],
     })
 
     const results = await repository?.searchPublicCatalog('', 'movie')
+    const catalog = await repository?.listPublicCatalog()
     await repository?.upsertPublicItem({
       title: 'Arrival',
       type: 'movie',
@@ -432,8 +444,10 @@ describe('createFirestoreRepository', () => {
     })
     await repository?.archivePublicItem('movie-arrival')
     await repository?.restorePublicItem('movie-arrival')
+    await repository?.replacePublicItem(activePublicItem)
 
     expect(results?.[0]?.title).toBe('Arrival')
+    expect(catalog?.map((item) => item.title)).toEqual(['Arrival'])
     expect(mocks.setDoc).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({ path: 'publicItems/movie-arrival' }),
@@ -451,6 +465,11 @@ describe('createFirestoreRepository', () => {
       expect.objectContaining({ path: 'publicItems/movie-arrival' }),
       expect.objectContaining({ archivedAt: { kind: 'deleteField' }, updatedBy: 'user-1' }),
       { merge: true },
+    )
+    expect(mocks.setDoc).toHaveBeenNthCalledWith(
+      4,
+      expect.objectContaining({ path: 'publicItems/movie-arrival' }),
+      expect.objectContaining({ title: 'Arrival', updatedBy: 'user-1' }),
     )
   })
 })

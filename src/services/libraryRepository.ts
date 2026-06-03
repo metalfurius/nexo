@@ -40,6 +40,7 @@ export interface LibraryRepository {
   reactivateRecommendation: (id: string) => Promise<void>
   recordRecommendation: (itemId: string, reasons: string[]) => Promise<void>
   searchExternal: (query: string, type: string) => Promise<ExternalCandidate[]>
+  listPublicCatalog: () => Promise<PublicCatalogItem[]>
   searchPublicCatalog: (query: string, type?: string) => Promise<PublicCatalogItem[]>
   subscribeSettings: (onSettings: (settings: Partial<UserSettings>) => void, onError: (error: Error) => void) => () => void
   saveSettings: (settings: Partial<UserSettings>) => Promise<void>
@@ -56,6 +57,7 @@ export interface LibraryRepository {
   subscribeUserProfiles: (onProfiles: (profiles: UserProfile[]) => void, onError: (error: Error) => void) => () => void
   updateUserRole: (targetUserId: string, role: UserRole) => Promise<void>
   upsertPublicItem: (item: Partial<PublicCatalogItem> & Pick<PublicCatalogItem, 'title' | 'type'>) => Promise<PublicCatalogItem>
+  replacePublicItem: (item: PublicCatalogItem) => Promise<PublicCatalogItem>
   archivePublicItem: (id: string) => Promise<void>
   restorePublicItem: (id: string) => Promise<void>
   subscribeActivityEntries: (onEntries: (entries: ActivityEntry[]) => void, onError: (error: Error) => void) => () => void
@@ -171,6 +173,13 @@ export function createFirestoreRepository(userId: string): LibraryRepository | u
         .sort((left, right) => right.score - left.score || left.item.title.localeCompare(right.item.title, 'es'))
         .slice(0, 12)
         .map((entry) => entry.item)
+    },
+    async listPublicCatalog() {
+      const snapshot = await getDocs(collection(services.db, 'publicItems'))
+      return snapshot.docs
+        .map((itemDoc) => itemDoc.data() as PublicCatalogItem)
+        .filter((item) => !item.archivedAt)
+        .sort((left, right) => left.title.localeCompare(right.title, 'es'))
     },
     subscribeSettings(onSettings, onError) {
       return onSnapshot(
@@ -296,6 +305,11 @@ export function createFirestoreRepository(userId: string): LibraryRepository | u
     async upsertPublicItem(item) {
       const publicItem = buildPublicCatalogItem(item, userId)
       await setDoc(doc(services.db, 'publicItems', publicItem.id), withoutUndefined(publicItem), { merge: true })
+      return publicItem
+    },
+    async replacePublicItem(item) {
+      const publicItem = buildPublicCatalogItem(item, userId)
+      await setDoc(doc(services.db, 'publicItems', publicItem.id), withoutUndefined(publicItem))
       return publicItem
     },
     async archivePublicItem(id) {

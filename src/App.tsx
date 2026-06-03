@@ -166,8 +166,10 @@ import {
 import { sortLibraryItems, type LibrarySortMode } from './lib/librarySorting'
 import {
   createPublicCatalogSeedTemplate,
+  getPublicCatalogSeedRollbackPlan,
   getPublicCatalogSeedSummary,
   parsePublicCatalogSeed,
+  type PublicCatalogSeedRollbackPlan,
   type PublicCatalogSeedResult,
   type PublicCatalogSeedSummary,
 } from './lib/publicCatalogSeed'
@@ -234,6 +236,7 @@ function feedbackToneFromText(message: string): FeedbackTone {
   if (
     normalized.startsWith('buscando') ||
     normalized.startsWith('borrando') ||
+    normalized.startsWith('deshaciendo') ||
     normalized.startsWith('importando') ||
     normalized.startsWith('preparando') ||
     normalized.startsWith('restaurando')
@@ -1243,6 +1246,7 @@ interface LibrarySurface {
   reactivateRecommendation: (id: string) => Promise<void>
   recordRecommendation: (itemId: string, reasons: string[]) => Promise<void>
   searchExternal: (query: string, type: string) => Promise<ExternalCandidate[]>
+  listPublicCatalog: () => Promise<PublicCatalogItem[]>
   searchPublicCatalog: (query: string, type?: string) => Promise<PublicCatalogItem[]>
   saveSettings: (settings: Partial<UserSettings>) => Promise<void>
   queueDiscoveryCandidates: (candidates: DiscoveryCandidate[]) => Promise<number>
@@ -1250,6 +1254,7 @@ interface LibrarySurface {
   restoreDiscoveryCandidate: (candidateId: string) => Promise<void>
   saveDiscoveryToLibrary: (candidate: DiscoveryCandidate) => Promise<ListItem>
   upsertPublicItem: (item: Partial<PublicCatalogItem> & Pick<PublicCatalogItem, 'title' | 'type'>) => Promise<PublicCatalogItem>
+  replacePublicItem: (item: PublicCatalogItem) => Promise<PublicCatalogItem>
   archivePublicItem: (id: string) => Promise<void>
   restorePublicItem: (id: string) => Promise<void>
   updateUserRole: (targetUserId: string, role: UserRole) => Promise<void>
@@ -3969,6 +3974,23 @@ function formatCatalogSeedSummary(summary: PublicCatalogSeedSummary) {
   ].join(' / ')
 }
 
+function formatCatalogSeedRollbackDetail(plan: PublicCatalogSeedRollbackPlan) {
+  const parts = [
+    plan.newItemIds.length
+      ? `${plan.newItemIds.length} ${plan.newItemIds.length === 1 ? 'nueva archivada' : 'nuevas archivadas'}`
+      : undefined,
+    plan.previousItems.length
+      ? `${plan.previousItems.length} ${plan.previousItems.length === 1 ? 'restaurada' : 'restauradas'}`
+      : undefined,
+  ].filter((part): part is string => Boolean(part))
+
+  return parts.length ? parts.join(' / ') : 'Sin cambios que revertir'
+}
+
+function formatCatalogSeedRollbackStatus(plan: PublicCatalogSeedRollbackPlan) {
+  return `Seed deshecho: ${formatCatalogSeedRollbackDetail(plan)}`
+}
+
 function formatCatalogRepairIssues(issues: CatalogIssueKey[]) {
   return issues.map((issue) => catalogIssueShortLabels[issue].toLowerCase()).join(', ')
 }
@@ -4975,6 +4997,7 @@ function CurationTab({
   const [archiveTarget, setArchiveTarget] = useState<PublicCatalogItem | undefined>()
   const [archiveUndoItem, setArchiveUndoItem] = useState<PublicCatalogItem | undefined>()
   const [catalogRepairUndoItems, setCatalogRepairUndoItems] = useState<PublicCatalogItem[]>([])
+  const [catalogSeedUndo, setCatalogSeedUndo] = useState<PublicCatalogSeedRollbackPlan | undefined>()
   const [pendingCatalogSeed, setPendingCatalogSeed] = useState<PendingCatalogSeedImport | undefined>()
   const [hasLoaded, setHasLoaded] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
@@ -5017,7 +5040,7 @@ function CurationTab({
       if (!isAlive) return
       setIsLoading(true)
       try {
-        const nextItems = await initialLibrary.searchPublicCatalog('', 'any')
+        const nextItems = await initialLibrary.listPublicCatalog()
         if (!isAlive) return
         setItems(nextItems)
         setHasLoaded(true)
@@ -5037,10 +5060,11 @@ function CurationTab({
   async function refreshCatalog(searchQuery = query) {
     setIsLoading(true)
     try {
-      const nextItems = await library.searchPublicCatalog(searchQuery, 'any')
+      const nextItems = searchQuery.trim() ? await library.searchPublicCatalog(searchQuery, 'any') : await library.listPublicCatalog()
       setItems(nextItems)
       setArchiveUndoItem(undefined)
       setCatalogRepairUndoItems([])
+      setCatalogSeedUndo(undefined)
       setPendingCatalogSeed(undefined)
       setHasLoaded(true)
       if (!nextItems.length) {
@@ -5059,6 +5083,7 @@ function CurationTab({
     await library.archivePublicItem(archivedItem.id)
     setArchiveUndoItem(archivedItem)
     setCatalogRepairUndoItems([])
+    setCatalogSeedUndo(undefined)
     setPendingCatalogSeed(undefined)
     setItems((current) => current.filter((item) => item.id !== archivedItem.id))
     setStatus(`${archivedItem.title} archivado`)
@@ -5087,6 +5112,7 @@ function CurationTab({
       })
       setArchiveUndoItem(undefined)
       setCatalogRepairUndoItems([])
+      setCatalogSeedUndo(undefined)
       setPendingCatalogSeed(undefined)
     } catch (reason) {
       setStatus(reason instanceof Error ? reason.message : 'No se pudo deshacer el archivado.')
@@ -5109,6 +5135,7 @@ function CurationTab({
   function startNewCatalogItem(type: ItemType = 'book', template?: CatalogTaxonomyTemplate) {
     setArchiveUndoItem(undefined)
     setCatalogRepairUndoItems([])
+    setCatalogSeedUndo(undefined)
     setPendingCatalogSeed(undefined)
     setEditingItem(template ? publicCatalogDraftFromTemplate(type, template) : blankPublicCatalogItem(type))
   }
@@ -5145,6 +5172,7 @@ function CurationTab({
       setItems((current) => savedItems.reduce((nextItems, item) => upsertVisibleCatalogItem(nextItems, item), current))
       setArchiveUndoItem(undefined)
       setCatalogRepairUndoItems(repairEntries.map((entry) => entry.original))
+      setCatalogSeedUndo(undefined)
       setPendingCatalogSeed(undefined)
       setHasLoaded(true)
       const repairedIssues = [...new Set(repairEntries.flatMap((entry) => entry.repair.appliedIssues))]
@@ -5177,6 +5205,7 @@ function CurationTab({
       setItems((current) => restoredItems.reduce((nextItems, item) => upsertVisibleCatalogItem(nextItems, item), current))
       setCatalogRepairUndoItems([])
       setArchiveUndoItem(undefined)
+      setCatalogSeedUndo(undefined)
       setPendingCatalogSeed(undefined)
       setStatus(
         restoredItems.length === 1
@@ -5223,9 +5252,11 @@ function CurationTab({
         return
       }
 
+      const currentCatalogItems = await library.listPublicCatalog()
       setArchiveUndoItem(undefined)
       setCatalogRepairUndoItems([])
-      const summary = getPublicCatalogSeedSummary(parsed, items)
+      setCatalogSeedUndo(undefined)
+      const summary = getPublicCatalogSeedSummary(parsed, currentCatalogItems)
       setPendingCatalogSeed({ fileName: file.name, result: parsed, summary })
       setStatus(`Seed preparado: ${formatCatalogSeedSummary(summary)}`)
     } catch (reason) {
@@ -5241,15 +5272,19 @@ function CurationTab({
     setIsImporting(true)
     setStatus('Importando lote de catalogo...')
     try {
+      const currentCatalogItems = await library.listPublicCatalog()
+      const rollbackPlan = getPublicCatalogSeedRollbackPlan(pendingCatalogSeed.result, currentCatalogItems)
       const savedItems: PublicCatalogItem[] = []
       for (const item of pendingCatalogSeed.result.items) {
         savedItems.push(await library.upsertPublicItem(item))
       }
 
-      setItems((current) => savedItems.reduce((nextItems, item) => upsertVisibleCatalogItem(nextItems, item), current))
+      setItems(savedItems.reduce((nextItems, item) => upsertVisibleCatalogItem(nextItems, item), currentCatalogItems))
+      setQuery('')
       setPendingCatalogSeed(undefined)
       setArchiveUndoItem(undefined)
       setCatalogRepairUndoItems([])
+      setCatalogSeedUndo(rollbackPlan)
       setHasLoaded(true)
       setQualityFilter('all')
       setIssueFilter('all')
@@ -5263,6 +5298,44 @@ function CurationTab({
       })
     } catch (reason) {
       setStatus(reason instanceof Error ? reason.message : 'No se pudo importar el lote de catalogo.')
+    } finally {
+      setIsImporting(false)
+    }
+  }
+
+  async function undoCatalogSeedImport() {
+    if (!catalogSeedUndo) return
+
+    const rollbackPlan = catalogSeedUndo
+    setIsImporting(true)
+    setStatus('Deshaciendo lote de catalogo...')
+    try {
+      for (const id of rollbackPlan.newItemIds) {
+        await library.archivePublicItem(id)
+      }
+      for (const item of rollbackPlan.previousItems) {
+        await library.replacePublicItem(item)
+      }
+
+      setItems((current) => {
+        const newIds = new Set(rollbackPlan.newItemIds)
+        const withoutNewItems = current.filter((item) => !newIds.has(item.id))
+        return rollbackPlan.previousItems.reduce((nextItems, item) => upsertVisibleCatalogItem(nextItems, item), withoutNewItems)
+      })
+      setPendingCatalogSeed(undefined)
+      setArchiveUndoItem(undefined)
+      setCatalogRepairUndoItems([])
+      setCatalogSeedUndo(undefined)
+      setHasLoaded(true)
+      setStatus(formatCatalogSeedRollbackStatus(rollbackPlan))
+      onActivity({
+        detail: formatCatalogSeedRollbackDetail(rollbackPlan),
+        label: 'Seed deshecho',
+        tab: 'curation',
+        tone: 'success',
+      })
+    } catch (reason) {
+      setStatus(reason instanceof Error ? reason.message : 'No se pudo deshacer el seed de catalogo.')
     } finally {
       setIsImporting(false)
     }
@@ -5587,7 +5660,7 @@ function CurationTab({
           {visibleCatalogItems.length} de {items.length} entradas visibles
         </p>
         {status && <FeedbackMessage tone={feedbackToneFromText(status)}>{status}</FeedbackMessage>}
-        {(archiveUndoItem || catalogRepairUndoItems.length > 0) && (
+        {(archiveUndoItem || catalogRepairUndoItems.length > 0 || catalogSeedUndo) && (
           <div className="feedback-action-row" aria-label="Accion reciente de curacion">
             {archiveUndoItem && (
               <button className="secondary-button" type="button" onClick={() => void undoArchivePublicItem()}>
@@ -5599,6 +5672,12 @@ function CurationTab({
               <button className="secondary-button" type="button" onClick={() => void undoCatalogRepair()}>
                 <RotateCcw size={16} />
                 Deshacer reparacion{catalogRepairUndoItems.length === 1 ? '' : 'es'}
+              </button>
+            )}
+            {catalogSeedUndo && (
+              <button className="secondary-button" disabled={isImporting} type="button" onClick={() => void undoCatalogSeedImport()}>
+                <RotateCcw size={16} />
+                Deshacer lote
               </button>
             )}
           </div>
@@ -5718,6 +5797,7 @@ function CurationTab({
             setItems((current) => upsertVisibleCatalogItem(current, savedItem))
             setArchiveUndoItem(undefined)
             setCatalogRepairUndoItems([])
+            setCatalogSeedUndo(undefined)
             setHasLoaded(true)
             setEditingItem(options?.createAnother ? blankPublicCatalogItem(savedItem.type) : undefined)
             setStatus(`${savedItem.title} guardado en catalogo`)

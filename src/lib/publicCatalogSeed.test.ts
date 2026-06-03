@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { createPublicCatalogSeedTemplate, getPublicCatalogSeedSummary, parsePublicCatalogSeed } from './publicCatalogSeed'
+import {
+  createPublicCatalogSeedTemplate,
+  getPublicCatalogSeedRollbackPlan,
+  getPublicCatalogSeedSummary,
+  parsePublicCatalogSeed,
+} from './publicCatalogSeed'
 
 describe('parsePublicCatalogSeed', () => {
   it('creates a valid editable seed template', () => {
@@ -80,5 +85,40 @@ describe('parsePublicCatalogSeed', () => {
       newItems: 1,
       updatedItems: 1,
     })
+  })
+
+  it('builds a rollback plan for new and updated public catalog entries', () => {
+    const currentArrival = parsePublicCatalogSeed(
+      {
+        items: [
+          {
+            title: 'Arrival',
+            type: 'movie',
+            description: 'Descripcion anterior.',
+            genres: ['Drama'],
+            tags: ['linguistica'],
+            externalRefs: { wikidataId: 'Q203827' },
+          },
+        ],
+      },
+      'admin-1',
+    ).items[0]
+    const result = parsePublicCatalogSeed(
+      {
+        items: [
+          { title: 'Arrival', type: 'movie', description: 'Descripcion importada.' },
+          { title: 'Moon', type: 'movie' },
+        ],
+      },
+      'admin-1',
+    )
+
+    const plan = getPublicCatalogSeedRollbackPlan(result, [currentArrival])
+
+    expect(plan.newItemIds).toEqual(['movie-moon'])
+    expect(plan.previousItems).toEqual([currentArrival])
+    expect(plan.previousItems[0]).not.toBe(currentArrival)
+    expect(plan.previousItems[0].genres).not.toBe(currentArrival.genres)
+    expect(plan.previousItems[0].externalRefs).not.toBe(currentArrival.externalRefs)
   })
 })

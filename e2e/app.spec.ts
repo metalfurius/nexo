@@ -1022,6 +1022,53 @@ test('moderator curation can create a public catalog item in demo mode', async (
   await expect(page.getByRole('button', { name: 'Editar Solaris' })).not.toBeVisible()
 })
 
+test('moderator can undo a public catalog seed import', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Curacion' }).click()
+
+  await page.getByLabel('Importar lote de catalogo JSON').setInputFiles({
+    name: 'public-catalog-rollback.seed.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(
+      JSON.stringify({
+        items: [
+          {
+            title: 'Arrival',
+            type: 'movie',
+            description: 'Descripcion temporal para validar rollback de una ficha existente.',
+            releaseYear: 2016,
+            genres: ['Ciencia ficcion'],
+            tags: ['rollback'],
+            moodTags: ['temporal'],
+          },
+          {
+            title: 'Rollback Moon',
+            type: 'movie',
+            description: 'Entrada temporal para comprobar rollback de seeds.',
+            releaseYear: 2009,
+            genres: ['Ciencia ficcion', 'Drama'],
+            tags: ['rollback'],
+            moodTags: ['melancolico'],
+          },
+        ],
+      }),
+    ),
+  })
+
+  await expect(page.getByText('Seed preparado: 1 nueva / 1 actualizada')).toBeVisible()
+  await page.getByRole('button', { name: 'Aplicar lote' }).click()
+  await expect(page.getByText('Importadas 2 entradas al catalogo')).toBeVisible()
+  await expect(page.getByText('Descripcion temporal para validar rollback de una ficha existente.')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Rollback Moon' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Deshacer lote' })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Deshacer lote' }).click()
+  await expect(page.getByText('Seed deshecho: 1 nueva archivada / 1 restaurada')).toBeVisible()
+  await expect(page.getByTestId('session-activity')).toContainText('Seed deshecho')
+  await expect(page.getByRole('heading', { name: 'Rollback Moon' })).not.toBeVisible()
+  await expect(page.getByText('Ciencia ficcion contemplativa sobre lenguaje, duelo y tiempo.')).toBeVisible()
+})
+
 test('moderator can turn an explorer candidate into a public catalog item', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Explorador', exact: true }).click()

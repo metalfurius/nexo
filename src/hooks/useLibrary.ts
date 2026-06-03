@@ -275,6 +275,14 @@ export function useLibrary(user?: SignedInUserProfile | null) {
       })
   }
 
+  async function listPublicCatalog(): Promise<PublicCatalogItem[]> {
+    if (repository) return repository.listPublicCatalog()
+
+    return publicCatalog
+      .filter((item) => !item.archivedAt)
+      .sort((left, right) => left.title.localeCompare(right.title, 'es'))
+  }
+
   async function saveSettings(nextSettings: Partial<UserSettings>) {
     const merged = mergeSettings({ ...settings, ...nextSettings })
     setSettings(merged)
@@ -362,6 +370,14 @@ export function useLibrary(user?: SignedInUserProfile | null) {
 
   async function upsertPublicItem(item: Partial<PublicCatalogItem> & Pick<PublicCatalogItem, 'title' | 'type'>) {
     if (repository) return repository.upsertPublicItem(item)
+
+    const nextItem = buildPublicCatalogItem(item, 'demo-moderator')
+    setPublicCatalog((current) => upsertCatalogItem(current, nextItem))
+    return nextItem
+  }
+
+  async function replacePublicItem(item: PublicCatalogItem) {
+    if (repository) return repository.replacePublicItem(item)
 
     const nextItem = buildPublicCatalogItem(item, 'demo-moderator')
     setPublicCatalog((current) => upsertCatalogItem(current, nextItem))
@@ -469,6 +485,7 @@ export function useLibrary(user?: SignedInUserProfile | null) {
     reactivateRecommendation,
     recordRecommendation,
     searchExternal,
+    listPublicCatalog,
     searchPublicCatalog,
     saveSettings,
     queueDiscoveryCandidates,
@@ -476,6 +493,7 @@ export function useLibrary(user?: SignedInUserProfile | null) {
     restoreDiscoveryCandidate,
     saveDiscoveryToLibrary,
     upsertPublicItem,
+    replacePublicItem,
     archivePublicItem,
     restorePublicItem,
     updateUserRole,
