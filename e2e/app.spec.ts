@@ -543,6 +543,10 @@ test('delete all requires explicit confirmation', async ({ page }) => {
 
   await expect(page.getByText('Tu biblioteca ha sido borrada')).toBeVisible()
   await expect(page.getByText('Outer Wilds')).not.toBeVisible()
+  await expect(page.getByRole('button', { name: 'Deshacer borrado total' })).toBeVisible()
+  await page.getByRole('button', { name: 'Deshacer borrado total' }).click()
+  await expect(page.getByText(/\d+ entradas recuperadas en Biblioteca/)).toBeVisible()
+  await expect(page.getByTestId('library-grid')).toContainText('Outer Wilds')
 })
 
 test('launch screens have no serious accessibility violations', async ({ page }) => {

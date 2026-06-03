@@ -575,6 +575,7 @@ function LibraryTab({
   const [editingItem, setEditingItem] = useState<ListItem | undefined>()
   const [deleteTarget, setDeleteTarget] = useState<ListItem | undefined>()
   const [deletedItemUndo, setDeletedItemUndo] = useState<ListItem | undefined>()
+  const [deletedLibraryUndo, setDeletedLibraryUndo] = useState<ListItem[]>([])
   const [importStatus, setImportStatus] = useState<string | undefined>()
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
@@ -630,6 +631,7 @@ function LibraryTab({
 
     setImportStatus('Importando biblioteca...')
     setDeletedItemUndo(undefined)
+    setDeletedLibraryUndo([])
     try {
       const payload = parseLibraryImportPayload(JSON.parse(await file.text()))
 
@@ -651,9 +653,12 @@ function LibraryTab({
   }
 
   async function deleteEntireLibrary() {
+    const deletedItems = library.items.map((item) => ({ ...item }))
     setImportStatus('Borrando tu biblioteca...')
     setDeletedItemUndo(undefined)
+    setDeletedLibraryUndo([])
     await library.deleteAllItems()
+    setDeletedLibraryUndo(deletedItems)
     setDeleteDialogOpen(false)
     setDeleteConfirmText('')
     setImportStatus('Tu biblioteca ha sido borrada')
@@ -666,6 +671,7 @@ function LibraryTab({
     setImportStatus(`Borrando ${deletedTitle}...`)
     await library.deleteItem(deleteTarget.id)
     setDeletedItemUndo(deleteTarget)
+    setDeletedLibraryUndo([])
     setDeleteTarget(undefined)
     setImportStatus(`${deletedTitle} borrado`)
   }
@@ -679,6 +685,21 @@ function LibraryTab({
       setDeletedItemUndo(undefined)
     } catch (reason) {
       setImportStatus(reason instanceof Error ? reason.message : 'No se pudo deshacer el borrado.')
+    }
+  }
+
+  async function undoDeleteEntireLibrary() {
+    if (!deletedLibraryUndo.length) return
+
+    try {
+      setImportStatus(`Restaurando ${deletedLibraryUndo.length} entradas...`)
+      for (const item of deletedLibraryUndo) {
+        await library.saveItem(item)
+      }
+      setImportStatus(`${deletedLibraryUndo.length} entradas recuperadas en Biblioteca`)
+      setDeletedLibraryUndo([])
+    } catch (reason) {
+      setImportStatus(reason instanceof Error ? reason.message : 'No se pudo deshacer el borrado total.')
     }
   }
 
@@ -966,12 +987,20 @@ function LibraryTab({
         {library.loading && <FeedbackMessage tone="loading">Cargando biblioteca...</FeedbackMessage>}
         {library.error && <FeedbackMessage tone="danger">{library.error}</FeedbackMessage>}
         {importStatus && <FeedbackMessage tone={feedbackToneFromText(importStatus)}>{importStatus}</FeedbackMessage>}
-        {deletedItemUndo && (
+        {(deletedItemUndo || deletedLibraryUndo.length > 0) && (
           <div className="feedback-action-row" aria-label="Accion reciente de biblioteca">
-            <button className="secondary-button" type="button" onClick={() => void undoDeleteSingleItem()}>
-              <RotateCcw size={16} />
-              Deshacer borrado
-            </button>
+            {deletedItemUndo && (
+              <button className="secondary-button" type="button" onClick={() => void undoDeleteSingleItem()}>
+                <RotateCcw size={16} />
+                Deshacer borrado
+              </button>
+            )}
+            {deletedLibraryUndo.length > 0 && (
+              <button className="secondary-button" type="button" onClick={() => void undoDeleteEntireLibrary()}>
+                <RotateCcw size={16} />
+                Deshacer borrado total
+              </button>
+            )}
           </div>
         )}
 
