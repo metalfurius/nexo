@@ -73,6 +73,7 @@ test('library and weighted dice work in demo mode', async ({ page }) => {
   await quickEditor.getByLabel('Notas').fill('Entrada manual con contexto inicial.')
   await expect(quickEditor.getByTestId('personal-readiness')).toContainText('Ficha lista')
   await quickEditor.getByRole('button', { name: 'Guardar' }).click()
+  await expect(page.getByText('Manual de prueba guardada en Biblioteca')).toBeVisible()
   await expect(page.getByTestId('library-grid')).toContainText('Manual de prueba')
   await page.locator('.item-main').filter({ hasText: 'Outer Wilds' }).click()
   await expect(page.getByRole('dialog', { name: 'Entrada' })).toBeVisible()

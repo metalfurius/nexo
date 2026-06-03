@@ -208,12 +208,13 @@ function feedbackToneFromText(message: string): FeedbackTone {
     return 'loading'
   }
   if (
-    normalized.includes('guardado') ||
-    normalized.includes('borrado') ||
-    normalized.includes('archivado') ||
+    normalized.includes('guardad') ||
+    normalized.includes('borrad') ||
+    normalized.includes('archivad') ||
     normalized.includes('importadas') ||
-    normalized.includes('copiado') ||
-    normalized.includes('anadida') ||
+    normalized.includes('descargad') ||
+    normalized.includes('copiad') ||
+    normalized.includes('anadid') ||
     normalized.includes('afinad') ||
     normalized.includes('enfriado') ||
     normalized.includes('reactivad') ||
@@ -707,6 +708,17 @@ function LibraryTab({
     }
   }
 
+  async function saveLibraryEditorItem(item: ListItem) {
+    try {
+      await library.saveItem(item)
+      setDeletedItemUndo(undefined)
+      setEditingItem(undefined)
+      setImportStatus(`${item.title || 'Entrada'} guardada en Biblioteca`)
+    } catch (reason) {
+      setImportStatus(reason instanceof Error ? reason.message : 'No se pudo guardar la ficha.')
+    }
+  }
+
   function exportLibrary() {
     downloadLibraryBackup(library.items, library.settings, 'nexo-export')
   }
@@ -1054,10 +1066,7 @@ function LibraryTab({
         <ItemEditor
           item={editingItem}
           onClose={() => setEditingItem(undefined)}
-          onSave={async (item) => {
-            await library.saveItem(item)
-            setEditingItem(undefined)
-          }}
+          onSave={(item) => void saveLibraryEditorItem(item)}
         />
       )}
 
