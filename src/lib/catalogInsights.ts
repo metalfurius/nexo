@@ -1,5 +1,7 @@
-import type { PublicCatalogItem } from '../domain/types'
-import { uniqueValues } from './strings'
+import type { DiscoveryCandidate, ItemType, PublicCatalogItem } from '../domain/types'
+import { nowIso } from '../domain/types'
+import { itemTypeLabels } from './libraryItemInsights'
+import { normalizeKey, uniqueValues } from './strings'
 
 export type CatalogQualityFilter = 'all' | 'needs-work' | 'ready'
 export type CatalogIssueFilter = 'all' | 'description' | 'genres' | 'tags' | 'poster'
@@ -25,6 +27,12 @@ export interface CatalogDiagnostics {
 export interface CatalogReviewQueueEntry {
   item: PublicCatalogItem
   warnings: string[]
+}
+
+export interface CatalogDraftTemplate {
+  genres: string[]
+  moodTags: string[]
+  tags: string[]
 }
 
 export const catalogSortLabels: Record<CatalogSortMode, string> = {
@@ -134,6 +142,70 @@ export function sortCatalogItems(left: PublicCatalogItem, right: PublicCatalogIt
   const leftWarnings = catalogQualityWarnings(left).length
   const rightWarnings = catalogQualityWarnings(right).length
   return rightWarnings - leftWarnings || right.updatedAt.localeCompare(left.updatedAt) || left.title.localeCompare(right.title, 'es')
+}
+
+export function blankPublicCatalogItem(type: ItemType = 'book', timestamp = nowIso()): PublicCatalogItem {
+  return {
+    id: '',
+    title: '',
+    type,
+    genres: [],
+    tags: [],
+    moodTags: [],
+    externalRefs: {},
+    searchTokens: [],
+    canonicalKey: '',
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    createdBy: 'moderator',
+    updatedBy: 'moderator',
+  }
+}
+
+export function publicCatalogDraftFromTemplate(type: ItemType, template: CatalogDraftTemplate, timestamp = nowIso()): PublicCatalogItem {
+  return {
+    ...blankPublicCatalogItem(type, timestamp),
+    genres: [...template.genres],
+    tags: [...template.tags],
+    moodTags: [...template.moodTags],
+  }
+}
+
+export function publicCatalogDraftFromCandidate(candidate: DiscoveryCandidate, timestamp = nowIso()): PublicCatalogItem {
+  const draft = blankPublicCatalogItem(candidate.type, timestamp)
+  const snapshot = candidate.publicSnapshot
+
+  return {
+    ...draft,
+    id: snapshot?.id ?? '',
+    title: candidate.title,
+    type: candidate.type,
+    description: candidate.overview ?? snapshot?.description,
+    releaseYear: candidate.releaseYear ?? snapshot?.releaseYear,
+    genres: uniqueValues(snapshot?.genres ?? candidate.genres),
+    tags: snapshot?.tags ?? publicCatalogTagsFromCandidate(candidate),
+    moodTags: uniqueValues(snapshot?.moodTags ?? candidate.moodTags),
+    externalRefs: snapshot?.externalRefs ?? candidate.externalRefs,
+    posterUrl: candidate.posterUrl ?? snapshot?.posterUrl,
+    canonicalKey: snapshot?.canonicalKey ?? '',
+    createdAt: snapshot?.updatedAt ?? candidate.createdAt,
+    updatedAt: snapshot?.updatedAt ?? draft.updatedAt,
+  }
+}
+
+export function publicCatalogTagsFromCandidate(candidate: Pick<DiscoveryCandidate, 'source' | 'tags' | 'type'>) {
+  const technicalTags = new Set([candidate.type, candidate.source, 'nexo', 'prompt'].map(normalizeKey))
+  return uniqueValues(candidate.tags.filter((tag) => !technicalTags.has(normalizeKey(tag))))
+}
+
+export function upsertVisibleCatalogItem(items: PublicCatalogItem[], nextItem: PublicCatalogItem) {
+  return [nextItem, ...items.filter((item) => item.id !== nextItem.id)].sort((left, right) => left.title.localeCompare(right.title, 'es'))
+}
+
+export function buildCatalogDescriptionDraft(title: string, type: ItemType, signals: string[]) {
+  const displayTitle = title.trim() || 'Entrada pendiente'
+  const signalText = signals.length ? signals.slice(0, 4).join(', ') : itemTypeLabels[type].toLowerCase()
+  return `${displayTitle} combina ${signalText} en una ficha curada para el catalogo Nexo.`
 }
 
 function splitCatalogDraftList(value: string) {

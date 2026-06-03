@@ -69,6 +69,8 @@ import {
 } from './data/catalogPresets'
 import { buildPublicCatalogItem, promptToDiscovery } from './lib/catalog'
 import {
+  blankPublicCatalogItem,
+  buildCatalogDescriptionDraft,
   catalogIssueLabels,
   catalogQualityIssueKeys,
   catalogQualityWarnings,
@@ -76,7 +78,10 @@ import {
   draftCatalogQualityWarnings,
   getCatalogDiagnostics,
   getCatalogReviewQueue,
+  publicCatalogDraftFromCandidate,
+  publicCatalogDraftFromTemplate,
   sortCatalogItems,
+  upsertVisibleCatalogItem,
   type CatalogIssueFilter,
   type CatalogIssueKey,
   type CatalogQualityFilter,
@@ -4791,61 +4796,6 @@ function ShellState({ action, detail, title }: { title: string; detail?: string;
   )
 }
 
-function blankPublicCatalogItem(type: ItemType = 'book'): PublicCatalogItem {
-  const timestamp = nowIso()
-  return {
-    id: '',
-    title: '',
-    type,
-    genres: [],
-    tags: [],
-    moodTags: [],
-    externalRefs: {},
-    searchTokens: [],
-    canonicalKey: '',
-    createdAt: timestamp,
-    updatedAt: timestamp,
-    createdBy: 'moderator',
-    updatedBy: 'moderator',
-  }
-}
-
-function publicCatalogDraftFromTemplate(type: ItemType, template: CatalogTaxonomyTemplate): PublicCatalogItem {
-  return {
-    ...blankPublicCatalogItem(type),
-    genres: [...template.genres],
-    tags: [...template.tags],
-    moodTags: [...template.moodTags],
-  }
-}
-
-function publicCatalogDraftFromCandidate(candidate: DiscoveryCandidate): PublicCatalogItem {
-  const draft = blankPublicCatalogItem(candidate.type)
-  const snapshot = candidate.publicSnapshot
-
-  return {
-    ...draft,
-    id: snapshot?.id ?? '',
-    title: candidate.title,
-    type: candidate.type,
-    description: candidate.overview ?? snapshot?.description,
-    releaseYear: candidate.releaseYear ?? snapshot?.releaseYear,
-    genres: uniqueValues(snapshot?.genres ?? candidate.genres),
-    tags: snapshot?.tags ?? publicCatalogTagsFromCandidate(candidate),
-    moodTags: uniqueValues(snapshot?.moodTags ?? candidate.moodTags),
-    externalRefs: snapshot?.externalRefs ?? candidate.externalRefs,
-    posterUrl: candidate.posterUrl ?? snapshot?.posterUrl,
-    canonicalKey: snapshot?.canonicalKey ?? '',
-    createdAt: snapshot?.updatedAt ?? candidate.createdAt,
-    updatedAt: snapshot?.updatedAt ?? draft.updatedAt,
-  }
-}
-
-function publicCatalogTagsFromCandidate(candidate: DiscoveryCandidate) {
-  const technicalTags = new Set([candidate.type, candidate.source, 'nexo', 'prompt'].map(normalizeKey))
-  return uniqueValues(candidate.tags.filter((tag) => !technicalTags.has(normalizeKey(tag))))
-}
-
 function getShellPulseItems(
   library: Pick<LibrarySurface, 'discoveryCandidates' | 'isModerator' | 'items' | 'userRole'>,
   isFirebaseConfigured: boolean,
@@ -4886,16 +4836,6 @@ function getShellPulseItems(
       value: roleLabels[library.userRole],
     },
   ] as const
-}
-
-function upsertVisibleCatalogItem(items: PublicCatalogItem[], nextItem: PublicCatalogItem) {
-  return [nextItem, ...items.filter((item) => item.id !== nextItem.id)].sort((left, right) => left.title.localeCompare(right.title, 'es'))
-}
-
-function buildCatalogDescriptionDraft(title: string, type: ItemType, signals: string[]) {
-  const displayTitle = title.trim() || 'Entrada pendiente'
-  const signalText = signals.length ? signals.slice(0, 4).join(', ') : typeLabels[type].toLowerCase()
-  return `${displayTitle} combina ${signalText} en una ficha curada para el catalogo Nexo.`
 }
 
 function sameList(left: string[], right: string[]) {

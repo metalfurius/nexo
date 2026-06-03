@@ -1,12 +1,18 @@
 import { describe, expect, it } from 'vitest'
-import type { PublicCatalogItem } from '../domain/types'
+import type { DiscoveryCandidate, PublicCatalogItem } from '../domain/types'
 import {
+  blankPublicCatalogItem,
+  buildCatalogDescriptionDraft,
   catalogQualityIssueKeys,
   catalogQualityWarnings,
   draftCatalogQualityWarnings,
   getCatalogDiagnostics,
   getCatalogReviewQueue,
+  publicCatalogDraftFromCandidate,
+  publicCatalogDraftFromTemplate,
+  publicCatalogTagsFromCandidate,
   sortCatalogItems,
+  upsertVisibleCatalogItem,
 } from './catalogInsights'
 
 const baseCatalogItem: PublicCatalogItem = {
@@ -30,6 +36,25 @@ const baseCatalogItem: PublicCatalogItem = {
 
 function catalogItem(overrides: Partial<PublicCatalogItem>): PublicCatalogItem {
   return { ...baseCatalogItem, ...overrides }
+}
+
+const baseCandidate: DiscoveryCandidate = {
+  id: 'candidate',
+  title: 'Candidate',
+  type: 'movie',
+  status: 'queued',
+  origin: 'externalSearch',
+  source: 'tmdb',
+  sourceId: 'candidate',
+  overview: 'Candidate overview',
+  releaseYear: 2026,
+  genres: ['Sci-Fi', 'Sci-Fi'],
+  tags: ['movie', 'tmdb', 'Nexo', 'espacial'],
+  moodTags: ['misterio', 'misterio'],
+  externalRefs: { tmdbId: '550' },
+  posterUrl: 'https://example.com/candidate.jpg',
+  createdAt: '2026-06-01T00:00:00.000Z',
+  updatedAt: '2026-06-02T00:00:00.000Z',
 }
 
 describe('catalog insights', () => {
@@ -172,5 +197,106 @@ describe('catalog insights', () => {
       'weaker',
       'ready',
     ])
+  })
+
+  it('creates blank and template-based public catalog drafts with stable timestamps', () => {
+    expect(blankPublicCatalogItem('game', '2026-06-03T12:00:00.000Z')).toMatchObject({
+      canonicalKey: '',
+      createdAt: '2026-06-03T12:00:00.000Z',
+      createdBy: 'moderator',
+      externalRefs: {},
+      genres: [],
+      id: '',
+      moodTags: [],
+      searchTokens: [],
+      tags: [],
+      title: '',
+      type: 'game',
+      updatedAt: '2026-06-03T12:00:00.000Z',
+      updatedBy: 'moderator',
+    })
+
+    const template = { genres: ['JRPG'], moodTags: ['epico'], tags: ['turnos'] }
+    const draft = publicCatalogDraftFromTemplate('game', template, '2026-06-03T12:00:00.000Z')
+
+    expect(draft.genres).toEqual(['JRPG'])
+    expect(draft.tags).toEqual(['turnos'])
+    expect(draft.moodTags).toEqual(['epico'])
+    expect(draft.genres).not.toBe(template.genres)
+  })
+
+  it('builds public catalog drafts from external candidates without technical tags', () => {
+    expect(publicCatalogTagsFromCandidate(baseCandidate)).toEqual(['espacial'])
+
+    expect(publicCatalogDraftFromCandidate(baseCandidate, '2026-06-03T12:00:00.000Z')).toMatchObject({
+      canonicalKey: '',
+      createdAt: '2026-06-01T00:00:00.000Z',
+      description: 'Candidate overview',
+      externalRefs: { tmdbId: '550' },
+      genres: ['Sci-Fi'],
+      id: '',
+      moodTags: ['misterio'],
+      posterUrl: 'https://example.com/candidate.jpg',
+      releaseYear: 2026,
+      tags: ['espacial'],
+      title: 'Candidate',
+      type: 'movie',
+      updatedAt: '2026-06-03T12:00:00.000Z',
+    })
+  })
+
+  it('prefers public snapshots when rebuilding a catalog draft from Nexo candidates', () => {
+    const draft = publicCatalogDraftFromCandidate({
+      ...baseCandidate,
+      overview: 'Candidate overview',
+      publicSnapshot: {
+        canonicalKey: 'movie:snapshot',
+        description: 'Snapshot overview',
+        externalRefs: { tmdbId: '999' },
+        genres: ['Drama'],
+        id: 'public-1',
+        moodTags: ['solemne'],
+        posterUrl: 'https://example.com/snapshot.jpg',
+        releaseYear: 1999,
+        tags: ['canon'],
+        title: 'Snapshot',
+        type: 'movie',
+        updatedAt: '2026-05-01T00:00:00.000Z',
+      },
+      releaseYear: 2026,
+    })
+
+    expect(draft).toMatchObject({
+      canonicalKey: 'movie:snapshot',
+      createdAt: '2026-05-01T00:00:00.000Z',
+      externalRefs: { tmdbId: '999' },
+      genres: ['Drama'],
+      id: 'public-1',
+      moodTags: ['solemne'],
+      posterUrl: 'https://example.com/candidate.jpg',
+      releaseYear: 2026,
+      tags: ['canon'],
+      title: 'Candidate',
+      updatedAt: '2026-05-01T00:00:00.000Z',
+    })
+  })
+
+  it('upserts visible catalog items and builds moderation descriptions', () => {
+    const items = [
+      catalogItem({ id: 'b', title: 'Beta' }),
+      catalogItem({ id: 'a', title: 'Alpha' }),
+    ]
+    const next = catalogItem({ id: 'b', title: 'Aardvark' })
+
+    expect(upsertVisibleCatalogItem(items, next).map((item) => [item.id, item.title])).toEqual([
+      ['b', 'Aardvark'],
+      ['a', 'Alpha'],
+    ])
+    expect(buildCatalogDescriptionDraft('  ', 'book', [])).toBe(
+      'Entrada pendiente combina libros en una ficha curada para el catalogo Nexo.',
+    )
+    expect(buildCatalogDescriptionDraft('Arrival', 'movie', ['sci-fi', 'duelo', 'lenguaje', 'calma', 'extra'])).toBe(
+      'Arrival combina sci-fi, duelo, lenguaje, calma en una ficha curada para el catalogo Nexo.',
+    )
   })
 })
