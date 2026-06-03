@@ -496,6 +496,7 @@ function App() {
   const shellTitle = activeTab === 'library' ? 'Biblioteca privada' : activeNavItem.label
 
   function changeActiveTab(nextTab: AppTab) {
+    if (nextTab === 'curation' && !library.isModerator) return
     if (nextTab === activeTab) return
     if (tabsWithUnsavedChanges[activeTab]) {
       setPendingNavigation({ source: 'app', tab: nextTab })
@@ -587,6 +588,7 @@ function App() {
         <SessionActivityPanel
           entries={library.activityEntries.slice(0, sessionActivityLimit)}
           onClear={() => void library.clearActivityEntries()}
+          onSelect={changeActiveTab}
         />
         {activeTab === 'library' && (
           <LibraryTab library={library} onActivity={library.recordActivity} onNavigate={changeActiveTab} setTheme={setTheme} />
@@ -612,7 +614,15 @@ function App() {
   )
 }
 
-function SessionActivityPanel({ entries, onClear }: { entries: ActivityEntry[]; onClear: () => void }) {
+function SessionActivityPanel({
+  entries,
+  onClear,
+  onSelect,
+}: {
+  entries: ActivityEntry[]
+  onClear: () => void
+  onSelect: (tab: AppTab) => void
+}) {
   if (!entries.length) return null
 
   return (
@@ -632,15 +642,23 @@ function SessionActivityPanel({ entries, onClear }: { entries: ActivityEntry[]; 
       <ol className="session-activity-list">
         {entries.map((entry) => {
           const Icon = getActivityIcon(entry.tone)
+          const tabLabel = activityTabLabels[entry.tab]
 
           return (
-            <li className={`session-activity-item ${entry.tone}`} key={entry.id}>
-              <Icon size={16} />
-              <span>
-                <strong>{entry.label}</strong>
-                <small>{entry.detail}</small>
-              </span>
-              <em>{activityTabLabels[entry.tab]}</em>
+            <li key={entry.id}>
+              <button
+                aria-label={`Abrir ${entry.label} en ${tabLabel}`}
+                className={`session-activity-item ${entry.tone}`}
+                type="button"
+                onClick={() => onSelect(entry.tab)}
+              >
+                <Icon size={16} />
+                <span>
+                  <strong>{entry.label}</strong>
+                  <small>{entry.detail}</small>
+                </span>
+                <em>{tabLabel}</em>
+              </button>
             </li>
           )
         })}

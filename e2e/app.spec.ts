@@ -229,6 +229,31 @@ test('mobile layout keeps the core controls reachable', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Tirar dado ponderado' })).toBeVisible()
 })
 
+test('activity entries navigate through the pending-change guard', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Anadir' }).click()
+  const editor = page.getByRole('dialog', { name: 'Entrada' })
+  await editor.getByLabel('Titulo').fill('Actividad navegable')
+  await editor.getByRole('button', { name: 'Guardar' }).click()
+  await expect(page.getByTestId('session-activity')).toContainText('Ficha guardada')
+
+  await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Elige el siguiente hilo' })).toBeVisible()
+  await page.getByLabel('Energia').selectOption('high')
+  await expect(page.getByText('Cambios pendientes')).toBeVisible()
+
+  await page
+    .getByTestId('session-activity')
+    .getByRole('button', { name: 'Abrir Ficha guardada en Biblioteca' })
+    .click()
+  await expect(page.getByLabel('Salida con cambios pendientes')).toContainText('Cambios pendientes en Dado')
+  await expect(page.getByRole('heading', { name: 'Elige el siguiente hilo' })).toBeVisible()
+
+  await page.getByLabel('Salida con cambios pendientes').getByRole('button', { name: 'Descartar cambios' }).click()
+  await expect(page.getByRole('heading', { name: 'Biblioteca privada' })).toBeVisible()
+  await expect(page.getByTestId('library-grid')).toContainText('Actividad navegable')
+})
+
 test('pwa metadata is present', async ({ page }) => {
   await page.goto('/')
 
