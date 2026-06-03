@@ -4200,6 +4200,25 @@ function CandidateDialog({
   )
 }
 
+function EditorDiscardPrompt({ onDiscard, onKeepEditing }: { onDiscard: () => void; onKeepEditing: () => void }) {
+  return (
+    <div className="editor-discard-warning" role="alert" aria-label="Cambios sin guardar">
+      <div>
+        <strong>Cambios sin guardar</strong>
+        <span>Guarda la ficha o descarta los cambios antes de cerrar.</span>
+      </div>
+      <div className="action-row end">
+        <button className="ghost-button" type="button" onClick={onKeepEditing}>
+          Seguir editando
+        </button>
+        <button className="danger-button" type="button" onClick={onDiscard}>
+          Descartar cambios
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function ItemEditor({
   item,
   onClose,
@@ -4209,12 +4228,15 @@ function ItemEditor({
   onClose: () => void
   onSave: (item: ListItem) => void
 }) {
-  const [draft, setDraft] = useState({
+  const initialDraft = useMemo(() => ({
     ...item,
     tagsText: item.tags.join(', '),
     genresText: item.genres.join(', '),
     moodText: item.moodTags.join(', '),
-  })
+  }), [item])
+  const [draft, setDraft] = useState(initialDraft)
+  const [showDiscardPrompt, setShowDiscardPrompt] = useState(false)
+  const hasUnsavedEditorChanges = useMemo(() => JSON.stringify(draft) !== JSON.stringify(initialDraft), [draft, initialDraft])
 
   const update = <Key extends keyof typeof draft>(key: Key, value: (typeof draft)[Key]) => {
     setDraft((current) => ({ ...current, [key]: value }))
@@ -4254,6 +4276,14 @@ function ItemEditor({
     }))
   }
 
+  function requestClose() {
+    if (hasUnsavedEditorChanges) {
+      setShowDiscardPrompt(true)
+      return
+    }
+    onClose()
+  }
+
   return (
     <div className="modal-backdrop" role="presentation">
       <form
@@ -4289,10 +4319,11 @@ function ItemEditor({
               {typeLabels[draft.type]} / {statusLabels[draft.status]}
             </p>
           </div>
-          <button className="icon-button" type="button" onClick={onClose} title="Cerrar">
+          <button className="icon-button" type="button" onClick={requestClose} title="Cerrar">
             <X size={18} />
           </button>
         </div>
+        {showDiscardPrompt && <EditorDiscardPrompt onDiscard={onClose} onKeepEditing={() => setShowDiscardPrompt(false)} />}
 
         <div className="editor-hero">
           <CoverArt title={editorTitle} type={draft.type} posterUrl={draft.posterUrl} />
@@ -4550,7 +4581,7 @@ function ItemEditor({
           </label>
         </section>
         <div className="action-row end">
-          <button className="ghost-button" type="button" onClick={onClose}>
+          <button className="ghost-button" type="button" onClick={requestClose}>
             Cancelar
           </button>
           <button className="primary-button" type="submit">
@@ -4571,12 +4602,16 @@ function PublicItemEditor({
   onClose: () => void
   onSave: (item: PublicCatalogItem, options?: { createAnother?: boolean }) => Promise<void> | void
 }) {
-  const [draft, setDraft] = useState({
+  const initialDraft = useMemo(() => ({
     ...item,
     tagsText: item.tags.join(', '),
     genresText: item.genres.join(', '),
     moodText: item.moodTags.join(', '),
-  })
+  }), [item])
+  const [draft, setDraft] = useState(initialDraft)
+  const [showDiscardPrompt, setShowDiscardPrompt] = useState(false)
+  const hasUnsavedEditorChanges = useMemo(() => JSON.stringify(draft) !== JSON.stringify(initialDraft), [draft, initialDraft])
+
   const warnings = draftCatalogQualityWarnings(draft)
   const selectedGenres = splitList(draft.genresText)
   const selectedGenreKeys = new Set(selectedGenres.map(normalizeKey))
@@ -4686,6 +4721,14 @@ function PublicItemEditor({
     })
   }
 
+  function requestClose() {
+    if (hasUnsavedEditorChanges) {
+      setShowDiscardPrompt(true)
+      return
+    }
+    onClose()
+  }
+
   return (
     <div className="modal-backdrop" role="presentation">
       <form
@@ -4704,10 +4747,11 @@ function PublicItemEditor({
             <h2 id="public-item-editor-title">Catalogo Nexo</h2>
             <p>Entrada publica curada</p>
           </div>
-          <button className="icon-button" type="button" onClick={onClose} title="Cerrar">
+          <button className="icon-button" type="button" onClick={requestClose} title="Cerrar">
             <X size={18} />
           </button>
         </div>
+        {showDiscardPrompt && <EditorDiscardPrompt onDiscard={onClose} onKeepEditing={() => setShowDiscardPrompt(false)} />}
 
         <div className="catalog-type-switcher" role="group" aria-label="Medio publico de la entrada">
           {ITEM_TYPES.map((type) => {
@@ -4938,7 +4982,7 @@ function PublicItemEditor({
         </div>
 
         <div className="action-row end">
-          <button className="ghost-button" type="button" onClick={onClose}>
+          <button className="ghost-button" type="button" onClick={requestClose}>
             Cancelar
           </button>
           {isNewItem && (
