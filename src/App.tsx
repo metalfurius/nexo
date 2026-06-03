@@ -73,6 +73,11 @@ import {
 } from './data/catalogPresets'
 import { buildPublicCatalogItem, promptToDiscovery } from './lib/catalog'
 import {
+  getActiveDiceFilters,
+  getDiceEligibilityBreakdown,
+  type DiceEligibilityBreakdown,
+} from './lib/diceInsights'
+import {
   getLibraryLaunchGuide,
   getLibrarySmartViewOptions,
   hasItemTaxonomy,
@@ -301,16 +306,6 @@ interface DiceRecoveryAction {
   id: string
   label: string
   onClick: () => void
-}
-
-interface DiceEligibilityBreakdown {
-  available: number
-  blockedTags: number
-  cooldown: number
-  medium: number
-  paused: number
-  resolved: number
-  total: number
 }
 
 interface AuthUserSummary {
@@ -5228,67 +5223,6 @@ function getRecommendationSessionPlan(
     signals,
     title,
   }
-}
-
-function getDiceEligibilityBreakdown(
-  items: ListItem[],
-  preferences: RecommendationPreferences,
-  settings: UserSettings,
-): DiceEligibilityBreakdown {
-  const breakdown: DiceEligibilityBreakdown = {
-    available: 0,
-    blockedTags: 0,
-    cooldown: 0,
-    medium: 0,
-    paused: 0,
-    resolved: 0,
-    total: items.length,
-  }
-  const now = Date.now()
-  const blockedTagKeys = settings.blockedTags.map(normalizeKey)
-
-  for (const item of items) {
-    if (item.status === 'completed' || item.status === 'dropped') {
-      breakdown.resolved += 1
-      continue
-    }
-    if (item.status === 'paused' && !preferences.includePaused) {
-      breakdown.paused += 1
-      continue
-    }
-    if (item.recommendationCooldownUntil && Date.parse(item.recommendationCooldownUntil) > now) {
-      breakdown.cooldown += 1
-      continue
-    }
-    if (!matchesDiceMedium(item.type, preferences.medium)) {
-      breakdown.medium += 1
-      continue
-    }
-    if (blockedTagKeys.some((tag) => item.tags.map(normalizeKey).includes(tag))) {
-      breakdown.blockedTags += 1
-      continue
-    }
-    breakdown.available += 1
-  }
-
-  return breakdown
-}
-
-function matchesDiceMedium(itemType: ItemType, medium: ExplorerSearchType) {
-  if (medium === 'any') return true
-  if (medium === 'watch') return ['movie', 'series', 'anime', 'manga', 'manhwa', 'comic'].includes(itemType)
-  return itemType === medium
-}
-
-function getActiveDiceFilters(preferences: RecommendationPreferences, settings: UserSettings) {
-  return [
-    `Medio: ${typeLabels[preferences.medium]}`,
-    preferences.timeBudgetHours ? `Tiempo: ${preferences.timeBudgetHours}h` : 'Sin limite de tiempo',
-    `Energia: ${energyLabels[preferences.energy]}`,
-    `Novedad: ${noveltyLabels[preferences.novelty]}`,
-    preferences.includePaused ? 'Incluye pausados' : 'Pausados fuera',
-    settings.blockedTags.length ? `${settings.blockedTags.length} tags bloqueados` : 'Sin tags bloqueados',
-  ]
 }
 
 function buildCatalogDescriptionDraft(title: string, type: ItemType, signals: string[]) {
