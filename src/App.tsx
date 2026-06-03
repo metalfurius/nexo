@@ -1108,6 +1108,7 @@ function LibraryTab({
 function DiceTab({ library }: { library: LibrarySurface }) {
   const [draftPreferences, setDraftPreferences] = useState<RecommendationPreferences | undefined>()
   const [recommendation, setRecommendation] = useState<RecommendationResult | undefined>()
+  const [editingDiceItem, setEditingDiceItem] = useState<ListItem | undefined>()
   const [isRolling, setIsRolling] = useState(false)
   const [showFullDicePool, setShowFullDicePool] = useState(false)
   const [status, setStatus] = useState<string | undefined>()
@@ -1245,6 +1246,17 @@ function DiceTab({ library }: { library: LibrarySurface }) {
       setStatus(count === 1 ? '1 entrada reactivada para el dado' : `${count} entradas reactivadas para el dado`)
     } catch (reason) {
       setStatus(reason instanceof Error ? reason.message : 'No se pudieron reactivar las entradas.')
+    }
+  }
+
+  async function saveDiceItemEdits(item: ListItem) {
+    try {
+      await library.saveItem(item)
+      setEditingDiceItem(undefined)
+      setRecommendation((current) => (current?.item.id === item.id ? { ...current, item } : current))
+      setStatus(`${item.title || 'Entrada'} afinada desde el dado.`)
+    } catch (reason) {
+      setStatus(reason instanceof Error ? reason.message : 'No se pudo guardar la ficha.')
     }
   }
 
@@ -1482,6 +1494,19 @@ function DiceTab({ library }: { library: LibrarySurface }) {
                 <button
                   className="secondary-button"
                   type="button"
+                  aria-label="Afinar ficha recomendada"
+                  onClick={() =>
+                    setEditingDiceItem(
+                      library.items.find((item) => item.id === recommendation.item.id) ?? recommendation.item,
+                    )
+                  }
+                >
+                  <Info size={16} />
+                  Afinar ficha
+                </button>
+                <button
+                  className="secondary-button"
+                  type="button"
                   onClick={skipRecommendation}
                 >
                   <X size={16} />
@@ -1529,6 +1554,14 @@ function DiceTab({ library }: { library: LibrarySurface }) {
           )}
         </section>
       </section>
+
+      {editingDiceItem && (
+        <ItemEditor
+          item={editingDiceItem}
+          onClose={() => setEditingDiceItem(undefined)}
+          onSave={(item) => void saveDiceItemEdits(item)}
+        />
+      )}
     </section>
   )
 }

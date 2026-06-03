@@ -131,6 +131,12 @@ test('library and weighted dice work in demo mode', async ({ page }) => {
   await expect(page.getByTestId('recommendation-result')).toContainText('Plan de sesion')
   await expect(page.getByTestId('recommendation-result')).toContainText('Decision')
   await expect(page.getByTestId('recommendation-result')).toContainText('Por que sale')
+  await page.getByRole('button', { name: 'Afinar ficha recomendada' }).click()
+  const diceEditor = page.getByRole('dialog', { name: 'Entrada' })
+  await expect(diceEditor.getByTestId('personal-readiness')).toContainText('Preparacion')
+  await diceEditor.getByLabel('Notas').fill('Afinada desde el dado.')
+  await diceEditor.getByRole('button', { name: 'Guardar' }).click()
+  await expect(page.getByText(/afinada desde el dado\./)).toBeVisible()
   await expect(page.getByTestId('recent-rolls')).toContainText('Ahora mismo')
 
   await page.getByRole('button', { name: 'Biblioteca', exact: true }).click()
