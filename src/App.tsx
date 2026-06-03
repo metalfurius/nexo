@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState, type KeyboardEvent, type ReactNode } from 'react'
 import {
   AlertTriangle,
   Archive,
@@ -390,6 +390,8 @@ function App() {
   const auth = useAuth()
   const library = useLibrary(auth.user)
   const [activeTab, setActiveTabState] = useState<AppTab>(() => readInitialAppTab())
+  const [pendingNavigation, setPendingNavigation] = useState<AppTab | undefined>()
+  const [tabsWithUnsavedChanges, setTabsWithUnsavedChanges] = useState<Partial<Record<AppTab, boolean>>>({})
   const [theme, setTheme] = useState<ThemeMode>(() => {
     const stored = window.localStorage.getItem(themeStorageKey)
     return stored === 'light' || stored === 'dark' ? stored : DEFAULT_SETTINGS.theme
@@ -415,6 +417,21 @@ function App() {
     window.addEventListener('popstate', syncTabFromUrl)
     return () => window.removeEventListener('popstate', syncTabFromUrl)
   }, [])
+
+  const reportUnsavedChanges = useCallback((tab: AppTab, hasUnsavedChanges: boolean) => {
+    setTabsWithUnsavedChanges((current) => {
+      if (Boolean(current[tab]) === hasUnsavedChanges) return current
+      return { ...current, [tab]: hasUnsavedChanges }
+    })
+  }, [])
+  const reportDiceUnsavedChanges = useCallback(
+    (hasUnsavedChanges: boolean) => reportUnsavedChanges('dice', hasUnsavedChanges),
+    [reportUnsavedChanges],
+  )
+  const reportSettingsUnsavedChanges = useCallback(
+    (hasUnsavedChanges: boolean) => reportUnsavedChanges('settings', hasUnsavedChanges),
+    [reportUnsavedChanges],
+  )
 
   if (auth.loading) {
     return <ShellState title="Cargando acceso" />
@@ -443,9 +460,25 @@ function App() {
     { id: 'curation', label: 'Curacion', description: 'Catalogo Nexo', icon: ShieldCheck, hidden: !library.isModerator },
   ]
   const activeNavItem = navItems.find((item) => item.id === activeTab) ?? navItems[0]
+  const pendingNavItem = pendingNavigation ? navItems.find((item) => item.id === pendingNavigation) : undefined
   const shellTitle = activeTab === 'library' ? 'Biblioteca privada' : activeNavItem.label
 
   function changeActiveTab(nextTab: AppTab) {
+    if (nextTab === activeTab) return
+    if (tabsWithUnsavedChanges[activeTab]) {
+      setPendingNavigation(nextTab)
+      return
+    }
+    setActiveTabState(nextTab)
+    writeAppTabToUrl(nextTab)
+  }
+
+  function discardPendingNavigation() {
+    if (!pendingNavigation) return
+
+    const nextTab = pendingNavigation
+    setTabsWithUnsavedChanges((current) => ({ ...current, [activeTab]: false }))
+    setPendingNavigation(undefined)
     setActiveTabState(nextTab)
     writeAppTabToUrl(nextTab)
   }
@@ -509,12 +542,28 @@ function App() {
           })}
       </nav>
 
+      {pendingNavigation && pendingNavItem && (
+        <NavigationDiscardPrompt
+          currentLabel={activeNavItem.label}
+          nextLabel={pendingNavItem.label}
+          onDiscard={discardPendingNavigation}
+          onKeepEditing={() => setPendingNavigation(undefined)}
+        />
+      )}
+
       <section className="tab-stage">
         {activeTab === 'library' && <LibraryTab library={library} onNavigate={changeActiveTab} setTheme={setTheme} />}
-        {activeTab === 'dice' && <DiceTab library={library} />}
+        {activeTab === 'dice' && <DiceTab library={library} onUnsavedChange={reportDiceUnsavedChanges} />}
         {activeTab === 'explorer' && <ExplorerTab library={library} />}
         {activeTab === 'settings' && (
-          <SettingsTab library={library} onNavigate={changeActiveTab} setTheme={setTheme} theme={theme} user={auth.user} />
+          <SettingsTab
+            library={library}
+            onNavigate={changeActiveTab}
+            onUnsavedChange={reportSettingsUnsavedChanges}
+            setTheme={setTheme}
+            theme={theme}
+            user={auth.user}
+          />
         )}
         {activeTab === 'curation' && library.isModerator && <CurationTab library={library} />}
       </section>
@@ -541,6 +590,35 @@ function ShellPulse({
           <small>{detail}</small>
         </div>
       ))}
+    </div>
+  )
+}
+
+function NavigationDiscardPrompt({
+  currentLabel,
+  nextLabel,
+  onDiscard,
+  onKeepEditing,
+}: {
+  currentLabel: string
+  nextLabel: string
+  onDiscard: () => void
+  onKeepEditing: () => void
+}) {
+  return (
+    <div className="navigation-discard-warning" role="alert" aria-label="Salida con cambios pendientes">
+      <div>
+        <strong>Cambios pendientes en {currentLabel}</strong>
+        <span>Guarda antes de ir a {nextLabel} o descarta el borrador de esta seccion.</span>
+      </div>
+      <div className="action-row end">
+        <button className="ghost-button" type="button" onClick={onKeepEditing}>
+          Seguir editando
+        </button>
+        <button className="danger-button" type="button" onClick={onDiscard}>
+          Descartar cambios
+        </button>
+      </div>
     </div>
   )
 }
@@ -1290,7 +1368,13 @@ function LibraryTab({
   )
 }
 
-function DiceTab({ library }: { library: LibrarySurface }) {
+function DiceTab({
+  library,
+  onUnsavedChange,
+}: {
+  library: LibrarySurface
+  onUnsavedChange: (hasUnsavedChanges: boolean) => void
+}) {
   const [draftPreferences, setDraftPreferences] = useState<RecommendationPreferences | undefined>()
   const [recommendation, setRecommendation] = useState<RecommendationResult | undefined>()
   const [editingDiceItem, setEditingDiceItem] = useState<ListItem | undefined>()
@@ -1326,6 +1410,12 @@ function DiceTab({ library }: { library: LibrarySurface }) {
       ),
     [library.items],
   )
+
+  useEffect(() => {
+    onUnsavedChange(hasUnsavedDicePreferences)
+    return () => onUnsavedChange(false)
+  }, [hasUnsavedDicePreferences, onUnsavedChange])
+
   const diceRecoveryActions: DiceRecoveryAction[] = [
     ...(cooldownRecoveryItems.length
       ? [
@@ -2461,12 +2551,14 @@ type SettingsDraft = ReturnType<typeof settingsDraftFromSettings>
 function SettingsTab({
   library,
   onNavigate,
+  onUnsavedChange,
   setTheme,
   theme,
   user,
 }: {
   library: LibrarySurface
   onNavigate: (tab: AppTab) => void
+  onUnsavedChange: (hasUnsavedChanges: boolean) => void
   setTheme: (theme: ThemeMode) => void
   theme: ThemeMode
   user: AuthUserSummary | null
@@ -2494,6 +2586,11 @@ function SettingsTab({
     !sameList(draftFavoriteTags, library.settings.favoriteTags) ||
     !sameList(draftFavoriteGenres, library.settings.favoriteGenres) ||
     !sameList(draftBlockedTags, library.settings.blockedTags)
+
+  useEffect(() => {
+    onUnsavedChange(hasUnsavedChanges)
+    return () => onUnsavedChange(false)
+  }, [hasUnsavedChanges, onUnsavedChange])
 
   function updateDraft(updater: (current: SettingsDraft) => SettingsDraft) {
     setSettingsUndo(undefined)
