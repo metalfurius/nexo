@@ -1,5 +1,6 @@
 import type { DiscoveryCandidate, ItemType, PublicCatalogItem } from '../domain/types'
 import { nowIso } from '../domain/types'
+import { createSearchTokens } from './catalog'
 import { itemTypeLabels } from './libraryItemInsights'
 import { normalizeKey, uniqueValues } from './strings'
 
@@ -27,6 +28,11 @@ export interface CatalogDiagnostics {
 export interface CatalogReviewQueueEntry {
   item: PublicCatalogItem
   warnings: string[]
+}
+
+export interface CatalogRepairDraft {
+  appliedIssues: CatalogIssueKey[]
+  item: PublicCatalogItem
 }
 
 export interface CatalogDraftTemplate {
@@ -196,6 +202,54 @@ export function publicCatalogDraftFromCandidate(candidate: DiscoveryCandidate, t
 export function publicCatalogTagsFromCandidate(candidate: Pick<DiscoveryCandidate, 'source' | 'tags' | 'type'>) {
   const technicalTags = new Set([candidate.type, candidate.source, 'nexo', 'prompt'].map(normalizeKey))
   return uniqueValues(candidate.tags.filter((tag) => !technicalTags.has(normalizeKey(tag))))
+}
+
+export function getCatalogRepairDraft(
+  item: PublicCatalogItem,
+  template?: CatalogDraftTemplate,
+  timestamp = nowIso(),
+): CatalogRepairDraft | undefined {
+  const issues = catalogQualityIssueKeys(item)
+  const appliedIssues: CatalogIssueKey[] = []
+  const nextItem: PublicCatalogItem = {
+    ...item,
+    externalRefs: { ...item.externalRefs },
+    genres: [...item.genres],
+    moodTags: [...item.moodTags],
+    searchTokens: [...item.searchTokens],
+    tags: [...item.tags],
+    updatedAt: timestamp,
+  }
+
+  if (issues.includes('genres') && template?.genres.length) {
+    nextItem.genres = [...template.genres]
+    appliedIssues.push('genres')
+  }
+
+  if (issues.includes('tags') && template?.tags.length) {
+    nextItem.tags = [...template.tags]
+    appliedIssues.push('tags')
+  }
+
+  if (!nextItem.moodTags.length && template?.moodTags.length) {
+    nextItem.moodTags = [...template.moodTags]
+  }
+
+  if (issues.includes('description')) {
+    const signals = uniqueValues([...nextItem.genres, ...nextItem.tags, ...nextItem.moodTags])
+    nextItem.description = buildCatalogDescriptionDraft(nextItem.title, nextItem.type, signals)
+    appliedIssues.push('description')
+  }
+
+  nextItem.searchTokens = createSearchTokens({
+    genres: nextItem.genres,
+    releaseYear: nextItem.releaseYear,
+    tags: nextItem.tags,
+    title: nextItem.title,
+    type: nextItem.type,
+  })
+
+  return appliedIssues.length ? { appliedIssues, item: nextItem } : undefined
 }
 
 export function upsertVisibleCatalogItem(items: PublicCatalogItem[], nextItem: PublicCatalogItem) {

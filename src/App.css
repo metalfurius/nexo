@@ -2215,6 +2215,14 @@
   padding: 5px 7px;
 }
 
+.catalog-review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
 .controls-grid,
 .form-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -7204,6 +7212,14 @@ textarea:focus-visible {
   .catalog-review-item {
     align-items: stretch;
     grid-template-columns: 1fr;
+  }
+
+  .catalog-review-actions {
+    justify-content: stretch;
+  }
+
+  .catalog-review-actions .small-button {
+    flex: 1 1 120px;
   }
 
   .data-health-grid {

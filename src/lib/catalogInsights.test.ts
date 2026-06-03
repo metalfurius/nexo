@@ -7,6 +7,7 @@ import {
   catalogQualityWarnings,
   draftCatalogQualityWarnings,
   getCatalogDiagnostics,
+  getCatalogRepairDraft,
   getCatalogReviewQueue,
   publicCatalogDraftFromCandidate,
   publicCatalogDraftFromTemplate,
@@ -161,6 +162,41 @@ describe('catalog insights', () => {
       ['recent-two', 2],
       ['older-two', 2],
     ])
+  })
+
+  it('creates safe repair drafts for missing catalog description and taxonomy', () => {
+    const original = catalogItem({
+      id: 'repairable',
+      title: 'Repairable',
+      description: undefined,
+      genres: [],
+      moodTags: [],
+      posterUrl: undefined,
+      tags: [],
+    })
+    const template = {
+      genres: ['Drama', 'Ciencia ficcion'],
+      moodTags: ['denso'],
+      tags: ['autor', 'culto'],
+    }
+
+    const repair = getCatalogRepairDraft(original, template, '2026-06-03T12:00:00.000Z')
+
+    expect(repair?.appliedIssues).toEqual(['genres', 'tags', 'description'])
+    expect(repair?.item).toMatchObject({
+      description: 'Repairable combina Drama, Ciencia ficcion, autor, culto en una ficha curada para el catalogo Nexo.',
+      genres: ['Drama', 'Ciencia ficcion'],
+      moodTags: ['denso'],
+      posterUrl: undefined,
+      tags: ['autor', 'culto'],
+      updatedAt: '2026-06-03T12:00:00.000Z',
+    })
+    expect(original.genres).toEqual([])
+    expect(repair?.item.genres).not.toBe(template.genres)
+  })
+
+  it('skips catalog repair when only a poster is missing', () => {
+    expect(getCatalogRepairDraft(catalogItem({ id: 'poster-only', posterUrl: undefined }))).toBeUndefined()
   })
 
   it('sorts catalog items by quality, title and update recency', () => {

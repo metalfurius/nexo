@@ -78,11 +78,13 @@ import {
   blankPublicCatalogItem,
   buildCatalogDescriptionDraft,
   catalogIssueLabels,
+  catalogIssueShortLabels,
   catalogQualityIssueKeys,
   catalogQualityWarnings,
   catalogSortLabels,
   draftCatalogQualityWarnings,
   getCatalogDiagnostics,
+  getCatalogRepairDraft,
   getCatalogReviewQueue,
   publicCatalogDraftFromCandidate,
   publicCatalogDraftFromTemplate,
@@ -245,6 +247,7 @@ function feedbackToneFromText(message: string): FeedbackTone {
     normalized.includes('anadid') ||
     normalized.includes('afinad') ||
     normalized.includes('enfriado') ||
+    normalized.includes('reparad') ||
     normalized.includes('reactivad') ||
     normalized.includes('enviados') ||
     normalized.includes('marcado') ||
@@ -3891,6 +3894,10 @@ function formatCatalogSeedSummary(summary: PublicCatalogSeedSummary) {
   ].join(' / ')
 }
 
+function formatCatalogRepairIssues(issues: CatalogIssueKey[]) {
+  return issues.map((issue) => catalogIssueShortLabels[issue].toLowerCase()).join(', ')
+}
+
 function cloneRecommendationPreferences(preferences: RecommendationPreferences): RecommendationPreferences {
   return { ...preferences }
 }
@@ -4763,6 +4770,7 @@ function CurationTab({
   const [editingItem, setEditingItem] = useState<PublicCatalogItem | undefined>()
   const [archiveTarget, setArchiveTarget] = useState<PublicCatalogItem | undefined>()
   const [archiveUndoItem, setArchiveUndoItem] = useState<PublicCatalogItem | undefined>()
+  const [catalogRepairUndoItem, setCatalogRepairUndoItem] = useState<PublicCatalogItem | undefined>()
   const [pendingCatalogSeed, setPendingCatalogSeed] = useState<PendingCatalogSeedImport | undefined>()
   const [hasLoaded, setHasLoaded] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
@@ -4825,6 +4833,7 @@ function CurationTab({
       const nextItems = await library.searchPublicCatalog(searchQuery, 'any')
       setItems(nextItems)
       setArchiveUndoItem(undefined)
+      setCatalogRepairUndoItem(undefined)
       setPendingCatalogSeed(undefined)
       setHasLoaded(true)
       if (!nextItems.length) {
@@ -4842,6 +4851,7 @@ function CurationTab({
     const archivedItem = archiveTarget
     await library.archivePublicItem(archivedItem.id)
     setArchiveUndoItem(archivedItem)
+    setCatalogRepairUndoItem(undefined)
     setPendingCatalogSeed(undefined)
     setItems((current) => current.filter((item) => item.id !== archivedItem.id))
     setStatus(`${archivedItem.title} archivado`)
@@ -4869,6 +4879,7 @@ function CurationTab({
         tone: 'success',
       })
       setArchiveUndoItem(undefined)
+      setCatalogRepairUndoItem(undefined)
       setPendingCatalogSeed(undefined)
     } catch (reason) {
       setStatus(reason instanceof Error ? reason.message : 'No se pudo deshacer el archivado.')
@@ -4890,8 +4901,56 @@ function CurationTab({
 
   function startNewCatalogItem(type: ItemType = 'book', template?: CatalogTaxonomyTemplate) {
     setArchiveUndoItem(undefined)
+    setCatalogRepairUndoItem(undefined)
     setPendingCatalogSeed(undefined)
     setEditingItem(template ? publicCatalogDraftFromTemplate(type, template) : blankPublicCatalogItem(type))
+  }
+
+  async function repairCatalogItem(item: PublicCatalogItem) {
+    const repair = getCatalogRepairDraft(item, catalogTaxonomyTemplates[item.type][0])
+    if (!repair) {
+      setStatus(`${item.title} no tiene reparaciones automaticas seguras`)
+      return
+    }
+
+    try {
+      const savedItem = await library.upsertPublicItem(repair.item)
+      setItems((current) => upsertVisibleCatalogItem(current, savedItem))
+      setArchiveUndoItem(undefined)
+      setCatalogRepairUndoItem(item)
+      setPendingCatalogSeed(undefined)
+      setHasLoaded(true)
+      setStatus(`${savedItem.title} reparado: ${formatCatalogRepairIssues(repair.appliedIssues)}`)
+      onActivity({
+        detail: savedItem.title,
+        label: 'Catalogo reparado',
+        tab: 'curation',
+        tone: 'success',
+      })
+    } catch (reason) {
+      setStatus(reason instanceof Error ? reason.message : 'No se pudo reparar la ficha publica.')
+    }
+  }
+
+  async function undoCatalogRepair() {
+    if (!catalogRepairUndoItem) return
+
+    try {
+      const restoredItem = await library.upsertPublicItem(catalogRepairUndoItem)
+      setItems((current) => upsertVisibleCatalogItem(current, restoredItem))
+      setCatalogRepairUndoItem(undefined)
+      setArchiveUndoItem(undefined)
+      setPendingCatalogSeed(undefined)
+      setStatus(`${restoredItem.title} recuperado antes de la reparacion`)
+      onActivity({
+        detail: restoredItem.title,
+        label: 'Reparacion deshecha',
+        tab: 'curation',
+        tone: 'success',
+      })
+    } catch (reason) {
+      setStatus(reason instanceof Error ? reason.message : 'No se pudo deshacer la reparacion.')
+    }
   }
 
   function downloadCatalogSeedTemplate() {
@@ -4924,6 +4983,7 @@ function CurationTab({
       }
 
       setArchiveUndoItem(undefined)
+      setCatalogRepairUndoItem(undefined)
       const summary = getPublicCatalogSeedSummary(parsed, items)
       setPendingCatalogSeed({ fileName: file.name, result: parsed, summary })
       setStatus(`Seed preparado: ${formatCatalogSeedSummary(summary)}`)
@@ -4948,6 +5008,7 @@ function CurationTab({
       setItems((current) => savedItems.reduce((nextItems, item) => upsertVisibleCatalogItem(nextItems, item), current))
       setPendingCatalogSeed(undefined)
       setArchiveUndoItem(undefined)
+      setCatalogRepairUndoItem(undefined)
       setHasLoaded(true)
       setQualityFilter('all')
       setIssueFilter('all')
@@ -5179,24 +5240,41 @@ function CurationTab({
               </button>
             </div>
             <div className="catalog-review-list">
-              {reviewQueue.map(({ item, warnings }) => (
-                <article className="catalog-review-item" key={item.id}>
-                  <div>
-                    <strong>{item.title}</strong>
-                    <span>
-                      {typeLabels[item.type]} / {warnings.length} pendiente{warnings.length === 1 ? '' : 's'}
-                    </span>
-                    <div className="catalog-review-tags">
-                      {warnings.slice(0, 3).map((warning) => (
-                        <small key={warning}>{warning}</small>
-                      ))}
+              {reviewQueue.map(({ item, warnings }) => {
+                const repairPreview = getCatalogRepairDraft(item, catalogTaxonomyTemplates[item.type][0], item.updatedAt)
+
+                return (
+                  <article className="catalog-review-item" key={item.id}>
+                    <div>
+                      <strong>{item.title}</strong>
+                      <span>
+                        {typeLabels[item.type]} / {warnings.length} pendiente{warnings.length === 1 ? '' : 's'}
+                      </span>
+                      <div className="catalog-review-tags">
+                        {warnings.slice(0, 3).map((warning) => (
+                          <small key={warning}>{warning}</small>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                  <button className="small-button" type="button" onClick={() => setEditingItem(item)} aria-label={`Revisar ${item.title}`}>
-                    Revisar
-                  </button>
-                </article>
-              ))}
+                    <div className="catalog-review-actions">
+                      {repairPreview && (
+                        <button
+                          className="small-button"
+                          type="button"
+                          onClick={() => void repairCatalogItem(item)}
+                          aria-label={`Reparar ${item.title}`}
+                        >
+                          <Sparkles size={14} />
+                          Reparar
+                        </button>
+                      )}
+                      <button className="small-button" type="button" onClick={() => setEditingItem(item)} aria-label={`Revisar ${item.title}`}>
+                        Revisar
+                      </button>
+                    </div>
+                  </article>
+                )
+              })}
             </div>
           </section>
         )}
@@ -5259,12 +5337,20 @@ function CurationTab({
           {visibleCatalogItems.length} de {items.length} entradas visibles
         </p>
         {status && <FeedbackMessage tone={feedbackToneFromText(status)}>{status}</FeedbackMessage>}
-        {archiveUndoItem && (
+        {(archiveUndoItem || catalogRepairUndoItem) && (
           <div className="feedback-action-row" aria-label="Accion reciente de curacion">
-            <button className="secondary-button" type="button" onClick={() => void undoArchivePublicItem()}>
-              <RotateCcw size={16} />
-              Deshacer archivado
-            </button>
+            {archiveUndoItem && (
+              <button className="secondary-button" type="button" onClick={() => void undoArchivePublicItem()}>
+                <RotateCcw size={16} />
+                Deshacer archivado
+              </button>
+            )}
+            {catalogRepairUndoItem && (
+              <button className="secondary-button" type="button" onClick={() => void undoCatalogRepair()}>
+                <RotateCcw size={16} />
+                Deshacer reparacion
+              </button>
+            )}
           </div>
         )}
 
@@ -5381,6 +5467,7 @@ function CurationTab({
             const savedItem = await library.upsertPublicItem(item)
             setItems((current) => upsertVisibleCatalogItem(current, savedItem))
             setArchiveUndoItem(undefined)
+            setCatalogRepairUndoItem(undefined)
             setHasLoaded(true)
             setEditingItem(options?.createAnother ? blankPublicCatalogItem(savedItem.type) : undefined)
             setStatus(`${savedItem.title} guardado en catalogo`)

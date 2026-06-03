@@ -841,18 +841,28 @@ test('moderator curation can create a public catalog item in demo mode', async (
             tags: ['culto', 'introspectivo'],
             moodTags: ['melancolico'],
           },
+          {
+            title: 'Repair Probe',
+            type: 'movie',
+          },
         ],
       }),
     ),
   })
-  await expect(page.getByText('Seed preparado: 1 nueva / 0 actualizadas')).toBeVisible()
+  await expect(page.getByText('Seed preparado: 2 nuevas / 0 actualizadas')).toBeVisible()
   await expect(page.getByLabel('Seed de catalogo preparado')).toContainText('public-catalog.seed.json')
-  await expect(page.getByLabel('Seed de catalogo preparado')).toContainText('1 entradas revisadas antes de tocar el catalogo publico')
+  await expect(page.getByLabel('Seed de catalogo preparado')).toContainText('2 entradas revisadas antes de tocar el catalogo publico')
   await expect(page.getByRole('heading', { name: 'Moon' })).not.toBeVisible()
   await page.getByRole('button', { name: 'Aplicar lote' }).click()
-  await expect(page.getByText('Importadas 1 entradas al catalogo')).toBeVisible()
+  await expect(page.getByText('Importadas 2 entradas al catalogo')).toBeVisible()
   await expect(page.getByTestId('session-activity')).toContainText('Seed aplicado')
   await expect(page.getByRole('heading', { name: 'Moon' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Repair Probe' })).toBeVisible()
+  await page.getByRole('button', { name: 'Reparar Repair Probe' }).click()
+  await expect(page.getByText(/Repair Probe reparado/)).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Deshacer reparacion' })).toBeVisible()
+  await expect(page.getByText('Repair Probe combina Accion, Aventura, palomitas, visual')).toBeVisible()
+  await expect(page.getByLabel('Revision prioritaria del catalogo')).toContainText('Sin portada')
 
   await page.getByRole('button', { name: 'Crear Libros' }).click()
   const editor = page.locator('.item-editor')
