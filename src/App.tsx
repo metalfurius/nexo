@@ -1550,6 +1550,16 @@ function LibraryTab({
     setSortMode('focus')
   }
 
+  function createItemFromCurrentSearch() {
+    const draft = blankItem()
+    openLibraryEditor({
+      ...draft,
+      status: statusFilter === 'all' ? draft.status : statusFilter,
+      title: trimmedQuery,
+      type: typeFilter === 'all' ? draft.type : typeFilter,
+    })
+  }
+
   return (
     <section className="content-grid">
       <section className="workspace-panel wide" aria-label="Biblioteca">
@@ -1908,15 +1918,30 @@ function LibraryTab({
             title={hasActiveLibraryFilters ? 'Sin resultados' : 'Nada por aqui'}
             detail={
               hasActiveLibraryFilters
-                ? 'Limpia filtros o prueba una busqueda menos concreta para volver a ver tu biblioteca.'
+                ? trimmedQuery
+                  ? `No existe nada para "${trimmedQuery}". Puedes crear una ficha con esa busqueda o limpiar filtros.`
+                  : 'Limpia filtros o prueba una busqueda menos concreta para volver a ver tu biblioteca.'
                 : 'Importa tu biblioteca, guarda algo desde Explorador o anade una entrada manual.'
             }
             action={
               hasActiveLibraryFilters ? (
-                <button className="secondary-button" type="button" onClick={resetLibraryFilters}>
-                  <X size={16} />
-                  Quitar filtros
-                </button>
+                <div className="action-row">
+                  {trimmedQuery && (
+                    <button
+                      aria-label={`Crear entrada ${trimmedQuery}`}
+                      className="primary-button"
+                      type="button"
+                      onClick={createItemFromCurrentSearch}
+                    >
+                      <Plus size={16} />
+                      Crear entrada
+                    </button>
+                  )}
+                  <button className="secondary-button" type="button" onClick={resetLibraryFilters}>
+                    <X size={16} />
+                    Quitar filtros
+                  </button>
+                </div>
               ) : (
                 <button className="primary-button" type="button" onClick={() => openLibraryEditor(blankItem())}>
                   <Plus size={16} />

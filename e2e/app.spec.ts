@@ -49,6 +49,7 @@ test('library and weighted dice work in demo mode', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Sin resultados' })).toBeVisible()
   await expect(page.getByText('0 de 7 entradas')).toBeVisible()
   await expect(page.getByTestId('library-focus-shelf')).not.toBeVisible()
+  await expect(page.getByRole('button', { name: 'Crear entrada zzzz no match' })).toBeVisible()
   await page.getByRole('button', { name: 'Quitar filtros' }).click()
   await expect(page.getByTestId('library-focus-shelf')).toBeVisible()
   await expect(page.getByTestId('library-grid')).toContainText('Outer Wilds')
@@ -231,6 +232,21 @@ test('mobile layout keeps the core controls reachable', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Explorador', exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Tirar dado ponderado' })).toBeVisible()
+})
+
+test('library empty search can create a prefilled item', async ({ page }) => {
+  await page.goto('/')
+  await page.getByLabel('Buscar en biblioteca').fill('Manual sombra')
+  await expect(page.getByRole('heading', { name: 'Sin resultados' })).toBeVisible()
+  await page.getByRole('button', { name: 'Crear entrada Manual sombra' }).click()
+
+  const searchDraftEditor = page.getByRole('dialog', { name: 'Entrada' })
+  await expect(searchDraftEditor.getByLabel('Titulo')).toHaveValue('Manual sombra')
+  await searchDraftEditor.getByLabel('Notas').fill('Creada desde una busqueda vacia.')
+  await searchDraftEditor.getByRole('button', { name: 'Guardar' }).click()
+
+  await expect(page.getByText('Manual sombra guardada en Biblioteca')).toBeVisible()
+  await expect(page.getByTestId('library-grid')).toContainText('Manual sombra')
 })
 
 test('quick search opens library items through the pending-change guard', async ({ page }) => {
