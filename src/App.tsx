@@ -44,7 +44,6 @@ import {
   USER_ROLES,
   type DiscoveryCandidate,
   type DiscoveryStatus,
-  type ExternalRefs,
   type ExplorerSearchType,
   type ItemStatus,
   type ItemType,
@@ -104,6 +103,7 @@ import {
   type CandidateDecisionBrief,
   type ExplorerSourceFilter,
 } from './lib/explorerInsights'
+import { getExternalRefEntries } from './lib/externalRefs'
 import {
   getLibraryFocusItems,
   getLibraryFocusReason,
@@ -139,7 +139,15 @@ import { createLibraryExportPayload, parseLibraryImportPayload } from './lib/lib
 import { sortLibraryItems, type LibrarySortMode } from './lib/librarySorting'
 import { createPublicCatalogSeedTemplate, parsePublicCatalogSeed } from './lib/publicCatalogSeed'
 import { recommendItem, scoreCandidates } from './lib/recommendations'
-import { normalizeKey, slugify, uniqueValues } from './lib/strings'
+import {
+  mergeListText,
+  normalizeKey,
+  slugify,
+  splitList,
+  toggleListTextValue,
+  uniqueNormalizedValues,
+  uniqueValues,
+} from './lib/strings'
 
 const librarySortLabels: Record<LibrarySortMode, string> = {
   focus: 'Foco',
@@ -172,15 +180,6 @@ const rolePermissionSummaries: Array<{ role: UserRole; detail: string; permissio
     permissions: ['Cambiar roles', 'Curar catalogo', 'Ver perfiles'],
   },
 ]
-
-const externalRefLabels: Record<keyof ExternalRefs, string> = {
-  tmdbId: 'TMDB',
-  rawgId: 'RAWG',
-  openLibraryKey: 'Open Library',
-  anilistId: 'AniList',
-  wikidataId: 'Wikidata',
-  sourceUrl: 'URL',
-}
 
 const typeIcons: Record<ItemType, typeof Film> = {
   game: Gamepad2,
@@ -4006,15 +4005,9 @@ function PublicItemEditor({
 
   function toggleTextPreset(field: 'genresText' | 'tagsText' | 'moodText', value: string) {
     setDraft((current) => {
-      const currentValues = splitList(current[field])
-      const valueKey = normalizeKey(value)
-      const nextValues = currentValues.some((entry) => normalizeKey(entry) === valueKey)
-        ? currentValues.filter((entry) => normalizeKey(entry) !== valueKey)
-        : [...currentValues, value]
-
       return {
         ...current,
-        [field]: nextValues.join(', '),
+        [field]: toggleListTextValue(current[field], value),
       }
     })
   }
@@ -4905,16 +4898,6 @@ function buildCatalogDescriptionDraft(title: string, type: ItemType, signals: st
   return `${displayTitle} combina ${signalText} en una ficha curada para el catalogo Nexo.`
 }
 
-function uniqueNormalizedValues(values: string[]) {
-  const seen = new Set<string>()
-  return values.filter((value) => {
-    const key = normalizeKey(value)
-    if (!key || seen.has(key)) return false
-    seen.add(key)
-    return true
-  })
-}
-
 function sameList(left: string[], right: string[]) {
   if (left.length !== right.length) return false
   return left.every((value, index) => value === right[index])
@@ -4931,39 +4914,6 @@ function sameRecommendationPreferences(left: RecommendationPreferences, right: R
     left.surprisePercent === right.surprisePercent &&
     left.seed === right.seed
   )
-}
-
-function splitList(value: string) {
-  return uniqueValues(value.split(',').map((entry) => entry.trim()))
-}
-
-function mergeListText(currentText: string, additions: string[]) {
-  return uniqueValues([...splitList(currentText), ...additions]).join(', ')
-}
-
-function toggleListTextValue(currentText: string, value: string) {
-  const currentValues = splitList(currentText)
-  const valueKey = normalizeKey(value)
-  const nextValues = currentValues.some((entry) => normalizeKey(entry) === valueKey)
-    ? currentValues.filter((entry) => normalizeKey(entry) !== valueKey)
-    : [...currentValues, value]
-
-  return nextValues.join(', ')
-}
-
-function getExternalRefEntries(refs?: ExternalRefs) {
-  if (!refs) return []
-
-  return (Object.entries(refs) as Array<[keyof ExternalRefs, string | undefined]>)
-    .filter(([, value]) => Boolean(value))
-    .map(([key, value]) => ({
-      label: externalRefLabels[key],
-      value: compactRefValue(value ?? ''),
-    }))
-}
-
-function compactRefValue(value: string) {
-  return value.length > 34 ? `${value.slice(0, 31)}...` : value
 }
 
 export default App
