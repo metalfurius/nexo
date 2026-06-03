@@ -251,7 +251,8 @@ test('activity entries navigate through the pending-change guard', async ({ page
 
   await page.getByLabel('Salida con cambios pendientes').getByRole('button', { name: 'Descartar cambios' }).click()
   await expect(page.getByRole('heading', { name: 'Biblioteca privada' })).toBeVisible()
-  await expect(page.getByTestId('library-grid')).toContainText('Actividad navegable')
+  const focusedEditor = page.getByRole('dialog', { name: 'Entrada' })
+  await expect(focusedEditor.getByLabel('Titulo')).toHaveValue('Actividad navegable')
 })
 
 test('pwa metadata is present', async ({ page }) => {

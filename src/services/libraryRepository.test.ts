@@ -299,6 +299,7 @@ describe('createFirestoreRepository', () => {
       detail: 'Arrival',
       tab: 'library' as const,
       tone: 'success' as const,
+      target: { kind: 'item' as const, id: 'game-outer-wilds' },
       createdAt: '2026-01-01T00:00:00.000Z',
     }
     const entryRef = { path: 'users/user-1/activityEntries/activity-1' }
@@ -330,7 +331,7 @@ describe('createFirestoreRepository', () => {
     expect(onEntries).toHaveBeenCalledWith([activityEntry])
     expect(mocks.setDoc).toHaveBeenCalledWith(
       expect.objectContaining({ path: 'users/user-1/activityEntries/activity-1' }),
-      expect.objectContaining({ label: 'Ficha guardada', tab: 'library' }),
+      expect.objectContaining({ label: 'Ficha guardada', tab: 'library', target: activityEntry.target }),
     )
     expect(mocks.getDocs).toHaveBeenCalledWith(expect.objectContaining({ path: 'users/user-1/activityEntries' }))
     expect(mocks.batchDelete).toHaveBeenCalledWith(entryRef)

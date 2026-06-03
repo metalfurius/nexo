@@ -188,6 +188,7 @@ describe('useLibrary', () => {
         detail: 'Arrival',
         label: 'Ficha guardada',
         tab: 'library',
+        target: { kind: 'item', id: 'game-outer-wilds' },
         tone: 'success',
       })
     })
@@ -198,6 +199,7 @@ describe('useLibrary', () => {
           detail: 'Arrival',
           label: 'Ficha guardada',
           tab: 'library',
+          target: { kind: 'item', id: 'game-outer-wilds' },
         }),
       ),
     )
@@ -206,6 +208,7 @@ describe('useLibrary', () => {
         detail: 'Arrival',
         label: 'Ficha guardada',
         tab: 'library',
+        target: { kind: 'item', id: 'game-outer-wilds' },
       }),
     )
 

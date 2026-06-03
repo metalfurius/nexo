@@ -180,7 +180,10 @@ export interface ActivityEntry {
   tab: ActivityTab
   tone: ActivityTone
   createdAt: string
+  target?: ActivityTarget
 }
+
+export type ActivityTarget = { kind: 'item'; id: string }
 
 export interface RecommendationPreferences {
   medium: ExplorerSearchType

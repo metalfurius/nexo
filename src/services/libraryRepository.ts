@@ -352,6 +352,7 @@ function normalizeActivityEntry(id: string, data: Record<string, unknown>): Acti
     tab: normalizeActivityTab(data.tab),
     tone: normalizeActivityTone(data.tone),
     createdAt: typeof data.createdAt === 'string' ? data.createdAt : nowIso(),
+    target: normalizeActivityTarget(data.target),
   }
 }
 
@@ -363,6 +364,17 @@ function normalizeActivityTab(tab: unknown): ActivityEntry['tab'] {
 
 function normalizeActivityTone(tone: unknown): ActivityEntry['tone'] {
   return tone === 'info' || tone === 'success' || tone === 'danger' || tone === 'loading' ? tone : 'info'
+}
+
+function normalizeActivityTarget(target: unknown): ActivityEntry['target'] {
+  if (!target || typeof target !== 'object') return undefined
+
+  const candidate = target as Record<string, unknown>
+  if (candidate.kind === 'item' && typeof candidate.id === 'string') {
+    return { kind: 'item', id: candidate.id }
+  }
+
+  return undefined
 }
 
 function normalizeUserProfile(userId: string, data: Record<string, unknown>): UserProfile {

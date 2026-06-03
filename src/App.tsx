@@ -37,6 +37,7 @@ import './App.css'
 import {
   type ActivityEntry,
   type ActivityTab,
+  type ActivityTarget,
   type ActivityTone,
   DEFAULT_RECOMMENDATION_PREFERENCES,
   DEFAULT_SETTINGS,
@@ -250,8 +251,9 @@ function feedbackToneFromText(message: string): FeedbackTone {
   return 'info'
 }
 
+type ActivityFocus = ActivityTarget
 type AppTab = ActivityTab
-type PendingNavigation = { source: 'app' | 'history'; tab: AppTab }
+type PendingNavigation = { focus?: ActivityFocus; source: 'app' | 'history'; tab: AppTab }
 type ActivityRecorder = (entry: Omit<ActivityEntry, 'createdAt' | 'id'>) => void
 
 const activityTabLabels: Record<AppTab, string> = {
@@ -413,6 +415,7 @@ function App() {
   const library = useLibrary(auth.user)
   const [activeTab, setActiveTabState] = useState<AppTab>(() => readInitialAppTab())
   const [pendingNavigation, setPendingNavigation] = useState<PendingNavigation | undefined>()
+  const [activityFocus, setActivityFocus] = useState<ActivityFocus | undefined>()
   const [tabsWithUnsavedChanges, setTabsWithUnsavedChanges] = useState<Partial<Record<AppTab, boolean>>>({})
   const [theme, setTheme] = useState<ThemeMode>(() => {
     const stored = window.localStorage.getItem(themeStorageKey)
@@ -465,6 +468,7 @@ function App() {
     (hasUnsavedChanges: boolean) => reportUnsavedChanges('settings', hasUnsavedChanges),
     [reportUnsavedChanges],
   )
+  const clearActivityFocus = useCallback(() => setActivityFocus(undefined), [])
   if (auth.loading) {
     return <ShellState title="Cargando acceso" />
   }
@@ -495,13 +499,17 @@ function App() {
   const pendingNavItem = pendingNavigation ? navItems.find((item) => item.id === pendingNavigation.tab) : undefined
   const shellTitle = activeTab === 'library' ? 'Biblioteca privada' : activeNavItem.label
 
-  function changeActiveTab(nextTab: AppTab) {
+  function changeActiveTab(nextTab: AppTab, focus?: ActivityFocus) {
     if (nextTab === 'curation' && !library.isModerator) return
-    if (nextTab === activeTab) return
-    if (tabsWithUnsavedChanges[activeTab]) {
-      setPendingNavigation({ source: 'app', tab: nextTab })
+    if (nextTab === activeTab) {
+      setActivityFocus(focus)
       return
     }
+    if (tabsWithUnsavedChanges[activeTab]) {
+      setPendingNavigation({ focus, source: 'app', tab: nextTab })
+      return
+    }
+    setActivityFocus(focus)
     setActiveTabState(nextTab)
     writeAppTabToUrl(nextTab, 'push')
   }
@@ -509,9 +517,10 @@ function App() {
   function discardPendingNavigation() {
     if (!pendingNavigation) return
 
-    const { source, tab: nextTab } = pendingNavigation
+    const { focus, source, tab: nextTab } = pendingNavigation
     setTabsWithUnsavedChanges((current) => ({ ...current, [activeTab]: false }))
     setPendingNavigation(undefined)
+    setActivityFocus(focus)
     setActiveTabState(nextTab)
     writeAppTabToUrl(nextTab, source === 'history' ? 'replace' : 'push')
   }
@@ -588,10 +597,17 @@ function App() {
         <SessionActivityPanel
           entries={library.activityEntries.slice(0, sessionActivityLimit)}
           onClear={() => void library.clearActivityEntries()}
-          onSelect={changeActiveTab}
+          onSelect={(entry) => changeActiveTab(entry.tab, getActivityFocus(entry))}
         />
         {activeTab === 'library' && (
-          <LibraryTab library={library} onActivity={library.recordActivity} onNavigate={changeActiveTab} setTheme={setTheme} />
+          <LibraryTab
+            activityFocusItemId={activityFocus?.kind === 'item' ? activityFocus.id : undefined}
+            library={library}
+            onActivity={library.recordActivity}
+            onActivityFocusHandled={clearActivityFocus}
+            onNavigate={changeActiveTab}
+            setTheme={setTheme}
+          />
         )}
         {activeTab === 'dice' && (
           <DiceTab library={library} onActivity={library.recordActivity} onUnsavedChange={reportDiceUnsavedChanges} />
@@ -621,7 +637,7 @@ function SessionActivityPanel({
 }: {
   entries: ActivityEntry[]
   onClear: () => void
-  onSelect: (tab: AppTab) => void
+  onSelect: (entry: ActivityEntry) => void
 }) {
   if (!entries.length) return null
 
@@ -650,7 +666,7 @@ function SessionActivityPanel({
                 aria-label={`Abrir ${entry.label} en ${tabLabel}`}
                 className={`session-activity-item ${entry.tone}`}
                 type="button"
-                onClick={() => onSelect(entry.tab)}
+                onClick={() => onSelect(entry)}
               >
                 <Icon size={16} />
                 <span>
@@ -665,6 +681,10 @@ function SessionActivityPanel({
       </ol>
     </section>
   )
+}
+
+function getActivityFocus(entry: ActivityEntry): ActivityFocus | undefined {
+  return entry.tab === 'library' && entry.target?.kind === 'item' ? entry.target : undefined
 }
 
 function getActivityIcon(tone: FeedbackTone) {
@@ -783,13 +803,17 @@ interface PendingCatalogSeedImport {
 }
 
 function LibraryTab({
+  activityFocusItemId,
   library,
   onActivity,
+  onActivityFocusHandled,
   onNavigate,
   setTheme,
 }: {
+  activityFocusItemId?: string
   library: LibrarySurface
   onActivity: ActivityRecorder
+  onActivityFocusHandled: () => void
   onNavigate: (tab: AppTab) => void
   setTheme: (theme: ThemeMode) => void
 }) {
@@ -853,6 +877,9 @@ function LibraryTab({
     () => getLibraryLaunchGuide(library.items, library.discoveryCandidates),
     [library.discoveryCandidates, library.items],
   )
+  const focusedActivityItem = activityFocusItemId ? library.items.find((item) => item.id === activityFocusItemId) : undefined
+  const missingActivityFocus = Boolean(activityFocusItemId && !library.loading && !focusedActivityItem)
+  const editorItem = editingItem ?? focusedActivityItem
 
   async function prepareLibraryImportFile(file?: File) {
     if (!file) return
@@ -958,6 +985,7 @@ function LibraryTab({
         detail: deletedItemUndo.title,
         label: 'Entrada recuperada',
         tab: 'library',
+        target: { kind: 'item', id: deletedItemUndo.id },
         tone: 'success',
       })
       setDeletedItemUndo(undefined)
@@ -997,6 +1025,7 @@ function LibraryTab({
         detail: item.title,
         label: 'Entrada enfriada',
         tab: 'library',
+        target: { kind: 'item', id: item.id },
         tone: 'success',
       })
     } catch (reason) {
@@ -1012,6 +1041,7 @@ function LibraryTab({
         detail: item.title,
         label: 'Entrada reactivada',
         tab: 'library',
+        target: { kind: 'item', id: item.id },
         tone: 'success',
       })
     } catch (reason) {
@@ -1031,6 +1061,7 @@ function LibraryTab({
         detail: `${item.title} -> ${statusLabels[status]}`,
         label: 'Estado actualizado',
         tab: 'library',
+        target: { kind: 'item', id: item.id },
         tone: 'success',
       })
     } catch (reason) {
@@ -1048,6 +1079,7 @@ function LibraryTab({
         detail: `${statusUndo.title} -> ${statusLabels[statusUndo.previousStatus]}`,
         label: 'Estado recuperado',
         tab: 'library',
+        target: { kind: 'item', id: statusUndo.id },
         tone: 'success',
       })
       setStatusUndo(undefined)
@@ -1057,17 +1089,24 @@ function LibraryTab({
     }
   }
 
+  function closeLibraryEditor() {
+    setEditingItem(undefined)
+    if (focusedActivityItem) onActivityFocusHandled()
+  }
+
   async function saveLibraryEditorItem(item: ListItem) {
     try {
       await library.saveItem(item)
       setDeletedItemUndo(undefined)
       setPendingLibraryImport(undefined)
       setEditingItem(undefined)
+      onActivityFocusHandled()
       setImportStatus(`${item.title || 'Entrada'} guardada en Biblioteca`)
       onActivity({
         detail: item.title || 'Entrada sin titulo',
         label: 'Ficha guardada',
         tab: 'library',
+        target: { kind: 'item', id: item.id },
         tone: 'success',
       })
     } catch (reason) {
@@ -1327,6 +1366,14 @@ function LibraryTab({
         {library.loading && <FeedbackMessage tone="loading">Cargando biblioteca...</FeedbackMessage>}
         {library.error && <FeedbackMessage tone="danger">{library.error}</FeedbackMessage>}
         {importStatus && <FeedbackMessage tone={feedbackToneFromText(importStatus)}>{importStatus}</FeedbackMessage>}
+        {missingActivityFocus && (
+          <div className="feedback-action-row" aria-label="Actividad sin entrada">
+            <FeedbackMessage>Esa actividad ya no tiene una entrada en la biblioteca.</FeedbackMessage>
+            <button className="ghost-button" type="button" onClick={onActivityFocusHandled}>
+              Cerrar aviso
+            </button>
+          </div>
+        )}
         {pendingLibraryImport && (
           <div className="backup-import-preview" aria-label="Backup preparado en biblioteca">
             <div>
@@ -1457,10 +1504,10 @@ function LibraryTab({
         <MetricCard label="Explorador" value={library.discoveryCandidates.filter((candidate) => candidate.status === 'queued').length} />
       </aside>
 
-      {editingItem && (
+      {editorItem && (
         <ItemEditor
-          item={editingItem}
-          onClose={() => setEditingItem(undefined)}
+          item={editorItem}
+          onClose={closeLibraryEditor}
           onSave={(item) => void saveLibraryEditorItem(item)}
         />
       )}
