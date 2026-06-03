@@ -2381,6 +2381,28 @@ function formatCatalogSeedSummary(summary: PublicCatalogSeedSummary) {
   ].join(' / ')
 }
 
+function cloneUserSettings(settings: UserSettings): UserSettings {
+  return {
+    ...settings,
+    favoriteGenres: [...settings.favoriteGenres],
+    favoriteTags: [...settings.favoriteTags],
+    blockedTags: [...settings.blockedTags],
+    recommendationPreferences: { ...settings.recommendationPreferences },
+  }
+}
+
+function settingsDraftFromSettings(settings: UserSettings) {
+  return {
+    theme: settings.theme,
+    favoriteTags: settings.favoriteTags.join(', '),
+    favoriteGenres: settings.favoriteGenres.join(', '),
+    blockedTags: settings.blockedTags.join(', '),
+    explorerDefaultType: settings.explorerDefaultType,
+  }
+}
+
+type SettingsDraft = ReturnType<typeof settingsDraftFromSettings>
+
 function SettingsTab({
   library,
   onNavigate,
@@ -2394,14 +2416,9 @@ function SettingsTab({
   theme: ThemeMode
   user: AuthUserSummary | null
 }) {
-  const [draft, setDraft] = useState({
-    theme,
-    favoriteTags: library.settings.favoriteTags.join(', '),
-    favoriteGenres: library.settings.favoriteGenres.join(', '),
-    blockedTags: library.settings.blockedTags.join(', '),
-    explorerDefaultType: library.settings.explorerDefaultType,
-  })
+  const [draft, setDraft] = useState<SettingsDraft>(() => settingsDraftFromSettings({ ...library.settings, theme }))
   const [status, setStatus] = useState<string | undefined>()
+  const [settingsUndo, setSettingsUndo] = useState<UserSettings | undefined>()
   const [editingItem, setEditingItem] = useState<ListItem | undefined>()
   const [pendingBackupImport, setPendingBackupImport] = useState<PendingBackupImport | undefined>()
   const draftFavoriteTags = splitList(draft.favoriteTags)
@@ -2423,7 +2440,13 @@ function SettingsTab({
     !sameList(draftFavoriteGenres, library.settings.favoriteGenres) ||
     !sameList(draftBlockedTags, library.settings.blockedTags)
 
+  function updateDraft(updater: (current: SettingsDraft) => SettingsDraft) {
+    setSettingsUndo(undefined)
+    setDraft(updater)
+  }
+
   async function saveSettings() {
+    const previousSettings = cloneUserSettings({ ...library.settings, theme })
     const nextSettings: Partial<UserSettings> = {
       theme: draft.theme,
       favoriteTags: draftFavoriteTags,
@@ -2434,7 +2457,24 @@ function SettingsTab({
     setTheme(draft.theme)
     await library.saveSettings(nextSettings)
     setPendingBackupImport(undefined)
+    setSettingsUndo(previousSettings)
     setStatus('Ajustes guardados')
+  }
+
+  async function undoSettingsSave() {
+    if (!settingsUndo) return
+
+    const previousSettings = settingsUndo
+    setTheme(previousSettings.theme)
+    try {
+      await library.saveSettings(previousSettings)
+      setDraft(settingsDraftFromSettings(previousSettings))
+      setSettingsUndo(undefined)
+      setPendingBackupImport(undefined)
+      setStatus('Ajustes recuperados')
+    } catch (reason) {
+      setStatus(reason instanceof Error ? reason.message : 'No se pudieron recuperar los ajustes.')
+    }
   }
 
   async function copyUserId() {
@@ -2476,13 +2516,8 @@ function SettingsTab({
       if (payload.settings) {
         await library.saveSettings(payload.settings)
         setTheme(payload.settings.theme)
-        setDraft({
-          theme: payload.settings.theme,
-          favoriteTags: payload.settings.favoriteTags.join(', '),
-          favoriteGenres: payload.settings.favoriteGenres.join(', '),
-          blockedTags: payload.settings.blockedTags.join(', '),
-          explorerDefaultType: payload.settings.explorerDefaultType,
-        })
+        setDraft(settingsDraftFromSettings(payload.settings))
+        setSettingsUndo(undefined)
       }
       setStatus(
         payload.settings
@@ -2638,7 +2673,7 @@ function SettingsTab({
                 className={draft.theme === mode ? 'segment-option active' : 'segment-option'}
                 key={mode}
                 type="button"
-                onClick={() => setDraft((current) => ({ ...current, theme: mode }))}
+                onClick={() => updateDraft((current) => ({ ...current, theme: mode }))}
               >
                 {mode === 'dark' ? <Moon size={16} /> : <Sun size={16} />}
                 <span>{mode === 'dark' ? 'Oscuro' : 'Claro'}</span>
@@ -2654,7 +2689,7 @@ function SettingsTab({
             <select
               value={draft.explorerDefaultType}
               onChange={(event) =>
-                setDraft((current) => ({
+                updateDraft((current) => ({
                   ...current,
                   explorerDefaultType: event.target.value as ExplorerSearchType,
                 }))
@@ -2675,15 +2710,15 @@ function SettingsTab({
           <h3>Preferencias del dado</h3>
           <label>
             Tags favoritos
-            <input value={draft.favoriteTags} onChange={(event) => setDraft((current) => ({ ...current, favoriteTags: event.target.value }))} />
+            <input value={draft.favoriteTags} onChange={(event) => updateDraft((current) => ({ ...current, favoriteTags: event.target.value }))} />
           </label>
           <label>
             Generos favoritos
-            <input value={draft.favoriteGenres} onChange={(event) => setDraft((current) => ({ ...current, favoriteGenres: event.target.value }))} />
+            <input value={draft.favoriteGenres} onChange={(event) => updateDraft((current) => ({ ...current, favoriteGenres: event.target.value }))} />
           </label>
           <label>
             Tags bloqueados
-            <input value={draft.blockedTags} onChange={(event) => setDraft((current) => ({ ...current, blockedTags: event.target.value }))} />
+            <input value={draft.blockedTags} onChange={(event) => updateDraft((current) => ({ ...current, blockedTags: event.target.value }))} />
           </label>
         </div>
 
@@ -2693,6 +2728,14 @@ function SettingsTab({
         </div>
 
         {status && <FeedbackMessage tone={feedbackToneFromText(status)}>{status}</FeedbackMessage>}
+        {settingsUndo && !hasUnsavedChanges && (
+          <div className="feedback-action-row" aria-label="Accion reciente de ajustes">
+            <button className="secondary-button" type="button" onClick={() => void undoSettingsSave()}>
+              <RotateCcw size={16} />
+              Deshacer ajustes
+            </button>
+          </div>
+        )}
       </form>
 
       <div className="settings-side">

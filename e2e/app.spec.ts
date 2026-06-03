@@ -314,6 +314,11 @@ test('settings show pending changes before saving preferences', async ({ page })
   await expect(page.getByText('Cambios pendientes')).toBeVisible()
   await page.getByRole('button', { name: 'Guardar cambios' }).click()
   await expect(page.getByText('Ajustes guardados')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Deshacer ajustes' })).toBeVisible()
+  await page.getByRole('button', { name: 'Deshacer ajustes' }).click()
+  await expect(page.getByText('Ajustes recuperados')).toBeVisible()
+  await expect(page.getByTestId('settings-confidence')).toContainText('Oscuro')
+  await expect(page.getByRole('button', { name: 'Guardado', exact: true })).toBeDisabled()
 })
 
 test('library quick import previews a backup before applying it', async ({ page }) => {
