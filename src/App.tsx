@@ -261,6 +261,7 @@ type CatalogIssueFilter = 'all' | 'description' | 'genres' | 'tags' | 'poster'
 type CatalogIssueKey = Exclude<CatalogIssueFilter, 'all'>
 type CatalogSortMode = 'quality' | 'title' | 'updated'
 type ExplorerSourceFilter = 'all' | 'nexo' | 'external' | 'prompt'
+type LibrarySmartView = 'all' | 'dice-ready' | 'needs-context' | 'needs-taxonomy' | 'nexo'
 type LibraryLaunchAction = 'add' | 'edit-taxonomy' | 'open-dice' | 'open-explorer'
 
 interface LibraryLaunchStep {
@@ -280,6 +281,13 @@ interface LibraryLaunchGuide {
   steps: LibraryLaunchStep[]
   title: string
   total: number
+}
+
+interface LibrarySmartViewOption {
+  count: number
+  detail: string
+  id: LibrarySmartView
+  label: string
 }
 
 interface RecommendationSessionPlan {
@@ -650,6 +658,7 @@ function LibraryTab({
   const [query, setQuery] = useState('')
   const [typeFilter, setTypeFilter] = useState<ItemType | 'all'>('all')
   const [statusFilter, setStatusFilter] = useState<ItemStatus | 'all'>('all')
+  const [smartView, setSmartView] = useState<LibrarySmartView>('all')
   const [sortMode, setSortMode] = useState<LibrarySortMode>('focus')
   const [editingItem, setEditingItem] = useState<ListItem | undefined>()
   const [deleteTarget, setDeleteTarget] = useState<ListItem | undefined>()
@@ -658,12 +667,15 @@ function LibraryTab({
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
   const viewMode = library.settings.libraryViewMode
   const trimmedQuery = query.trim()
-  const hasActiveLibraryFilters = Boolean(trimmedQuery) || typeFilter !== 'all' || statusFilter !== 'all'
+  const hasActiveLibraryFilters = Boolean(trimmedQuery) || typeFilter !== 'all' || statusFilter !== 'all' || smartView !== 'all'
   const hasActiveLibraryControls = hasActiveLibraryFilters || sortMode !== 'focus'
+  const smartViewOptions = useMemo(() => getLibrarySmartViewOptions(library.items), [library.items])
+  const activeSmartViewLabel = smartViewOptions.find((option) => option.id === smartView)?.label
   const activeLibraryControls = [
     trimmedQuery ? `Busqueda: ${trimmedQuery}` : undefined,
     typeFilter !== 'all' ? `Tipo: ${typeLabels[typeFilter]}` : undefined,
     statusFilter !== 'all' ? `Estado: ${statusLabels[statusFilter]}` : undefined,
+    smartView !== 'all' && activeSmartViewLabel ? `Vista: ${activeSmartViewLabel}` : undefined,
     sortMode !== 'focus' ? `Orden: ${librarySortLabels[sortMode]}` : undefined,
   ].filter((control): control is string => Boolean(control))
   const focusItems = useMemo(() => getLibraryFocusItems(library.items), [library.items])
@@ -680,9 +692,10 @@ function LibraryTab({
       })
       .filter((item) => typeFilter === 'all' || item.type === typeFilter)
       .filter((item) => statusFilter === 'all' || item.status === statusFilter)
+      .filter((item) => matchesLibrarySmartView(item, smartView))
 
     return sortLibraryItems(matchingItems, sortMode)
-  }, [library.items, query, sortMode, statusFilter, typeFilter])
+  }, [library.items, query, smartView, sortMode, statusFilter, typeFilter])
 
   const stats = useMemo(() => {
     return ITEM_STATUSES.map((status) => ({
@@ -754,6 +767,7 @@ function LibraryTab({
     setQuery('')
     setTypeFilter('all')
     setStatusFilter('all')
+    setSmartView('all')
     setSortMode('focus')
   }
 
@@ -914,6 +928,24 @@ function LibraryTab({
             </button>
           ))}
         </div>
+
+        <section className="library-smart-views" aria-label="Vistas inteligentes de biblioteca" data-testid="library-smart-views">
+          {smartViewOptions.map((option) => (
+            <button
+              aria-pressed={smartView === option.id}
+              className={smartView === option.id ? 'library-smart-view active' : 'library-smart-view'}
+              key={option.id}
+              type="button"
+              onClick={() => setSmartView(option.id)}
+            >
+              <span>
+                <strong>{option.label}</strong>
+                <small>{option.detail}</small>
+              </span>
+              <em>{option.count}</em>
+            </button>
+          ))}
+        </section>
 
         <div className="toolbar">
           <label className="search-field">
@@ -5167,6 +5199,53 @@ function getLibraryLaunchGuide(items: ListItem[], candidates: DiscoveryCandidate
 
 function hasItemTaxonomy(item: ListItem) {
   return item.genres.length + item.tags.length + item.moodTags.length > 0
+}
+
+function getLibrarySmartViewOptions(items: ListItem[]): LibrarySmartViewOption[] {
+  const now = Date.now()
+  const count = (view: LibrarySmartView) => items.filter((item) => matchesLibrarySmartView(item, view, now)).length
+
+  return [
+    {
+      count: items.length,
+      detail: 'Toda la biblioteca',
+      id: 'all',
+      label: 'Todas',
+    },
+    {
+      count: count('dice-ready'),
+      detail: 'Disponibles ahora',
+      id: 'dice-ready',
+      label: 'Listas para dado',
+    },
+    {
+      count: count('needs-context'),
+      detail: 'Sin rating ni notas',
+      id: 'needs-context',
+      label: 'Sin contexto',
+    },
+    {
+      count: count('needs-taxonomy'),
+      detail: 'Sin generos ni tags',
+      id: 'needs-taxonomy',
+      label: 'Sin taxonomia',
+    },
+    {
+      count: count('nexo'),
+      detail: 'Copias del catalogo',
+      id: 'nexo',
+      label: 'Catalogo Nexo',
+    },
+  ]
+}
+
+function matchesLibrarySmartView(item: ListItem, view: LibrarySmartView, now = Date.now()) {
+  if (view === 'all') return true
+  if (view === 'dice-ready') return isItemReadyForDicePulse(item, now)
+  if (view === 'needs-context') return typeof item.rating !== 'number' && !item.notes?.trim()
+  if (view === 'needs-taxonomy') return !hasItemTaxonomy(item)
+  if (view === 'nexo') return Boolean(item.publicItemId)
+  return true
 }
 
 function catalogQualityIssueKeys(item: Pick<PublicCatalogItem, 'description' | 'genres' | 'posterUrl' | 'tags'>): CatalogIssueKey[] {

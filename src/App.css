@@ -626,6 +626,73 @@
   min-height: 34px;
 }
 
+.library-smart-views {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  margin: -4px 0 16px;
+}
+
+.library-smart-view {
+  align-items: center;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-height: 62px;
+  padding: 10px;
+  text-align: left;
+}
+
+.library-smart-view span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.library-smart-view strong {
+  color: var(--text-strong);
+  font-size: 13px;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.library-smart-view small {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.library-smart-view em {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-strong);
+  display: inline-flex;
+  font-size: 14px;
+  font-style: normal;
+  font-weight: 900;
+  justify-content: center;
+  min-width: 36px;
+  padding: 7px 8px;
+}
+
+.library-smart-view.active {
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 46%, var(--border));
+  color: var(--accent-dark);
+}
+
+.library-smart-view.active em {
+  border-color: color-mix(in srgb, var(--accent) 44%, var(--border));
+  color: var(--accent-dark);
+}
+
 .library-overview {
   align-items: stretch;
   display: grid;
@@ -5901,6 +5968,10 @@ textarea:focus-visible {
 
   .dice-readiness-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .library-smart-views {
+    grid-template-columns: 1fr;
   }
 
   .eligibility-recovery-actions {

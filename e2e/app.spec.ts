@@ -24,16 +24,24 @@ test('library and weighted dice work in demo mode', async ({ page }) => {
   await expect(page.getByTestId('library-focus-shelf')).toContainText('En foco')
   await expect(page.getByTestId('library-focus-shelf')).toContainText('1984 - George Orwell')
   await expect(page.getByRole('button', { name: 'Todo 7' })).toBeVisible()
+  await expect(page.getByTestId('library-smart-views')).toContainText('Listas para dado')
+  await expect(page.getByTestId('library-smart-views')).toContainText('Sin contexto')
+  await page.getByTestId('library-smart-views').getByRole('button', { name: /Sin contexto/ }).click()
+  await expect(page.getByText('Vista: Sin contexto')).toBeVisible()
+  await expect(page.getByText('4 de 7 entradas')).toBeVisible()
+  await expect(page.getByTestId('library-grid')).toContainText('Inception')
+  await expect(page.getByTestId('library-grid')).not.toContainText('Outer Wilds')
+  await page.getByRole('button', { name: 'Restablecer vista' }).click()
   await expect(page.getByLabel('Ordenar biblioteca')).toHaveValue('focus')
   await page.getByLabel('Ordenar biblioteca').selectOption('title')
   await expect(page.getByText('Orden: Titulo')).toBeVisible()
   await expect(page.locator('[data-testid="library-grid"] .item-card').first()).toContainText('1984 - George Orwell')
   await page.getByRole('button', { name: 'Restablecer vista' }).click()
   await expect(page.getByLabel('Ordenar biblioteca')).toHaveValue('focus')
-  await page.getByRole('button', { name: 'Lista' }).click()
+  await page.getByRole('button', { name: 'Lista', exact: true }).click()
   await expect(page.getByTestId('library-grid')).toHaveClass(/list-view/)
-  await page.getByRole('button', { name: 'Dado' }).click()
-  await page.getByRole('button', { name: 'Biblioteca' }).click()
+  await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await page.getByRole('button', { name: 'Biblioteca', exact: true }).click()
   await expect(page.getByTestId('library-grid')).toHaveClass(/list-view/)
   await page.getByRole('button', { name: 'Tarjetas' }).click()
   await expect(page.getByTestId('library-grid')).not.toHaveClass(/list-view/)
@@ -82,7 +90,7 @@ test('library and weighted dice work in demo mode', async ({ page }) => {
   await page.getByRole('button', { name: 'Empezar Outer Wilds' }).click()
   await expect(page.getByRole('button', { name: 'Completar Outer Wilds' })).toBeVisible()
 
-  await page.getByRole('button', { name: 'Dado' }).click()
+  await page.getByRole('button', { name: 'Dado', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Elige el siguiente hilo' })).toBeVisible()
   await expect(page.getByTestId('dice-readiness')).toContainText('Listo para tirar')
   await expect(page.getByTestId('dice-readiness')).toContainText('Candidatas')
@@ -130,8 +138,8 @@ test('mobile layout keeps the core controls reachable', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByTestId('library-overview')).toBeVisible()
   await expect(page.getByLabel('Buscar en biblioteca')).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Explorador' })).toBeVisible()
-  await page.getByRole('button', { name: 'Dado' }).click()
+  await expect(page.getByRole('button', { name: 'Explorador', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Dado', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Tirar dado ponderado' })).toBeVisible()
 })
 
@@ -157,7 +165,7 @@ test('pwa metadata is present', async ({ page }) => {
 
   await page.goto('/?tab=dice')
   await expect(page.getByRole('heading', { name: 'Elige el siguiente hilo' })).toBeVisible()
-  await page.getByRole('button', { name: 'Explorador' }).click()
+  await page.getByRole('button', { name: 'Explorador', exact: true }).click()
   await expect(page).toHaveURL(/tab=explorer/)
 })
 
@@ -203,13 +211,13 @@ test('settings show pending changes before saving preferences', async ({ page })
 
 test('explorer searches public catalog and saves to private library', async ({ page }) => {
   await page.goto('/')
-  await page.getByRole('button', { name: 'Explorador' }).click()
+  await page.getByRole('button', { name: 'Explorador', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Encuentra la proxima entrada' })).toBeVisible()
   await expect(page.getByLabel('Resumen del explorador')).toContainText('Cola')
   await page.getByLabel('Tipo de busqueda en explorador').selectOption('game')
   await page.getByRole('button', { name: 'Ajustes' }).click()
   await expect(page.getByLabel('Tipo por defecto')).toHaveValue('game')
-  await page.getByRole('button', { name: 'Explorador' }).click()
+  await page.getByRole('button', { name: 'Explorador', exact: true }).click()
   await expect(page.getByLabel('Tipo de busqueda en explorador')).toHaveValue('game')
   await page.getByLabel('Buscar en explorador').fill('Odisea')
   await page.getByRole('button', { name: 'Buscar' }).click()
@@ -245,7 +253,7 @@ test('explorer searches public catalog and saves to private library', async ({ p
   await expect(page.getByText('No hay hallazgos nuevos para esa busqueda.')).toBeVisible()
   await expect(page.getByRole('tab', { name: /En cola 0/ })).toBeVisible()
   await expect(page.getByRole('tab', { name: /Guardados 1/ })).toBeVisible()
-  await page.getByRole('button', { name: 'Biblioteca' }).click()
+  await page.getByRole('button', { name: 'Biblioteca', exact: true }).click()
   await expect(page.getByTestId('library-grid')).toContainText('Odisea')
   await page.locator('.item-main').filter({ hasText: 'Odisea' }).click()
   const editor = page.getByRole('dialog', { name: 'Entrada' })
@@ -256,7 +264,7 @@ test('explorer searches public catalog and saves to private library', async ({ p
 
 test('explorer can clean a filtered queued view', async ({ page }) => {
   await page.goto('/')
-  await page.getByRole('button', { name: 'Explorador' }).click()
+  await page.getByRole('button', { name: 'Explorador', exact: true }).click()
   await page.getByLabel('Tipo de busqueda en explorador').selectOption('book')
   await page.getByLabel('Buscar en explorador').fill('Odisea')
   await page.getByRole('button', { name: 'Buscar' }).click()
@@ -277,7 +285,7 @@ test('explorer can clean a filtered queued view', async ({ page }) => {
 
 test('library editor explains private copies from the Nexo catalog', async ({ page }) => {
   await page.goto('/')
-  await page.getByRole('button', { name: 'Explorador' }).click()
+  await page.getByRole('button', { name: 'Explorador', exact: true }).click()
   await page.getByLabel('Tipo de busqueda en explorador').selectOption('book')
   await page.getByLabel('Buscar en explorador').fill('Odisea')
   await page.getByRole('button', { name: 'Buscar' }).click()
@@ -287,7 +295,7 @@ test('library editor explains private copies from the Nexo catalog', async ({ pa
   await expect(nexoSpotlight).toContainText('Odisea')
   await nexoSpotlight.getByRole('button', { name: 'Guardar Odisea' }).click()
 
-  await page.getByRole('button', { name: 'Biblioteca' }).click()
+  await page.getByRole('button', { name: 'Biblioteca', exact: true }).click()
   await expect(page.getByTestId('library-grid')).toContainText('Odisea')
   await page.locator('.item-main').filter({ hasText: 'Odisea' }).click()
 
@@ -408,7 +416,7 @@ test('moderator curation can create a public catalog item in demo mode', async (
 
 test('moderator can turn an explorer candidate into a public catalog item', async ({ page }) => {
   await page.goto('/')
-  await page.getByRole('button', { name: 'Explorador' }).click()
+  await page.getByRole('button', { name: 'Explorador', exact: true }).click()
   await page.getByLabel('Buscar en explorador').fill('V Rising')
   await page.getByRole('button', { name: 'Buscar' }).click()
 
