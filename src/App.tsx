@@ -253,9 +253,19 @@ function feedbackToneFromText(message: string): FeedbackTone {
 
 type ActivityFocus = ActivityTarget
 type AppTab = ActivityTab
-type PendingNavigation = { focus?: ActivityFocus; source: 'app' | 'history'; tab: AppTab }
+type PendingNavigation = { draftItem?: ListItem; focus?: ActivityFocus; source: 'app' | 'history'; tab: AppTab }
 type ActivityRecorder = (entry: Omit<ActivityEntry, 'createdAt' | 'id'>) => void
 type QuickSearchEntry =
+  | {
+      Icon: typeof Library
+      detail: string
+      id: string
+      kind: 'create'
+      meta: string
+      query: string
+      tone: 'create'
+      title: string
+    }
   | {
       Icon: typeof Library
       detail: string
@@ -503,6 +513,7 @@ function App() {
   const [activeTab, setActiveTabState] = useState<AppTab>(() => readInitialAppTab())
   const [pendingNavigation, setPendingNavigation] = useState<PendingNavigation | undefined>()
   const [activityFocus, setActivityFocus] = useState<ActivityFocus | undefined>(() => readInitialActivityFocus())
+  const [libraryDraftRequest, setLibraryDraftRequest] = useState<ListItem | undefined>()
   const [quickSearchOpen, setQuickSearchOpen] = useState(false)
   const [tabsWithUnsavedChanges, setTabsWithUnsavedChanges] = useState<Partial<Record<AppTab, boolean>>>({})
   const [theme, setTheme] = useState<ThemeMode>(() => {
@@ -579,6 +590,7 @@ function App() {
     [reportUnsavedChanges],
   )
   const clearActivityFocus = useCallback(() => setActivityFocus(undefined), [])
+  const clearLibraryDraftRequest = useCallback(() => setLibraryDraftRequest(undefined), [])
   if (auth.loading) {
     return <ShellState title="Cargando acceso" />
   }
@@ -628,12 +640,38 @@ function App() {
     writeAppTabToUrl(nextTab, 'push', focus)
   }
 
+  function createLibraryDraftFromTitle(title: string) {
+    const trimmedTitle = title.trim()
+    if (!trimmedTitle) return
+
+    const draft = { ...blankItem(), title: trimmedTitle }
+    setQuickSearchOpen(false)
+    if (activeTab === 'library') {
+      setActivityFocus(undefined)
+      setLibraryDraftRequest(draft)
+      writeAppTabToUrl('library', 'push')
+      return
+    }
+    if (tabsWithUnsavedChanges[activeTab]) {
+      setPendingNavigation({ draftItem: draft, source: 'app', tab: 'library' })
+      return
+    }
+
+    setActivityFocus(undefined)
+    setLibraryDraftRequest(draft)
+    setActiveTabState('library')
+    writeAppTabToUrl('library', 'push')
+  }
+
   function discardPendingNavigation() {
     if (!pendingNavigation) return
 
-    const { focus, source, tab: nextTab } = pendingNavigation
+    const { draftItem, focus, source, tab: nextTab } = pendingNavigation
     setTabsWithUnsavedChanges((current) => ({ ...current, [activeTab]: false }))
     setPendingNavigation(undefined)
+    if (draftItem) {
+      setLibraryDraftRequest(draftItem)
+    }
     setActivityFocus(focus)
     setActiveTabState(nextTab)
     writeAppTabToUrl(nextTab, source === 'history' ? 'replace' : 'push', focus)
@@ -711,6 +749,7 @@ function App() {
           items={library.items}
           navItems={visibleNavItems}
           onClose={() => setQuickSearchOpen(false)}
+          onCreateItem={createLibraryDraftFromTitle}
           onOpenItem={(item) => {
             setQuickSearchOpen(false)
             changeActiveTab('library', { kind: 'item', id: item.id })
@@ -739,9 +778,11 @@ function App() {
         {activeTab === 'library' && (
           <LibraryTab
             activityFocusItemId={activityFocus?.kind === 'item' ? activityFocus.id : undefined}
+            draftRequest={libraryDraftRequest}
             library={library}
             onActivity={library.recordActivity}
             onActivityFocusHandled={clearActivityFocus}
+            onDraftRequestHandled={clearLibraryDraftRequest}
             onNavigate={changeActiveTab}
             setTheme={setTheme}
           />
@@ -771,17 +812,20 @@ function QuickSearchDialog({
   items,
   navItems,
   onClose,
+  onCreateItem,
   onOpenItem,
   onOpenTab,
 }: {
   items: ListItem[]
   navItems: ShellNavItem[]
   onClose: () => void
+  onCreateItem: (title: string) => void
   onOpenItem: (item: ListItem) => void
   onOpenTab: (tab: AppTab) => void
 }) {
   const [query, setQuery] = useState('')
   const [activeResultIndex, setActiveResultIndex] = useState(0)
+  const trimmedQuery = query.trim()
   const normalizedQuery = normalizeKey(query)
   const focusItems = useMemo(() => getLibraryFocusItems(items), [items])
   const results = useMemo(() => {
@@ -813,6 +857,26 @@ function QuickSearchDialog({
     }
 
     const tokens = normalizedQuery.split(' ').filter(Boolean)
+    const exactItemMatch = items.some((item) => normalizeKey(item.title) === normalizedQuery)
+    const createEntry: ScoredQuickSearchEntry[] =
+      trimmedQuery && !exactItemMatch
+        ? [
+            {
+              entry: {
+                Icon: Plus,
+                detail: 'Nueva ficha privada',
+                id: `create-${slugify(trimmedQuery) || 'entrada'}`,
+                kind: 'create',
+                meta: 'Crear',
+                query: trimmedQuery,
+                title: `Crear entrada "${trimmedQuery}"`,
+                tone: 'create',
+              },
+              index: -1,
+              score: 25,
+            },
+          ]
+        : []
     const scoredNavigationEntries = navigationEntries
       .map((entry, index): ScoredQuickSearchEntry | undefined => {
         const titleKey = normalizeKey(entry.title)
@@ -869,11 +933,11 @@ function QuickSearchDialog({
       })
       .filter((result): result is ScoredQuickSearchEntry => Boolean(result))
 
-    return [...scoredNavigationEntries, ...scoredItemEntries]
+    return [...createEntry, ...scoredNavigationEntries, ...scoredItemEntries]
       .sort((a, b) => b.score - a.score || a.entry.title.localeCompare(b.entry.title) || a.index - b.index)
       .slice(0, 8)
       .map((result) => result.entry)
-  }, [focusItems, items, navItems, normalizedQuery])
+  }, [focusItems, items, navItems, normalizedQuery, trimmedQuery])
   const resultLabel = normalizedQuery ? 'Resultados' : 'Secciones y foco'
   const resultTotal = items.length + navItems.length
   const activeEntry = results[Math.min(activeResultIndex, Math.max(results.length - 1, 0))]
@@ -884,6 +948,7 @@ function QuickSearchDialog({
   }
 
   function openActiveResult() {
+    if (activeEntry?.kind === 'create') onCreateItem(activeEntry.query)
     if (activeEntry?.kind === 'item') onOpenItem(activeEntry.item)
     if (activeEntry?.kind === 'tab') onOpenTab(activeEntry.tab)
   }
@@ -960,9 +1025,10 @@ function QuickSearchDialog({
                     className={isActive ? 'quick-search-result active' : 'quick-search-result'}
                     id={`quick-search-result-${entry.id}`}
                     type="button"
-                    aria-label={`Abrir ${entry.title}`}
+                    aria-label={entry.kind === 'create' ? `Crear entrada ${entry.query}` : `Abrir ${entry.title}`}
                     aria-current={isActive ? 'true' : undefined}
                     onClick={() => {
+                      if (entry.kind === 'create') onCreateItem(entry.query)
                       if (entry.kind === 'item') onOpenItem(entry.item)
                       if (entry.kind === 'tab') onOpenTab(entry.tab)
                     }}
@@ -1171,16 +1237,20 @@ interface PendingCatalogSeedImport {
 
 function LibraryTab({
   activityFocusItemId,
+  draftRequest,
   library,
   onActivity,
   onActivityFocusHandled,
+  onDraftRequestHandled,
   onNavigate,
   setTheme,
 }: {
   activityFocusItemId?: string
+  draftRequest?: ListItem
   library: LibrarySurface
   onActivity: ActivityRecorder
   onActivityFocusHandled: () => void
+  onDraftRequestHandled: () => void
   onNavigate: (tab: AppTab, focus?: ActivityFocus) => void
   setTheme: (theme: ThemeMode) => void
 }) {
@@ -1190,6 +1260,7 @@ function LibraryTab({
   const [smartView, setSmartView] = useState<LibrarySmartView>('all')
   const [sortMode, setSortMode] = useState<LibrarySortMode>('focus')
   const [editingItem, setEditingItem] = useState<ListItem | undefined>()
+  const [handledDraftRequestId, setHandledDraftRequestId] = useState<string | undefined>()
   const [deleteTarget, setDeleteTarget] = useState<ListItem | undefined>()
   const [deletedItemUndo, setDeletedItemUndo] = useState<ListItem | undefined>()
   const [deletedLibraryUndo, setDeletedLibraryUndo] = useState<ListItem[]>([])
@@ -1249,6 +1320,16 @@ function LibraryTab({
   const missingActivityFocus = Boolean(activityFocusItemId && !library.loading && !focusedActivityItem)
   const missingActivitySearchQuery = activityFocusItemId ? getSearchQueryFromItemId(activityFocusItemId) : ''
   const editorItem = editingItem ?? focusedActivityItem
+
+  if (draftRequest && handledDraftRequestId !== draftRequest.id) {
+    setHandledDraftRequestId(draftRequest.id)
+    setEditingItem(draftRequest)
+    setQuery(draftRequest.title)
+    setTypeFilter('all')
+    setStatusFilter('all')
+    setSmartView('all')
+    setSortMode('focus')
+  }
 
   async function prepareLibraryImportFile(file?: File) {
     if (!file) return
@@ -1474,6 +1555,7 @@ function LibraryTab({
   function closeLibraryEditor() {
     setEditingItem(undefined)
     onActivityFocusHandled()
+    onDraftRequestHandled()
     writeAppTabToUrl('library', 'push')
   }
 
@@ -1499,6 +1581,7 @@ function LibraryTab({
       setPendingLibraryImport(undefined)
       setEditingItem(undefined)
       onActivityFocusHandled()
+      onDraftRequestHandled()
       writeAppTabToUrl('library')
       setImportStatus(`${item.title || 'Entrada'} guardada en Biblioteca`)
       onActivity({

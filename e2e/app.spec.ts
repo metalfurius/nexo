@@ -303,6 +303,30 @@ test('quick search opens sections through the pending-change guard', async ({ pa
   await expect(page.getByRole('heading', { name: 'Encuentra la proxima entrada' })).toBeVisible()
 })
 
+test('quick search can create a prefilled item through the pending-change guard', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Elige el siguiente hilo' })).toBeVisible()
+  await page.getByLabel('Energia').selectOption('high')
+  await expect(page.getByText('Cambios pendientes')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Busqueda rapida' }).click()
+  const quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  await quickSearch.getByLabel('Buscar en Nexo').fill('Manual global')
+  await expect(quickSearch.getByRole('button', { name: 'Crear entrada Manual global' })).toHaveAttribute('aria-current', 'true')
+  await quickSearch.getByRole('button', { name: 'Crear entrada Manual global' }).click()
+
+  await expect(page.getByLabel('Salida con cambios pendientes')).toContainText('Cambios pendientes en Dado')
+  await expect(page).toHaveURL(/tab=dice/)
+  await page.getByLabel('Salida con cambios pendientes').getByRole('button', { name: 'Descartar cambios' }).click()
+
+  const createdEditor = page.getByRole('dialog', { name: 'Entrada' })
+  await expect(createdEditor.getByLabel('Titulo')).toHaveValue('Manual global')
+  await createdEditor.getByLabel('Notas').fill('Creada desde busqueda rapida global.')
+  await createdEditor.getByRole('button', { name: 'Guardar' }).click()
+  await expect(page.getByText('Manual global guardada en Biblioteca')).toBeVisible()
+})
+
 test('activity entries navigate through the pending-change guard', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Anadir' }).click()
