@@ -214,6 +214,7 @@ function feedbackToneFromText(message: string): FeedbackTone {
     normalized.includes('importadas') ||
     normalized.includes('copiado') ||
     normalized.includes('anadida') ||
+    normalized.includes('afinad') ||
     normalized.includes('enfriado') ||
     normalized.includes('reactivad') ||
     normalized.includes('enviados') ||
@@ -1539,6 +1540,8 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<string | undefined>()
   const [bulkDismissUndo, setBulkDismissUndo] = useState<DiscoveryCandidate[]>([])
+  const [savedExplorerItem, setSavedExplorerItem] = useState<ListItem | undefined>()
+  const [editingSavedItem, setEditingSavedItem] = useState<ListItem | undefined>()
   const [selected, setSelected] = useState<DiscoveryCandidate | undefined>()
   const [catalogDraft, setCatalogDraft] = useState<PublicCatalogItem | undefined>()
   const type = library.settings.explorerDefaultType
@@ -1567,9 +1570,14 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
   const queuedExternalCount = queuedSourceCounts.external
   const queuedPromptCount = queuedSourceCounts.prompt
 
+  function clearExplorerRecentActions() {
+    setBulkDismissUndo([])
+    setSavedExplorerItem(undefined)
+  }
+
   async function changeSearchType(nextType: ExplorerSearchType) {
     setMessage(undefined)
-    setBulkDismissUndo([])
+    clearExplorerRecentActions()
     try {
       await library.saveSettings({ explorerDefaultType: nextType })
     } catch (reason) {
@@ -1580,7 +1588,7 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
   async function runDiscoverySearch() {
     const cleanedQuery = query.trim()
     setMessage(undefined)
-    setBulkDismissUndo([])
+    clearExplorerRecentActions()
     if (cleanedQuery.length < 2) {
       setMessage('Escribe al menos 2 caracteres para buscar.')
       return
@@ -1614,7 +1622,7 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
 
   async function addPromptCard() {
     try {
-      setBulkDismissUndo([])
+      clearExplorerRecentActions()
       const title = promptDeck[Math.floor(Math.random() * promptDeck.length)]
       await library.queueDiscoveryCandidates([promptToDiscovery(title)])
       setView('queued')
@@ -1628,6 +1636,7 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
     try {
       setBulkDismissUndo([])
       const item = await library.saveDiscoveryToLibrary(candidate)
+      setSavedExplorerItem(item)
       setMessage(`${item.title} guardado en Biblioteca.`)
       return true
     } catch (reason) {
@@ -1638,7 +1647,7 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
 
   async function dismissCandidate(candidate: DiscoveryCandidate) {
     try {
-      setBulkDismissUndo([])
+      clearExplorerRecentActions()
       await library.dismissDiscoveryCandidate(candidate.id)
       setMessage(`${candidate.title} descartado de la cola.`)
       return true
@@ -1650,7 +1659,7 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
 
   async function restoreCandidate(candidate: DiscoveryCandidate) {
     try {
-      setBulkDismissUndo([])
+      clearExplorerRecentActions()
       await library.restoreDiscoveryCandidate(candidate.id)
       setView('queued')
       setMessage(`${candidate.title} recuperado a la cola.`)
@@ -1667,6 +1676,7 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
 
     try {
       await Promise.all(candidatesToDismiss.map((candidate) => library.dismissDiscoveryCandidate(candidate.id)))
+      setSavedExplorerItem(undefined)
       setBulkDismissUndo(candidatesToDismiss)
       setMessage(
         candidatesToDismiss.length === 1
@@ -1685,7 +1695,7 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
     try {
       await Promise.all(candidatesToRestore.map((candidate) => library.restoreDiscoveryCandidate(candidate.id)))
       setView('queued')
-      setBulkDismissUndo([])
+      clearExplorerRecentActions()
       setMessage(
         candidatesToRestore.length === 1
           ? `${candidatesToRestore[0].title} recuperado a la cola.`
@@ -1693,6 +1703,17 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
       )
     } catch (reason) {
       setMessage(reason instanceof Error ? reason.message : 'No se pudo deshacer el descarte.')
+    }
+  }
+
+  async function saveExplorerItemEdits(item: ListItem) {
+    try {
+      await library.saveItem(item)
+      setEditingSavedItem(undefined)
+      setSavedExplorerItem(item)
+      setMessage(`${item.title || 'Entrada'} afinada en Biblioteca.`)
+    } catch (reason) {
+      setMessage(reason instanceof Error ? reason.message : 'No se pudo guardar la ficha.')
     }
   }
 
@@ -1803,12 +1824,25 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
 
         {loading && <FeedbackMessage tone="loading">Buscando en Nexo y fuera...</FeedbackMessage>}
         {message && <FeedbackMessage tone={feedbackToneFromText(message)}>{message}</FeedbackMessage>}
-        {bulkDismissUndo.length > 0 && (
+        {(bulkDismissUndo.length > 0 || savedExplorerItem) && (
           <div className="feedback-action-row" aria-label="Accion reciente del explorador">
-            <button className="secondary-button" type="button" onClick={() => void undoDismissVisibleQueue()}>
-              <RotateCcw size={16} />
-              Deshacer descarte
-            </button>
+            {savedExplorerItem && (
+              <button
+                aria-label={`Afinar ficha guardada ${savedExplorerItem.title}`}
+                className="secondary-button"
+                type="button"
+                onClick={() => setEditingSavedItem(savedExplorerItem)}
+              >
+                <Info size={16} />
+                Afinar ficha
+              </button>
+            )}
+            {bulkDismissUndo.length > 0 && (
+              <button className="secondary-button" type="button" onClick={() => void undoDismissVisibleQueue()}>
+                <RotateCcw size={16} />
+                Deshacer descarte
+              </button>
+            )}
           </div>
         )}
 
@@ -2018,6 +2052,14 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
           item={catalogDraft}
           onClose={() => setCatalogDraft(undefined)}
           onSave={saveCatalogDraft}
+        />
+      )}
+
+      {editingSavedItem && (
+        <ItemEditor
+          item={editingSavedItem}
+          onClose={() => setEditingSavedItem(undefined)}
+          onSave={(item) => void saveExplorerItemEdits(item)}
         />
       )}
     </section>

@@ -558,6 +558,8 @@
 
 .feedback-action-row {
   display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   justify-content: flex-start;
   margin: -4px 0 14px;
 }
