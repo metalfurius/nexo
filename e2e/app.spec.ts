@@ -265,6 +265,11 @@ test('settings show pending changes before saving preferences', async ({ page })
       }),
     ),
   })
+  await expect(page.getByText('Backup preparado: 1 nueva / 0 actualizadas')).toBeVisible()
+  await expect(page.getByLabel('Backup preparado')).toContainText('nexo-backup-import.json')
+  await expect(page.getByLabel('Backup preparado')).toContainText('1 entradas revisadas antes de aplicar')
+  await expect(page.getByText('Backup Probe')).not.toBeVisible()
+  await page.getByRole('button', { name: 'Aplicar backup' }).click()
   await expect(page.getByText('Importadas 1 entradas desde backup')).toBeVisible()
   await page.getByRole('button', { name: 'Biblioteca', exact: true }).click()
   await expect(page.getByTestId('library-grid')).toContainText('Backup Probe')
@@ -277,6 +282,41 @@ test('settings show pending changes before saving preferences', async ({ page })
   await expect(page.getByText('Cambios pendientes')).toBeVisible()
   await page.getByRole('button', { name: 'Guardar cambios' }).click()
   await expect(page.getByText('Ajustes guardados')).toBeVisible()
+})
+
+test('library quick import previews a backup before applying it', async ({ page }) => {
+  await page.goto('/')
+  await page.getByLabel('Importar biblioteca desde JSON').setInputFiles({
+    name: 'nexo-library-preview.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(
+      JSON.stringify({
+        schemaVersion: 1,
+        exportedAt: '2026-06-03T00:00:00.000Z',
+        items: [
+          {
+            title: 'Preview Probe',
+            type: 'movie',
+            status: 'wishlist',
+            genres: ['Drama'],
+            tags: ['preview'],
+            moodTags: [],
+            weights: { priority: 1, surprise: 0.5, challenge: 0.5 },
+            source: 'manual',
+            createdAt: '2026-06-01T00:00:00.000Z',
+            updatedAt: '2026-06-01T00:00:00.000Z',
+          },
+        ],
+      }),
+    ),
+  })
+
+  await expect(page.getByText('Backup preparado: 1 nueva / 0 actualizadas')).toBeVisible()
+  await expect(page.getByLabel('Backup preparado en biblioteca')).toContainText('nexo-library-preview.json')
+  await expect(page.getByText('Preview Probe')).not.toBeVisible()
+  await page.getByRole('button', { name: 'Aplicar backup' }).click()
+  await expect(page.getByText('Importadas 1 entradas')).toBeVisible()
+  await expect(page.getByTestId('library-grid')).toContainText('Preview Probe')
 })
 
 test('explorer searches public catalog and saves to private library', async ({ page }) => {

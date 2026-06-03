@@ -30,6 +30,14 @@ export interface ParsedLibraryImport {
   settings?: UserSettings
 }
 
+export interface LibraryImportSummary {
+  totalItems: number
+  newItems: number
+  updatedItems: number
+  duplicateItems: number
+  settingsIncluded: boolean
+}
+
 export function createLibraryExportPayload(
   items: ListItem[],
   settings: UserSettings,
@@ -40,6 +48,29 @@ export function createLibraryExportPayload(
     exportedAt,
     items,
     settings,
+  }
+}
+
+export function getLibraryImportSummary(payload: ParsedLibraryImport, currentItems: Pick<ListItem, 'id'>[]): LibraryImportSummary {
+  const currentIds = new Set(currentItems.map((item) => item.id))
+  const importedIds = new Set(payload.items.map((item) => item.id))
+  let updatedItems = 0
+  let newItems = 0
+
+  for (const id of importedIds) {
+    if (currentIds.has(id)) {
+      updatedItems += 1
+    } else {
+      newItems += 1
+    }
+  }
+
+  return {
+    totalItems: payload.items.length,
+    newItems,
+    updatedItems,
+    duplicateItems: payload.items.length - importedIds.size,
+    settingsIncluded: Boolean(payload.settings),
   }
 }
 

@@ -141,7 +141,13 @@ import {
   getPrivateDataHealth,
   getRecentRecommendationItems,
 } from './lib/privateDataInsights'
-import { createLibraryExportPayload, parseLibraryImportPayload } from './lib/libraryBackup'
+import {
+  createLibraryExportPayload,
+  getLibraryImportSummary,
+  parseLibraryImportPayload,
+  type LibraryImportSummary,
+  type ParsedLibraryImport,
+} from './lib/libraryBackup'
 import { sortLibraryItems, type LibrarySortMode } from './lib/librarySorting'
 import { createPublicCatalogSeedTemplate, parsePublicCatalogSeed } from './lib/publicCatalogSeed'
 import { recommendItem, scoreCandidates } from './lib/recommendations'
@@ -204,7 +210,13 @@ type FeedbackTone = 'info' | 'success' | 'danger' | 'loading'
 function feedbackToneFromText(message: string): FeedbackTone {
   const normalized = message.toLowerCase()
   if (normalized.includes('no se pudo') || normalized.includes('error') || normalized.includes('invalido')) return 'danger'
-  if (normalized.startsWith('buscando') || normalized.startsWith('borrando') || normalized.startsWith('importando')) {
+  if (
+    normalized.startsWith('buscando') ||
+    normalized.startsWith('borrando') ||
+    normalized.startsWith('importando') ||
+    normalized.startsWith('preparando') ||
+    normalized.startsWith('restaurando')
+  ) {
     return 'loading'
   }
   if (
@@ -558,6 +570,12 @@ interface LibrarySurface {
   externalCandidateToDiscovery: (candidate: ExternalCandidate) => DiscoveryCandidate
 }
 
+interface PendingBackupImport {
+  fileName: string
+  payload: ParsedLibraryImport
+  summary: LibraryImportSummary
+}
+
 function LibraryTab({
   library,
   onNavigate,
@@ -577,6 +595,7 @@ function LibraryTab({
   const [deletedItemUndo, setDeletedItemUndo] = useState<ListItem | undefined>()
   const [deletedLibraryUndo, setDeletedLibraryUndo] = useState<ListItem[]>([])
   const [statusUndo, setStatusUndo] = useState<{ id: string; title: string; previousStatus: ItemStatus } | undefined>()
+  const [pendingLibraryImport, setPendingLibraryImport] = useState<PendingBackupImport | undefined>()
   const [importStatus, setImportStatus] = useState<string | undefined>()
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
@@ -627,15 +646,30 @@ function LibraryTab({
     [library.discoveryCandidates, library.items],
   )
 
-  async function importLibraryFile(file?: File) {
+  async function prepareLibraryImportFile(file?: File) {
     if (!file) return
 
-    setImportStatus('Importando biblioteca...')
+    setImportStatus('Preparando backup JSON...')
     setDeletedItemUndo(undefined)
     setDeletedLibraryUndo([])
     setStatusUndo(undefined)
     try {
       const payload = parseLibraryImportPayload(JSON.parse(await file.text()))
+      const summary = getLibraryImportSummary(payload, library.items)
+      setPendingLibraryImport({ fileName: file.name, payload, summary })
+      setImportStatus(`Backup preparado: ${formatBackupImportSummary(summary)}`)
+    } catch (reason) {
+      setPendingLibraryImport(undefined)
+      setImportStatus(reason instanceof Error ? reason.message : 'No se pudo importar el archivo')
+    }
+  }
+
+  async function applyLibraryImportFile() {
+    if (!pendingLibraryImport) return
+
+    setImportStatus('Importando biblioteca...')
+    try {
+      const { payload, summary } = pendingLibraryImport
 
       for (const item of payload.items) {
         await library.saveItem(item)
@@ -646,12 +680,18 @@ function LibraryTab({
       }
       setImportStatus(
         payload.settings
-          ? `Importadas ${payload.items.length} entradas y ajustes`
-          : `Importadas ${payload.items.length} entradas`,
+          ? `Importadas ${summary.totalItems} entradas y ajustes`
+          : `Importadas ${summary.totalItems} entradas`,
       )
+      setPendingLibraryImport(undefined)
     } catch (reason) {
       setImportStatus(reason instanceof Error ? reason.message : 'No se pudo importar el archivo')
     }
+  }
+
+  function cancelLibraryImportFile() {
+    setPendingLibraryImport(undefined)
+    setImportStatus('Importacion de backup cancelada')
   }
 
   async function deleteEntireLibrary() {
@@ -660,6 +700,7 @@ function LibraryTab({
     setDeletedItemUndo(undefined)
     setDeletedLibraryUndo([])
     setStatusUndo(undefined)
+    setPendingLibraryImport(undefined)
     await library.deleteAllItems()
     setDeletedLibraryUndo(deletedItems)
     setDeleteDialogOpen(false)
@@ -676,6 +717,7 @@ function LibraryTab({
     setDeletedItemUndo(deleteTarget)
     setDeletedLibraryUndo([])
     setStatusUndo(undefined)
+    setPendingLibraryImport(undefined)
     setDeleteTarget(undefined)
     setImportStatus(`${deletedTitle} borrado`)
   }
@@ -687,6 +729,7 @@ function LibraryTab({
       await library.saveItem(deletedItemUndo)
       setImportStatus(`${deletedItemUndo.title} recuperado en Biblioteca`)
       setDeletedItemUndo(undefined)
+      setPendingLibraryImport(undefined)
     } catch (reason) {
       setImportStatus(reason instanceof Error ? reason.message : 'No se pudo deshacer el borrado.')
     }
@@ -702,6 +745,7 @@ function LibraryTab({
       }
       setImportStatus(`${deletedLibraryUndo.length} entradas recuperadas en Biblioteca`)
       setDeletedLibraryUndo([])
+      setPendingLibraryImport(undefined)
     } catch (reason) {
       setImportStatus(reason instanceof Error ? reason.message : 'No se pudo deshacer el borrado total.')
     }
@@ -731,6 +775,7 @@ function LibraryTab({
       setDeletedItemUndo(undefined)
       setDeletedLibraryUndo([])
       setStatusUndo({ id: item.id, title: item.title, previousStatus: item.status })
+      setPendingLibraryImport(undefined)
       setImportStatus(`${item.title} ahora es ${statusLabels[status]}`)
     } catch (reason) {
       setImportStatus(reason instanceof Error ? reason.message : 'No se pudo actualizar el estado.')
@@ -744,6 +789,7 @@ function LibraryTab({
       await library.setStatus(statusUndo.id, statusUndo.previousStatus)
       setImportStatus(`${statusUndo.title} recuperado como ${statusLabels[statusUndo.previousStatus]}`)
       setStatusUndo(undefined)
+      setPendingLibraryImport(undefined)
     } catch (reason) {
       setImportStatus(reason instanceof Error ? reason.message : 'No se pudo deshacer el cambio de estado.')
     }
@@ -753,6 +799,7 @@ function LibraryTab({
     try {
       await library.saveItem(item)
       setDeletedItemUndo(undefined)
+      setPendingLibraryImport(undefined)
       setEditingItem(undefined)
       setImportStatus(`${item.title || 'Entrada'} guardada en Biblioteca`)
     } catch (reason) {
@@ -819,7 +866,7 @@ function LibraryTab({
                   aria-label="Importar biblioteca desde JSON"
                   type="file"
                   onChange={(event) => {
-                    void importLibraryFile(event.target.files?.[0])
+                    void prepareLibraryImportFile(event.target.files?.[0])
                     event.target.value = ''
                   }}
                 />
@@ -1006,6 +1053,25 @@ function LibraryTab({
         {library.loading && <FeedbackMessage tone="loading">Cargando biblioteca...</FeedbackMessage>}
         {library.error && <FeedbackMessage tone="danger">{library.error}</FeedbackMessage>}
         {importStatus && <FeedbackMessage tone={feedbackToneFromText(importStatus)}>{importStatus}</FeedbackMessage>}
+        {pendingLibraryImport && (
+          <div className="backup-import-preview" aria-label="Backup preparado en biblioteca">
+            <div>
+              <strong>{pendingLibraryImport.fileName}</strong>
+              <span>{formatBackupImportSummary(pendingLibraryImport.summary)}</span>
+              <small>{pendingLibraryImport.summary.totalItems} entradas revisadas antes de aplicar</small>
+            </div>
+            <div className="action-row end">
+              <button className="ghost-button" type="button" onClick={cancelLibraryImportFile}>
+                <X size={16} />
+                Cancelar
+              </button>
+              <button className="primary-button" type="button" onClick={() => void applyLibraryImportFile()}>
+                <Upload size={16} />
+                Aplicar backup
+              </button>
+            </div>
+          </div>
+        )}
         {(deletedItemUndo || deletedLibraryUndo.length > 0 || statusUndo) && (
           <div className="feedback-action-row" aria-label="Accion reciente de biblioteca">
             {deletedItemUndo && (
@@ -2204,6 +2270,16 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
   )
 }
 
+function formatBackupImportSummary(summary: LibraryImportSummary) {
+  const parts = [
+    `${summary.newItems} ${summary.newItems === 1 ? 'nueva' : 'nuevas'}`,
+    `${summary.updatedItems} ${summary.updatedItems === 1 ? 'actualizada' : 'actualizadas'}`,
+  ]
+  if (summary.duplicateItems) parts.push(`${summary.duplicateItems} ${summary.duplicateItems === 1 ? 'duplicada' : 'duplicadas'}`)
+  if (summary.settingsIncluded) parts.push('ajustes')
+  return parts.join(' / ')
+}
+
 function SettingsTab({
   library,
   onNavigate,
@@ -2226,6 +2302,7 @@ function SettingsTab({
   })
   const [status, setStatus] = useState<string | undefined>()
   const [editingItem, setEditingItem] = useState<ListItem | undefined>()
+  const [pendingBackupImport, setPendingBackupImport] = useState<PendingBackupImport | undefined>()
   const draftFavoriteTags = splitList(draft.favoriteTags)
   const draftFavoriteGenres = splitList(draft.favoriteGenres)
   const draftBlockedTags = splitList(draft.blockedTags)
@@ -2255,6 +2332,7 @@ function SettingsTab({
     }
     setTheme(draft.theme)
     await library.saveSettings(nextSettings)
+    setPendingBackupImport(undefined)
     setStatus('Ajustes guardados')
   }
 
@@ -2269,12 +2347,27 @@ function SettingsTab({
     setStatus('Backup JSON descargado')
   }
 
-  async function importPrivateBackup(file?: File) {
+  async function preparePrivateBackupImport(file?: File) {
     if (!file) return
+
+    setStatus('Preparando backup JSON...')
+    try {
+      const payload = parseLibraryImportPayload(JSON.parse(await file.text()))
+      const summary = getLibraryImportSummary(payload, library.items)
+      setPendingBackupImport({ fileName: file.name, payload, summary })
+      setStatus(`Backup preparado: ${formatBackupImportSummary(summary)}`)
+    } catch (reason) {
+      setPendingBackupImport(undefined)
+      setStatus(reason instanceof Error ? reason.message : 'No se pudo importar el backup.')
+    }
+  }
+
+  async function applyPrivateBackupImport() {
+    if (!pendingBackupImport) return
 
     setStatus('Importando backup JSON...')
     try {
-      const payload = parseLibraryImportPayload(JSON.parse(await file.text()))
+      const { payload, summary } = pendingBackupImport
 
       for (const item of payload.items) {
         await library.saveItem(item)
@@ -2292,12 +2385,18 @@ function SettingsTab({
       }
       setStatus(
         payload.settings
-          ? `Importadas ${payload.items.length} entradas y ajustes desde backup`
-          : `Importadas ${payload.items.length} entradas desde backup`,
+          ? `Importadas ${summary.totalItems} entradas y ajustes desde backup`
+          : `Importadas ${summary.totalItems} entradas desde backup`,
       )
+      setPendingBackupImport(undefined)
     } catch (reason) {
       setStatus(reason instanceof Error ? reason.message : 'No se pudo importar el backup.')
     }
+  }
+
+  function cancelPrivateBackupImport() {
+    setPendingBackupImport(undefined)
+    setStatus('Importacion de backup cancelada')
   }
 
   async function savePrivateItemFromSettings(item: ListItem) {
@@ -2657,12 +2756,31 @@ function SettingsTab({
                   aria-label="Importar backup JSON"
                   type="file"
                   onChange={(event) => {
-                    void importPrivateBackup(event.target.files?.[0])
+                    void preparePrivateBackupImport(event.target.files?.[0])
                     event.target.value = ''
                   }}
                 />
               </label>
             </div>
+            {pendingBackupImport && (
+              <div className="backup-import-preview" aria-label="Backup preparado">
+                <div>
+                  <strong>{pendingBackupImport.fileName}</strong>
+                  <span>{formatBackupImportSummary(pendingBackupImport.summary)}</span>
+                  <small>{pendingBackupImport.summary.totalItems} entradas revisadas antes de aplicar</small>
+                </div>
+                <div className="action-row end">
+                  <button className="ghost-button" type="button" onClick={cancelPrivateBackupImport}>
+                    <X size={16} />
+                    Cancelar
+                  </button>
+                  <button className="primary-button" type="button" onClick={() => void applyPrivateBackupImport()}>
+                    <Upload size={16} />
+                    Aplicar backup
+                  </button>
+                </div>
+              </div>
+            )}
           </section>
           <div className="data-safety-note">
             <ShieldCheck size={17} />

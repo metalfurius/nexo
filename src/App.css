@@ -2167,6 +2167,33 @@
   display: none;
 }
 
+.backup-import-preview {
+  background: color-mix(in srgb, var(--surface-raised) 72%, var(--surface-muted));
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--border));
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+}
+
+.backup-import-preview > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.backup-import-preview strong {
+  color: var(--text-strong);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.backup-import-preview span,
+.backup-import-preview small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
 .private-action-item.primary {
   background: color-mix(in srgb, var(--accent-soft) 68%, var(--surface-muted));
   border-color: color-mix(in srgb, var(--accent) 38%, var(--border));

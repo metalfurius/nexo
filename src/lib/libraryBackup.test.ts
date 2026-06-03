@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_SETTINGS, DEFAULT_WEIGHTS, type ListItem } from '../domain/types'
-import { createLibraryExportPayload, parseLibraryImportPayload } from './libraryBackup'
+import { createLibraryExportPayload, getLibraryImportSummary, parseLibraryImportPayload } from './libraryBackup'
 
 const baseItem: ListItem = {
   id: 'game-outer-wilds',
@@ -50,6 +50,29 @@ describe('library backup schema', () => {
     )
 
     expect(parsed.settings?.libraryViewMode).toBe('list')
+  })
+
+  it('summarizes backup imports against the current library before applying them', () => {
+    const parsed = parseLibraryImportPayload(
+      createLibraryExportPayload(
+        [
+          baseItem,
+          { ...baseItem, id: 'book-solaris', title: 'Solaris', type: 'book' },
+          { ...baseItem, id: 'book-solaris', title: 'Solaris duplicate', type: 'book' },
+        ],
+        DEFAULT_SETTINGS,
+        '2026-01-02T00:00:00.000Z',
+      ),
+      '2026-01-03T00:00:00.000Z',
+    )
+
+    expect(getLibraryImportSummary(parsed, [baseItem])).toEqual({
+      totalItems: 3,
+      newItems: 1,
+      updatedItems: 1,
+      duplicateItems: 1,
+      settingsIncluded: true,
+    })
   })
 
   it('normalizes missing optional arrays and weights from older backups', () => {
