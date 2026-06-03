@@ -318,6 +318,7 @@ export function useLibrary(user?: SignedInUserProfile | null) {
         if (candidate.id !== candidateId) return candidate
         const restored = { ...candidate, status: 'queued' as const, updatedAt: restoredAt }
         delete restored.dismissedAt
+        delete restored.savedItemId
         return restored
       }),
     )

@@ -1815,6 +1815,7 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
   const [message, setMessage] = useState<string | undefined>()
   const [bulkDismissUndo, setBulkDismissUndo] = useState<DiscoveryCandidate[]>([])
   const [savedExplorerItem, setSavedExplorerItem] = useState<ListItem | undefined>()
+  const [savedExplorerUndo, setSavedExplorerUndo] = useState<{ candidate: DiscoveryCandidate; item: ListItem } | undefined>()
   const [editingSavedItem, setEditingSavedItem] = useState<ListItem | undefined>()
   const [selected, setSelected] = useState<DiscoveryCandidate | undefined>()
   const [catalogDraft, setCatalogDraft] = useState<PublicCatalogItem | undefined>()
@@ -1847,6 +1848,7 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
   function clearExplorerRecentActions() {
     setBulkDismissUndo([])
     setSavedExplorerItem(undefined)
+    setSavedExplorerUndo(undefined)
   }
 
   async function changeSearchType(nextType: ExplorerSearchType) {
@@ -1911,6 +1913,7 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
       setBulkDismissUndo([])
       const item = await library.saveDiscoveryToLibrary(candidate)
       setSavedExplorerItem(item)
+      setSavedExplorerUndo({ candidate, item })
       setMessage(`${item.title} guardado en Biblioteca.`)
       return true
     } catch (reason) {
@@ -1980,11 +1983,26 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
     }
   }
 
+  async function undoSaveCandidate() {
+    if (!savedExplorerUndo) return
+
+    try {
+      await library.deleteItem(savedExplorerUndo.item.id)
+      await library.restoreDiscoveryCandidate(savedExplorerUndo.candidate.id)
+      setView('queued')
+      clearExplorerRecentActions()
+      setMessage(`${savedExplorerUndo.item.title} recuperado a la cola y eliminado de Biblioteca.`)
+    } catch (reason) {
+      setMessage(reason instanceof Error ? reason.message : 'No se pudo deshacer el guardado.')
+    }
+  }
+
   async function saveExplorerItemEdits(item: ListItem) {
     try {
       await library.saveItem(item)
       setEditingSavedItem(undefined)
       setSavedExplorerItem(item)
+      setSavedExplorerUndo((current) => (current ? { ...current, item } : current))
       setMessage(`${item.title || 'Entrada'} afinada en Biblioteca.`)
     } catch (reason) {
       setMessage(reason instanceof Error ? reason.message : 'No se pudo guardar la ficha.')
@@ -2098,7 +2116,7 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
 
         {loading && <FeedbackMessage tone="loading">Buscando en Nexo y fuera...</FeedbackMessage>}
         {message && <FeedbackMessage tone={feedbackToneFromText(message)}>{message}</FeedbackMessage>}
-        {(bulkDismissUndo.length > 0 || savedExplorerItem) && (
+        {(bulkDismissUndo.length > 0 || savedExplorerItem || savedExplorerUndo) && (
           <div className="feedback-action-row" aria-label="Accion reciente del explorador">
             {savedExplorerItem && (
               <button
@@ -2109,6 +2127,12 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
               >
                 <Info size={16} />
                 Afinar ficha
+              </button>
+            )}
+            {savedExplorerUndo && (
+              <button className="secondary-button" type="button" onClick={() => void undoSaveCandidate()}>
+                <RotateCcw size={16} />
+                Deshacer guardado
               </button>
             )}
             {bulkDismissUndo.length > 0 && (

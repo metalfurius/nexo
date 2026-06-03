@@ -220,6 +220,7 @@ export function createFirestoreRepository(userId: string): LibraryRepository | u
           id: candidateId,
           status: 'queued',
           dismissedAt: deleteField(),
+          savedItemId: deleteField(),
           updatedAt: nowIso(),
         },
         { merge: true },

@@ -230,6 +230,7 @@ describe('useLibrary', () => {
       }),
     )
     expect(result.current.discoveryCandidates[0].dismissedAt).toBeUndefined()
+    expect(result.current.discoveryCandidates[0].savedItemId).toBeUndefined()
     expect(repositoryMock.restoreDiscoveryCandidate).toHaveBeenCalledWith('public-book-odisea')
   })
 

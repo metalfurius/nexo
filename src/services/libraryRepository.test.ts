@@ -339,6 +339,7 @@ describe('createFirestoreRepository', () => {
         id: 'public-book-odisea',
         status: 'queued',
         dismissedAt: { kind: 'deleteField' },
+        savedItemId: { kind: 'deleteField' },
       }),
       { merge: true },
     )
