@@ -709,6 +709,30 @@ test('explorer can clean a filtered queued view', async ({ page }) => {
   await expect(page.getByTestId('candidate-spotlight')).toContainText('Guardar copia privada')
 })
 
+test('explorer can save a filtered queued view in bulk and undo it', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Explorador', exact: true }).click()
+  await page.getByLabel('Tipo de busqueda en explorador').selectOption('book')
+  await page.getByLabel('Buscar en explorador').fill('Odisea')
+  await page.getByRole('button', { name: 'Buscar' }).click()
+
+  await page.getByRole('button', { name: /APIs/ }).click()
+  await expect(page.getByTestId('explorer-decision-panel')).toContainText('APIs activo')
+  await expect(page.getByTestId('explorer-decision-panel')).toContainText('Guardar vista')
+  await page.getByRole('button', { name: 'Guardar vista' }).click()
+
+  await expect(page.getByText('Odisea guardado desde la vista APIs.')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Afinar ficha guardada Odisea' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Deshacer guardado de vista' })).toBeVisible()
+  await expect(page.getByRole('tab', { name: /Guardados 1/ })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Deshacer guardado de vista' }).click()
+  await expect(page.getByText('Odisea recuperado a la cola y eliminado de Biblioteca.')).toBeVisible()
+  await expect(page.getByRole('tab', { name: /En cola 2/ })).toBeVisible()
+  await page.getByRole('button', { name: 'Biblioteca', exact: true }).click()
+  await expect(page.getByTestId('library-grid')).not.toContainText('Odisea')
+})
+
 test('library editor explains private copies from the Nexo catalog', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Explorador', exact: true }).click()

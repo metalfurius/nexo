@@ -2986,6 +2986,7 @@ function ExplorerTab({
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<string | undefined>()
   const [bulkDismissUndo, setBulkDismissUndo] = useState<DiscoveryCandidate[]>([])
+  const [bulkSaveUndo, setBulkSaveUndo] = useState<Array<{ candidate: DiscoveryCandidate; item: ListItem }>>([])
   const [savedExplorerItem, setSavedExplorerItem] = useState<ListItem | undefined>()
   const [savedExplorerUndo, setSavedExplorerUndo] = useState<{ candidate: DiscoveryCandidate; item: ListItem } | undefined>()
   const [editingSavedItem, setEditingSavedItem] = useState<ListItem | undefined>()
@@ -3016,9 +3017,11 @@ function ExplorerTab({
   const queuedNexoCount = queuedSourceCounts.nexo
   const queuedExternalCount = queuedSourceCounts.external
   const queuedPromptCount = queuedSourceCounts.prompt
+  const canSaveVisibleQueue = view === 'queued' && sourceFilter !== 'all' && visibleCandidates.length > 0
 
   function clearExplorerRecentActions() {
     setBulkDismissUndo([])
+    setBulkSaveUndo([])
     setSavedExplorerItem(undefined)
     setSavedExplorerUndo(undefined)
   }
@@ -3097,6 +3100,7 @@ function ExplorerTab({
   async function saveCandidate(candidate: DiscoveryCandidate) {
     try {
       setBulkDismissUndo([])
+      setBulkSaveUndo([])
       const item = await library.saveDiscoveryToLibrary(candidate)
       setSavedExplorerItem(item)
       setSavedExplorerUndo({ candidate, item })
@@ -3159,6 +3163,8 @@ function ExplorerTab({
     try {
       await Promise.all(candidatesToDismiss.map((candidate) => library.dismissDiscoveryCandidate(candidate.id)))
       setSavedExplorerItem(undefined)
+      setSavedExplorerUndo(undefined)
+      setBulkSaveUndo([])
       setBulkDismissUndo(candidatesToDismiss)
       setMessage(
         candidatesToDismiss.length === 1
@@ -3173,6 +3179,37 @@ function ExplorerTab({
       })
     } catch (reason) {
       setMessage(reason instanceof Error ? reason.message : 'No se pudo limpiar la vista.')
+    }
+  }
+
+  async function saveVisibleQueue() {
+    const candidatesToSave = view === 'queued' ? visibleCandidates : []
+    if (!candidatesToSave.length) return
+
+    const savedPairs: Array<{ candidate: DiscoveryCandidate; item: ListItem }> = []
+    try {
+      for (const candidate of candidatesToSave) {
+        const item = await library.saveDiscoveryToLibrary(candidate)
+        savedPairs.push({ candidate, item })
+      }
+      setBulkDismissUndo([])
+      setBulkSaveUndo(savedPairs)
+      setSavedExplorerItem(savedPairs.length === 1 ? savedPairs[0].item : undefined)
+      setSavedExplorerUndo(undefined)
+      setMessage(
+        savedPairs.length === 1
+          ? `${savedPairs[0].item.title} guardado desde la vista ${activeSourceLabel}.`
+          : `${savedPairs.length} hallazgos guardados desde la vista ${activeSourceLabel}.`,
+      )
+      onActivity({
+        detail: savedPairs.length === 1 ? savedPairs[0].item.title : `${savedPairs.length} hallazgos`,
+        label: 'Vista guardada',
+        tab: 'explorer',
+        tone: 'success',
+      })
+    } catch (reason) {
+      setMessage(reason instanceof Error ? reason.message : 'No se pudo guardar la vista.')
+      if (savedPairs.length) setBulkSaveUndo(savedPairs)
     }
   }
 
@@ -3197,6 +3234,33 @@ function ExplorerTab({
       })
     } catch (reason) {
       setMessage(reason instanceof Error ? reason.message : 'No se pudo deshacer el descarte.')
+    }
+  }
+
+  async function undoSaveVisibleQueue() {
+    const savedPairs = bulkSaveUndo
+    if (!savedPairs.length) return
+
+    try {
+      for (const pair of savedPairs) {
+        await library.deleteItem(pair.item.id)
+        await library.restoreDiscoveryCandidate(pair.candidate.id)
+      }
+      setView('queued')
+      clearExplorerRecentActions()
+      setMessage(
+        savedPairs.length === 1
+          ? `${savedPairs[0].item.title} recuperado a la cola y eliminado de Biblioteca.`
+          : `${savedPairs.length} hallazgos recuperados a la cola y eliminados de Biblioteca.`,
+      )
+      onActivity({
+        detail: savedPairs.length === 1 ? savedPairs[0].item.title : `${savedPairs.length} hallazgos`,
+        label: 'Guardado de vista deshecho',
+        tab: 'explorer',
+        tone: 'success',
+      })
+    } catch (reason) {
+      setMessage(reason instanceof Error ? reason.message : 'No se pudo deshacer el guardado de vista.')
     }
   }
 
@@ -3352,7 +3416,7 @@ function ExplorerTab({
 
         {loading && <FeedbackMessage tone="loading">Buscando en Nexo y fuera...</FeedbackMessage>}
         {message && <FeedbackMessage tone={feedbackToneFromText(message)}>{message}</FeedbackMessage>}
-        {(bulkDismissUndo.length > 0 || savedExplorerItem || savedExplorerUndo) && (
+        {(bulkDismissUndo.length > 0 || bulkSaveUndo.length > 0 || savedExplorerItem || savedExplorerUndo) && (
           <div className="feedback-action-row" aria-label="Accion reciente del explorador">
             {savedExplorerItem && (
               <button
@@ -3369,6 +3433,12 @@ function ExplorerTab({
               <button className="secondary-button" type="button" onClick={() => void undoSaveCandidate()}>
                 <RotateCcw size={16} />
                 Deshacer guardado
+              </button>
+            )}
+            {bulkSaveUndo.length > 0 && (
+              <button className="secondary-button" type="button" onClick={() => void undoSaveVisibleQueue()}>
+                <RotateCcw size={16} />
+                Deshacer guardado de vista
               </button>
             )}
             {bulkDismissUndo.length > 0 && (
@@ -3455,6 +3525,12 @@ function ExplorerTab({
             {sourceFilter !== 'all' && (
               <button className="secondary-button" type="button" onClick={() => setSourceFilter('all')}>
                 Ver todos los origenes
+              </button>
+            )}
+            {canSaveVisibleQueue && (
+              <button className="secondary-button" type="button" onClick={() => void saveVisibleQueue()}>
+                <Plus size={16} />
+                Guardar vista
               </button>
             )}
             {canDismissVisibleQueue && (
