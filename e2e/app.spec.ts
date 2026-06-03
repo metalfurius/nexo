@@ -141,8 +141,17 @@ test('library and weighted dice work in demo mode', async ({ page }) => {
   await expect(outerWildsCard.getByLabel('Pulso de Outer Wilds')).toContainText('Cooldown')
   await page.getByRole('button', { name: 'Mas acciones Outer Wilds' }).click()
   await expect(page.getByRole('menuitem', { name: 'Reactivar dado Outer Wilds' })).toBeVisible()
-  await page.getByRole('menuitem', { name: 'Reactivar dado Outer Wilds' }).click()
-  await expect(page.getByText('Outer Wilds reactivado para el dado')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await page.getByLabel('Medio').selectOption('game')
+  await page.getByLabel('Incluir pausados').uncheck()
+  await expect(page.getByTestId('dice-readiness')).toContainText('Sin tirada posible')
+  await expect(page.getByTestId('dice-recovery')).toContainText('Reactivar cooldowns')
+  await page.getByTestId('dice-recovery').getByRole('button', { name: /Reactivar cooldowns/ }).click()
+  await expect(page.getByText('1 entrada reactivada para el dado')).toBeVisible()
+  await expect(page.getByTestId('dice-readiness')).toContainText('Listo para tirar')
+
+  await page.getByRole('button', { name: 'Biblioteca', exact: true }).click()
   await expect(outerWildsCard.getByLabel('Pulso de Outer Wilds')).toContainText('Continuar')
 })
 

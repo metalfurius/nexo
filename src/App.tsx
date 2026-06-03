@@ -215,7 +215,7 @@ function feedbackToneFromText(message: string): FeedbackTone {
     normalized.includes('copiado') ||
     normalized.includes('anadida') ||
     normalized.includes('enfriado') ||
-    normalized.includes('reactivado') ||
+    normalized.includes('reactivad') ||
     normalized.includes('enviados') ||
     normalized.includes('marcado') ||
     normalized.includes('descartado') ||
@@ -1129,7 +1129,25 @@ function DiceTab({ library }: { library: LibrarySurface }) {
   const activeDiceFilters = getActiveDiceFilters(preferences, library.settings)
   const recentRecommendations = useMemo(() => getRecentRecommendationItems(library.items), [library.items])
   const hasCandidates = scoredCandidates.length > 0
+  const cooldownRecoveryItems = useMemo(
+    () =>
+      library.items.filter(
+        (item) => item.status !== 'completed' && item.status !== 'dropped' && isItemInCooldown(item),
+      ),
+    [library.items],
+  )
   const diceRecoveryActions: DiceRecoveryAction[] = [
+    ...(cooldownRecoveryItems.length
+      ? [
+          {
+            detail: `${cooldownRecoveryItems.length} en cooldown`,
+            Icon: RotateCcw,
+            id: 'reactivate-cooldowns',
+            label: 'Reactivar cooldowns',
+            onClick: () => void reactivateDiceCooldowns(),
+          },
+        ]
+      : []),
     {
       detail: 'Todo + pausados',
       Icon: RotateCcw,
@@ -1213,6 +1231,18 @@ function DiceTab({ library }: { library: LibrarySurface }) {
       setRecommendation(undefined)
     } catch (reason) {
       setStatus(reason instanceof Error ? reason.message : 'No se pudo apartar la recomendacion.')
+    }
+  }
+
+  async function reactivateDiceCooldowns() {
+    if (!cooldownRecoveryItems.length) return
+    const count = cooldownRecoveryItems.length
+    try {
+      await Promise.all(cooldownRecoveryItems.map((item) => library.reactivateRecommendation(item.id)))
+      setRecommendation(undefined)
+      setStatus(count === 1 ? '1 entrada reactivada para el dado' : `${count} entradas reactivadas para el dado`)
+    } catch (reason) {
+      setStatus(reason instanceof Error ? reason.message : 'No se pudieron reactivar las entradas.')
     }
   }
 
