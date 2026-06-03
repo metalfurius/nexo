@@ -205,6 +205,9 @@ test('explorer searches public catalog and saves to private library', async ({ p
   await page.getByRole('button', { name: 'Ver todos los origenes' }).click()
   const odiseaSpotlight = page.getByTestId('candidate-spotlight')
   await expect(odiseaSpotlight).toContainText('Odisea')
+  await expect(odiseaSpotlight).toContainText('Que hacer ahora')
+  await expect(odiseaSpotlight).toContainText('Resultado externo')
+  await expect(odiseaSpotlight).toContainText('Guardar o curar catalogo')
   await expect(odiseaSpotlight.getByLabel('Decidir Odisea')).toContainText('Guardar')
   await odiseaSpotlight.getByRole('button', { name: 'Descartar Odisea' }).click()
   await page.getByRole('tab', { name: /Descartados 1/ }).click()
@@ -248,6 +251,8 @@ test('explorer can clean a filtered queued view', async ({ page }) => {
   await page.getByRole('button', { name: 'Ver todos los origenes' }).click()
   await expect(page.getByTestId('candidate-spotlight')).toContainText('Nexo')
   await expect(page.getByTestId('candidate-spotlight')).toContainText('Odisea')
+  await expect(page.getByTestId('candidate-spotlight')).toContainText('Ficha curada de Nexo')
+  await expect(page.getByTestId('candidate-spotlight')).toContainText('Guardar copia privada')
 })
 
 test('library editor explains private copies from the Nexo catalog', async ({ page }) => {

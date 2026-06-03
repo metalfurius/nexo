@@ -289,6 +289,13 @@ interface RecommendationSessionPlan {
   title: string
 }
 
+interface CandidateDecisionBrief {
+  action: string
+  detail: string
+  facts: Array<{ label: string; value: string }>
+  title: string
+}
+
 interface DiceEligibilityBreakdown {
   available: number
   blockedTags: number
@@ -1872,6 +1879,7 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
                   <span key={genre}>{genre}</span>
                 ))}
               </div>
+              <CandidateDecisionBriefView brief={getCandidateDecisionBrief(spotlightCandidate, library.isModerator)} />
             </div>
             <div className="candidate-spotlight-actions" aria-label={`Decidir ${spotlightCandidate.title}`}>
               <button className="primary-button" type="button" onClick={() => void saveCandidate(spotlightCandidate)} aria-label={`Guardar ${spotlightCandidate.title}`}>
@@ -3165,10 +3173,72 @@ function DiscoveryCard({
   )
 }
 
+function CandidateDecisionBriefView({ brief }: { brief: CandidateDecisionBrief }) {
+  return (
+    <section className="candidate-decision-brief" aria-label="Guia de decision del hallazgo">
+      <div>
+        <span className="eyebrow">Que hacer ahora</span>
+        <strong>{brief.title}</strong>
+        <p>{brief.detail}</p>
+      </div>
+      <div className="candidate-decision-facts">
+        <span>
+          <small>Accion</small>
+          <strong>{brief.action}</strong>
+        </span>
+        {brief.facts.map((fact) => (
+          <span key={fact.label}>
+            <small>{fact.label}</small>
+            <strong>{fact.value}</strong>
+          </span>
+        ))}
+      </div>
+    </section>
+  )
+}
+
 function getDiscoverySourceFilter(candidate: DiscoveryCandidate): ExplorerSourceFilter {
   if (candidate.source === 'nexo') return 'nexo'
   if (candidate.source === 'prompt') return 'prompt'
   return 'external'
+}
+
+function getCandidateDecisionBrief(candidate: DiscoveryCandidate, canCurate: boolean): CandidateDecisionBrief {
+  if (candidate.source === 'nexo') {
+    return {
+      action: 'Guardar copia privada',
+      detail: 'Guarda una copia en tu biblioteca. Tus notas, rating y dado no cambian el catalogo publico.',
+      facts: [
+        { label: 'Origen', value: sourceLabels[candidate.source] },
+        { label: 'Privacidad', value: 'Copia privada' },
+      ],
+      title: 'Ficha curada de Nexo',
+    }
+  }
+
+  if (candidate.source === 'prompt') {
+    return {
+      action: 'Convertir en pendiente',
+      detail: 'Es una carta de exploracion. Guardarla crea una entrada privada para pensarla luego.',
+      facts: [
+        { label: 'Origen', value: sourceLabels[candidate.source] },
+        { label: 'Riesgo', value: 'Sin catalogo' },
+      ],
+      title: 'Idea ligera',
+    }
+  }
+
+  return {
+    action: canCurate ? 'Guardar o curar catalogo' : 'Revisar y guardar',
+    detail: canCurate
+      ? 'Puedes guardarlo para ti o convertirlo en ficha publica si merece vivir en Nexo.'
+      : 'Guardarlo crea una entrada privada sin publicar nada en el catalogo compartido.',
+    facts: [
+      { label: 'Origen', value: sourceLabels[candidate.source] },
+      { label: 'Catalogo', value: canCurate ? 'Curable' : 'Privado' },
+    ],
+    title: 'Resultado externo',
+  }
 }
 
 function getDominantExplorerSourceLabel(counts: Record<ExplorerSourceFilter, number>) {

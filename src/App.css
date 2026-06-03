@@ -2482,6 +2482,70 @@ label {
   margin: 0;
 }
 
+.candidate-decision-brief {
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border));
+  border-radius: 8px;
+  display: grid;
+  gap: 9px;
+  min-width: 0;
+  padding: 10px;
+}
+
+.candidate-decision-brief > div:first-child {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.candidate-decision-brief strong {
+  color: var(--text-strong);
+  font-size: 14px;
+  line-height: 1.15;
+}
+
+.candidate-decision-brief p {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.candidate-decision-facts {
+  display: grid;
+  gap: 7px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.candidate-decision-facts span {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  overflow: hidden;
+  padding: 8px;
+}
+
+.candidate-decision-facts small {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.candidate-decision-facts strong {
+  color: var(--accent-dark);
+  font-size: 12px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .candidate-spotlight .candidate-meta span:not(.source-pill) {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -5785,16 +5849,24 @@ textarea:focus-visible {
   }
 
   .candidate-spotlight {
-    grid-template-columns: minmax(92px, 118px) minmax(0, 1fr);
+    grid-template-columns: 1fr;
+  }
+
+  .candidate-spotlight-media .cover-art {
+    aspect-ratio: 16 / 9;
+    min-height: 0;
   }
 
   .candidate-spotlight-actions {
-    grid-column: 1 / -1;
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .candidate-spotlight-actions .primary-button {
     grid-column: 1 / -1;
+  }
+
+  .candidate-decision-facts {
+    grid-template-columns: 1fr;
   }
 
   .candidate-spotlight-body h3 {
