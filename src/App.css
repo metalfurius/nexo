@@ -2168,7 +2168,8 @@
 }
 
 .backup-import-preview,
-.seed-import-preview {
+.seed-import-preview,
+.role-change-preview {
   background: color-mix(in srgb, var(--surface-raised) 72%, var(--surface-muted));
   border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--border));
   border-radius: 8px;
@@ -2178,13 +2179,15 @@
 }
 
 .backup-import-preview > div:first-child,
-.seed-import-preview > div:first-child {
+.seed-import-preview > div:first-child,
+.role-change-preview > div:first-child {
   display: grid;
   gap: 4px;
 }
 
 .backup-import-preview strong,
-.seed-import-preview strong {
+.seed-import-preview strong,
+.role-change-preview strong {
   color: var(--text-strong);
   font-size: 13px;
   overflow-wrap: anywhere;
@@ -2193,7 +2196,9 @@
 .backup-import-preview span,
 .backup-import-preview small,
 .seed-import-preview span,
-.seed-import-preview small {
+.seed-import-preview small,
+.role-change-preview span,
+.role-change-preview small {
   color: var(--muted);
   font-size: 12px;
   line-height: 1.35;

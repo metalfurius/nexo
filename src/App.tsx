@@ -2901,21 +2901,40 @@ function AdminRolesPanel({
   profiles: UserProfile[]
 }) {
   const [status, setStatus] = useState<string | undefined>()
+  const [pendingRoleChange, setPendingRoleChange] = useState<{ profile: UserProfile; role: UserRole } | undefined>()
   const roleCounts = USER_ROLES.map((role) => ({
     role,
     count: profiles.filter((profile) => profile.role === role).length,
   }))
 
-  async function changeRole(profile: UserProfile, role: UserRole) {
-    if (profile.role === role) return
+  function prepareRoleChange(profile: UserProfile, role: UserRole) {
+    if (profile.role === role) {
+      setPendingRoleChange(undefined)
+      return
+    }
+
+    setStatus(undefined)
+    setPendingRoleChange({ profile, role })
+  }
+
+  async function applyRoleChange() {
+    if (!pendingRoleChange) return
+
+    const { profile, role } = pendingRoleChange
 
     setStatus(undefined)
     try {
       await onRoleChange(profile.uid, role)
       setStatus(`${profile.displayName || profile.email || profile.uid} ahora es ${roleLabels[role]}`)
+      setPendingRoleChange(undefined)
     } catch (reason) {
       setStatus(reason instanceof Error ? reason.message : 'No se pudo actualizar el rol.')
     }
+  }
+
+  function cancelRoleChange() {
+    setPendingRoleChange(undefined)
+    setStatus('Cambio de rol cancelado')
   }
 
   return (
@@ -2965,6 +2984,7 @@ function AdminRolesPanel({
           {profiles.map((profile) => {
             const label = profile.displayName || profile.email || profile.uid
             const isCurrentUser = profile.uid === currentUserId
+            const preparedRole = pendingRoleChange?.profile.uid === profile.uid ? pendingRoleChange.role : profile.role
             return (
               <div className="role-row" key={profile.uid}>
                 <div className="role-person">
@@ -2981,8 +3001,8 @@ function AdminRolesPanel({
                   <select
                     aria-label={`Rol de ${label}`}
                     disabled={isCurrentUser}
-                    value={profile.role}
-                    onChange={(event) => void changeRole(profile, event.target.value as UserRole)}
+                    value={preparedRole}
+                    onChange={(event) => prepareRoleChange(profile, event.target.value as UserRole)}
                   >
                     {USER_ROLES.map((role) => (
                       <option key={role} value={role}>
@@ -3001,6 +3021,28 @@ function AdminRolesPanel({
           title="Sin usuarios"
           detail="Los perfiles apareceran aqui cuando inicien sesion por primera vez."
         />
+      )}
+
+      {pendingRoleChange && (
+        <div className="role-change-preview" aria-label="Cambio de rol preparado">
+          <div>
+            <strong>{pendingRoleChange.profile.displayName || pendingRoleChange.profile.email || pendingRoleChange.profile.uid}</strong>
+            <span>
+              {roleLabels[pendingRoleChange.profile.role]} {'->'} {roleLabels[pendingRoleChange.role]}
+            </span>
+            <small>El cambio se aplicara solo cuando confirmes esta accion administrativa.</small>
+          </div>
+          <div className="action-row end">
+            <button className="ghost-button" type="button" onClick={cancelRoleChange}>
+              <X size={16} />
+              Cancelar
+            </button>
+            <button className="primary-button" type="button" onClick={() => void applyRoleChange()}>
+              <ShieldCheck size={16} />
+              Aplicar rol
+            </button>
+          </div>
+        </div>
       )}
 
       {status && <FeedbackMessage tone={feedbackToneFromText(status)}>{status}</FeedbackMessage>}
