@@ -682,6 +682,15 @@ function LibraryTab({
     }
   }
 
+  async function changeLibraryItemStatus(item: ListItem, status: ItemStatus) {
+    try {
+      await library.setStatus(item.id, status)
+      setImportStatus(`${item.title} ahora es ${statusLabels[status]}`)
+    } catch (reason) {
+      setImportStatus(reason instanceof Error ? reason.message : 'No se pudo actualizar el estado.')
+    }
+  }
+
   function exportLibrary() {
     downloadLibraryBackup(library.items, library.settings, 'nexo-export')
   }
@@ -785,7 +794,7 @@ function LibraryTab({
                   <button
                     className="primary-button"
                     type="button"
-                    onClick={() => void library.setStatus(nextFocusItem.id, nextFocusAction.nextStatus)}
+                    onClick={() => void changeLibraryItemStatus(nextFocusItem, nextFocusAction.nextStatus)}
                   >
                     <nextFocusAction.Icon size={16} />
                     {nextFocusAction.label}
@@ -958,7 +967,7 @@ function LibraryTab({
                       className="focus-item-action"
                       type="button"
                       aria-label={`Accion de foco para ${item.title}: ${primaryAction.label}`}
-                      onClick={() => void library.setStatus(item.id, primaryAction.nextStatus)}
+                      onClick={() => void changeLibraryItemStatus(item, primaryAction.nextStatus)}
                     >
                       <primaryAction.Icon size={15} />
                       {primaryAction.label}
@@ -978,7 +987,7 @@ function LibraryTab({
                 key={item.id}
                 layout={viewMode}
                 onEdit={() => setEditingItem(item)}
-                onStatus={library.setStatus}
+                onStatus={(status) => void changeLibraryItemStatus(item, status)}
                 onSnooze={() => void snoozeLibraryItem(item)}
                 onReactivate={() => void reactivateLibraryItem(item)}
                 onDelete={() => setDeleteTarget(item)}
@@ -3513,7 +3522,7 @@ function ItemCard({
   onDelete: () => void
   onReactivate: () => void
   onSnooze: () => void
-  onStatus: (id: string, status: ItemStatus) => void
+  onStatus: (status: ItemStatus) => void
 }) {
   const primaryAction = getPrimaryItemAction(item.status)
   const secondaryAction = getSecondaryItemAction(item.status)
@@ -3532,7 +3541,7 @@ function ItemCard({
       }
 
   function applyStatus(status: ItemStatus) {
-    onStatus(item.id, status)
+    onStatus(status)
   }
 
   function deleteItem() {
