@@ -297,6 +297,118 @@
   padding: 24px;
 }
 
+.session-activity-panel {
+  background: color-mix(in srgb, var(--surface-raised) 90%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 10px;
+  margin: 0 0 16px;
+  padding: 12px;
+}
+
+.session-activity-heading {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.session-activity-heading div {
+  display: grid;
+  gap: 3px;
+}
+
+.session-activity-heading strong {
+  color: var(--text-strong);
+  font-size: 15px;
+  line-height: 1.15;
+}
+
+.session-activity-heading > span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.session-activity-list {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.session-activity-item {
+  align-items: center;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  min-width: 0;
+  padding: 9px;
+}
+
+.session-activity-item svg {
+  color: var(--accent-dark);
+}
+
+.session-activity-item.loading svg {
+  animation: feedback-spin 900ms linear infinite;
+}
+
+.session-activity-item.success {
+  background: color-mix(in srgb, var(--accent-soft) 70%, var(--surface-muted));
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--border));
+}
+
+.session-activity-item.danger {
+  background: var(--danger-bg);
+  border-color: var(--danger-border);
+}
+
+.session-activity-item.danger svg,
+.session-activity-item.danger em {
+  color: var(--danger-text);
+}
+
+.session-activity-item span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.session-activity-item strong,
+.session-activity-item small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-activity-item strong {
+  color: var(--text-strong);
+  font-size: 12px;
+  line-height: 1.1;
+}
+
+.session-activity-item small {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.1;
+}
+
+.session-activity-item em {
+  color: var(--accent-dark);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 850;
+}
+
 .content-grid,
 .dice-layout,
 .settings-grid {

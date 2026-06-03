@@ -249,6 +249,24 @@ function feedbackToneFromText(message: string): FeedbackTone {
 
 type AppTab = 'library' | 'dice' | 'explorer' | 'settings' | 'curation'
 type PendingNavigation = { source: 'app' | 'history'; tab: AppTab }
+interface SessionActivityEntry {
+  createdAt: string
+  detail: string
+  id: string
+  label: string
+  tab: AppTab
+  tone: FeedbackTone
+}
+type ActivityRecorder = (entry: Omit<SessionActivityEntry, 'createdAt' | 'id'>) => void
+
+const activityTabLabels: Record<AppTab, string> = {
+  curation: 'Curacion',
+  dice: 'Dado',
+  explorer: 'Explorador',
+  library: 'Biblioteca',
+  settings: 'Ajustes',
+}
+const sessionActivityLimit = 5
 
 interface PrivateDataAction {
   detail: string
@@ -401,6 +419,7 @@ function App() {
   const [activeTab, setActiveTabState] = useState<AppTab>(() => readInitialAppTab())
   const [pendingNavigation, setPendingNavigation] = useState<PendingNavigation | undefined>()
   const [tabsWithUnsavedChanges, setTabsWithUnsavedChanges] = useState<Partial<Record<AppTab, boolean>>>({})
+  const [activityEntries, setActivityEntries] = useState<SessionActivityEntry[]>([])
   const [theme, setTheme] = useState<ThemeMode>(() => {
     const stored = window.localStorage.getItem(themeStorageKey)
     return stored === 'light' || stored === 'dark' ? stored : DEFAULT_SETTINGS.theme
@@ -452,6 +471,17 @@ function App() {
     (hasUnsavedChanges: boolean) => reportUnsavedChanges('settings', hasUnsavedChanges),
     [reportUnsavedChanges],
   )
+  const recordActivity = useCallback<ActivityRecorder>((entry) => {
+    const createdAt = nowIso()
+    setActivityEntries((current) => [
+      {
+        ...entry,
+        createdAt,
+        id: `${createdAt}-${Math.random().toString(36).slice(2)}`,
+      },
+      ...current,
+    ].slice(0, sessionActivityLimit))
+  }, [])
 
   if (auth.loading) {
     return <ShellState title="Cargando acceso" />
@@ -572,12 +602,18 @@ function App() {
       )}
 
       <section className="tab-stage">
-        {activeTab === 'library' && <LibraryTab library={library} onNavigate={changeActiveTab} setTheme={setTheme} />}
-        {activeTab === 'dice' && <DiceTab library={library} onUnsavedChange={reportDiceUnsavedChanges} />}
-        {activeTab === 'explorer' && <ExplorerTab library={library} />}
+        <SessionActivityPanel entries={activityEntries} />
+        {activeTab === 'library' && (
+          <LibraryTab library={library} onActivity={recordActivity} onNavigate={changeActiveTab} setTheme={setTheme} />
+        )}
+        {activeTab === 'dice' && (
+          <DiceTab library={library} onActivity={recordActivity} onUnsavedChange={reportDiceUnsavedChanges} />
+        )}
+        {activeTab === 'explorer' && <ExplorerTab library={library} onActivity={recordActivity} />}
         {activeTab === 'settings' && (
           <SettingsTab
             library={library}
+            onActivity={recordActivity}
             onNavigate={changeActiveTab}
             onUnsavedChange={reportSettingsUnsavedChanges}
             setTheme={setTheme}
@@ -585,10 +621,49 @@ function App() {
             user={auth.user}
           />
         )}
-        {activeTab === 'curation' && library.isModerator && <CurationTab library={library} />}
+        {activeTab === 'curation' && library.isModerator && <CurationTab library={library} onActivity={recordActivity} />}
       </section>
     </main>
   )
+}
+
+function SessionActivityPanel({ entries }: { entries: SessionActivityEntry[] }) {
+  if (!entries.length) return null
+
+  return (
+    <section className="session-activity-panel" aria-label="Actividad reciente" data-testid="session-activity">
+      <div className="session-activity-heading">
+        <div>
+          <span className="eyebrow">Registro de sesion</span>
+          <strong>Actividad reciente</strong>
+        </div>
+        <span>{entries.length === 1 ? '1 ultima' : `${entries.length} ultimas`}</span>
+      </div>
+      <ol className="session-activity-list">
+        {entries.map((entry) => {
+          const Icon = getActivityIcon(entry.tone)
+
+          return (
+            <li className={`session-activity-item ${entry.tone}`} key={entry.id}>
+              <Icon size={16} />
+              <span>
+                <strong>{entry.label}</strong>
+                <small>{entry.detail}</small>
+              </span>
+              <em>{activityTabLabels[entry.tab]}</em>
+            </li>
+          )
+        })}
+      </ol>
+    </section>
+  )
+}
+
+function getActivityIcon(tone: FeedbackTone) {
+  if (tone === 'danger') return AlertTriangle
+  if (tone === 'loading') return LoaderCircle
+  if (tone === 'success') return CheckCircle2
+  return Info
 }
 
 function ShellPulse({
@@ -698,10 +773,12 @@ interface PendingCatalogSeedImport {
 
 function LibraryTab({
   library,
+  onActivity,
   onNavigate,
   setTheme,
 }: {
   library: LibrarySurface
+  onActivity: ActivityRecorder
   onNavigate: (tab: AppTab) => void
   setTheme: (theme: ThemeMode) => void
 }) {
@@ -803,6 +880,12 @@ function LibraryTab({
           ? `Importadas ${summary.totalItems} entradas y ajustes`
           : `Importadas ${summary.totalItems} entradas`,
       )
+      onActivity({
+        detail: payload.settings ? `${summary.totalItems} entradas y ajustes` : `${summary.totalItems} entradas`,
+        label: 'Backup privado aplicado',
+        tab: 'library',
+        tone: 'success',
+      })
       setPendingLibraryImport(undefined)
     } catch (reason) {
       setImportStatus(reason instanceof Error ? reason.message : 'No se pudo importar el archivo')
@@ -826,6 +909,12 @@ function LibraryTab({
     setDeleteDialogOpen(false)
     setDeleteConfirmText('')
     setImportStatus('Tu biblioteca ha sido borrada')
+    onActivity({
+      detail: `${deletedItems.length} entradas eliminadas`,
+      label: 'Biblioteca borrada',
+      tab: 'library',
+      tone: 'success',
+    })
   }
 
   async function deleteSingleItem() {
@@ -840,6 +929,12 @@ function LibraryTab({
     setPendingLibraryImport(undefined)
     setDeleteTarget(undefined)
     setImportStatus(`${deletedTitle} borrado`)
+    onActivity({
+      detail: deletedTitle,
+      label: 'Entrada borrada',
+      tab: 'library',
+      tone: 'success',
+    })
   }
 
   async function undoDeleteSingleItem() {
@@ -848,6 +943,12 @@ function LibraryTab({
     try {
       await library.saveItem(deletedItemUndo)
       setImportStatus(`${deletedItemUndo.title} recuperado en Biblioteca`)
+      onActivity({
+        detail: deletedItemUndo.title,
+        label: 'Entrada recuperada',
+        tab: 'library',
+        tone: 'success',
+      })
       setDeletedItemUndo(undefined)
       setPendingLibraryImport(undefined)
     } catch (reason) {
@@ -864,6 +965,12 @@ function LibraryTab({
         await library.saveItem(item)
       }
       setImportStatus(`${deletedLibraryUndo.length} entradas recuperadas en Biblioteca`)
+      onActivity({
+        detail: `${deletedLibraryUndo.length} entradas restauradas`,
+        label: 'Biblioteca recuperada',
+        tab: 'library',
+        tone: 'success',
+      })
       setDeletedLibraryUndo([])
       setPendingLibraryImport(undefined)
     } catch (reason) {
@@ -875,6 +982,12 @@ function LibraryTab({
     try {
       await library.snoozeRecommendation(item.id)
       setImportStatus(`${item.title} enfriado para el dado`)
+      onActivity({
+        detail: item.title,
+        label: 'Entrada enfriada',
+        tab: 'library',
+        tone: 'success',
+      })
     } catch (reason) {
       setImportStatus(reason instanceof Error ? reason.message : 'No se pudo enfriar la entrada.')
     }
@@ -884,6 +997,12 @@ function LibraryTab({
     try {
       await library.reactivateRecommendation(item.id)
       setImportStatus(`${item.title} reactivado para el dado`)
+      onActivity({
+        detail: item.title,
+        label: 'Entrada reactivada',
+        tab: 'library',
+        tone: 'success',
+      })
     } catch (reason) {
       setImportStatus(reason instanceof Error ? reason.message : 'No se pudo reactivar la entrada.')
     }
@@ -897,6 +1016,12 @@ function LibraryTab({
       setStatusUndo({ id: item.id, title: item.title, previousStatus: item.status })
       setPendingLibraryImport(undefined)
       setImportStatus(`${item.title} ahora es ${statusLabels[status]}`)
+      onActivity({
+        detail: `${item.title} -> ${statusLabels[status]}`,
+        label: 'Estado actualizado',
+        tab: 'library',
+        tone: 'success',
+      })
     } catch (reason) {
       setImportStatus(reason instanceof Error ? reason.message : 'No se pudo actualizar el estado.')
     }
@@ -908,6 +1033,12 @@ function LibraryTab({
     try {
       await library.setStatus(statusUndo.id, statusUndo.previousStatus)
       setImportStatus(`${statusUndo.title} recuperado como ${statusLabels[statusUndo.previousStatus]}`)
+      onActivity({
+        detail: `${statusUndo.title} -> ${statusLabels[statusUndo.previousStatus]}`,
+        label: 'Estado recuperado',
+        tab: 'library',
+        tone: 'success',
+      })
       setStatusUndo(undefined)
       setPendingLibraryImport(undefined)
     } catch (reason) {
@@ -922,6 +1053,12 @@ function LibraryTab({
       setPendingLibraryImport(undefined)
       setEditingItem(undefined)
       setImportStatus(`${item.title || 'Entrada'} guardada en Biblioteca`)
+      onActivity({
+        detail: item.title || 'Entrada sin titulo',
+        label: 'Ficha guardada',
+        tab: 'library',
+        tone: 'success',
+      })
     } catch (reason) {
       setImportStatus(reason instanceof Error ? reason.message : 'No se pudo guardar la ficha.')
     }
@@ -929,6 +1066,12 @@ function LibraryTab({
 
   function exportLibrary() {
     downloadLibraryBackup(library.items, library.settings, 'nexo-export')
+    onActivity({
+      detail: `${library.items.length} entradas exportadas`,
+      label: 'Backup privado exportado',
+      tab: 'library',
+      tone: 'success',
+    })
   }
 
   async function changeViewMode(nextViewMode: LibraryViewMode) {
@@ -1390,9 +1533,11 @@ function LibraryTab({
 
 function DiceTab({
   library,
+  onActivity,
   onUnsavedChange,
 }: {
   library: LibrarySurface
+  onActivity: ActivityRecorder
   onUnsavedChange: (hasUnsavedChanges: boolean) => void
 }) {
   const [draftPreferences, setDraftPreferences] = useState<RecommendationPreferences | undefined>()
@@ -1503,7 +1648,15 @@ function DiceTab({
       setIsRolling(false)
       setRecommendation(next)
     }, 420)
-    if (next) await library.recordRecommendation(next.item.id, next.reasons)
+    if (next) {
+      await library.recordRecommendation(next.item.id, next.reasons)
+      onActivity({
+        detail: next.item.title,
+        label: 'Tirada registrada',
+        tab: 'dice',
+        tone: 'success',
+      })
+    }
   }
 
   async function savePreferences() {
@@ -1526,6 +1679,12 @@ function DiceTab({
       setDiceUndoAction(undefined)
       setDiceSettingsUndo(previousDiceSettings)
       setStatus('Ajustes del dado guardados')
+      onActivity({
+        detail: `${nextPreferences.surprisePercent}% sorpresa / ${typeLabels[nextPreferences.medium]}`,
+        label: 'Preferencias guardadas',
+        tab: 'dice',
+        tone: 'success',
+      })
     } catch (reason) {
       setStatus(reason instanceof Error ? reason.message : 'No se pudieron guardar los ajustes del dado.')
     }
@@ -1544,6 +1703,12 @@ function DiceTab({
       setDiceSettingsUndo(undefined)
       setDiceUndoAction(undefined)
       setStatus('Ajustes del dado recuperados')
+      onActivity({
+        detail: `${diceSettingsUndo.preferences.surprisePercent}% sorpresa / ${typeLabels[diceSettingsUndo.preferences.medium]}`,
+        label: 'Preferencias recuperadas',
+        tab: 'dice',
+        tone: 'success',
+      })
     } catch (reason) {
       setStatus(reason instanceof Error ? reason.message : 'No se pudieron recuperar los ajustes del dado.')
     }
@@ -1561,6 +1726,12 @@ function DiceTab({
         title: recommendation.item.title,
       })
       setStatus(`${recommendation.item.title} marcado como en progreso.`)
+      onActivity({
+        detail: recommendation.item.title,
+        label: 'Recomendacion iniciada',
+        tab: 'dice',
+        tone: 'success',
+      })
     } catch (reason) {
       setStatus(reason instanceof Error ? reason.message : 'No se pudo actualizar el estado.')
     }
@@ -1574,6 +1745,12 @@ function DiceTab({
       setDiceUndoAction({ kind: 'snooze', recommendation, title: recommendation.item.title })
       setStatus(`${recommendation.item.title} queda fuera hasta manana.`)
       setRecommendation(undefined)
+      onActivity({
+        detail: recommendation.item.title,
+        label: 'Recomendacion enfriada',
+        tab: 'dice',
+        tone: 'success',
+      })
     } catch (reason) {
       setStatus(reason instanceof Error ? reason.message : 'No se pudo apartar la recomendacion.')
     }
@@ -1589,6 +1766,12 @@ function DiceTab({
       setDiceUndoAction({ kind: 'cooldowns', items: recoverySnapshot })
       setRecommendation(undefined)
       setStatus(count === 1 ? '1 entrada reactivada para el dado' : `${count} entradas reactivadas para el dado`)
+      onActivity({
+        detail: count === 1 ? '1 entrada en cooldown' : `${count} entradas en cooldown`,
+        label: 'Cooldowns reactivados',
+        tab: 'dice',
+        tone: 'success',
+      })
     } catch (reason) {
       setStatus(reason instanceof Error ? reason.message : 'No se pudieron reactivar las entradas.')
     }
@@ -1602,6 +1785,12 @@ function DiceTab({
       setDiceUndoAction(undefined)
       setDiceSettingsUndo(undefined)
       setStatus(`${item.title || 'Entrada'} afinada desde el dado.`)
+      onActivity({
+        detail: item.title || 'Entrada sin titulo',
+        label: 'Ficha afinada',
+        tab: 'dice',
+        tone: 'success',
+      })
     } catch (reason) {
       setStatus(reason instanceof Error ? reason.message : 'No se pudo guardar la ficha.')
     }
@@ -1618,16 +1807,34 @@ function DiceTab({
       if (diceUndoAction.kind === 'status') {
         await library.setStatus(diceUndoAction.itemId, diceUndoAction.previousStatus)
         setStatus(`${diceUndoAction.title} recuperado como ${statusLabels[diceUndoAction.previousStatus]}`)
+        onActivity({
+          detail: `${diceUndoAction.title} -> ${statusLabels[diceUndoAction.previousStatus]}`,
+          label: 'Decision recuperada',
+          tab: 'dice',
+          tone: 'success',
+        })
       } else if (diceUndoAction.kind === 'snooze') {
         await library.reactivateRecommendation(diceUndoAction.recommendation.item.id)
         setRecommendation(diceUndoAction.recommendation)
         setStatus(`${diceUndoAction.title} reactivado para el dado`)
+        onActivity({
+          detail: diceUndoAction.title,
+          label: 'Recomendacion recuperada',
+          tab: 'dice',
+          tone: 'success',
+        })
       } else {
         for (const item of diceUndoAction.items) {
           await library.saveItem(item)
         }
         setRecommendation(undefined)
         setStatus(diceUndoAction.items.length === 1 ? '1 cooldown recuperado' : `${diceUndoAction.items.length} cooldowns recuperados`)
+        onActivity({
+          detail: diceUndoAction.items.length === 1 ? '1 cooldown restaurado' : `${diceUndoAction.items.length} cooldowns restaurados`,
+          label: 'Cooldowns recuperados',
+          tab: 'dice',
+          tone: 'success',
+        })
       }
       setDiceUndoAction(undefined)
     } catch (reason) {
@@ -1968,7 +2175,13 @@ function DiceTab({
   )
 }
 
-function ExplorerTab({ library }: { library: LibrarySurface }) {
+function ExplorerTab({
+  library,
+  onActivity,
+}: {
+  library: LibrarySurface
+  onActivity: ActivityRecorder
+}) {
   const [query, setQuery] = useState('')
   const [view, setView] = useState<DiscoveryStatus>('queued')
   const [sourceFilter, setSourceFilter] = useState<ExplorerSourceFilter>('all')
@@ -2050,6 +2263,14 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
             ? `${queuedCount} hallazgos enviados a la cola.`
             : 'No hay hallazgos nuevos para esa busqueda.',
       )
+      if (queuedCount) {
+        onActivity({
+          detail: `${queuedCount} hallazgos para "${cleanedQuery}"`,
+          label: 'Busqueda en cola',
+          tab: 'explorer',
+          tone: 'success',
+        })
+      }
     } catch (reason) {
       setMessage(reason instanceof Error ? reason.message : 'No se pudo completar la busqueda.')
     } finally {
@@ -2064,6 +2285,12 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
       await library.queueDiscoveryCandidates([promptToDiscovery(title)])
       setView('queued')
       setMessage('Carta de exploracion anadida.')
+      onActivity({
+        detail: title,
+        label: 'Carta sorpresa anadida',
+        tab: 'explorer',
+        tone: 'success',
+      })
     } catch (reason) {
       setMessage(reason instanceof Error ? reason.message : 'No se pudo anadir la carta.')
     }
@@ -2076,6 +2303,12 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
       setSavedExplorerItem(item)
       setSavedExplorerUndo({ candidate, item })
       setMessage(`${item.title} guardado en Biblioteca.`)
+      onActivity({
+        detail: item.title,
+        label: 'Hallazgo guardado',
+        tab: 'explorer',
+        tone: 'success',
+      })
       return true
     } catch (reason) {
       setMessage(reason instanceof Error ? reason.message : 'No se pudo guardar el hallazgo.')
@@ -2088,6 +2321,12 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
       clearExplorerRecentActions()
       await library.dismissDiscoveryCandidate(candidate.id)
       setMessage(`${candidate.title} descartado de la cola.`)
+      onActivity({
+        detail: candidate.title,
+        label: 'Hallazgo descartado',
+        tab: 'explorer',
+        tone: 'success',
+      })
       return true
     } catch (reason) {
       setMessage(reason instanceof Error ? reason.message : 'No se pudo descartar el hallazgo.')
@@ -2101,6 +2340,12 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
       await library.restoreDiscoveryCandidate(candidate.id)
       setView('queued')
       setMessage(`${candidate.title} recuperado a la cola.`)
+      onActivity({
+        detail: candidate.title,
+        label: 'Hallazgo recuperado',
+        tab: 'explorer',
+        tone: 'success',
+      })
       return true
     } catch (reason) {
       setMessage(reason instanceof Error ? reason.message : 'No se pudo recuperar el hallazgo.')
@@ -2121,6 +2366,12 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
           ? `${candidatesToDismiss[0].title} descartado de la vista ${activeSourceLabel}.`
           : `${candidatesToDismiss.length} hallazgos descartados de la vista ${activeSourceLabel}.`,
       )
+      onActivity({
+        detail: candidatesToDismiss.length === 1 ? candidatesToDismiss[0].title : `${candidatesToDismiss.length} hallazgos`,
+        label: 'Vista descartada',
+        tab: 'explorer',
+        tone: 'success',
+      })
     } catch (reason) {
       setMessage(reason instanceof Error ? reason.message : 'No se pudo limpiar la vista.')
     }
@@ -2139,6 +2390,12 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
           ? `${candidatesToRestore[0].title} recuperado a la cola.`
           : `${candidatesToRestore.length} hallazgos recuperados a la cola.`,
       )
+      onActivity({
+        detail: candidatesToRestore.length === 1 ? candidatesToRestore[0].title : `${candidatesToRestore.length} hallazgos`,
+        label: 'Vista recuperada',
+        tab: 'explorer',
+        tone: 'success',
+      })
     } catch (reason) {
       setMessage(reason instanceof Error ? reason.message : 'No se pudo deshacer el descarte.')
     }
@@ -2153,6 +2410,12 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
       setView('queued')
       clearExplorerRecentActions()
       setMessage(`${savedExplorerUndo.item.title} recuperado a la cola y eliminado de Biblioteca.`)
+      onActivity({
+        detail: savedExplorerUndo.item.title,
+        label: 'Guardado deshecho',
+        tab: 'explorer',
+        tone: 'success',
+      })
     } catch (reason) {
       setMessage(reason instanceof Error ? reason.message : 'No se pudo deshacer el guardado.')
     }
@@ -2165,6 +2428,12 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
       setSavedExplorerItem(item)
       setSavedExplorerUndo((current) => (current ? { ...current, item } : current))
       setMessage(`${item.title || 'Entrada'} afinada en Biblioteca.`)
+      onActivity({
+        detail: item.title || 'Entrada sin titulo',
+        label: 'Ficha afinada',
+        tab: 'explorer',
+        tone: 'success',
+      })
     } catch (reason) {
       setMessage(reason instanceof Error ? reason.message : 'No se pudo guardar la ficha.')
     }
@@ -2192,6 +2461,12 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
       const savedItem = await library.upsertPublicItem(item)
       setCatalogDraft(options?.createAnother ? blankPublicCatalogItem(savedItem.type) : undefined)
       setMessage(`${savedItem.title} guardado en catalogo Nexo.`)
+      onActivity({
+        detail: savedItem.title,
+        label: 'Catalogo actualizado',
+        tab: 'explorer',
+        tone: 'success',
+      })
     } catch (reason) {
       setMessage(reason instanceof Error ? reason.message : 'No se pudo guardar en el catalogo publico.')
     }
@@ -2570,6 +2845,7 @@ type SettingsDraft = ReturnType<typeof settingsDraftFromSettings>
 
 function SettingsTab({
   library,
+  onActivity,
   onNavigate,
   onUnsavedChange,
   setTheme,
@@ -2577,6 +2853,7 @@ function SettingsTab({
   user,
 }: {
   library: LibrarySurface
+  onActivity: ActivityRecorder
   onNavigate: (tab: AppTab) => void
   onUnsavedChange: (hasUnsavedChanges: boolean) => void
   setTheme: (theme: ThemeMode) => void
@@ -2631,6 +2908,12 @@ function SettingsTab({
     setPendingBackupImport(undefined)
     setSettingsUndo(previousSettings)
     setStatus('Ajustes guardados')
+    onActivity({
+      detail: `${draft.theme === 'dark' ? 'Oscuro' : 'Claro'} / ${typeLabels[draft.explorerDefaultType]}`,
+      label: 'Ajustes guardados',
+      tab: 'settings',
+      tone: 'success',
+    })
   }
 
   async function undoSettingsSave() {
@@ -2644,6 +2927,12 @@ function SettingsTab({
       setSettingsUndo(undefined)
       setPendingBackupImport(undefined)
       setStatus('Ajustes recuperados')
+      onActivity({
+        detail: `${previousSettings.theme === 'dark' ? 'Oscuro' : 'Claro'} / ${typeLabels[previousSettings.explorerDefaultType]}`,
+        label: 'Ajustes recuperados',
+        tab: 'settings',
+        tone: 'success',
+      })
     } catch (reason) {
       setStatus(reason instanceof Error ? reason.message : 'No se pudieron recuperar los ajustes.')
     }
@@ -2658,6 +2947,12 @@ function SettingsTab({
   function exportPrivateBackup() {
     downloadLibraryBackup(library.items, library.settings, 'nexo-backup')
     setStatus('Backup JSON descargado')
+    onActivity({
+      detail: `${library.items.length} entradas exportadas`,
+      label: 'Backup privado exportado',
+      tab: 'settings',
+      tone: 'success',
+    })
   }
 
   async function preparePrivateBackupImport(file?: File) {
@@ -2696,6 +2991,12 @@ function SettingsTab({
           ? `Importadas ${summary.totalItems} entradas y ajustes desde backup`
           : `Importadas ${summary.totalItems} entradas desde backup`,
       )
+      onActivity({
+        detail: payload.settings ? `${summary.totalItems} entradas y ajustes` : `${summary.totalItems} entradas`,
+        label: 'Backup privado aplicado',
+        tab: 'settings',
+        tone: 'success',
+      })
       setPendingBackupImport(undefined)
     } catch (reason) {
       setStatus(reason instanceof Error ? reason.message : 'No se pudo importar el backup.')
@@ -2711,6 +3012,12 @@ function SettingsTab({
     await library.saveItem(item)
     setEditingItem(undefined)
     setStatus(`${item.title || 'Entrada'} guardada`)
+    onActivity({
+      detail: item.title || 'Entrada sin titulo',
+      label: 'Ficha guardada',
+      tab: 'settings',
+      tone: 'success',
+    })
   }
 
   const privateDataActions: PrivateDataAction[] = [
@@ -2948,6 +3255,7 @@ function SettingsTab({
         {library.userRole === 'admin' && (
           <AdminRolesPanel
             currentUserId={user?.uid}
+            onActivity={onActivity}
             onRoleChange={library.updateUserRole}
             profiles={library.userProfiles}
           />
@@ -3132,10 +3440,12 @@ function SettingsTab({
 
 function AdminRolesPanel({
   currentUserId,
+  onActivity,
   onRoleChange,
   profiles,
 }: {
   currentUserId?: string
+  onActivity: ActivityRecorder
   onRoleChange: (targetUserId: string, role: UserRole) => Promise<void>
   profiles: UserProfile[]
 }) {
@@ -3165,6 +3475,12 @@ function AdminRolesPanel({
     try {
       await onRoleChange(profile.uid, role)
       setStatus(`${profile.displayName || profile.email || profile.uid} ahora es ${roleLabels[role]}`)
+      onActivity({
+        detail: `${profile.displayName || profile.email || profile.uid} -> ${roleLabels[role]}`,
+        label: 'Rol actualizado',
+        tab: 'settings',
+        tone: 'success',
+      })
       setPendingRoleChange(undefined)
     } catch (reason) {
       setStatus(reason instanceof Error ? reason.message : 'No se pudo actualizar el rol.')
@@ -3289,7 +3605,13 @@ function AdminRolesPanel({
   )
 }
 
-function CurationTab({ library }: { library: LibrarySurface }) {
+function CurationTab({
+  library,
+  onActivity,
+}: {
+  library: LibrarySurface
+  onActivity: ActivityRecorder
+}) {
   const [query, setQuery] = useState('')
   const [qualityFilter, setQualityFilter] = useState<CatalogQualityFilter>('all')
   const [issueFilter, setIssueFilter] = useState<CatalogIssueFilter>('all')
@@ -3381,6 +3703,12 @@ function CurationTab({ library }: { library: LibrarySurface }) {
     setPendingCatalogSeed(undefined)
     setItems((current) => current.filter((item) => item.id !== archivedItem.id))
     setStatus(`${archivedItem.title} archivado`)
+    onActivity({
+      detail: archivedItem.title,
+      label: 'Entrada archivada',
+      tab: 'curation',
+      tone: 'success',
+    })
     setArchiveTarget(undefined)
   }
 
@@ -3392,6 +3720,12 @@ function CurationTab({ library }: { library: LibrarySurface }) {
       delete restoredItem.archivedAt
       setItems((current) => upsertVisibleCatalogItem(current, restoredItem))
       setStatus(`${archiveUndoItem.title} recuperado en catalogo`)
+      onActivity({
+        detail: archiveUndoItem.title,
+        label: 'Entrada recuperada',
+        tab: 'curation',
+        tone: 'success',
+      })
       setArchiveUndoItem(undefined)
       setPendingCatalogSeed(undefined)
     } catch (reason) {
@@ -3421,6 +3755,12 @@ function CurationTab({ library }: { library: LibrarySurface }) {
   function downloadCatalogSeedTemplate() {
     downloadJsonFile(createPublicCatalogSeedTemplate(), 'nexo-catalog-seed-template.json')
     setStatus('Plantilla de catalogo descargada')
+    onActivity({
+      detail: 'JSON de importacion publica',
+      label: 'Plantilla descargada',
+      tab: 'curation',
+      tone: 'success',
+    })
   }
 
   async function prepareCatalogSeed(file?: File) {
@@ -3471,6 +3811,12 @@ function CurationTab({ library }: { library: LibrarySurface }) {
       setIssueFilter('all')
       setSortMode('updated')
       setStatus(`Importadas ${savedItems.length} entradas al catalogo`)
+      onActivity({
+        detail: `${savedItems.length} entradas publicas`,
+        label: 'Seed aplicado',
+        tab: 'curation',
+        tone: 'success',
+      })
     } catch (reason) {
       setStatus(reason instanceof Error ? reason.message : 'No se pudo importar el lote de catalogo.')
     } finally {
@@ -3896,6 +4242,12 @@ function CurationTab({ library }: { library: LibrarySurface }) {
             setHasLoaded(true)
             setEditingItem(options?.createAnother ? blankPublicCatalogItem(savedItem.type) : undefined)
             setStatus(`${savedItem.title} guardado en catalogo`)
+            onActivity({
+              detail: savedItem.title,
+              label: 'Catalogo actualizado',
+              tab: 'curation',
+              tone: 'success',
+            })
           }}
         />
       )}
