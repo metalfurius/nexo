@@ -521,6 +521,10 @@ test('delete all requires explicit confirmation', async ({ page }) => {
   await expect(page.getByRole('dialog', { name: 'Borrar entrada' })).toContainText('Mass Effect Legendary Edition')
   await page.getByRole('button', { name: 'Borrar entrada' }).click()
   await expect(page.getByTestId('library-grid')).not.toContainText('Mass Effect Legendary Edition')
+  await expect(page.getByRole('button', { name: 'Deshacer borrado' })).toBeVisible()
+  await page.getByRole('button', { name: 'Deshacer borrado' }).click()
+  await expect(page.getByText('Mass Effect Legendary Edition recuperado en Biblioteca')).toBeVisible()
+  await expect(page.getByTestId('library-grid')).toContainText('Mass Effect Legendary Edition')
 
   await page.getByRole('button', { name: 'Borrar todo' }).click()
   await expect(page.getByRole('heading', { name: 'Borrar toda la biblioteca' })).toBeVisible()

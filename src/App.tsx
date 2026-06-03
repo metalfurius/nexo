@@ -572,6 +572,7 @@ function LibraryTab({
   const [sortMode, setSortMode] = useState<LibrarySortMode>('focus')
   const [editingItem, setEditingItem] = useState<ListItem | undefined>()
   const [deleteTarget, setDeleteTarget] = useState<ListItem | undefined>()
+  const [deletedItemUndo, setDeletedItemUndo] = useState<ListItem | undefined>()
   const [importStatus, setImportStatus] = useState<string | undefined>()
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
@@ -626,6 +627,7 @@ function LibraryTab({
     if (!file) return
 
     setImportStatus('Importando biblioteca...')
+    setDeletedItemUndo(undefined)
     try {
       const payload = parseLibraryImportPayload(JSON.parse(await file.text()))
 
@@ -648,6 +650,7 @@ function LibraryTab({
 
   async function deleteEntireLibrary() {
     setImportStatus('Borrando tu biblioteca...')
+    setDeletedItemUndo(undefined)
     await library.deleteAllItems()
     setDeleteDialogOpen(false)
     setDeleteConfirmText('')
@@ -660,8 +663,21 @@ function LibraryTab({
     const deletedTitle = deleteTarget.title
     setImportStatus(`Borrando ${deletedTitle}...`)
     await library.deleteItem(deleteTarget.id)
+    setDeletedItemUndo(deleteTarget)
     setDeleteTarget(undefined)
     setImportStatus(`${deletedTitle} borrado`)
+  }
+
+  async function undoDeleteSingleItem() {
+    if (!deletedItemUndo) return
+
+    try {
+      await library.saveItem(deletedItemUndo)
+      setImportStatus(`${deletedItemUndo.title} recuperado en Biblioteca`)
+      setDeletedItemUndo(undefined)
+    } catch (reason) {
+      setImportStatus(reason instanceof Error ? reason.message : 'No se pudo deshacer el borrado.')
+    }
   }
 
   async function snoozeLibraryItem(item: ListItem) {
@@ -937,6 +953,14 @@ function LibraryTab({
         {library.loading && <FeedbackMessage tone="loading">Cargando biblioteca...</FeedbackMessage>}
         {library.error && <FeedbackMessage tone="danger">{library.error}</FeedbackMessage>}
         {importStatus && <FeedbackMessage tone={feedbackToneFromText(importStatus)}>{importStatus}</FeedbackMessage>}
+        {deletedItemUndo && (
+          <div className="feedback-action-row" aria-label="Accion reciente de biblioteca">
+            <button className="secondary-button" type="button" onClick={() => void undoDeleteSingleItem()}>
+              <RotateCcw size={16} />
+              Deshacer borrado
+            </button>
+          </div>
+        )}
 
         {showFocusShelf && (
           <section className="library-focus-shelf" aria-label="Foco de biblioteca" data-testid="library-focus-shelf">
