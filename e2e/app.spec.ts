@@ -241,9 +241,9 @@ test('quick search opens library items through the pending-change guard', async 
   await expect(page.getByText('Cambios pendientes')).toBeVisible()
 
   await page.getByRole('button', { name: 'Busqueda rapida' }).click()
-  const quickSearch = page.getByRole('dialog', { name: 'Abrir ficha' })
+  const quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
   await expect(quickSearch).toBeVisible()
-  await quickSearch.getByLabel('Buscar ficha').fill('outer')
+  await quickSearch.getByLabel('Buscar en Nexo').fill('outer')
   await quickSearch.getByRole('button', { name: 'Abrir Outer Wilds' }).click()
 
   await expect(page.getByLabel('Salida con cambios pendientes')).toContainText('Cambios pendientes en Dado')
@@ -257,14 +257,34 @@ test('quick search opens the active result from the keyboard', async ({ page }) 
   await page.goto('/')
   await expect(page.getByRole('heading', { name: 'Biblioteca privada' })).toBeVisible()
   await page.keyboard.press('/')
-  const quickSearch = page.getByRole('dialog', { name: 'Abrir ficha' })
+  const quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
   await expect(quickSearch).toBeVisible()
-  const searchInput = quickSearch.getByLabel('Buscar ficha')
+  const searchInput = quickSearch.getByLabel('Buscar en Nexo')
   await searchInput.fill('outer')
   await expect(quickSearch.getByRole('button', { name: 'Abrir Outer Wilds' })).toHaveAttribute('aria-current', 'true')
   await searchInput.press('Enter')
   await expect(page).toHaveURL(/item=game-outer-wilds/)
   await expect(page.getByRole('dialog', { name: 'Entrada' }).getByLabel('Titulo')).toHaveValue('Outer Wilds')
+})
+
+test('quick search opens sections through the pending-change guard', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Elige el siguiente hilo' })).toBeVisible()
+  await page.getByLabel('Energia').selectOption('high')
+  await expect(page.getByText('Cambios pendientes')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Busqueda rapida' }).click()
+  const quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  await quickSearch.getByLabel('Buscar en Nexo').fill('explorador')
+  await expect(quickSearch.getByRole('button', { name: 'Abrir Explorador' })).toHaveAttribute('aria-current', 'true')
+  await quickSearch.getByRole('button', { name: 'Abrir Explorador' }).click()
+
+  await expect(page.getByLabel('Salida con cambios pendientes')).toContainText('Cambios pendientes en Dado')
+  await expect(page).toHaveURL(/tab=dice/)
+  await page.getByLabel('Salida con cambios pendientes').getByRole('button', { name: 'Descartar cambios' }).click()
+  await expect(page).toHaveURL(/tab=explorer/)
+  await expect(page.getByRole('heading', { name: 'Encuentra la proxima entrada' })).toBeVisible()
 })
 
 test('activity entries navigate through the pending-change guard', async ({ page }) => {

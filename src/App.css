@@ -601,6 +601,11 @@
   color: var(--mark-watch-text);
 }
 
+.quick-search-type.section {
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+}
+
 .quick-search-empty {
   align-items: center;
   background: var(--surface-muted);

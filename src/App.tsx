@@ -255,6 +255,41 @@ type ActivityFocus = ActivityTarget
 type AppTab = ActivityTab
 type PendingNavigation = { focus?: ActivityFocus; source: 'app' | 'history'; tab: AppTab }
 type ActivityRecorder = (entry: Omit<ActivityEntry, 'createdAt' | 'id'>) => void
+type QuickSearchEntry =
+  | {
+      Icon: typeof Library
+      detail: string
+      id: string
+      item: ListItem
+      kind: 'item'
+      meta: string
+      tone: ItemType
+      title: string
+    }
+  | {
+      Icon: typeof Library
+      detail: string
+      id: string
+      kind: 'tab'
+      meta: string
+      tab: AppTab
+      tone: 'section'
+      title: string
+    }
+
+interface ScoredQuickSearchEntry {
+  entry: QuickSearchEntry
+  index: number
+  score: number
+}
+
+interface ShellNavItem {
+  description: string
+  hidden?: boolean
+  icon: typeof Library
+  id: AppTab
+  label: string
+}
 
 const activityTabLabels: Record<AppTab, string> = {
   curation: 'Curacion',
@@ -563,13 +598,14 @@ function App() {
     )
   }
 
-  const navItems: Array<{ id: AppTab; label: string; description: string; icon: typeof Library; hidden?: boolean }> = [
+  const navItems: ShellNavItem[] = [
     { id: 'library', label: 'Biblioteca', description: 'Tus pendientes privados', icon: Library },
     { id: 'dice', label: 'Dado', description: 'Decision ponderada', icon: Dice5 },
     { id: 'explorer', label: 'Explorador', description: 'Catalogo y hallazgos', icon: Sparkles },
     { id: 'settings', label: 'Ajustes', description: 'Preferencias y cuenta', icon: Sun },
     { id: 'curation', label: 'Curacion', description: 'Catalogo Nexo', icon: ShieldCheck, hidden: !library.isModerator },
   ]
+  const visibleNavItems = navItems.filter((item) => !item.hidden)
   const activeNavItem = navItems.find((item) => item.id === activeTab) ?? navItems[0]
   const pendingNavItem = pendingNavigation ? navItems.find((item) => item.id === pendingNavigation.tab) : undefined
   const shellTitle = activeTab === 'library' ? 'Biblioteca privada' : activeNavItem.label
@@ -648,8 +684,7 @@ function App() {
       </header>
 
       <nav className="tabbar" aria-label="Secciones de Nexo">
-        {navItems
-          .filter((item) => !item.hidden)
+        {visibleNavItems
           .map((item) => {
             const Icon = item.icon
             return (
@@ -674,10 +709,15 @@ function App() {
       {quickSearchOpen && (
         <QuickSearchDialog
           items={library.items}
+          navItems={visibleNavItems}
           onClose={() => setQuickSearchOpen(false)}
           onOpenItem={(item) => {
             setQuickSearchOpen(false)
             changeActiveTab('library', { kind: 'item', id: item.id })
+          }}
+          onOpenTab={(tab) => {
+            setQuickSearchOpen(false)
+            changeActiveTab(tab)
           }}
         />
       )}
@@ -729,25 +769,72 @@ function App() {
 
 function QuickSearchDialog({
   items,
+  navItems,
   onClose,
   onOpenItem,
+  onOpenTab,
 }: {
   items: ListItem[]
+  navItems: ShellNavItem[]
   onClose: () => void
   onOpenItem: (item: ListItem) => void
+  onOpenTab: (tab: AppTab) => void
 }) {
   const [query, setQuery] = useState('')
   const [activeResultIndex, setActiveResultIndex] = useState(0)
   const normalizedQuery = normalizeKey(query)
   const focusItems = useMemo(() => getLibraryFocusItems(items), [items])
   const results = useMemo(() => {
-    if (!normalizedQuery) return focusItems.slice(0, 6)
+    const navigationEntries: QuickSearchEntry[] = navItems.map((item) => ({
+      Icon: item.icon,
+      detail: item.description,
+      id: `tab-${item.id}`,
+      kind: 'tab',
+      meta: 'Seccion',
+      tab: item.id,
+      title: item.label,
+      tone: 'section',
+    }))
+
+    if (!normalizedQuery) {
+      return [
+        ...navigationEntries,
+        ...focusItems.slice(0, 5).map((item): QuickSearchEntry => ({
+          Icon: typeIcons[item.type],
+          detail: getItemSubtitle(item),
+          id: `item-${item.id}`,
+          item,
+          kind: 'item',
+          meta: statusLabels[item.status],
+          title: item.title,
+          tone: item.type,
+        })),
+      ]
+    }
 
     const tokens = normalizedQuery.split(' ').filter(Boolean)
-    return items
-      .map((item, index) => {
+    const scoredNavigationEntries = navigationEntries
+      .map((entry, index): ScoredQuickSearchEntry | undefined => {
+        const titleKey = normalizeKey(entry.title)
+        const textKey = normalizeKey(`${entry.title} ${entry.detail} ${entry.meta}`)
+        if (!tokens.every((token) => textKey.includes(token))) return undefined
+
+        return {
+          entry,
+          index,
+          score:
+            20 +
+            (titleKey === normalizedQuery ? 60 : 0) +
+            (titleKey.startsWith(normalizedQuery) ? 34 : 0) +
+            (titleKey.includes(normalizedQuery) ? 16 : 0),
+        }
+      })
+      .filter((result): result is ScoredQuickSearchEntry => Boolean(result))
+
+    const scoredItemEntries = items
+      .map((item, index): ScoredQuickSearchEntry | undefined => {
         const titleKey = normalizeKey(item.title)
-        const itemText = normalizeKey(
+        const textKey = normalizeKey(
           [
             item.title,
             typeLabels[item.type],
@@ -758,24 +845,38 @@ function QuickSearchDialog({
             ...item.moodTags,
           ].join(' '),
         )
-        if (!tokens.every((token) => itemText.includes(token))) return undefined
+        if (!tokens.every((token) => textKey.includes(token))) return undefined
 
-        const score =
-          (titleKey === normalizedQuery ? 50 : 0) +
-          (titleKey.startsWith(normalizedQuery) ? 30 : 0) +
-          (titleKey.includes(normalizedQuery) ? 15 : 0) +
-          (item.status === 'in_progress' ? 8 : 0) +
-          (item.status === 'wishlist' ? 4 : 0)
-
-        return { item, index, score }
+        return {
+          entry: {
+            Icon: typeIcons[item.type],
+            detail: getItemSubtitle(item),
+            id: `item-${item.id}`,
+            item,
+            kind: 'item',
+            meta: statusLabels[item.status],
+            title: item.title,
+            tone: item.type,
+          },
+          index,
+          score:
+            (titleKey === normalizedQuery ? 50 : 0) +
+            (titleKey.startsWith(normalizedQuery) ? 30 : 0) +
+            (titleKey.includes(normalizedQuery) ? 15 : 0) +
+            (item.status === 'in_progress' ? 8 : 0) +
+            (item.status === 'wishlist' ? 4 : 0),
+        }
       })
-      .filter((entry): entry is { item: ListItem; index: number; score: number } => Boolean(entry))
-      .sort((a, b) => b.score - a.score || a.item.title.localeCompare(b.item.title) || a.index - b.index)
+      .filter((result): result is ScoredQuickSearchEntry => Boolean(result))
+
+    return [...scoredNavigationEntries, ...scoredItemEntries]
+      .sort((a, b) => b.score - a.score || a.entry.title.localeCompare(b.entry.title) || a.index - b.index)
       .slice(0, 8)
-      .map((entry) => entry.item)
-  }, [focusItems, items, normalizedQuery])
-  const resultLabel = normalizedQuery ? 'Resultados' : 'Foco actual'
-  const activeItem = results[Math.min(activeResultIndex, Math.max(results.length - 1, 0))]
+      .map((result) => result.entry)
+  }, [focusItems, items, navItems, normalizedQuery])
+  const resultLabel = normalizedQuery ? 'Resultados' : 'Secciones y foco'
+  const resultTotal = items.length + navItems.length
+  const activeEntry = results[Math.min(activeResultIndex, Math.max(results.length - 1, 0))]
 
   function updateQuery(nextQuery: string) {
     setQuery(nextQuery)
@@ -783,7 +884,8 @@ function QuickSearchDialog({
   }
 
   function openActiveResult() {
-    if (activeItem) onOpenItem(activeItem)
+    if (activeEntry?.kind === 'item') onOpenItem(activeEntry.item)
+    if (activeEntry?.kind === 'tab') onOpenTab(activeEntry.tab)
   }
 
   function handleSearchKeyDown(event: KeyboardEvent<HTMLInputElement>) {
@@ -797,7 +899,7 @@ function QuickSearchDialog({
       setActiveResultIndex((current) => (current - 1 + results.length) % results.length)
       return
     }
-    if (event.key === 'Enter' && activeItem) {
+    if (event.key === 'Enter' && activeEntry) {
       event.preventDefault()
       openActiveResult()
     }
@@ -817,7 +919,7 @@ function QuickSearchDialog({
         <div className="panel-heading compact">
           <div>
             <span className="eyebrow">Busqueda rapida</span>
-            <h2 id="quick-search-title">Abrir ficha</h2>
+            <h2 id="quick-search-title">Abrir en Nexo</h2>
           </div>
           <button className="icon-button" type="button" onClick={onClose} title="Cerrar">
             <X size={18} />
@@ -826,13 +928,13 @@ function QuickSearchDialog({
 
         <label className="quick-search-field">
           <Search size={18} />
-          <span className="sr-only">Buscar ficha</span>
+          <span className="sr-only">Buscar en Nexo</span>
           <input
-            aria-label="Buscar ficha"
-            aria-activedescendant={activeItem ? `quick-search-result-${activeItem.id}` : undefined}
+            aria-label="Buscar en Nexo"
+            aria-activedescendant={activeEntry ? `quick-search-result-${activeEntry.id}` : undefined}
             aria-controls="quick-search-results"
             autoFocus
-            placeholder="Buscar ficha"
+            placeholder="Buscar ficha o seccion"
             value={query}
             onChange={(event) => updateQuery(event.target.value)}
             onKeyDown={handleSearchKeyDown}
@@ -842,40 +944,38 @@ function QuickSearchDialog({
         <div className="quick-search-section-heading">
           <strong>{resultLabel}</strong>
           <span>
-            {results.length} de {items.length}
+            {results.length} de {resultTotal}
           </span>
         </div>
 
-        {items.length === 0 ? (
-          <div className="quick-search-empty">
-            <Library size={20} />
-            <span>Biblioteca vacia</span>
-          </div>
-        ) : results.length ? (
+        {results.length ? (
           <ul className="quick-search-results" id="quick-search-results" aria-label={resultLabel}>
-            {results.map((item, index) => {
-              const Icon = typeIcons[item.type]
-              const isActive = item.id === activeItem?.id
+            {results.map((entry, index) => {
+              const Icon = entry.Icon
+              const isActive = entry.id === activeEntry?.id
 
               return (
-                <li key={item.id}>
+                <li key={entry.id}>
                   <button
                     className={isActive ? 'quick-search-result active' : 'quick-search-result'}
-                    id={`quick-search-result-${item.id}`}
+                    id={`quick-search-result-${entry.id}`}
                     type="button"
-                    aria-label={`Abrir ${item.title}`}
+                    aria-label={`Abrir ${entry.title}`}
                     aria-current={isActive ? 'true' : undefined}
-                    onClick={() => onOpenItem(item)}
+                    onClick={() => {
+                      if (entry.kind === 'item') onOpenItem(entry.item)
+                      if (entry.kind === 'tab') onOpenTab(entry.tab)
+                    }}
                     onMouseEnter={() => setActiveResultIndex(index)}
                   >
-                    <span className={`quick-search-type ${item.type}`} aria-hidden="true">
+                    <span className={`quick-search-type ${entry.tone}`} aria-hidden="true">
                       <Icon size={16} />
                     </span>
                     <span>
-                      <strong>{item.title}</strong>
-                      <small>{getItemSubtitle(item)}</small>
+                      <strong>{entry.title}</strong>
+                      <small>{entry.detail}</small>
                     </span>
-                    <em>{statusLabels[item.status]}</em>
+                    <em>{entry.meta}</em>
                   </button>
                 </li>
               )
