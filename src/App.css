@@ -3605,6 +3605,79 @@ button:active:not(:disabled),
   padding: 6px 8px;
 }
 
+.eligibility-recovery {
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 10px;
+  padding-top: 10px;
+}
+
+.eligibility-recovery-heading {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.eligibility-recovery-heading strong {
+  color: var(--text-strong);
+  font-size: 15px;
+  line-height: 1.15;
+}
+
+.eligibility-recovery-heading p {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+  margin: 0;
+}
+
+.eligibility-recovery-actions {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(138px, 1fr));
+}
+
+.eligibility-recovery-action {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 18px minmax(0, 1fr);
+  justify-items: start;
+  min-height: 54px;
+  padding: 8px;
+  text-align: left;
+}
+
+.eligibility-recovery-action:first-child {
+  background: color-mix(in srgb, var(--accent-soft) 65%, var(--surface));
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  color: var(--accent-dark);
+}
+
+.eligibility-recovery-action span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.eligibility-recovery-action strong {
+  color: var(--text-strong);
+  font-size: 12px;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
+.eligibility-recovery-action small {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
 .dice-orb {
   align-items: center;
   aspect-ratio: 1;
@@ -5828,6 +5901,10 @@ textarea:focus-visible {
 
   .dice-readiness-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .eligibility-recovery-actions {
+    grid-template-columns: 1fr;
   }
 
   .library-next-facts {

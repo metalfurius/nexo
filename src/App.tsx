@@ -305,6 +305,14 @@ interface PrivateDataAction {
   primary?: boolean
 }
 
+interface DiceRecoveryAction {
+  detail: string
+  Icon: typeof Download
+  id: string
+  label: string
+  onClick: () => void
+}
+
 interface DiceEligibilityBreakdown {
   available: number
   blockedTags: number
@@ -1161,6 +1169,29 @@ function DiceTab({ library }: { library: LibrarySurface }) {
   const activeDiceFilters = getActiveDiceFilters(preferences, library.settings)
   const recentRecommendations = useMemo(() => getRecentRecommendationItems(library.items), [library.items])
   const hasCandidates = scoredCandidates.length > 0
+  const diceRecoveryActions: DiceRecoveryAction[] = [
+    {
+      detail: 'Todo + pausados',
+      Icon: RotateCcw,
+      id: 'open-pool',
+      label: 'Abrir abanico',
+      onClick: () => setPreferences((current) => ({ ...current, includePaused: true, medium: 'any' })),
+    },
+    {
+      detail: 'Sin limite de horas',
+      Icon: X,
+      id: 'clear-time',
+      label: 'Quitar tiempo',
+      onClick: () => setPreferences((current) => ({ ...current, timeBudgetHours: undefined })),
+    },
+    {
+      detail: 'Preset raro',
+      Icon: Sparkles,
+      id: 'surprise',
+      label: 'Sorpresa amplia',
+      onClick: () => applyDicePreset(dicePreferencePresets.find((preset) => preset.id === 'weird-surprise')?.preferences ?? preferences),
+    },
+  ]
   const setPreferences = (
     update: RecommendationPreferences | ((current: RecommendationPreferences) => RecommendationPreferences),
   ) => {
@@ -1340,7 +1371,11 @@ function DiceTab({ library }: { library: LibrarySurface }) {
           <span>{unavailableCount} fuera por estado, cooldown o filtros</span>
           <span>Pool maximo {poolSize}</span>
         </div>
-        <DiceEligibilityPanel breakdown={eligibilityBreakdown} activeFilters={activeDiceFilters} />
+        <DiceEligibilityPanel
+          activeFilters={activeDiceFilters}
+          breakdown={eligibilityBreakdown}
+          recoveryActions={diceRecoveryActions}
+        />
       </section>
 
       <section className="workspace-panel dice-settings">
@@ -4755,9 +4790,11 @@ function PreferencePreview({ label, tone, values }: { label: string; tone?: 'dan
 function DiceEligibilityPanel({
   activeFilters,
   breakdown,
+  recoveryActions,
 }: {
   activeFilters: string[]
   breakdown: DiceEligibilityBreakdown
+  recoveryActions: DiceRecoveryAction[]
 }) {
   const exclusionRows = [
     { label: 'Completadas/droppeadas', value: breakdown.resolved },
@@ -4805,6 +4842,29 @@ function DiceEligibilityPanel({
           <span key={filter}>{filter}</span>
         ))}
       </div>
+      {breakdown.total > 0 && breakdown.available === 0 && recoveryActions.length > 0 && (
+        <section className="eligibility-recovery" aria-label="Rescate del dado" data-testid="dice-recovery">
+          <div className="eligibility-recovery-heading">
+            <span className="eyebrow">Rescate</span>
+            <strong>Abre una tirada posible</strong>
+            <p>Prueba un ajuste amplio y vuelve a cerrar filtros cuando haya candidatas.</p>
+          </div>
+          <div className="eligibility-recovery-actions">
+            {recoveryActions.map((action) => {
+              const Icon = action.Icon
+              return (
+                <button key={action.id} className="eligibility-recovery-action" type="button" onClick={action.onClick}>
+                  <Icon size={15} />
+                  <span>
+                    <strong>{action.label}</strong>
+                    <small>{action.detail}</small>
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </section>
+      )}
     </section>
   )
 }
