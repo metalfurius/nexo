@@ -338,6 +338,37 @@ function writeAppTabToUrl(tab: AppTab, mode: 'push' | 'replace' = 'replace', foc
   }
 }
 
+function buildItemShareUrl(itemId: string) {
+  const url = new URL(window.location.href)
+  url.searchParams.delete('tab')
+  url.searchParams.set('item', itemId)
+  return url.toString()
+}
+
+async function writeClipboardText(value: string) {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(value)
+      return true
+    }
+  } catch {
+    // Fall back below for browsers that expose clipboard but deny writes.
+  }
+
+  const textArea = document.createElement('textarea')
+  textArea.value = value
+  textArea.setAttribute('readonly', '')
+  textArea.style.left = '-9999px'
+  textArea.style.position = 'fixed'
+  document.body.append(textArea)
+  textArea.select()
+  try {
+    return document.execCommand('copy')
+  } finally {
+    textArea.remove()
+  }
+}
+
 const dicePreferencePresets: Array<{
   id: string
   label: string
@@ -4984,6 +5015,7 @@ function ItemEditor({
   }), [item])
   const [draft, setDraft] = useState(initialDraft)
   const [showDiscardPrompt, setShowDiscardPrompt] = useState(false)
+  const [linkCopyStatus, setLinkCopyStatus] = useState<{ message: string; tone: FeedbackTone; url: string } | undefined>()
   const hasUnsavedEditorChanges = useMemo(() => JSON.stringify(draft) !== JSON.stringify(initialDraft), [draft, initialDraft])
 
   const update = <Key extends keyof typeof draft>(key: Key, value: (typeof draft)[Key]) => {
@@ -5001,6 +5033,7 @@ function ItemEditor({
   const moodPresets = catalogMoodPresets.slice(0, 9)
   const taxonomyTemplates = catalogTaxonomyTemplates[draft.type].slice(0, 3)
   const starterTemplates = catalogTaxonomyTemplates[draft.type].slice(0, 4)
+  const canCopyItemLink = !item.id.startsWith('manual-')
   const readiness = getPersonalEditorReadiness({
     ...draft,
     genres: selectedGenres,
@@ -5030,6 +5063,16 @@ function ItemEditor({
       return
     }
     onClose()
+  }
+
+  async function copyItemLink() {
+    const itemUrl = buildItemShareUrl(item.id)
+    const copied = await writeClipboardText(itemUrl)
+    setLinkCopyStatus(
+      copied
+        ? { message: 'Enlace de ficha copiado', tone: 'success', url: itemUrl }
+        : { message: 'Enlace listo para copiar manualmente', tone: 'info', url: itemUrl },
+    )
   }
 
   return (
@@ -5067,11 +5110,35 @@ function ItemEditor({
               {typeLabels[draft.type]} / {statusLabels[draft.status]}
             </p>
           </div>
-          <button className="icon-button" type="button" onClick={requestClose} title="Cerrar">
-            <X size={18} />
-          </button>
+          <div className="action-row end">
+            {canCopyItemLink && (
+              <button
+                aria-label={`Copiar enlace a ${editorTitle}`}
+                className="icon-button"
+                type="button"
+                onClick={() => void copyItemLink()}
+                title="Copiar enlace"
+              >
+                {linkCopyStatus?.tone === 'success' ? <Check size={18} /> : <Copy size={18} />}
+              </button>
+            )}
+            <button className="icon-button" type="button" onClick={requestClose} title="Cerrar">
+              <X size={18} />
+            </button>
+          </div>
         </div>
         {showDiscardPrompt && <EditorDiscardPrompt onDiscard={onClose} onKeepEditing={() => setShowDiscardPrompt(false)} />}
+        {linkCopyStatus && (
+          <div className="link-copy-feedback">
+            <FeedbackMessage tone={linkCopyStatus.tone}>{linkCopyStatus.message}</FeedbackMessage>
+            <input
+              aria-label="Enlace de ficha"
+              readOnly
+              value={linkCopyStatus.url}
+              onFocus={(event) => event.currentTarget.select()}
+            />
+          </div>
+        )}
 
         <div className="editor-hero">
           <CoverArt title={editorTitle} type={draft.type} posterUrl={draft.posterUrl} />

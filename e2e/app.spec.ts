@@ -261,6 +261,8 @@ test('library item deep links open and close the focused editor', async ({ page 
   const editor = page.getByRole('dialog', { name: 'Entrada' })
   await expect(editor.getByLabel('Titulo')).toHaveValue('Outer Wilds')
   await expect(page).toHaveURL(/item=game-outer-wilds/)
+  await editor.getByRole('button', { name: 'Copiar enlace a Outer Wilds' }).click()
+  await expect(editor.getByLabel('Enlace de ficha')).toHaveValue(/item=game-outer-wilds/)
 
   await editor.getByRole('button', { name: 'Cerrar', exact: true }).click()
   await expect(page.getByRole('dialog', { name: 'Entrada' })).not.toBeVisible()
