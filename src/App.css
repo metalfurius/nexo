@@ -980,6 +980,47 @@
   min-height: 34px;
 }
 
+.library-selection-bar {
+  align-items: center;
+  background: color-mix(in srgb, var(--surface-muted) 82%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: -6px 0 18px;
+  padding: 8px;
+}
+
+.library-selection-count {
+  display: grid;
+  gap: 2px;
+  margin-inline: 4px auto;
+  min-width: 142px;
+}
+
+.library-selection-count strong {
+  color: var(--text-strong);
+  font-size: 13px;
+  line-height: 1.1;
+}
+
+.library-selection-count span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 1.1;
+}
+
+.bulk-status-control {
+  min-width: 152px;
+}
+
+.bulk-status-control select {
+  min-height: 38px;
+  width: 100%;
+}
+
 .library-smart-views {
   display: grid;
   gap: 8px;
@@ -3367,6 +3408,47 @@ label {
   border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
   box-shadow: 0 18px 36px color-mix(in srgb, var(--accent) 12%, transparent);
   transform: translateY(-2px);
+}
+
+.item-card.selected {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--accent-soft) 52%, transparent), transparent 72%),
+    var(--surface);
+  border-color: color-mix(in srgb, var(--accent) 58%, var(--border));
+  box-shadow: 0 16px 34px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.item-select-control {
+  align-items: center;
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  display: inline-flex;
+  height: 32px;
+  justify-content: center;
+  left: 12px;
+  position: absolute;
+  top: 12px;
+  width: 32px;
+  z-index: 3;
+}
+
+.item-select-control:hover {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+}
+
+.item-select-control input {
+  accent-color: var(--accent);
+  cursor: pointer;
+  height: 17px;
+  margin: 0;
+  width: 17px;
+}
+
+.item-select-control:has(input:focus-visible) {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }
 
 .item-main {
@@ -6439,6 +6521,20 @@ textarea:focus-visible {
 
   .library-smart-views {
     grid-template-columns: 1fr;
+  }
+
+  .library-selection-bar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .library-selection-bar button,
+  .bulk-status-control {
+    width: 100%;
+  }
+
+  .library-selection-count {
+    margin-inline: 0;
   }
 
   .eligibility-recovery-actions {

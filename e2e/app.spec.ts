@@ -249,6 +249,31 @@ test('library empty search can create a prefilled item', async ({ page }) => {
   await expect(page.getByTestId('library-grid')).toContainText('Manual sombra')
 })
 
+test('library can update selected visible items in bulk', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Seleccionar visibles' }).click()
+  await expect(page.getByLabel('Seleccion de biblioteca')).toContainText('7 seleccionadas')
+  await page.getByRole('button', { name: 'Quitar visibles' }).click()
+  await expect(page.getByLabel('Seleccion de biblioteca')).not.toContainText('seleccionadas')
+
+  await page.getByLabel('Seleccionar Outer Wilds').check()
+  await page.getByLabel('Seleccionar Vinland Saga').check()
+
+  const selectionBar = page.getByLabel('Seleccion de biblioteca')
+  await expect(selectionBar).toContainText('2 seleccionadas')
+  await selectionBar.getByLabel('Estado para seleccion').selectOption('completed')
+  await selectionBar.getByRole('button', { name: 'Aplicar estado' }).click()
+
+  await expect(page.getByText('2 entradas ahora son Completado')).toBeVisible()
+  await expect(page.locator('.item-card', { hasText: 'Outer Wilds' })).toContainText('Completado')
+  await expect(page.locator('.item-card', { hasText: 'Vinland Saga' })).toContainText('Completado')
+
+  await page.getByLabel('Accion reciente de biblioteca').getByRole('button', { name: 'Deshacer estado' }).click()
+  await expect(page.getByText('2 estados recuperados')).toBeVisible()
+  await expect(page.locator('.item-card', { hasText: 'Outer Wilds' })).toContainText('Pendiente')
+  await expect(page.locator('.item-card', { hasText: 'Vinland Saga' })).toContainText('Pendiente')
+})
+
 test('quick search opens library items through the pending-change guard', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Dado', exact: true }).click()

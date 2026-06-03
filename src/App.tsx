@@ -1228,6 +1228,9 @@ type DiceSettingsUndo = {
   preferences: RecommendationPreferences
   surprisePercent: number
 }
+type LibraryStatusUndo =
+  | { id: string; kind: 'single'; previousStatus: ItemStatus; title: string }
+  | { changes: Array<{ id: string; previousStatus: ItemStatus; title: string }>; kind: 'bulk' }
 
 interface PendingCatalogSeedImport {
   fileName: string
@@ -1264,12 +1267,14 @@ function LibraryTab({
   const [deleteTarget, setDeleteTarget] = useState<ListItem | undefined>()
   const [deletedItemUndo, setDeletedItemUndo] = useState<ListItem | undefined>()
   const [deletedLibraryUndo, setDeletedLibraryUndo] = useState<ListItem[]>([])
-  const [statusUndo, setStatusUndo] = useState<{ id: string; title: string; previousStatus: ItemStatus } | undefined>()
+  const [statusUndo, setStatusUndo] = useState<LibraryStatusUndo | undefined>()
   const [pendingLibraryImport, setPendingLibraryImport] = useState<PendingBackupImport | undefined>()
   const [libraryLinkCopy, setLibraryLinkCopy] = useState<{ title: string; url: string } | undefined>()
   const [importStatus, setImportStatus] = useState<string | undefined>()
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
+  const [selectedItemIds, setSelectedItemIds] = useState<string[]>([])
+  const [bulkStatus, setBulkStatus] = useState<ItemStatus>('completed')
   const viewMode = library.settings.libraryViewMode
   const trimmedQuery = query.trim()
   const hasActiveLibraryFilters = Boolean(trimmedQuery) || typeFilter !== 'all' || statusFilter !== 'all' || smartView !== 'all'
@@ -1301,6 +1306,16 @@ function LibraryTab({
 
     return sortLibraryItems(matchingItems, sortMode)
   }, [library.items, query, smartView, sortMode, statusFilter, typeFilter])
+  const selectedItemIdSet = useMemo(() => new Set(selectedItemIds), [selectedItemIds])
+  const selectedItems = useMemo(
+    () => library.items.filter((item) => selectedItemIdSet.has(item.id)),
+    [library.items, selectedItemIdSet],
+  )
+  const visibleItemIds = useMemo(() => filteredItems.map((item) => item.id), [filteredItems])
+  const selectedVisibleCount = visibleItemIds.filter((id) => selectedItemIdSet.has(id)).length
+  const allVisibleItemsSelected = filteredItems.length > 0 && selectedVisibleCount === filteredItems.length
+  const selectedDiceEligibleCount = selectedItems.filter((item) => item.status !== 'completed' && item.status !== 'dropped').length
+  const selectedCooldownCount = selectedItems.filter(isItemInCooldown).length
 
   const stats = useMemo(() => {
     return ITEM_STATUSES.map((status) => ({
@@ -1342,6 +1357,7 @@ function LibraryTab({
       const payload = parseLibraryImportPayload(JSON.parse(await file.text()))
       const summary = getLibraryImportSummary(payload, library.items)
       setPendingLibraryImport({ fileName: file.name, payload, summary })
+      setSelectedItemIds([])
       setImportStatus(`Backup preparado: ${formatBackupImportSummary(summary)}`)
     } catch (reason) {
       setPendingLibraryImport(undefined)
@@ -1375,6 +1391,7 @@ function LibraryTab({
         tone: 'success',
       })
       setPendingLibraryImport(undefined)
+      setSelectedItemIds([])
     } catch (reason) {
       setImportStatus(reason instanceof Error ? reason.message : 'No se pudo importar el archivo')
     }
@@ -1394,6 +1411,7 @@ function LibraryTab({
     setPendingLibraryImport(undefined)
     await library.deleteAllItems()
     setDeletedLibraryUndo(deletedItems)
+    setSelectedItemIds([])
     setDeleteDialogOpen(false)
     setDeleteConfirmText('')
     setImportStatus('Tu biblioteca ha sido borrada')
@@ -1416,6 +1434,7 @@ function LibraryTab({
     setStatusUndo(undefined)
     setPendingLibraryImport(undefined)
     setDeleteTarget(undefined)
+    setSelectedItemIds((current) => current.filter((id) => id !== deleteTarget.id))
     setImportStatus(`${deletedTitle} borrado`)
     onActivity({
       detail: deletedTitle,
@@ -1504,7 +1523,7 @@ function LibraryTab({
       await library.setStatus(item.id, status)
       setDeletedItemUndo(undefined)
       setDeletedLibraryUndo([])
-      setStatusUndo({ id: item.id, title: item.title, previousStatus: item.status })
+      setStatusUndo({ id: item.id, kind: 'single', previousStatus: item.status, title: item.title })
       setPendingLibraryImport(undefined)
       setImportStatus(`${item.title} ahora es ${statusLabels[status]}`)
       onActivity({
@@ -1523,6 +1542,22 @@ function LibraryTab({
     if (!statusUndo) return
 
     try {
+      if (statusUndo.kind === 'bulk') {
+        for (const change of statusUndo.changes) {
+          await library.setStatus(change.id, change.previousStatus)
+        }
+        setImportStatus(`${statusUndo.changes.length} estados recuperados`)
+        onActivity({
+          detail: `${statusUndo.changes.length} entradas`,
+          label: 'Estados recuperados',
+          tab: 'library',
+          tone: 'success',
+        })
+        setStatusUndo(undefined)
+        setPendingLibraryImport(undefined)
+        return
+      }
+
       await library.setStatus(statusUndo.id, statusUndo.previousStatus)
       setImportStatus(`${statusUndo.title} recuperado como ${statusLabels[statusUndo.previousStatus]}`)
       onActivity({
@@ -1536,6 +1571,108 @@ function LibraryTab({
       setPendingLibraryImport(undefined)
     } catch (reason) {
       setImportStatus(reason instanceof Error ? reason.message : 'No se pudo deshacer el cambio de estado.')
+    }
+  }
+
+  function toggleLibraryItemSelection(itemId: string) {
+    setSelectedItemIds((current) =>
+      current.includes(itemId) ? current.filter((id) => id !== itemId) : [...current, itemId],
+    )
+  }
+
+  function toggleVisibleLibrarySelection() {
+    if (!visibleItemIds.length) return
+
+    setSelectedItemIds((current) => {
+      const visibleIdSet = new Set(visibleItemIds)
+      if (allVisibleItemsSelected) return current.filter((id) => !visibleIdSet.has(id))
+      return uniqueValues([...current, ...visibleItemIds])
+    })
+  }
+
+  async function changeSelectedItemsStatus() {
+    const changedItems = selectedItems.filter((item) => item.status !== bulkStatus)
+    if (!selectedItems.length) return
+    if (!changedItems.length) {
+      setImportStatus(`La seleccion ya esta en ${statusLabels[bulkStatus]}`)
+      return
+    }
+
+    try {
+      for (const item of changedItems) {
+        await library.setStatus(item.id, bulkStatus)
+      }
+      setDeletedItemUndo(undefined)
+      setDeletedLibraryUndo([])
+      setStatusUndo({
+        changes: changedItems.map((item) => ({ id: item.id, previousStatus: item.status, title: item.title })),
+        kind: 'bulk',
+      })
+      setPendingLibraryImport(undefined)
+      setSelectedItemIds([])
+      setImportStatus(`${changedItems.length} entradas ahora son ${statusLabels[bulkStatus]}`)
+      onActivity({
+        detail: `${changedItems.length} -> ${statusLabels[bulkStatus]}`,
+        label: 'Estado masivo actualizado',
+        tab: 'library',
+        tone: 'success',
+      })
+    } catch (reason) {
+      setImportStatus(reason instanceof Error ? reason.message : 'No se pudo actualizar la seleccion.')
+    }
+  }
+
+  async function snoozeSelectedItems() {
+    const itemsToSnooze = selectedItems.filter((item) => item.status !== 'completed' && item.status !== 'dropped')
+    if (!itemsToSnooze.length) {
+      setImportStatus('La seleccion no tiene candidatas vivas para el dado')
+      return
+    }
+
+    try {
+      for (const item of itemsToSnooze) {
+        await library.snoozeRecommendation(item.id)
+      }
+      setDeletedItemUndo(undefined)
+      setDeletedLibraryUndo([])
+      setPendingLibraryImport(undefined)
+      setSelectedItemIds([])
+      setImportStatus(`${itemsToSnooze.length} entradas enfriadas para el dado`)
+      onActivity({
+        detail: `${itemsToSnooze.length} entradas`,
+        label: 'Seleccion enfriada',
+        tab: 'library',
+        tone: 'success',
+      })
+    } catch (reason) {
+      setImportStatus(reason instanceof Error ? reason.message : 'No se pudo enfriar la seleccion.')
+    }
+  }
+
+  async function reactivateSelectedItems() {
+    const itemsToReactivate = selectedItems.filter(isItemInCooldown)
+    if (!itemsToReactivate.length) {
+      setImportStatus('La seleccion no tiene cooldowns activos')
+      return
+    }
+
+    try {
+      for (const item of itemsToReactivate) {
+        await library.reactivateRecommendation(item.id)
+      }
+      setDeletedItemUndo(undefined)
+      setDeletedLibraryUndo([])
+      setPendingLibraryImport(undefined)
+      setSelectedItemIds([])
+      setImportStatus(`${itemsToReactivate.length} entradas reactivadas para el dado`)
+      onActivity({
+        detail: `${itemsToReactivate.length} entradas`,
+        label: 'Seleccion reactivada',
+        tab: 'library',
+        tone: 'success',
+      })
+    } catch (reason) {
+      setImportStatus(reason instanceof Error ? reason.message : 'No se pudo reactivar la seleccion.')
     }
   }
 
@@ -1869,6 +2006,63 @@ function LibraryTab({
           </div>
         )}
 
+        {filteredItems.length > 0 && (
+          <div className="library-selection-bar" aria-label="Seleccion de biblioteca">
+            <button className="secondary-button" type="button" onClick={toggleVisibleLibrarySelection}>
+              <CheckCircle2 size={16} />
+              {allVisibleItemsSelected ? 'Quitar visibles' : 'Seleccionar visibles'}
+            </button>
+            {selectedItems.length > 0 && (
+              <>
+                <div className="library-selection-count">
+                  <strong>{selectedItems.length} seleccionadas</strong>
+                  <span>{selectedVisibleCount} visibles en esta vista</span>
+                </div>
+                <label className="bulk-status-control">
+                  <span className="sr-only">Estado para seleccion</span>
+                  <select
+                    aria-label="Estado para seleccion"
+                    value={bulkStatus}
+                    onChange={(event) => setBulkStatus(event.target.value as ItemStatus)}
+                  >
+                    {ITEM_STATUSES.map((status) => (
+                      <option key={status} value={status}>
+                        {statusLabels[status]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button className="primary-button" type="button" onClick={() => void changeSelectedItemsStatus()}>
+                  <Save size={16} />
+                  Aplicar estado
+                </button>
+                <button
+                  className="secondary-button"
+                  disabled={selectedDiceEligibleCount === 0}
+                  type="button"
+                  onClick={() => void snoozeSelectedItems()}
+                >
+                  <Moon size={16} />
+                  Enfriar dado
+                </button>
+                <button
+                  className="secondary-button"
+                  disabled={selectedCooldownCount === 0}
+                  type="button"
+                  onClick={() => void reactivateSelectedItems()}
+                >
+                  <RotateCcw size={16} />
+                  Reactivar dado
+                </button>
+                <button className="ghost-button" type="button" onClick={() => setSelectedItemIds([])}>
+                  <X size={16} />
+                  Limpiar
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
         {library.loading && <FeedbackMessage tone="loading">Cargando biblioteca...</FeedbackMessage>}
         {library.error && <FeedbackMessage tone="danger">{library.error}</FeedbackMessage>}
         {importStatus && <FeedbackMessage tone={feedbackToneFromText(importStatus)}>{importStatus}</FeedbackMessage>}
@@ -1986,6 +2180,8 @@ function LibraryTab({
                 item={item}
                 key={item.id}
                 layout={viewMode}
+                isSelected={selectedItemIdSet.has(item.id)}
+                onToggleSelected={() => toggleLibraryItemSelection(item.id)}
                 onEdit={() => openLibraryEditor(item)}
                 onCopyLink={() => void copyLibraryItemLink(item)}
                 onStatus={(status) => void changeLibraryItemStatus(item, status)}
@@ -5106,6 +5302,7 @@ function downloadJsonFile(payload: unknown, filename: string) {
 }
 
 function ItemCard({
+  isSelected,
   item,
   layout = 'cards',
   onDelete,
@@ -5114,7 +5311,9 @@ function ItemCard({
   onReactivate,
   onSnooze,
   onStatus,
+  onToggleSelected,
 }: {
+  isSelected: boolean
   item: ListItem
   layout?: 'cards' | 'list'
   onEdit: () => void
@@ -5123,11 +5322,15 @@ function ItemCard({
   onReactivate: () => void
   onSnooze: () => void
   onStatus: (status: ItemStatus) => void
+  onToggleSelected: () => void
 }) {
   const primaryAction = getPrimaryItemAction(item.status)
   const secondaryAction = getSecondaryItemAction(item.status)
   const visibleChips = getVisibleItemChips(item)
   const canControlDiceCooldown = item.status !== 'completed' && item.status !== 'dropped'
+  const cardClassName = [layout === 'list' ? 'item-card list-card' : 'item-card', isSelected ? 'selected' : undefined]
+    .filter(Boolean)
+    .join(' ')
   const diceCooldownAction = isItemInCooldown(item)
     ? {
         Icon: RotateCcw,
@@ -5149,7 +5352,15 @@ function ItemCard({
   }
 
   return (
-    <article className={layout === 'list' ? 'item-card list-card' : 'item-card'} data-status={item.status}>
+    <article className={cardClassName} data-status={item.status}>
+      <label className="item-select-control" title="Seleccionar">
+        <input
+          aria-label={`Seleccionar ${item.title}`}
+          checked={isSelected}
+          type="checkbox"
+          onChange={onToggleSelected}
+        />
+      </label>
       <button className="item-main" type="button" onClick={onEdit}>
         <CoverArt title={item.title} type={item.type} posterUrl={item.posterUrl} />
         <div className="item-body">
