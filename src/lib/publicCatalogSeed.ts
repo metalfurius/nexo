@@ -28,6 +28,12 @@ export interface PublicCatalogSeedResult {
   errors: string[]
 }
 
+export interface PublicCatalogSeedSummary {
+  totalItems: number
+  newItems: number
+  updatedItems: number
+}
+
 export function createPublicCatalogSeedTemplate(): PublicCatalogSeedFile {
   return {
     sourceName: 'Nexo curated batch',
@@ -93,6 +99,29 @@ export function parsePublicCatalogSeed(value: unknown, actorId: string): PublicC
   })
 
   return { items, errors }
+}
+
+export function getPublicCatalogSeedSummary(
+  result: Pick<PublicCatalogSeedResult, 'items'>,
+  currentItems: Pick<PublicCatalogItem, 'id'>[],
+): PublicCatalogSeedSummary {
+  const currentIds = new Set(currentItems.map((item) => item.id))
+  let updatedItems = 0
+  let newItems = 0
+
+  for (const item of result.items) {
+    if (currentIds.has(item.id)) {
+      updatedItems += 1
+    } else {
+      newItems += 1
+    }
+  }
+
+  return {
+    totalItems: result.items.length,
+    newItems,
+    updatedItems,
+  }
 }
 
 function normalizeSeedEntry(value: unknown, index: number, errors: string[]): PublicCatalogSeedEntry | undefined {

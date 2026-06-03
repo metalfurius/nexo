@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createPublicCatalogSeedTemplate, parsePublicCatalogSeed } from './publicCatalogSeed'
+import { createPublicCatalogSeedTemplate, getPublicCatalogSeedSummary, parsePublicCatalogSeed } from './publicCatalogSeed'
 
 describe('parsePublicCatalogSeed', () => {
   it('creates a valid editable seed template', () => {
@@ -62,5 +62,23 @@ describe('parsePublicCatalogSeed', () => {
       'items[2].type must be one of: game, book, movie, series, anime, manga, manhwa, comic, other.',
       'items[3].title is required.',
     ])
+  })
+
+  it('summarizes prepared seed entries against the current public catalog', () => {
+    const result = parsePublicCatalogSeed(
+      {
+        items: [
+          { title: 'Arrival', type: 'movie' },
+          { title: 'Moon', type: 'movie' },
+        ],
+      },
+      'admin-1',
+    )
+
+    expect(getPublicCatalogSeedSummary(result, [{ id: 'movie-arrival' }])).toEqual({
+      totalItems: 2,
+      newItems: 1,
+      updatedItems: 1,
+    })
   })
 })

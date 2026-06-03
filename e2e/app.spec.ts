@@ -504,6 +504,11 @@ test('moderator curation can create a public catalog item in demo mode', async (
       }),
     ),
   })
+  await expect(page.getByText('Seed preparado: 1 nueva / 0 actualizadas')).toBeVisible()
+  await expect(page.getByLabel('Seed de catalogo preparado')).toContainText('public-catalog.seed.json')
+  await expect(page.getByLabel('Seed de catalogo preparado')).toContainText('1 entradas revisadas antes de tocar el catalogo publico')
+  await expect(page.getByRole('heading', { name: 'Moon' })).not.toBeVisible()
+  await page.getByRole('button', { name: 'Aplicar lote' }).click()
   await expect(page.getByText('Importadas 1 entradas al catalogo')).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Moon' })).toBeVisible()
 

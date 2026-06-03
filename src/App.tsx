@@ -149,7 +149,13 @@ import {
   type ParsedLibraryImport,
 } from './lib/libraryBackup'
 import { sortLibraryItems, type LibrarySortMode } from './lib/librarySorting'
-import { createPublicCatalogSeedTemplate, parsePublicCatalogSeed } from './lib/publicCatalogSeed'
+import {
+  createPublicCatalogSeedTemplate,
+  getPublicCatalogSeedSummary,
+  parsePublicCatalogSeed,
+  type PublicCatalogSeedResult,
+  type PublicCatalogSeedSummary,
+} from './lib/publicCatalogSeed'
 import { recommendItem, scoreCandidates } from './lib/recommendations'
 import {
   mergeListText,
@@ -580,6 +586,12 @@ type DiceUndoAction =
   | { kind: 'status'; itemId: string; previousStatus: ItemStatus; title: string }
   | { kind: 'snooze'; recommendation: RecommendationResult; title: string }
   | { kind: 'cooldowns'; items: ListItem[] }
+
+interface PendingCatalogSeedImport {
+  fileName: string
+  result: PublicCatalogSeedResult
+  summary: PublicCatalogSeedSummary
+}
 
 function LibraryTab({
   library,
@@ -2338,6 +2350,13 @@ function formatBackupImportSummary(summary: LibraryImportSummary) {
   return parts.join(' / ')
 }
 
+function formatCatalogSeedSummary(summary: PublicCatalogSeedSummary) {
+  return [
+    `${summary.newItems} ${summary.newItems === 1 ? 'nueva' : 'nuevas'}`,
+    `${summary.updatedItems} ${summary.updatedItems === 1 ? 'actualizada' : 'actualizadas'}`,
+  ].join(' / ')
+}
+
 function SettingsTab({
   library,
   onNavigate,
@@ -2999,6 +3018,7 @@ function CurationTab({ library }: { library: LibrarySurface }) {
   const [editingItem, setEditingItem] = useState<PublicCatalogItem | undefined>()
   const [archiveTarget, setArchiveTarget] = useState<PublicCatalogItem | undefined>()
   const [archiveUndoItem, setArchiveUndoItem] = useState<PublicCatalogItem | undefined>()
+  const [pendingCatalogSeed, setPendingCatalogSeed] = useState<PendingCatalogSeedImport | undefined>()
   const [hasLoaded, setHasLoaded] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -3060,6 +3080,7 @@ function CurationTab({ library }: { library: LibrarySurface }) {
       const nextItems = await library.searchPublicCatalog(searchQuery, 'any')
       setItems(nextItems)
       setArchiveUndoItem(undefined)
+      setPendingCatalogSeed(undefined)
       setHasLoaded(true)
       if (!nextItems.length) {
         setStatus(searchQuery.trim() ? 'No hay entradas con ese filtro.' : 'El catalogo publico esta vacio.')
@@ -3076,6 +3097,7 @@ function CurationTab({ library }: { library: LibrarySurface }) {
     const archivedItem = archiveTarget
     await library.archivePublicItem(archivedItem.id)
     setArchiveUndoItem(archivedItem)
+    setPendingCatalogSeed(undefined)
     setItems((current) => current.filter((item) => item.id !== archivedItem.id))
     setStatus(`${archivedItem.title} archivado`)
     setArchiveTarget(undefined)
@@ -3090,6 +3112,7 @@ function CurationTab({ library }: { library: LibrarySurface }) {
       setItems((current) => upsertVisibleCatalogItem(current, restoredItem))
       setStatus(`${archiveUndoItem.title} recuperado en catalogo`)
       setArchiveUndoItem(undefined)
+      setPendingCatalogSeed(undefined)
     } catch (reason) {
       setStatus(reason instanceof Error ? reason.message : 'No se pudo deshacer el archivado.')
     }
@@ -3110,6 +3133,7 @@ function CurationTab({ library }: { library: LibrarySurface }) {
 
   function startNewCatalogItem(type: ItemType = 'book', template?: CatalogTaxonomyTemplate) {
     setArchiveUndoItem(undefined)
+    setPendingCatalogSeed(undefined)
     setEditingItem(template ? publicCatalogDraftFromTemplate(type, template) : blankPublicCatalogItem(type))
   }
 
@@ -3118,28 +3142,48 @@ function CurationTab({ library }: { library: LibrarySurface }) {
     setStatus('Plantilla de catalogo descargada')
   }
 
-  async function importCatalogSeed(file?: File) {
+  async function prepareCatalogSeed(file?: File) {
     if (!file) return
 
     setIsImporting(true)
-    setStatus('Importando lote de catalogo...')
+    setStatus('Preparando lote de catalogo...')
     try {
       const parsed = parsePublicCatalogSeed(JSON.parse(await file.text()), 'curation-import')
       if (parsed.errors.length) {
+        setPendingCatalogSeed(undefined)
         setStatus(`Seed invalido: ${parsed.errors[0]}${parsed.errors.length > 1 ? ` (+${parsed.errors.length - 1})` : ''}`)
         return
       }
       if (!parsed.items.length) {
+        setPendingCatalogSeed(undefined)
         setStatus('El seed no contiene entradas para importar.')
         return
       }
 
+      setArchiveUndoItem(undefined)
+      const summary = getPublicCatalogSeedSummary(parsed, items)
+      setPendingCatalogSeed({ fileName: file.name, result: parsed, summary })
+      setStatus(`Seed preparado: ${formatCatalogSeedSummary(summary)}`)
+    } catch (reason) {
+      setStatus(reason instanceof Error ? reason.message : 'No se pudo importar el lote de catalogo.')
+    } finally {
+      setIsImporting(false)
+    }
+  }
+
+  async function applyCatalogSeed() {
+    if (!pendingCatalogSeed) return
+
+    setIsImporting(true)
+    setStatus('Importando lote de catalogo...')
+    try {
       const savedItems: PublicCatalogItem[] = []
-      for (const item of parsed.items) {
+      for (const item of pendingCatalogSeed.result.items) {
         savedItems.push(await library.upsertPublicItem(item))
       }
 
       setItems((current) => savedItems.reduce((nextItems, item) => upsertVisibleCatalogItem(nextItems, item), current))
+      setPendingCatalogSeed(undefined)
       setArchiveUndoItem(undefined)
       setHasLoaded(true)
       setQualityFilter('all')
@@ -3151,6 +3195,11 @@ function CurationTab({ library }: { library: LibrarySurface }) {
     } finally {
       setIsImporting(false)
     }
+  }
+
+  function cancelCatalogSeedImport() {
+    setPendingCatalogSeed(undefined)
+    setStatus('Importacion de seed cancelada')
   }
 
   return (
@@ -3182,7 +3231,7 @@ function CurationTab({ library }: { library: LibrarySurface }) {
                 disabled={isImporting}
                 type="file"
                 onChange={(event) => {
-                  void importCatalogSeed(event.target.files?.[0])
+                  void prepareCatalogSeed(event.target.files?.[0])
                   event.target.value = ''
                 }}
               />
@@ -3193,6 +3242,25 @@ function CurationTab({ library }: { library: LibrarySurface }) {
             </button>
           </div>
         </div>
+        {pendingCatalogSeed && (
+          <div className="seed-import-preview" aria-label="Seed de catalogo preparado">
+            <div>
+              <strong>{pendingCatalogSeed.fileName}</strong>
+              <span>{formatCatalogSeedSummary(pendingCatalogSeed.summary)}</span>
+              <small>{pendingCatalogSeed.summary.totalItems} entradas revisadas antes de tocar el catalogo publico</small>
+            </div>
+            <div className="action-row end">
+              <button className="ghost-button" type="button" onClick={cancelCatalogSeedImport}>
+                <X size={16} />
+                Cancelar
+              </button>
+              <button className="primary-button" disabled={isImporting} type="button" onClick={() => void applyCatalogSeed()}>
+                <Upload size={16} />
+                Aplicar lote
+              </button>
+            </div>
+          </div>
+        )}
         <div className="curation-starter-strip" aria-label="Crear entrada por tipo">
           <span>Crear como</span>
           <div>
