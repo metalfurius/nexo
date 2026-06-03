@@ -2161,6 +2161,26 @@
   min-height: 34px;
 }
 
+.catalog-review-heading-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.catalog-review-heading-actions .secondary-button span {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 11px;
+  height: 20px;
+  justify-content: center;
+  min-width: 20px;
+  padding: 0 6px;
+}
+
 .catalog-review-list {
   display: grid;
   gap: 8px;
@@ -7144,6 +7164,14 @@ textarea:focus-visible {
   .catalog-review-heading {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .catalog-review-heading-actions {
+    justify-content: stretch;
+  }
+
+  .catalog-review-heading-actions .secondary-button {
+    flex: 1 1 150px;
   }
 
   .curation-template-heading {
