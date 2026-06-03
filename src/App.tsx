@@ -213,6 +213,7 @@ function feedbackToneFromText(message: string): FeedbackTone {
     normalized.includes('importadas') ||
     normalized.includes('copiado') ||
     normalized.includes('anadida') ||
+    normalized.includes('enfriado') ||
     normalized.includes('enviados') ||
     normalized.includes('marcado') ||
     normalized.includes('descartado') ||
@@ -658,6 +659,15 @@ function LibraryTab({
     setImportStatus(`${deletedTitle} borrado`)
   }
 
+  async function snoozeLibraryItem(item: ListItem) {
+    try {
+      await library.snoozeRecommendation(item.id)
+      setImportStatus(`${item.title} enfriado para el dado`)
+    } catch (reason) {
+      setImportStatus(reason instanceof Error ? reason.message : 'No se pudo enfriar la entrada.')
+    }
+  }
+
   function exportLibrary() {
     downloadLibraryBackup(library.items, library.settings, 'nexo-export')
   }
@@ -955,6 +965,7 @@ function LibraryTab({
                 layout={viewMode}
                 onEdit={() => setEditingItem(item)}
                 onStatus={library.setStatus}
+                onSnooze={() => void snoozeLibraryItem(item)}
                 onDelete={() => setDeleteTarget(item)}
               />
             ))}
@@ -3284,17 +3295,20 @@ function ItemCard({
   layout = 'cards',
   onDelete,
   onEdit,
+  onSnooze,
   onStatus,
 }: {
   item: ListItem
   layout?: 'cards' | 'list'
   onEdit: () => void
   onDelete: () => void
+  onSnooze: () => void
   onStatus: (id: string, status: ItemStatus) => void
 }) {
   const primaryAction = getPrimaryItemAction(item.status)
   const secondaryAction = getSecondaryItemAction(item.status)
   const visibleChips = getVisibleItemChips(item)
+  const canSnoozeDice = item.status !== 'completed' && item.status !== 'dropped'
 
   function applyStatus(status: ItemStatus) {
     onStatus(item.id, status)
@@ -3342,6 +3356,15 @@ function ItemCard({
               label: secondaryAction.label,
               onSelect: () => applyStatus(secondaryAction.nextStatus),
             },
+            ...(canSnoozeDice
+              ? [
+                  {
+                    Icon: Moon,
+                    label: 'Enfriar dado',
+                    onSelect: onSnooze,
+                  },
+                ]
+              : []),
             { Icon: Trash2, label: 'Borrar', onSelect: deleteItem, tone: 'danger' },
           ]}
         />

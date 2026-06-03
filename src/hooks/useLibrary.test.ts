@@ -128,6 +128,23 @@ describe('useLibrary', () => {
     expect(repositoryMock.recordRecommendation).toHaveBeenCalledWith('movie-arrival', ['encaja'])
   })
 
+  it('delegates recommendation snoozes to the signed-in repository', async () => {
+    const user = {
+      uid: 'user-1',
+      email: null,
+      displayName: null,
+    }
+    const { result } = renderHook(() => useLibrary(user))
+
+    await waitFor(() => expect(repositoryMock.subscribeItems).toHaveBeenCalled())
+
+    await act(async () => {
+      await result.current.snoozeRecommendation('game-outer-wilds')
+    })
+
+    expect(repositoryMock.snoozeRecommendation).toHaveBeenCalledWith('game-outer-wilds')
+  })
+
   it('does not requeue discovery candidates already saved by the user', async () => {
     const user = {
       uid: 'user-1',
