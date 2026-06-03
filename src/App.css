@@ -326,10 +326,21 @@
   line-height: 1.15;
 }
 
-.session-activity-heading > span {
+.session-activity-actions {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.session-activity-actions > span {
   color: var(--muted);
   font-size: 12px;
   font-weight: 850;
+}
+
+.session-activity-actions .ghost-button {
+  min-height: 30px;
+  padding: 0 10px;
 }
 
 .session-activity-list {

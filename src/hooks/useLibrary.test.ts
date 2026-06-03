@@ -13,6 +13,8 @@ const repositoryMock = vi.hoisted(() => ({
   recordRecommendation: vi.fn(),
   restoreDiscoveryCandidate: vi.fn(),
   restorePublicItem: vi.fn(),
+  clearActivityEntries: vi.fn(),
+  saveActivityEntry: vi.fn(),
   saveDiscoveryCandidate: vi.fn(),
   saveItem: vi.fn(),
   saveSettings: vi.fn(),
@@ -22,6 +24,7 @@ const repositoryMock = vi.hoisted(() => ({
   snoozeRecommendation: vi.fn(),
   reactivateRecommendation: vi.fn(),
   subscribeDiscoveryCandidates: vi.fn(),
+  subscribeActivityEntries: vi.fn(),
   subscribeItems: vi.fn(),
   subscribeSettings: vi.fn(),
   subscribeUserProfile: vi.fn(),
@@ -58,6 +61,8 @@ describe('useLibrary', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     repositoryMock.ensureUserProfile.mockResolvedValue(undefined)
+    repositoryMock.clearActivityEntries.mockResolvedValue(undefined)
+    repositoryMock.saveActivityEntry.mockResolvedValue(undefined)
     repositoryMock.saveDiscoveryCandidate.mockResolvedValue(undefined)
     repositoryMock.updateUserRole.mockResolvedValue(undefined)
     repositoryMock.subscribeItems.mockImplementation((onItems: (items: unknown[]) => void) => {
@@ -74,6 +79,10 @@ describe('useLibrary', () => {
     })
     repositoryMock.subscribeDiscoveryCandidates.mockImplementation((onCandidates: (candidates: unknown[]) => void) => {
       onCandidates([])
+      return vi.fn()
+    })
+    repositoryMock.subscribeActivityEntries.mockImplementation((onEntries: (entries: unknown[]) => void) => {
+      onEntries([])
       return vi.fn()
     })
     repositoryMock.subscribeUserProfiles.mockImplementation((onProfiles: (profiles: unknown[]) => void) => {
@@ -162,6 +171,50 @@ describe('useLibrary', () => {
     })
 
     expect(repositoryMock.reactivateRecommendation).toHaveBeenCalledWith('game-outer-wilds')
+  })
+
+  it('records and clears recent activity for signed-in users', async () => {
+    const user = {
+      uid: 'user-1',
+      email: null,
+      displayName: null,
+    }
+    const { result } = renderHook(() => useLibrary(user))
+
+    await waitFor(() => expect(repositoryMock.subscribeActivityEntries).toHaveBeenCalled())
+
+    await act(async () => {
+      await result.current.recordActivity({
+        detail: 'Arrival',
+        label: 'Ficha guardada',
+        tab: 'library',
+        tone: 'success',
+      })
+    })
+
+    await waitFor(() =>
+      expect(result.current.activityEntries[0]).toEqual(
+        expect.objectContaining({
+          detail: 'Arrival',
+          label: 'Ficha guardada',
+          tab: 'library',
+        }),
+      ),
+    )
+    expect(repositoryMock.saveActivityEntry).toHaveBeenCalledWith(
+      expect.objectContaining({
+        detail: 'Arrival',
+        label: 'Ficha guardada',
+        tab: 'library',
+      }),
+    )
+
+    await act(async () => {
+      await result.current.clearActivityEntries()
+    })
+
+    expect(result.current.activityEntries).toEqual([])
+    expect(repositoryMock.clearActivityEntries).toHaveBeenCalled()
   })
 
   it('does not requeue discovery candidates already saved by the user', async () => {

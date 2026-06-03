@@ -6,6 +6,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  limit as firestoreLimit,
   onSnapshot,
   orderBy,
   query,
@@ -14,6 +15,7 @@ import {
   writeBatch,
 } from 'firebase/firestore'
 import {
+  type ActivityEntry,
   type DiscoveryCandidate,
   type ExternalCandidate,
   type ItemStatus,
@@ -56,6 +58,9 @@ export interface LibraryRepository {
   upsertPublicItem: (item: Partial<PublicCatalogItem> & Pick<PublicCatalogItem, 'title' | 'type'>) => Promise<PublicCatalogItem>
   archivePublicItem: (id: string) => Promise<void>
   restorePublicItem: (id: string) => Promise<void>
+  subscribeActivityEntries: (onEntries: (entries: ActivityEntry[]) => void, onError: (error: Error) => void) => () => void
+  saveActivityEntry: (entry: ActivityEntry) => Promise<void>
+  clearActivityEntries: () => Promise<void>
 }
 
 export function createFirestoreRepository(userId: string): LibraryRepository | undefined {
@@ -67,6 +72,8 @@ export function createFirestoreRepository(userId: string): LibraryRepository | u
   const settingsDocument = doc(services.db, 'users', userId, 'userSettings', 'preferences')
   const discoveryCandidateCollection = collection(services.db, 'users', userId, 'externalCandidates')
   const discoveryCandidateDocument = (id: string) => doc(services.db, 'users', userId, 'externalCandidates', id)
+  const activityEntryCollection = collection(services.db, 'users', userId, 'activityEntries')
+  const activityEntryDocument = (id: string) => doc(services.db, 'users', userId, 'activityEntries', id)
   const userProfileCollection = collection(services.db, 'users')
   const userProfileDocument = doc(services.db, 'users', userId)
 
@@ -313,7 +320,49 @@ export function createFirestoreRepository(userId: string): LibraryRepository | u
         { merge: true },
       )
     },
+    subscribeActivityEntries(onEntries, onError) {
+      const activityQuery = query(activityEntryCollection, orderBy('createdAt', 'desc'), firestoreLimit(25))
+      return onSnapshot(
+        activityQuery,
+        (snapshot) => onEntries(snapshot.docs.map((entryDoc) => normalizeActivityEntry(entryDoc.id, entryDoc.data()))),
+        (error) => onError(error),
+      )
+    },
+    saveActivityEntry(entry) {
+      return setDoc(activityEntryDocument(entry.id), withoutUndefined(entry))
+    },
+    async clearActivityEntries() {
+      const snapshot = await getDocs(activityEntryCollection)
+      for (const docsChunk of chunk(snapshot.docs, 450)) {
+        const batch = writeBatch(services.db)
+        for (const entryDoc of docsChunk) {
+          batch.delete(entryDoc.ref)
+        }
+        await batch.commit()
+      }
+    },
   }
+}
+
+function normalizeActivityEntry(id: string, data: Record<string, unknown>): ActivityEntry {
+  return {
+    id: typeof data.id === 'string' ? data.id : id,
+    label: typeof data.label === 'string' ? data.label : 'Actividad',
+    detail: typeof data.detail === 'string' ? data.detail : '',
+    tab: normalizeActivityTab(data.tab),
+    tone: normalizeActivityTone(data.tone),
+    createdAt: typeof data.createdAt === 'string' ? data.createdAt : nowIso(),
+  }
+}
+
+function normalizeActivityTab(tab: unknown): ActivityEntry['tab'] {
+  return tab === 'library' || tab === 'dice' || tab === 'explorer' || tab === 'settings' || tab === 'curation'
+    ? tab
+    : 'library'
+}
+
+function normalizeActivityTone(tone: unknown): ActivityEntry['tone'] {
+  return tone === 'info' || tone === 'success' || tone === 'danger' || tone === 'loading' ? tone : 'info'
 }
 
 function normalizeUserProfile(userId: string, data: Record<string, unknown>): UserProfile {

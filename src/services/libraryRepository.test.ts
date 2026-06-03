@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   deleteDoc: vi.fn(),
   getDoc: vi.fn(),
   getDocs: vi.fn(),
+  limit: vi.fn(),
   onSnapshot: vi.fn(),
   setDoc: vi.fn(),
 }))
@@ -31,6 +32,7 @@ vi.mock('firebase/firestore', () => ({
   doc: vi.fn((...args: unknown[]) => ({ kind: 'doc', path: sdkPath(args) })),
   getDoc: mocks.getDoc,
   getDocs: mocks.getDocs,
+  limit: mocks.limit,
   onSnapshot: mocks.onSnapshot,
   orderBy: vi.fn((field: string, direction: string) => ({ direction, field })),
   query: vi.fn((collectionRef: unknown, ...constraints: unknown[]) => ({ collectionRef, constraints })),
@@ -63,6 +65,7 @@ describe('createFirestoreRepository', () => {
     mocks.deleteDoc.mockResolvedValue(undefined)
     mocks.getDoc.mockResolvedValue({ exists: () => false })
     mocks.getDocs.mockResolvedValue({ docs: [] })
+    mocks.limit.mockImplementation((count: number) => ({ count, kind: 'limit' }))
     mocks.setDoc.mockResolvedValue(undefined)
   })
 
@@ -285,6 +288,54 @@ describe('createFirestoreRepository', () => {
       expect.objectContaining({ path: 'users/user-1/externalCandidates/public-book-odisea' }),
       expect.objectContaining({ title: 'Odisea', origin: 'publicCatalog' }),
     )
+  })
+
+  it('subscribes, writes and clears activity entries under the signed-in user', async () => {
+    const unsubscribe = vi.fn()
+    const onEntries = vi.fn()
+    const activityEntry = {
+      id: 'activity-1',
+      label: 'Ficha guardada',
+      detail: 'Arrival',
+      tab: 'library' as const,
+      tone: 'success' as const,
+      createdAt: '2026-01-01T00:00:00.000Z',
+    }
+    const entryRef = { path: 'users/user-1/activityEntries/activity-1' }
+    mocks.onSnapshot.mockImplementation((source, onNext) => {
+      onNext({
+        docs: [
+          {
+            id: activityEntry.id,
+            data: () => activityEntry,
+          },
+        ],
+      })
+      return unsubscribe
+    })
+    mocks.getDocs.mockResolvedValueOnce({ docs: [{ ref: entryRef }] })
+
+    const repository = createFirestoreRepository('user-1')
+    const result = repository?.subscribeActivityEntries(onEntries, vi.fn())
+    await repository?.saveActivityEntry(activityEntry)
+    await repository?.clearActivityEntries()
+
+    expect(mocks.onSnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collectionRef: expect.objectContaining({ path: 'users/user-1/activityEntries' }),
+      }),
+      expect.any(Function),
+      expect.any(Function),
+    )
+    expect(onEntries).toHaveBeenCalledWith([activityEntry])
+    expect(mocks.setDoc).toHaveBeenCalledWith(
+      expect.objectContaining({ path: 'users/user-1/activityEntries/activity-1' }),
+      expect.objectContaining({ label: 'Ficha guardada', tab: 'library' }),
+    )
+    expect(mocks.getDocs).toHaveBeenCalledWith(expect.objectContaining({ path: 'users/user-1/activityEntries' }))
+    expect(mocks.batchDelete).toHaveBeenCalledWith(entryRef)
+    expect(mocks.batchCommit).toHaveBeenCalled()
+    expect(result).toBe(unsubscribe)
   })
 
   it('does not overwrite saved discovery candidates with queued search results', async () => {

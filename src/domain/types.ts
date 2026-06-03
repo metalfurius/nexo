@@ -32,6 +32,8 @@ export type LibraryViewMode = 'cards' | 'list'
 export type ExplorerSearchType = ItemType | 'watch' | 'any'
 export type DiscoveryOrigin = 'publicCatalog' | 'externalSearch' | 'prompt' | 'roll'
 export type DiscoveryStatus = 'queued' | 'saved' | 'dismissed'
+export type ActivityTab = 'library' | 'dice' | 'explorer' | 'settings' | 'curation'
+export type ActivityTone = 'info' | 'success' | 'danger' | 'loading'
 
 export interface ExternalRefs {
   tmdbId?: string
@@ -169,6 +171,15 @@ export interface UserProfile {
   createdAt: string
   updatedAt: string
   lastSeenAt?: string
+}
+
+export interface ActivityEntry {
+  id: string
+  label: string
+  detail: string
+  tab: ActivityTab
+  tone: ActivityTone
+  createdAt: string
 }
 
 export interface RecommendationPreferences {

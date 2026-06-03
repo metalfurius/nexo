@@ -76,6 +76,8 @@ test('library and weighted dice work in demo mode', async ({ page }) => {
   await expect(page.getByText('Manual de prueba guardada en Biblioteca')).toBeVisible()
   await expect(page.getByTestId('session-activity')).toContainText('Ficha guardada')
   await expect(page.getByTestId('session-activity')).toContainText('Manual de prueba')
+  await page.getByTestId('session-activity').getByRole('button', { name: 'Limpiar' }).click()
+  await expect(page.getByTestId('session-activity')).not.toBeVisible()
   await expect(page.getByTestId('library-grid')).toContainText('Manual de prueba')
   await page.locator('.item-main').filter({ hasText: 'Outer Wilds' }).click()
   await expect(page.getByRole('dialog', { name: 'Entrada' })).toBeVisible()

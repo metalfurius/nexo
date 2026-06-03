@@ -35,6 +35,9 @@ import {
 } from 'lucide-react'
 import './App.css'
 import {
+  type ActivityEntry,
+  type ActivityTab,
+  type ActivityTone,
   DEFAULT_RECOMMENDATION_PREFERENCES,
   DEFAULT_SETTINGS,
   DEFAULT_WEIGHTS,
@@ -211,7 +214,7 @@ const typeIcons: Record<ItemType, typeof Film> = {
   other: Library,
 }
 
-type FeedbackTone = 'info' | 'success' | 'danger' | 'loading'
+type FeedbackTone = ActivityTone
 
 function feedbackToneFromText(message: string): FeedbackTone {
   const normalized = message.toLowerCase()
@@ -247,17 +250,9 @@ function feedbackToneFromText(message: string): FeedbackTone {
   return 'info'
 }
 
-type AppTab = 'library' | 'dice' | 'explorer' | 'settings' | 'curation'
+type AppTab = ActivityTab
 type PendingNavigation = { source: 'app' | 'history'; tab: AppTab }
-interface SessionActivityEntry {
-  createdAt: string
-  detail: string
-  id: string
-  label: string
-  tab: AppTab
-  tone: FeedbackTone
-}
-type ActivityRecorder = (entry: Omit<SessionActivityEntry, 'createdAt' | 'id'>) => void
+type ActivityRecorder = (entry: Omit<ActivityEntry, 'createdAt' | 'id'>) => void
 
 const activityTabLabels: Record<AppTab, string> = {
   curation: 'Curacion',
@@ -419,7 +414,6 @@ function App() {
   const [activeTab, setActiveTabState] = useState<AppTab>(() => readInitialAppTab())
   const [pendingNavigation, setPendingNavigation] = useState<PendingNavigation | undefined>()
   const [tabsWithUnsavedChanges, setTabsWithUnsavedChanges] = useState<Partial<Record<AppTab, boolean>>>({})
-  const [activityEntries, setActivityEntries] = useState<SessionActivityEntry[]>([])
   const [theme, setTheme] = useState<ThemeMode>(() => {
     const stored = window.localStorage.getItem(themeStorageKey)
     return stored === 'light' || stored === 'dark' ? stored : DEFAULT_SETTINGS.theme
@@ -471,18 +465,6 @@ function App() {
     (hasUnsavedChanges: boolean) => reportUnsavedChanges('settings', hasUnsavedChanges),
     [reportUnsavedChanges],
   )
-  const recordActivity = useCallback<ActivityRecorder>((entry) => {
-    const createdAt = nowIso()
-    setActivityEntries((current) => [
-      {
-        ...entry,
-        createdAt,
-        id: `${createdAt}-${Math.random().toString(36).slice(2)}`,
-      },
-      ...current,
-    ].slice(0, sessionActivityLimit))
-  }, [])
-
   if (auth.loading) {
     return <ShellState title="Cargando acceso" />
   }
@@ -602,18 +584,21 @@ function App() {
       )}
 
       <section className="tab-stage">
-        <SessionActivityPanel entries={activityEntries} />
+        <SessionActivityPanel
+          entries={library.activityEntries.slice(0, sessionActivityLimit)}
+          onClear={() => void library.clearActivityEntries()}
+        />
         {activeTab === 'library' && (
-          <LibraryTab library={library} onActivity={recordActivity} onNavigate={changeActiveTab} setTheme={setTheme} />
+          <LibraryTab library={library} onActivity={library.recordActivity} onNavigate={changeActiveTab} setTheme={setTheme} />
         )}
         {activeTab === 'dice' && (
-          <DiceTab library={library} onActivity={recordActivity} onUnsavedChange={reportDiceUnsavedChanges} />
+          <DiceTab library={library} onActivity={library.recordActivity} onUnsavedChange={reportDiceUnsavedChanges} />
         )}
-        {activeTab === 'explorer' && <ExplorerTab library={library} onActivity={recordActivity} />}
+        {activeTab === 'explorer' && <ExplorerTab library={library} onActivity={library.recordActivity} />}
         {activeTab === 'settings' && (
           <SettingsTab
             library={library}
-            onActivity={recordActivity}
+            onActivity={library.recordActivity}
             onNavigate={changeActiveTab}
             onUnsavedChange={reportSettingsUnsavedChanges}
             setTheme={setTheme}
@@ -621,13 +606,13 @@ function App() {
             user={auth.user}
           />
         )}
-        {activeTab === 'curation' && library.isModerator && <CurationTab library={library} onActivity={recordActivity} />}
+        {activeTab === 'curation' && library.isModerator && <CurationTab library={library} onActivity={library.recordActivity} />}
       </section>
     </main>
   )
 }
 
-function SessionActivityPanel({ entries }: { entries: SessionActivityEntry[] }) {
+function SessionActivityPanel({ entries, onClear }: { entries: ActivityEntry[]; onClear: () => void }) {
   if (!entries.length) return null
 
   return (
@@ -637,7 +622,12 @@ function SessionActivityPanel({ entries }: { entries: SessionActivityEntry[] }) 
           <span className="eyebrow">Registro de sesion</span>
           <strong>Actividad reciente</strong>
         </div>
-        <span>{entries.length === 1 ? '1 ultima' : `${entries.length} ultimas`}</span>
+        <div className="session-activity-actions">
+          <span>{entries.length === 1 ? '1 ultima' : `${entries.length} ultimas`}</span>
+          <button className="ghost-button" type="button" onClick={onClear}>
+            Limpiar
+          </button>
+        </div>
       </div>
       <ol className="session-activity-list">
         {entries.map((entry) => {
@@ -722,6 +712,7 @@ interface LibrarySurface {
   items: ListItem[]
   settings: UserSettings
   discoveryCandidates: DiscoveryCandidate[]
+  activityEntries: ActivityEntry[]
   userProfiles: UserProfile[]
   userRole: UserRole
   isModerator: boolean
@@ -745,6 +736,8 @@ interface LibrarySurface {
   archivePublicItem: (id: string) => Promise<void>
   restorePublicItem: (id: string) => Promise<void>
   updateUserRole: (targetUserId: string, role: UserRole) => Promise<void>
+  recordActivity: ActivityRecorder
+  clearActivityEntries: () => Promise<void>
   publicItemToDiscovery: (item: PublicCatalogItem) => DiscoveryCandidate
   externalCandidateToDiscovery: (candidate: ExternalCandidate) => DiscoveryCandidate
 }

@@ -66,6 +66,7 @@ service cloud.firestore {
         'items',
         'tags',
         'recommendationRuns',
+        'activityEntries',
         'externalCandidates',
         'userSettings'
       ];

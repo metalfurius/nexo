@@ -28,9 +28,12 @@ maybeDescribe('firestore.rules emulator', () => {
   it('allows signed-in users to read and write their own library', async () => {
     const ownerDb = env.authenticatedContext('owner').firestore()
     const itemRef = doc(ownerDb, 'users', 'owner', 'items', 'outer-wilds')
+    const activityRef = doc(ownerDb, 'users', 'owner', 'activityEntries', 'activity-1')
 
     await expect(setDoc(itemRef, { title: 'Outer Wilds' })).resolves.toBeUndefined()
     await expect(getDoc(itemRef)).resolves.toBeTruthy()
+    await expect(setDoc(activityRef, { label: 'Ficha guardada', createdAt: '2026-01-01T00:00:00.000Z' })).resolves.toBeUndefined()
+    await expect(getDoc(activityRef)).resolves.toBeTruthy()
   })
 
   it('blocks signed-in users from another user library', async () => {

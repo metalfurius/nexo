@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
+  type ActivityEntry,
   DEFAULT_RECOMMENDATION_PREFERENCES,
   DEFAULT_SETTINGS,
   DEFAULT_WEIGHTS,
@@ -61,6 +62,9 @@ const demoUserProfiles: UserProfile[] = [
   },
 ]
 
+type ActivityDraft = Omit<ActivityEntry, 'createdAt' | 'id'>
+const activityEntryLimit = 25
+
 export function useLibrary(user?: SignedInUserProfile | null) {
   const userId = user?.uid
   const [repositoryState, setRepositoryState] = useState<{ repository?: LibraryRepository; userId?: string }>({})
@@ -69,6 +73,7 @@ export function useLibrary(user?: SignedInUserProfile | null) {
   const [remoteUserId, setRemoteUserId] = useState<string | undefined>()
   const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS)
   const [discoveryCandidates, setDiscoveryCandidates] = useState<DiscoveryCandidate[]>([])
+  const [activityEntries, setActivityEntries] = useState<ActivityEntry[]>([])
   const [publicCatalog, setPublicCatalog] = useState<PublicCatalogItem[]>(demoPublicCatalog)
   const [profileRole, setProfileRole] = useState<{ role: UserRole; userId?: string }>({ role: 'user' })
   const [userProfiles, setUserProfiles] = useState<UserProfile[]>(demoUserProfiles)
@@ -96,6 +101,7 @@ export function useLibrary(user?: SignedInUserProfile | null) {
         setRemoteItems([])
         setRemoteUserId(undefined)
         setDiscoveryCandidates([])
+        setActivityEntries([])
         setProfileRole({ role: 'user', userId })
         setRepositoryState({ repository: createFirestoreRepository(userId), userId })
       })
@@ -143,6 +149,10 @@ export function useLibrary(user?: SignedInUserProfile | null) {
       ),
       repository.subscribeDiscoveryCandidates(
         (nextCandidates) => setDiscoveryCandidates((current) => mergeCandidates(nextCandidates, current)),
+        (reason) => setError(reason.message),
+      ),
+      repository.subscribeActivityEntries(
+        (nextEntries) => setActivityEntries(nextEntries),
         (reason) => setError(reason.message),
       ),
     ]
@@ -393,6 +403,35 @@ export function useLibrary(user?: SignedInUserProfile | null) {
     }
   }
 
+  async function recordActivity(entry: ActivityDraft) {
+    const createdAt = nowIso()
+    const activityEntry: ActivityEntry = {
+      ...entry,
+      createdAt,
+      id: `${createdAt}-${Math.random().toString(36).slice(2)}`,
+    }
+    setActivityEntries((current) => limitActivityEntries([activityEntry, ...current]))
+
+    if (repository) {
+      try {
+        await repository.saveActivityEntry(activityEntry)
+      } catch (reason) {
+        setError(reason instanceof Error ? reason.message : 'No se pudo guardar la actividad reciente.')
+      }
+    }
+  }
+
+  async function clearActivityEntries() {
+    setActivityEntries([])
+    if (repository) {
+      try {
+        await repository.clearActivityEntries()
+      } catch (reason) {
+        setError(reason instanceof Error ? reason.message : 'No se pudo limpiar la actividad reciente.')
+      }
+    }
+  }
+
   function candidateToItem(candidate: ExternalCandidate): ListItem {
     return {
       id: `${candidate.type}-${slugify(candidate.title)}-${candidate.sourceId}`.slice(0, 120),
@@ -416,6 +455,7 @@ export function useLibrary(user?: SignedInUserProfile | null) {
     items,
     settings,
     discoveryCandidates,
+    activityEntries,
     userProfiles: userRole === 'admin' ? userProfiles : [],
     userRole,
     isModerator,
@@ -439,10 +479,16 @@ export function useLibrary(user?: SignedInUserProfile | null) {
     archivePublicItem,
     restorePublicItem,
     updateUserRole,
+    recordActivity,
+    clearActivityEntries,
     candidateToItem,
     publicItemToDiscovery,
     externalCandidateToDiscovery,
   }
+}
+
+function limitActivityEntries(entries: ActivityEntry[]) {
+  return [...entries].sort((left, right) => right.createdAt.localeCompare(left.createdAt)).slice(0, activityEntryLimit)
 }
 
 function toUserProfileSeed(user: SignedInUserProfile): Partial<UserProfile> {
