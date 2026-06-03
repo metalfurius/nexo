@@ -219,6 +219,7 @@ function feedbackToneFromText(message: string): FeedbackTone {
     normalized.includes('enviados') ||
     normalized.includes('marcado') ||
     normalized.includes('descartado') ||
+    normalized.includes('recuperad') ||
     normalized.includes('ahora es')
   ) {
     return 'success'
@@ -1537,6 +1538,7 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
   const [sourceFilter, setSourceFilter] = useState<ExplorerSourceFilter>('all')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<string | undefined>()
+  const [bulkDismissUndo, setBulkDismissUndo] = useState<DiscoveryCandidate[]>([])
   const [selected, setSelected] = useState<DiscoveryCandidate | undefined>()
   const [catalogDraft, setCatalogDraft] = useState<PublicCatalogItem | undefined>()
   const type = library.settings.explorerDefaultType
@@ -1567,6 +1569,7 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
 
   async function changeSearchType(nextType: ExplorerSearchType) {
     setMessage(undefined)
+    setBulkDismissUndo([])
     try {
       await library.saveSettings({ explorerDefaultType: nextType })
     } catch (reason) {
@@ -1577,6 +1580,7 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
   async function runDiscoverySearch() {
     const cleanedQuery = query.trim()
     setMessage(undefined)
+    setBulkDismissUndo([])
     if (cleanedQuery.length < 2) {
       setMessage('Escribe al menos 2 caracteres para buscar.')
       return
@@ -1610,6 +1614,7 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
 
   async function addPromptCard() {
     try {
+      setBulkDismissUndo([])
       const title = promptDeck[Math.floor(Math.random() * promptDeck.length)]
       await library.queueDiscoveryCandidates([promptToDiscovery(title)])
       setView('queued')
@@ -1621,6 +1626,7 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
 
   async function saveCandidate(candidate: DiscoveryCandidate) {
     try {
+      setBulkDismissUndo([])
       const item = await library.saveDiscoveryToLibrary(candidate)
       setMessage(`${item.title} guardado en Biblioteca.`)
       return true
@@ -1632,6 +1638,7 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
 
   async function dismissCandidate(candidate: DiscoveryCandidate) {
     try {
+      setBulkDismissUndo([])
       await library.dismissDiscoveryCandidate(candidate.id)
       setMessage(`${candidate.title} descartado de la cola.`)
       return true
@@ -1643,6 +1650,7 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
 
   async function restoreCandidate(candidate: DiscoveryCandidate) {
     try {
+      setBulkDismissUndo([])
       await library.restoreDiscoveryCandidate(candidate.id)
       setView('queued')
       setMessage(`${candidate.title} recuperado a la cola.`)
@@ -1659,6 +1667,7 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
 
     try {
       await Promise.all(candidatesToDismiss.map((candidate) => library.dismissDiscoveryCandidate(candidate.id)))
+      setBulkDismissUndo(candidatesToDismiss)
       setMessage(
         candidatesToDismiss.length === 1
           ? `${candidatesToDismiss[0].title} descartado de la vista ${activeSourceLabel}.`
@@ -1666,6 +1675,24 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
       )
     } catch (reason) {
       setMessage(reason instanceof Error ? reason.message : 'No se pudo limpiar la vista.')
+    }
+  }
+
+  async function undoDismissVisibleQueue() {
+    const candidatesToRestore = bulkDismissUndo
+    if (!candidatesToRestore.length) return
+
+    try {
+      await Promise.all(candidatesToRestore.map((candidate) => library.restoreDiscoveryCandidate(candidate.id)))
+      setView('queued')
+      setBulkDismissUndo([])
+      setMessage(
+        candidatesToRestore.length === 1
+          ? `${candidatesToRestore[0].title} recuperado a la cola.`
+          : `${candidatesToRestore.length} hallazgos recuperados a la cola.`,
+      )
+    } catch (reason) {
+      setMessage(reason instanceof Error ? reason.message : 'No se pudo deshacer el descarte.')
     }
   }
 
@@ -1776,6 +1803,14 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
 
         {loading && <FeedbackMessage tone="loading">Buscando en Nexo y fuera...</FeedbackMessage>}
         {message && <FeedbackMessage tone={feedbackToneFromText(message)}>{message}</FeedbackMessage>}
+        {bulkDismissUndo.length > 0 && (
+          <div className="feedback-action-row" aria-label="Accion reciente del explorador">
+            <button className="secondary-button" type="button" onClick={() => void undoDismissVisibleQueue()}>
+              <RotateCcw size={16} />
+              Deshacer descarte
+            </button>
+          </div>
+        )}
 
         <div className="explorer-control-deck">
           <div className="explorer-status-strip" role="tablist" aria-label="Estado de descubrimiento">

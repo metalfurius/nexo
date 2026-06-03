@@ -556,6 +556,12 @@
   animation: feedback-spin 900ms linear infinite;
 }
 
+.feedback-action-row {
+  display: flex;
+  justify-content: flex-start;
+  margin: -4px 0 14px;
+}
+
 .panel-heading {
   align-items: center;
   display: flex;

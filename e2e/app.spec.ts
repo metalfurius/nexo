@@ -324,7 +324,13 @@ test('explorer can clean a filtered queued view', async ({ page }) => {
   await page.getByRole('button', { name: 'Descartar vista' }).click()
 
   await expect(page.getByText('Odisea descartado de la vista APIs.')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Deshacer descarte' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Sin resultados APIs' })).toBeVisible()
+  await page.getByRole('button', { name: 'Deshacer descarte' }).click()
+  await expect(page.getByText('Odisea recuperado a la cola.')).toBeVisible()
+  await expect(page.getByTestId('candidate-spotlight')).toContainText('Odisea')
+  await page.getByRole('button', { name: 'Descartar vista' }).click()
+  await expect(page.getByText('Odisea descartado de la vista APIs.')).toBeVisible()
   await page.getByRole('button', { name: 'Ver todos los origenes' }).click()
   await expect(page.getByTestId('candidate-spotlight')).toContainText('Nexo')
   await expect(page.getByTestId('candidate-spotlight')).toContainText('Odisea')
