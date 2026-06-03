@@ -55,6 +55,7 @@ export interface LibraryRepository {
   updateUserRole: (targetUserId: string, role: UserRole) => Promise<void>
   upsertPublicItem: (item: Partial<PublicCatalogItem> & Pick<PublicCatalogItem, 'title' | 'type'>) => Promise<PublicCatalogItem>
   archivePublicItem: (id: string) => Promise<void>
+  restorePublicItem: (id: string) => Promise<void>
 }
 
 export function createFirestoreRepository(userId: string): LibraryRepository | undefined {
@@ -294,6 +295,17 @@ export function createFirestoreRepository(userId: string): LibraryRepository | u
         doc(services.db, 'publicItems', id),
         {
           archivedAt: nowIso(),
+          updatedAt: nowIso(),
+          updatedBy: userId,
+        },
+        { merge: true },
+      )
+    },
+    async restorePublicItem(id) {
+      await setDoc(
+        doc(services.db, 'publicItems', id),
+        {
+          archivedAt: deleteField(),
           updatedAt: nowIso(),
           updatedBy: userId,
         },

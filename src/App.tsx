@@ -552,6 +552,7 @@ interface LibrarySurface {
   saveDiscoveryToLibrary: (candidate: DiscoveryCandidate) => Promise<ListItem>
   upsertPublicItem: (item: Partial<PublicCatalogItem> & Pick<PublicCatalogItem, 'title' | 'type'>) => Promise<PublicCatalogItem>
   archivePublicItem: (id: string) => Promise<void>
+  restorePublicItem: (id: string) => Promise<void>
   updateUserRole: (targetUserId: string, role: UserRole) => Promise<void>
   publicItemToDiscovery: (item: PublicCatalogItem) => DiscoveryCandidate
   externalCandidateToDiscovery: (candidate: ExternalCandidate) => DiscoveryCandidate
@@ -2767,6 +2768,7 @@ function CurationTab({ library }: { library: LibrarySurface }) {
   const [items, setItems] = useState<PublicCatalogItem[]>([])
   const [editingItem, setEditingItem] = useState<PublicCatalogItem | undefined>()
   const [archiveTarget, setArchiveTarget] = useState<PublicCatalogItem | undefined>()
+  const [archiveUndoItem, setArchiveUndoItem] = useState<PublicCatalogItem | undefined>()
   const [hasLoaded, setHasLoaded] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -2827,6 +2829,7 @@ function CurationTab({ library }: { library: LibrarySurface }) {
     try {
       const nextItems = await library.searchPublicCatalog(searchQuery, 'any')
       setItems(nextItems)
+      setArchiveUndoItem(undefined)
       setHasLoaded(true)
       if (!nextItems.length) {
         setStatus(searchQuery.trim() ? 'No hay entradas con ese filtro.' : 'El catalogo publico esta vacio.')
@@ -2840,11 +2843,26 @@ function CurationTab({ library }: { library: LibrarySurface }) {
 
   async function archiveSelectedItem() {
     if (!archiveTarget) return
-    const archivedTitle = archiveTarget.title
-    await library.archivePublicItem(archiveTarget.id)
-    setItems((current) => current.filter((item) => item.id !== archiveTarget.id))
-    setStatus(`${archivedTitle} archivado`)
+    const archivedItem = archiveTarget
+    await library.archivePublicItem(archivedItem.id)
+    setArchiveUndoItem(archivedItem)
+    setItems((current) => current.filter((item) => item.id !== archivedItem.id))
+    setStatus(`${archivedItem.title} archivado`)
     setArchiveTarget(undefined)
+  }
+
+  async function undoArchivePublicItem() {
+    if (!archiveUndoItem) return
+    try {
+      await library.restorePublicItem(archiveUndoItem.id)
+      const restoredItem = { ...archiveUndoItem, updatedAt: nowIso() }
+      delete restoredItem.archivedAt
+      setItems((current) => upsertVisibleCatalogItem(current, restoredItem))
+      setStatus(`${archiveUndoItem.title} recuperado en catalogo`)
+      setArchiveUndoItem(undefined)
+    } catch (reason) {
+      setStatus(reason instanceof Error ? reason.message : 'No se pudo deshacer el archivado.')
+    }
   }
 
   function resetCatalogFilters() {
@@ -2861,6 +2879,7 @@ function CurationTab({ library }: { library: LibrarySurface }) {
   }
 
   function startNewCatalogItem(type: ItemType = 'book', template?: CatalogTaxonomyTemplate) {
+    setArchiveUndoItem(undefined)
     setEditingItem(template ? publicCatalogDraftFromTemplate(type, template) : blankPublicCatalogItem(type))
   }
 
@@ -2891,6 +2910,7 @@ function CurationTab({ library }: { library: LibrarySurface }) {
       }
 
       setItems((current) => savedItems.reduce((nextItems, item) => upsertVisibleCatalogItem(nextItems, item), current))
+      setArchiveUndoItem(undefined)
       setHasLoaded(true)
       setQualityFilter('all')
       setIssueFilter('all')
@@ -3172,6 +3192,14 @@ function CurationTab({ library }: { library: LibrarySurface }) {
           {visibleCatalogItems.length} de {items.length} entradas visibles
         </p>
         {status && <FeedbackMessage tone={feedbackToneFromText(status)}>{status}</FeedbackMessage>}
+        {archiveUndoItem && (
+          <div className="feedback-action-row" aria-label="Accion reciente de curacion">
+            <button className="secondary-button" type="button" onClick={() => void undoArchivePublicItem()}>
+              <RotateCcw size={16} />
+              Deshacer archivado
+            </button>
+          </div>
+        )}
 
         {isLoading && items.length === 0 ? (
           <EmptyState
@@ -3285,6 +3313,7 @@ function CurationTab({ library }: { library: LibrarySurface }) {
           onSave={async (item, options) => {
             const savedItem = await library.upsertPublicItem(item)
             setItems((current) => upsertVisibleCatalogItem(current, savedItem))
+            setArchiveUndoItem(undefined)
             setHasLoaded(true)
             setEditingItem(options?.createAnother ? blankPublicCatalogItem(savedItem.type) : undefined)
             setStatus(`${savedItem.title} guardado en catalogo`)

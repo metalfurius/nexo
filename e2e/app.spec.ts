@@ -487,6 +487,13 @@ test('moderator curation can create a public catalog item in demo mode', async (
   await page.getByRole('button', { name: 'Archivar entrada' }).click()
 
   await expect(page.getByText('Solaris archivado')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Deshacer archivado' })).toBeVisible()
+  await page.getByRole('button', { name: 'Deshacer archivado' }).click()
+  await expect(page.getByText('Solaris recuperado en catalogo')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Editar Solaris' })).toBeVisible()
+  await page.getByRole('button', { name: 'Archivar Solaris' }).click()
+  await expect(page.getByRole('heading', { name: 'Archivar entrada publica' })).toBeVisible()
+  await page.getByRole('button', { name: 'Archivar entrada' }).click()
   await expect(page.getByRole('button', { name: 'Editar Solaris' })).not.toBeVisible()
 })
 

@@ -367,6 +367,21 @@ export function useLibrary(user?: SignedInUserProfile | null) {
     }
   }
 
+  async function restorePublicItem(id: string) {
+    if (repository) {
+      await repository.restorePublicItem(id)
+    } else {
+      setPublicCatalog((current) =>
+        current.map((item) => {
+          if (item.id !== id) return item
+          const restoredItem = { ...item, updatedAt: nowIso() }
+          delete restoredItem.archivedAt
+          return restoredItem
+        }),
+      )
+    }
+  }
+
   async function updateUserRole(targetUserId: string, role: UserRole) {
     if (repository) {
       await repository.updateUserRole(targetUserId, role)
@@ -421,6 +436,7 @@ export function useLibrary(user?: SignedInUserProfile | null) {
     saveDiscoveryToLibrary,
     upsertPublicItem,
     archivePublicItem,
+    restorePublicItem,
     updateUserRole,
     candidateToItem,
     publicItemToDiscovery,

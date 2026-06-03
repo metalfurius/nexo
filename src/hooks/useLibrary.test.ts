@@ -12,6 +12,7 @@ const repositoryMock = vi.hoisted(() => ({
   markDiscoveryCandidateSaved: vi.fn(),
   recordRecommendation: vi.fn(),
   restoreDiscoveryCandidate: vi.fn(),
+  restorePublicItem: vi.fn(),
   saveDiscoveryCandidate: vi.fn(),
   saveItem: vi.fn(),
   saveSettings: vi.fn(),
@@ -230,6 +231,23 @@ describe('useLibrary', () => {
     )
     expect(result.current.discoveryCandidates[0].dismissedAt).toBeUndefined()
     expect(repositoryMock.restoreDiscoveryCandidate).toHaveBeenCalledWith('public-book-odisea')
+  })
+
+  it('delegates public item restoration to the signed-in repository', async () => {
+    const user = {
+      uid: 'user-1',
+      email: null,
+      displayName: null,
+    }
+    const { result } = renderHook(() => useLibrary(user))
+
+    await waitFor(() => expect(repositoryMock.subscribeItems).toHaveBeenCalled())
+
+    await act(async () => {
+      await result.current.restorePublicItem('book-solaris')
+    })
+
+    expect(repositoryMock.restorePublicItem).toHaveBeenCalledWith('book-solaris')
   })
 
   it('loads user profiles and delegates role updates for admins', async () => {

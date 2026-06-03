@@ -378,6 +378,7 @@ describe('createFirestoreRepository', () => {
       externalRefs: {},
     })
     await repository?.archivePublicItem('movie-arrival')
+    await repository?.restorePublicItem('movie-arrival')
 
     expect(results?.[0]?.title).toBe('Arrival')
     expect(mocks.setDoc).toHaveBeenNthCalledWith(
@@ -390,6 +391,12 @@ describe('createFirestoreRepository', () => {
       2,
       expect.objectContaining({ path: 'publicItems/movie-arrival' }),
       expect.objectContaining({ archivedAt: expect.any(String), updatedBy: 'user-1' }),
+      { merge: true },
+    )
+    expect(mocks.setDoc).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({ path: 'publicItems/movie-arrival' }),
+      expect.objectContaining({ archivedAt: { kind: 'deleteField' }, updatedBy: 'user-1' }),
       { merge: true },
     )
   })
