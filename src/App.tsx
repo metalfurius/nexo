@@ -301,17 +301,32 @@ const curationStarterTypes: ItemType[] = ['book', 'game', 'movie', 'series', 'an
 const urlAddressableTabs: AppTab[] = ['library', 'dice', 'explorer', 'settings']
 
 function readInitialAppTab(): AppTab {
-  const tab = new URLSearchParams(window.location.search).get('tab')
+  const searchParams = new URLSearchParams(window.location.search)
+  if (searchParams.get('item')) return 'library'
+
+  const tab = searchParams.get('tab')
   return urlAddressableTabs.includes(tab as AppTab) ? (tab as AppTab) : 'library'
 }
 
-function writeAppTabToUrl(tab: AppTab, mode: 'push' | 'replace' = 'replace') {
+function readInitialActivityFocus(): ActivityFocus | undefined {
+  const itemId = new URLSearchParams(window.location.search).get('item')?.trim()
+  return itemId ? { kind: 'item', id: itemId } : undefined
+}
+
+function writeAppTabToUrl(tab: AppTab, mode: 'push' | 'replace' = 'replace', focus?: ActivityFocus) {
   const url = new URL(window.location.href)
   if (tab === 'library' || !urlAddressableTabs.includes(tab)) {
     url.searchParams.delete('tab')
   } else {
     url.searchParams.set('tab', tab)
   }
+
+  if (tab === 'library' && focus?.kind === 'item') {
+    url.searchParams.set('item', focus.id)
+  } else {
+    url.searchParams.delete('item')
+  }
+
   const nextUrl = `${url.pathname}${url.search}${url.hash}`
   const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`
   if (nextUrl === currentUrl) return
@@ -415,7 +430,7 @@ function App() {
   const library = useLibrary(auth.user)
   const [activeTab, setActiveTabState] = useState<AppTab>(() => readInitialAppTab())
   const [pendingNavigation, setPendingNavigation] = useState<PendingNavigation | undefined>()
-  const [activityFocus, setActivityFocus] = useState<ActivityFocus | undefined>()
+  const [activityFocus, setActivityFocus] = useState<ActivityFocus | undefined>(() => readInitialActivityFocus())
   const [tabsWithUnsavedChanges, setTabsWithUnsavedChanges] = useState<Partial<Record<AppTab, boolean>>>({})
   const [theme, setTheme] = useState<ThemeMode>(() => {
     const stored = window.localStorage.getItem(themeStorageKey)
@@ -437,21 +452,26 @@ function App() {
   useEffect(() => {
     function syncTabFromUrl() {
       const nextTab = readInitialAppTab()
-      if (nextTab === activeTab) return
+      const nextFocus = readInitialActivityFocus()
+      if (nextTab === activeTab) {
+        setActivityFocus(nextFocus)
+        return
+      }
 
       if (tabsWithUnsavedChanges[activeTab]) {
-        setPendingNavigation({ source: 'history', tab: nextTab })
-        writeAppTabToUrl(activeTab)
+        setPendingNavigation({ focus: nextFocus, source: 'history', tab: nextTab })
+        writeAppTabToUrl(activeTab, 'replace', activityFocus)
         return
       }
 
       setPendingNavigation(undefined)
+      setActivityFocus(nextFocus)
       setActiveTabState(nextTab)
     }
 
     window.addEventListener('popstate', syncTabFromUrl)
     return () => window.removeEventListener('popstate', syncTabFromUrl)
-  }, [activeTab, tabsWithUnsavedChanges])
+  }, [activeTab, activityFocus, tabsWithUnsavedChanges])
 
   const reportUnsavedChanges = useCallback((tab: AppTab, hasUnsavedChanges: boolean) => {
     setTabsWithUnsavedChanges((current) => {
@@ -502,7 +522,10 @@ function App() {
   function changeActiveTab(nextTab: AppTab, focus?: ActivityFocus) {
     if (nextTab === 'curation' && !library.isModerator) return
     if (nextTab === activeTab) {
-      setActivityFocus(focus)
+      if (focus) {
+        setActivityFocus(focus)
+        writeAppTabToUrl(nextTab, 'push', focus)
+      }
       return
     }
     if (tabsWithUnsavedChanges[activeTab]) {
@@ -511,7 +534,7 @@ function App() {
     }
     setActivityFocus(focus)
     setActiveTabState(nextTab)
-    writeAppTabToUrl(nextTab, 'push')
+    writeAppTabToUrl(nextTab, 'push', focus)
   }
 
   function discardPendingNavigation() {
@@ -522,7 +545,7 @@ function App() {
     setPendingNavigation(undefined)
     setActivityFocus(focus)
     setActiveTabState(nextTab)
-    writeAppTabToUrl(nextTab, source === 'history' ? 'replace' : 'push')
+    writeAppTabToUrl(nextTab, source === 'history' ? 'replace' : 'push', focus)
   }
 
   return (
@@ -814,7 +837,7 @@ function LibraryTab({
   library: LibrarySurface
   onActivity: ActivityRecorder
   onActivityFocusHandled: () => void
-  onNavigate: (tab: AppTab) => void
+  onNavigate: (tab: AppTab, focus?: ActivityFocus) => void
   setTheme: (theme: ThemeMode) => void
 }) {
   const [query, setQuery] = useState('')
@@ -1089,9 +1112,28 @@ function LibraryTab({
     }
   }
 
+  function openLibraryEditor(item: ListItem) {
+    const existingItem = library.items.find((libraryItem) => libraryItem.id === item.id)
+    if (existingItem) {
+      setEditingItem(undefined)
+      onNavigate('library', { kind: 'item', id: existingItem.id })
+      return
+    }
+
+    setEditingItem(item)
+    onActivityFocusHandled()
+    writeAppTabToUrl('library', 'push')
+  }
+
   function closeLibraryEditor() {
     setEditingItem(undefined)
-    if (focusedActivityItem) onActivityFocusHandled()
+    onActivityFocusHandled()
+    writeAppTabToUrl('library', 'push')
+  }
+
+  function clearMissingActivityFocus() {
+    onActivityFocusHandled()
+    writeAppTabToUrl('library')
   }
 
   async function saveLibraryEditorItem(item: ListItem) {
@@ -1101,6 +1143,7 @@ function LibraryTab({
       setPendingLibraryImport(undefined)
       setEditingItem(undefined)
       onActivityFocusHandled()
+      writeAppTabToUrl('library')
       setImportStatus(`${item.title || 'Entrada'} guardada en Biblioteca`)
       onActivity({
         detail: item.title || 'Entrada sin titulo',
@@ -1146,7 +1189,7 @@ function LibraryTab({
             <p>{library.items.length} entradas privadas</p>
           </div>
           <div className="panel-actions">
-            <button className="primary-button" type="button" onClick={() => setEditingItem(blankItem())}>
+            <button className="primary-button" type="button" onClick={() => openLibraryEditor(blankItem())}>
               <Plus size={18} />
               Anadir
             </button>
@@ -1204,8 +1247,8 @@ function LibraryTab({
 
         <LaunchGuideCard
           guide={launchGuide}
-          onAdd={() => setEditingItem(blankItem())}
-          onEditItem={(item) => setEditingItem(item)}
+          onAdd={() => openLibraryEditor(blankItem())}
+          onEditItem={(item) => openLibraryEditor(item)}
           onNavigate={onNavigate}
         />
 
@@ -1228,7 +1271,7 @@ function LibraryTab({
                     <nextFocusAction.Icon size={16} />
                     {nextFocusAction.label}
                   </button>
-                  <button className="secondary-button" type="button" onClick={() => setEditingItem(nextFocusItem)}>
+                  <button className="secondary-button" type="button" onClick={() => openLibraryEditor(nextFocusItem)}>
                     <Info size={16} />
                     Afinar ficha
                   </button>
@@ -1240,7 +1283,7 @@ function LibraryTab({
                   <strong>Biblioteca lista</strong>
                   <p>Anade algo o guarda hallazgos desde Explorador para alimentar el dado.</p>
                 </div>
-                <button className="primary-button" type="button" onClick={() => setEditingItem(blankItem())}>
+                <button className="primary-button" type="button" onClick={() => openLibraryEditor(blankItem())}>
                   <Plus size={16} />
                   Anadir entrada
                 </button>
@@ -1369,7 +1412,7 @@ function LibraryTab({
         {missingActivityFocus && (
           <div className="feedback-action-row" aria-label="Actividad sin entrada">
             <FeedbackMessage>Esa actividad ya no tiene una entrada en la biblioteca.</FeedbackMessage>
-            <button className="ghost-button" type="button" onClick={onActivityFocusHandled}>
+            <button className="ghost-button" type="button" onClick={clearMissingActivityFocus}>
               Cerrar aviso
             </button>
           </div>
@@ -1432,7 +1475,7 @@ function LibraryTab({
 
                 return (
                   <article className="focus-item" key={item.id}>
-                    <button className="focus-item-main" type="button" onClick={() => setEditingItem(item)}>
+                    <button className="focus-item-main" type="button" onClick={() => openLibraryEditor(item)}>
                       <span className={`focus-type-dot ${item.type}`} aria-hidden="true">
                         <Icon size={15} />
                       </span>
@@ -1464,7 +1507,7 @@ function LibraryTab({
                 item={item}
                 key={item.id}
                 layout={viewMode}
-                onEdit={() => setEditingItem(item)}
+                onEdit={() => openLibraryEditor(item)}
                 onStatus={(status) => void changeLibraryItemStatus(item, status)}
                 onSnooze={() => void snoozeLibraryItem(item)}
                 onReactivate={() => void reactivateLibraryItem(item)}
@@ -1488,7 +1531,7 @@ function LibraryTab({
                   Quitar filtros
                 </button>
               ) : (
-                <button className="primary-button" type="button" onClick={() => setEditingItem(blankItem())}>
+                <button className="primary-button" type="button" onClick={() => openLibraryEditor(blankItem())}>
                   <Plus size={16} />
                   Crear primera entrada
                 </button>

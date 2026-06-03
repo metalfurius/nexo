@@ -251,8 +251,23 @@ test('activity entries navigate through the pending-change guard', async ({ page
 
   await page.getByLabel('Salida con cambios pendientes').getByRole('button', { name: 'Descartar cambios' }).click()
   await expect(page.getByRole('heading', { name: 'Biblioteca privada' })).toBeVisible()
+  await expect(page).toHaveURL(/item=movie-actividad-navegable/)
   const focusedEditor = page.getByRole('dialog', { name: 'Entrada' })
   await expect(focusedEditor.getByLabel('Titulo')).toHaveValue('Actividad navegable')
+})
+
+test('library item deep links open and close the focused editor', async ({ page }) => {
+  await page.goto('/?item=game-outer-wilds')
+  const editor = page.getByRole('dialog', { name: 'Entrada' })
+  await expect(editor.getByLabel('Titulo')).toHaveValue('Outer Wilds')
+  await expect(page).toHaveURL(/item=game-outer-wilds/)
+
+  await editor.getByRole('button', { name: 'Cerrar', exact: true }).click()
+  await expect(page.getByRole('dialog', { name: 'Entrada' })).not.toBeVisible()
+  await expect(page).not.toHaveURL(/item=game-outer-wilds/)
+
+  await page.goBack()
+  await expect(page.getByRole('dialog', { name: 'Entrada' }).getByLabel('Titulo')).toHaveValue('Outer Wilds')
 })
 
 test('pwa metadata is present', async ({ page }) => {
