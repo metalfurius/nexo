@@ -220,6 +220,34 @@ test('settings show pending changes before saving preferences', async ({ page })
   const download = await downloadPromise
   expect(download.suggestedFilename()).toMatch(/^nexo-backup-\d{4}-\d{2}-\d{2}\.json$/)
   await expect(page.getByText('Backup JSON descargado')).toBeVisible()
+  await page.getByLabel('Importar backup JSON').setInputFiles({
+    name: 'nexo-backup-import.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(
+      JSON.stringify({
+        schemaVersion: 1,
+        exportedAt: '2026-06-03T00:00:00.000Z',
+        items: [
+          {
+            title: 'Backup Probe',
+            type: 'book',
+            status: 'wishlist',
+            genres: ['Ensayo'],
+            tags: ['backup'],
+            moodTags: [],
+            weights: { priority: 1, surprise: 0.5, challenge: 0.5 },
+            source: 'manual',
+            createdAt: '2026-06-01T00:00:00.000Z',
+            updatedAt: '2026-06-01T00:00:00.000Z',
+          },
+        ],
+      }),
+    ),
+  })
+  await expect(page.getByText('Importadas 1 entradas desde backup')).toBeVisible()
+  await page.getByRole('button', { name: 'Biblioteca', exact: true }).click()
+  await expect(page.getByTestId('library-grid')).toContainText('Backup Probe')
+  await page.getByRole('button', { name: 'Ajustes', exact: true }).click()
   await expect(page.getByLabel('Rol de Usuario demo')).toHaveValue('user')
   await page.getByLabel('Rol de Usuario demo').selectOption('moderator')
   await expect(page.getByText('Usuario demo ahora es Moderador')).toBeVisible()

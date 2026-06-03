@@ -2054,6 +2054,37 @@ function SettingsTab({
     setStatus('Backup JSON descargado')
   }
 
+  async function importPrivateBackup(file?: File) {
+    if (!file) return
+
+    setStatus('Importando backup JSON...')
+    try {
+      const payload = parseLibraryImportPayload(JSON.parse(await file.text()))
+
+      for (const item of payload.items) {
+        await library.saveItem(item)
+      }
+      if (payload.settings) {
+        await library.saveSettings(payload.settings)
+        setTheme(payload.settings.theme)
+        setDraft({
+          theme: payload.settings.theme,
+          favoriteTags: payload.settings.favoriteTags.join(', '),
+          favoriteGenres: payload.settings.favoriteGenres.join(', '),
+          blockedTags: payload.settings.blockedTags.join(', '),
+          explorerDefaultType: payload.settings.explorerDefaultType,
+        })
+      }
+      setStatus(
+        payload.settings
+          ? `Importadas ${payload.items.length} entradas y ajustes desde backup`
+          : `Importadas ${payload.items.length} entradas desde backup`,
+      )
+    } catch (reason) {
+      setStatus(reason instanceof Error ? reason.message : 'No se pudo importar el backup.')
+    }
+  }
+
   async function savePrivateItemFromSettings(item: ListItem) {
     await library.saveItem(item)
     setEditingItem(undefined)
@@ -2400,6 +2431,22 @@ function SettingsTab({
                   </button>
                 )
               })}
+              <label className="private-action-item private-import-item">
+                <Upload size={16} />
+                <span>
+                  <strong>Importar backup</strong>
+                  <small>Restaurar JSON v1</small>
+                </span>
+                <input
+                  accept="application/json,.json"
+                  aria-label="Importar backup JSON"
+                  type="file"
+                  onChange={(event) => {
+                    void importPrivateBackup(event.target.files?.[0])
+                    event.target.value = ''
+                  }}
+                />
+              </label>
             </div>
           </section>
           <div className="data-safety-note">

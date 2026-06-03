@@ -2151,6 +2151,14 @@
   transform: translateY(-1px);
 }
 
+.private-import-item {
+  cursor: pointer;
+}
+
+.private-import-item input {
+  display: none;
+}
+
 .private-action-item.primary {
   background: color-mix(in srgb, var(--accent-soft) 68%, var(--surface-muted));
   border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
