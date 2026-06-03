@@ -296,6 +296,15 @@ interface CandidateDecisionBrief {
   title: string
 }
 
+interface PrivateDataAction {
+  detail: string
+  Icon: typeof Download
+  id: string
+  label: string
+  onClick: () => void
+  primary?: boolean
+}
+
 interface DiceEligibilityBreakdown {
   available: number
   blockedTags: number
@@ -561,7 +570,7 @@ function App() {
         {activeTab === 'dice' && <DiceTab library={library} />}
         {activeTab === 'explorer' && <ExplorerTab library={library} />}
         {activeTab === 'settings' && (
-          <SettingsTab library={library} setTheme={setTheme} theme={theme} user={auth.user} />
+          <SettingsTab library={library} onNavigate={changeActiveTab} setTheme={setTheme} theme={theme} user={auth.user} />
         )}
         {activeTab === 'curation' && library.isModerator && <CurationTab library={library} />}
       </section>
@@ -1979,11 +1988,13 @@ function ExplorerTab({ library }: { library: LibrarySurface }) {
 
 function SettingsTab({
   library,
+  onNavigate,
   setTheme,
   theme,
   user,
 }: {
   library: LibrarySurface
+  onNavigate: (tab: AppTab) => void
   setTheme: (theme: ThemeMode) => void
   theme: ThemeMode
   user: AuthUserSummary | null
@@ -1996,6 +2007,7 @@ function SettingsTab({
     explorerDefaultType: library.settings.explorerDefaultType,
   })
   const [status, setStatus] = useState<string | undefined>()
+  const [editingItem, setEditingItem] = useState<ListItem | undefined>()
   const draftFavoriteTags = splitList(draft.favoriteTags)
   const draftFavoriteGenres = splitList(draft.favoriteGenres)
   const draftBlockedTags = splitList(draft.blockedTags)
@@ -2003,6 +2015,7 @@ function SettingsTab({
   const accountInitial = accountLabel.slice(0, 1).toUpperCase()
   const queuedDiscoveryCount = library.discoveryCandidates.filter((candidate) => candidate.status === 'queued').length
   const resolvedDiscoveryCount = library.discoveryCandidates.length - queuedDiscoveryCount
+  const firstMissingTaxonomyItem = library.items.find((item) => !hasItemTaxonomy(item))
   const privateDataHealth = useMemo(
     () => getPrivateDataHealth(library.items, library.discoveryCandidates),
     [library.items, library.discoveryCandidates],
@@ -2037,6 +2050,65 @@ function SettingsTab({
     downloadLibraryBackup(library.items, library.settings, 'nexo-backup')
     setStatus('Backup JSON descargado')
   }
+
+  async function savePrivateItemFromSettings(item: ListItem) {
+    await library.saveItem(item)
+    setEditingItem(undefined)
+    setStatus(`${item.title || 'Entrada'} guardada`)
+  }
+
+  const privateDataActions: PrivateDataAction[] = [
+    firstMissingTaxonomyItem
+      ? {
+          detail: firstMissingTaxonomyItem.title,
+          Icon: Info,
+          id: 'taxonomy',
+          label: 'Afinar ficha',
+          onClick: () => setEditingItem(firstMissingTaxonomyItem),
+          primary: true,
+        }
+      : library.items.length === 0
+        ? {
+            detail: 'Abrir Biblioteca',
+            Icon: Plus,
+            id: 'library',
+            label: 'Crear entrada',
+            onClick: () => onNavigate('library'),
+            primary: true,
+          }
+        : {
+            detail: privateDataHealth.diceReadyCount
+              ? `${privateDataHealth.diceReadyCount} candidatas disponibles`
+              : 'Sin candidatas listas',
+            Icon: Dice5,
+            id: 'dice',
+            label: privateDataHealth.diceReadyCount ? 'Tirar dado' : 'Revisar dado',
+            onClick: () => onNavigate('dice'),
+            primary: true,
+          },
+    queuedDiscoveryCount
+      ? {
+          detail: `${queuedDiscoveryCount} hallazgos pendientes`,
+          Icon: Sparkles,
+          id: 'explorer',
+          label: 'Decidir cola',
+          onClick: () => onNavigate('explorer'),
+        }
+      : {
+          detail: 'Buscar en Nexo y APIs',
+          Icon: Search,
+          id: 'explorer',
+          label: 'Explorar catalogo',
+          onClick: () => onNavigate('explorer'),
+        },
+    {
+      detail: 'Descargar copia privada',
+      Icon: Download,
+      id: 'backup',
+      label: 'Backup JSON',
+      onClick: exportPrivateBackup,
+    },
+  ]
 
   return (
     <section className="settings-grid">
@@ -2295,6 +2367,38 @@ function SettingsTab({
               ))}
             </div>
           </section>
+          <section className="private-action-plan" aria-label="Plan de mantenimiento privado" data-testid="private-action-plan">
+            <div className="private-action-plan-heading">
+              <div>
+                <span className="eyebrow">Plan de mantenimiento</span>
+                <strong>{privateDataHealth.needsAttention ? 'Resolver pendientes privados' : 'Mantener Nexo listo'}</strong>
+                <p>
+                  {privateDataHealth.needsAttention
+                    ? 'Ataja la primera mejora util sin salir de tus datos privados.'
+                    : 'Accesos directos para decidir, explorar y guardar copia.'}
+                </p>
+              </div>
+            </div>
+            <div className="private-action-list">
+              {privateDataActions.map((action) => {
+                const Icon = action.Icon
+                return (
+                  <button
+                    className={action.primary ? 'private-action-item primary' : 'private-action-item'}
+                    key={action.id}
+                    type="button"
+                    onClick={action.onClick}
+                  >
+                    <Icon size={16} />
+                    <span>
+                      <strong>{action.label}</strong>
+                      <small>{action.detail}</small>
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          </section>
           <div className="data-safety-note">
             <ShieldCheck size={17} />
             <span>Tus notas, ratings, progreso y pesos viven bajo tu usuario. El catalogo Nexo no recibe esos cambios privados.</span>
@@ -2315,6 +2419,14 @@ function SettingsTab({
           </div>
         </section>
       </div>
+
+      {editingItem && (
+        <ItemEditor
+          item={editingItem}
+          onClose={() => setEditingItem(undefined)}
+          onSave={(item) => void savePrivateItemFromSettings(item)}
+        />
+      )}
     </section>
   )
 }

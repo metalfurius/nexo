@@ -154,7 +154,7 @@ test('pwa metadata is present', async ({ page }) => {
 
 test('settings show pending changes before saving preferences', async ({ page }) => {
   await page.goto('/')
-  await page.getByRole('button', { name: 'Ajustes' }).click()
+  await page.getByRole('button', { name: 'Ajustes', exact: true }).click()
 
   await expect(page.getByRole('button', { name: 'Guardado' })).toBeDisabled()
   await expect(page.getByRole('heading', { name: 'Roles' })).toBeVisible()
@@ -170,6 +170,13 @@ test('settings show pending changes before saving preferences', async ({ page })
   await expect(page.getByTestId('private-data-health')).toContainText('Taxonomia')
   await expect(page.getByTestId('private-data-health')).toContainText('Catalogo Nexo')
   await expect(page.getByTestId('private-data-health')).toContainText('Dado')
+  await expect(page.getByTestId('private-action-plan')).toContainText('Plan de mantenimiento')
+  await expect(page.getByTestId('private-action-plan')).toContainText('Tirar dado')
+  await expect(page.getByTestId('private-action-plan')).toContainText('Explorar catalogo')
+  await expect(page.getByTestId('private-action-plan')).toContainText('Backup JSON')
+  await page.getByTestId('private-action-plan').getByRole('button', { name: /Tirar dado/ }).click()
+  await expect(page).toHaveURL(/tab=dice/)
+  await page.getByRole('button', { name: 'Ajustes', exact: true }).click()
   const downloadPromise = page.waitForEvent('download')
   await page.getByRole('button', { name: 'Exportar backup JSON' }).click()
   const download = await downloadPromise

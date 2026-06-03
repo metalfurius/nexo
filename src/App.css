@@ -2031,6 +2031,91 @@
   border-left-color: var(--accent);
 }
 
+.private-action-plan {
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 10px;
+  padding-top: 12px;
+}
+
+.private-action-plan-heading {
+  min-width: 0;
+}
+
+.private-action-plan-heading strong {
+  color: var(--text-strong);
+  display: block;
+  font-size: 15px;
+  line-height: 1.2;
+  margin-top: 3px;
+}
+
+.private-action-plan-heading p {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+  margin: 5px 0 0;
+}
+
+.private-action-list {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.private-action-item {
+  align-items: center;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 18px minmax(0, 1fr);
+  justify-items: start;
+  min-height: 58px;
+  padding: 9px;
+  text-align: left;
+}
+
+.private-action-item:hover {
+  background: var(--surface);
+  color: var(--text-strong);
+  transform: translateY(-1px);
+}
+
+.private-action-item.primary {
+  background: color-mix(in srgb, var(--accent-soft) 68%, var(--surface-muted));
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
+  color: var(--accent-dark);
+}
+
+.private-action-item svg {
+  color: currentColor;
+}
+
+.private-action-item span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.private-action-item strong {
+  color: var(--text-strong);
+  font-size: 12px;
+  line-height: 1.1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.private-action-item small {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.2;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .data-safety-note {
   align-items: start;
   background: color-mix(in srgb, var(--accent-soft) 45%, var(--surface-muted));
@@ -5853,6 +5938,14 @@ textarea:focus-visible {
 
   .settings-confidence-panel > button {
     justify-self: stretch;
+  }
+
+  .private-action-list {
+    grid-template-columns: 1fr;
+  }
+
+  .private-action-item {
+    width: 100%;
   }
 
   .catalog-filter-tabs {
