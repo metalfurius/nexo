@@ -576,6 +576,11 @@ interface PendingBackupImport {
   summary: LibraryImportSummary
 }
 
+type DiceUndoAction =
+  | { kind: 'status'; itemId: string; previousStatus: ItemStatus; title: string }
+  | { kind: 'snooze'; recommendation: RecommendationResult; title: string }
+  | { kind: 'cooldowns'; items: ListItem[] }
+
 function LibraryTab({
   library,
   onNavigate,
@@ -1275,6 +1280,7 @@ function DiceTab({ library }: { library: LibrarySurface }) {
   const [isRolling, setIsRolling] = useState(false)
   const [showFullDicePool, setShowFullDicePool] = useState(false)
   const [status, setStatus] = useState<string | undefined>()
+  const [diceUndoAction, setDiceUndoAction] = useState<DiceUndoAction | undefined>()
   const persistedPreferences = library.settings.recommendationPreferences ?? DEFAULT_RECOMMENDATION_PREFERENCES
   const preferences = draftPreferences ?? persistedPreferences
   const hasUnsavedDicePreferences = !sameRecommendationPreferences(preferences, persistedPreferences)
@@ -1340,6 +1346,7 @@ function DiceTab({ library }: { library: LibrarySurface }) {
     update: RecommendationPreferences | ((current: RecommendationPreferences) => RecommendationPreferences),
   ) => {
     setStatus(undefined)
+    setDiceUndoAction(undefined)
     setDraftPreferences((current) => (typeof update === 'function' ? update(current ?? preferences) : update))
   }
 
@@ -1352,6 +1359,7 @@ function DiceTab({ library }: { library: LibrarySurface }) {
 
     setIsRolling(true)
     setStatus(undefined)
+    setDiceUndoAction(undefined)
     setRecommendation(undefined)
     const next = recommendItem(
       library.items,
@@ -1376,6 +1384,7 @@ function DiceTab({ library }: { library: LibrarySurface }) {
       allowPausedByDefault: preferences.includePaused,
     })
     setDraftPreferences(undefined)
+    setDiceUndoAction(undefined)
     setStatus('Ajustes del dado guardados')
   }
 
@@ -1383,6 +1392,12 @@ function DiceTab({ library }: { library: LibrarySurface }) {
     if (!recommendation) return
     try {
       await library.setStatus(recommendation.item.id, 'in_progress')
+      setDiceUndoAction({
+        kind: 'status',
+        itemId: recommendation.item.id,
+        previousStatus: recommendation.item.status,
+        title: recommendation.item.title,
+      })
       setStatus(`${recommendation.item.title} marcado como en progreso.`)
     } catch (reason) {
       setStatus(reason instanceof Error ? reason.message : 'No se pudo actualizar el estado.')
@@ -1393,6 +1408,7 @@ function DiceTab({ library }: { library: LibrarySurface }) {
     if (!recommendation) return
     try {
       await library.snoozeRecommendation(recommendation.item.id)
+      setDiceUndoAction({ kind: 'snooze', recommendation, title: recommendation.item.title })
       setStatus(`${recommendation.item.title} queda fuera hasta manana.`)
       setRecommendation(undefined)
     } catch (reason) {
@@ -1403,8 +1419,10 @@ function DiceTab({ library }: { library: LibrarySurface }) {
   async function reactivateDiceCooldowns() {
     if (!cooldownRecoveryItems.length) return
     const count = cooldownRecoveryItems.length
+    const recoverySnapshot = cooldownRecoveryItems.map((item) => ({ ...item }))
     try {
       await Promise.all(cooldownRecoveryItems.map((item) => library.reactivateRecommendation(item.id)))
+      setDiceUndoAction({ kind: 'cooldowns', items: recoverySnapshot })
       setRecommendation(undefined)
       setStatus(count === 1 ? '1 entrada reactivada para el dado' : `${count} entradas reactivadas para el dado`)
     } catch (reason) {
@@ -1417,6 +1435,7 @@ function DiceTab({ library }: { library: LibrarySurface }) {
       await library.saveItem(item)
       setEditingDiceItem(undefined)
       setRecommendation((current) => (current?.item.id === item.id ? { ...current, item } : current))
+      setDiceUndoAction(undefined)
       setStatus(`${item.title || 'Entrada'} afinada desde el dado.`)
     } catch (reason) {
       setStatus(reason instanceof Error ? reason.message : 'No se pudo guardar la ficha.')
@@ -1425,6 +1444,37 @@ function DiceTab({ library }: { library: LibrarySurface }) {
 
   function applyDicePreset(preferencesPreset: RecommendationPreferences) {
     setPreferences(preferencesPreset)
+  }
+
+  async function undoDiceDecision() {
+    if (!diceUndoAction) return
+
+    try {
+      if (diceUndoAction.kind === 'status') {
+        await library.setStatus(diceUndoAction.itemId, diceUndoAction.previousStatus)
+        setStatus(`${diceUndoAction.title} recuperado como ${statusLabels[diceUndoAction.previousStatus]}`)
+      } else if (diceUndoAction.kind === 'snooze') {
+        await library.reactivateRecommendation(diceUndoAction.recommendation.item.id)
+        setRecommendation(diceUndoAction.recommendation)
+        setStatus(`${diceUndoAction.title} reactivado para el dado`)
+      } else {
+        for (const item of diceUndoAction.items) {
+          await library.saveItem(item)
+        }
+        setRecommendation(undefined)
+        setStatus(diceUndoAction.items.length === 1 ? '1 cooldown recuperado' : `${diceUndoAction.items.length} cooldowns recuperados`)
+      }
+      setDiceUndoAction(undefined)
+    } catch (reason) {
+      setStatus(reason instanceof Error ? reason.message : 'No se pudo deshacer la decision del dado.')
+    }
+  }
+
+  function getDiceUndoLabel() {
+    if (!diceUndoAction) return 'Deshacer decision'
+    if (diceUndoAction.kind === 'status') return 'Deshacer estado'
+    if (diceUndoAction.kind === 'snooze') return 'Deshacer enfriado'
+    return 'Deshacer reactivacion'
   }
 
   return (
@@ -1584,6 +1634,14 @@ function DiceTab({ library }: { library: LibrarySurface }) {
         </div>
         <PreferenceControls preferences={preferences} setPreferences={setPreferences} />
         {status && <FeedbackMessage tone={feedbackToneFromText(status)}>{status}</FeedbackMessage>}
+        {diceUndoAction && (
+          <div className="feedback-action-row" aria-label="Accion reciente del dado">
+            <button className="secondary-button" type="button" onClick={() => void undoDiceDecision()}>
+              <RotateCcw size={16} />
+              {getDiceUndoLabel()}
+            </button>
+          </div>
+        )}
       </section>
 
       <section className="workspace-panel result-panel">
