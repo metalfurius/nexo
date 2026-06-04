@@ -114,6 +114,7 @@ import {
   discoveryStatusLabels,
   explorerSourceFilters,
   getCandidateDecisionBrief,
+  getDiscoverySourceFilter,
   getExplorerDecisionState,
   type CandidateDecisionBrief,
   type ExplorerSourceFilter,
@@ -335,9 +336,15 @@ interface ExplorerPromptCardRequest {
   requestId: number
 }
 
+interface ExplorerCandidateRequest {
+  candidateId: string
+  requestId: number
+}
+
 type PendingNavigation = {
   diceRoll?: boolean
   draftItem?: ListItem
+  explorerCandidateId?: string
   explorerPromptCard?: boolean
   explorerSearchQuery?: string
   focus?: ActivityFocus
@@ -377,6 +384,16 @@ type QuickSearchEntry =
       meta: string
       query: string
       tone: 'section'
+      title: string
+    }
+  | {
+      Icon: LucideIcon
+      detail: string
+      id: string
+      candidate: DiscoveryCandidate
+      kind: 'candidate'
+      meta: string
+      tone: ItemType
       title: string
     }
   | {
@@ -652,6 +669,7 @@ function App() {
   const [diceRollRequest, setDiceRollRequest] = useState<DiceRollRequest | undefined>()
   const [explorerSearchRequest, setExplorerSearchRequest] = useState<ExplorerSearchRequest | undefined>()
   const [explorerPromptCardRequest, setExplorerPromptCardRequest] = useState<ExplorerPromptCardRequest | undefined>()
+  const [explorerCandidateRequest, setExplorerCandidateRequest] = useState<ExplorerCandidateRequest | undefined>()
   const [quickSearchOpen, setQuickSearchOpen] = useState(false)
   const [themeMenuOpen, setThemeMenuOpen] = useState(false)
   const [serviceWorkerUpdateReady, setServiceWorkerUpdateReady] = useState(false)
@@ -667,6 +685,7 @@ function App() {
   const diceRollRequestId = useRef(0)
   const explorerSearchRequestId = useRef(0)
   const explorerPromptCardRequestId = useRef(0)
+  const explorerCandidateRequestId = useRef(0)
 
   useEffect(() => {
     if (!auth.isFirebaseConfigured) return
@@ -803,6 +822,7 @@ function App() {
   const clearDiceRollRequest = useCallback(() => setDiceRollRequest(undefined), [])
   const clearExplorerSearchRequest = useCallback(() => setExplorerSearchRequest(undefined), [])
   const clearExplorerPromptCardRequest = useCallback(() => setExplorerPromptCardRequest(undefined), [])
+  const clearExplorerCandidateRequest = useCallback(() => setExplorerCandidateRequest(undefined), [])
   const recordVisibleActivity = useCallback(
     (entry: Omit<ActivityEntry, 'createdAt' | 'id'>) => {
       setActivityClearUndo([])
@@ -920,6 +940,11 @@ function App() {
     setExplorerPromptCardRequest({ requestId: explorerPromptCardRequestId.current })
   }
 
+  function requestExplorerCandidate(candidateId: string) {
+    explorerCandidateRequestId.current += 1
+    setExplorerCandidateRequest({ candidateId, requestId: explorerCandidateRequestId.current })
+  }
+
   function rollDiceFromAction() {
     setQuickSearchOpen(false)
     if (activeTab === 'dice') {
@@ -973,6 +998,25 @@ function App() {
 
     setActivityFocus(undefined)
     requestExplorerPromptCard()
+    setActiveTabState('explorer')
+    writeAppTabToUrl('explorer', 'push')
+  }
+
+  function openExplorerCandidateFromPalette(candidate: DiscoveryCandidate) {
+    setQuickSearchOpen(false)
+    if (activeTab === 'explorer') {
+      setActivityFocus(undefined)
+      requestExplorerCandidate(candidate.id)
+      writeAppTabToUrl('explorer', 'push')
+      return
+    }
+    if (tabsWithUnsavedChanges[activeTab]) {
+      setPendingNavigation({ explorerCandidateId: candidate.id, source: 'app', tab: 'explorer' })
+      return
+    }
+
+    setActivityFocus(undefined)
+    requestExplorerCandidate(candidate.id)
     setActiveTabState('explorer')
     writeAppTabToUrl('explorer', 'push')
   }
@@ -1053,6 +1097,7 @@ function App() {
     const {
       diceRoll,
       draftItem,
+      explorerCandidateId,
       explorerPromptCard,
       explorerSearchQuery,
       focus,
@@ -1065,6 +1110,9 @@ function App() {
     setPendingNavigation(undefined)
     if (diceRoll) {
       requestDiceRoll()
+    }
+    if (explorerCandidateId) {
+      requestExplorerCandidate(explorerCandidateId)
     }
     if (explorerPromptCard) {
       requestExplorerPromptCard()
@@ -1324,11 +1372,13 @@ function App() {
       {quickSearchOpen && (
         <QuickSearchDialog
           commands={quickSearchCommands}
+          candidates={library.discoveryCandidates}
           items={library.items}
           navItems={visibleNavItems}
           onClose={() => setQuickSearchOpen(false)}
           onCreateItem={createLibraryDraftFromTitle}
           onExploreQuery={openExplorerSearchFromPalette}
+          onOpenCandidate={openExplorerCandidateFromPalette}
           onOpenItem={(item) => {
             setQuickSearchOpen(false)
             changeActiveTab('library', { kind: 'item', id: item.id })
@@ -1384,9 +1434,11 @@ function App() {
         {activeTab === 'explorer' && (
           <ExplorerTab
             library={library}
+            candidateRequest={explorerCandidateRequest}
             promptCardRequest={explorerPromptCardRequest}
             searchRequest={explorerSearchRequest}
             onActivity={recordVisibleActivity}
+            onCandidateRequestHandled={clearExplorerCandidateRequest}
             onPromptCardRequestHandled={clearExplorerPromptCardRequest}
             onSearchRequestHandled={clearExplorerSearchRequest}
           />
@@ -1413,20 +1465,24 @@ function App() {
 
 function QuickSearchDialog({
   commands,
+  candidates,
   items,
   navItems,
   onClose,
   onCreateItem,
   onExploreQuery,
+  onOpenCandidate,
   onOpenItem,
   onOpenTab,
 }: {
   commands: QuickSearchCommand[]
+  candidates: DiscoveryCandidate[]
   items: ListItem[]
   navItems: ShellNavItem[]
   onClose: () => void
   onCreateItem: (title: string) => void
   onExploreQuery: (query: string) => void
+  onOpenCandidate: (candidate: DiscoveryCandidate) => void
   onOpenItem: (item: ListItem) => void
   onOpenTab: (tab: AppTab) => void
 }) {
@@ -1478,6 +1534,47 @@ function QuickSearchDialog({
     const exactItemMatch = items.some((item) => normalizeKey(item.title) === normalizedQuery)
     const explicitExplorerMatch = trimmedQuery.match(/^(explorar|explorador|buscar)\s+(.+)/i)
     const explorerQuery = (explicitExplorerMatch?.[2] ?? trimmedQuery).trim()
+    const scoredCandidateEntries = candidates
+      .map((candidate, index): ScoredQuickSearchEntry | undefined => {
+        const titleKey = normalizeKey(candidate.title)
+        const sourceLabel = sourceLabels[candidate.source]
+        const statusLabel = discoveryStatusLabels[candidate.status]
+        const textKey = normalizeKey(
+          [
+            candidate.title,
+            typeLabels[candidate.type],
+            statusLabel,
+            sourceLabel,
+            candidate.overview,
+            ...candidate.genres,
+            ...candidate.tags,
+            ...candidate.moodTags,
+          ].join(' '),
+        )
+        if (!tokens.every((token) => textKey.includes(token))) return undefined
+
+        return {
+          entry: {
+            Icon: typeIcons[candidate.type],
+            candidate,
+            detail: candidate.overview || `${sourceLabel} / ${typeLabels[candidate.type]}`,
+            id: `candidate-${candidate.id}`,
+            kind: 'candidate',
+            meta: `${statusLabel} / ${sourceLabel}`,
+            title: candidate.title,
+            tone: candidate.type,
+          },
+          index,
+          score:
+            35 +
+            (titleKey === normalizedQuery ? 55 : 0) +
+            (titleKey.startsWith(normalizedQuery) ? 32 : 0) +
+            (titleKey.includes(normalizedQuery) ? 18 : 0) +
+            (candidate.status === 'queued' ? 8 : 0) +
+            (candidate.status === 'saved' ? 3 : 0),
+        }
+      })
+      .filter((result): result is ScoredQuickSearchEntry => Boolean(result))
     const scoredCommandEntries = commandEntries
       .map((entry, index): ScoredQuickSearchEntry | undefined => {
         const textKey = normalizeKey(`${entry.title} ${entry.detail} ${entry.meta} ${entry.command.searchText}`)
@@ -1589,13 +1686,20 @@ function QuickSearchDialog({
       })
       .filter((result): result is ScoredQuickSearchEntry => Boolean(result))
 
-    return [...scoredCommandEntries, ...createEntry, ...exploreEntry, ...scoredNavigationEntries, ...scoredItemEntries]
+    return [
+      ...scoredCommandEntries,
+      ...scoredCandidateEntries,
+      ...createEntry,
+      ...exploreEntry,
+      ...scoredNavigationEntries,
+      ...scoredItemEntries,
+    ]
       .sort((a, b) => b.score - a.score || a.entry.title.localeCompare(b.entry.title) || a.index - b.index)
       .slice(0, 8)
       .map((result) => result.entry)
-  }, [commands, focusItems, items, navItems, normalizedQuery, trimmedQuery])
+  }, [candidates, commands, focusItems, items, navItems, normalizedQuery, trimmedQuery])
   const resultLabel = normalizedQuery ? 'Resultados' : 'Acciones, secciones y foco'
-  const resultTotal = commands.length + items.length + navItems.length
+  const resultTotal = commands.length + candidates.length + items.length + navItems.length
   const activeEntry = results[Math.min(activeResultIndex, Math.max(results.length - 1, 0))]
 
   function updateQuery(nextQuery: string) {
@@ -1607,6 +1711,7 @@ function QuickSearchDialog({
     if (activeEntry?.kind === 'command') activeEntry.command.run()
     if (activeEntry?.kind === 'create') onCreateItem(activeEntry.query)
     if (activeEntry?.kind === 'explore') onExploreQuery(activeEntry.query)
+    if (activeEntry?.kind === 'candidate') onOpenCandidate(activeEntry.candidate)
     if (activeEntry?.kind === 'item') onOpenItem(activeEntry.item)
     if (activeEntry?.kind === 'tab') onOpenTab(activeEntry.tab)
   }
@@ -1690,13 +1795,16 @@ function QuickSearchDialog({
                           ? `Crear entrada ${entry.query}`
                           : entry.kind === 'explore'
                             ? `Explorar ${entry.query}`
-                            : `Abrir ${entry.title}`
+                            : entry.kind === 'candidate'
+                              ? `Abrir hallazgo ${entry.title}`
+                              : `Abrir ${entry.title}`
                     }
                     aria-current={isActive ? 'true' : undefined}
                     onClick={() => {
                       if (entry.kind === 'command') entry.command.run()
                       if (entry.kind === 'create') onCreateItem(entry.query)
                       if (entry.kind === 'explore') onExploreQuery(entry.query)
+                      if (entry.kind === 'candidate') onOpenCandidate(entry.candidate)
                       if (entry.kind === 'item') onOpenItem(entry.item)
                       if (entry.kind === 'tab') onOpenTab(entry.tab)
                     }}
@@ -4262,15 +4370,19 @@ function DiceTab({
 }
 
 function ExplorerTab({
+  candidateRequest,
   library,
   onActivity,
+  onCandidateRequestHandled,
   onPromptCardRequestHandled,
   onSearchRequestHandled,
   promptCardRequest,
   searchRequest,
 }: {
+  candidateRequest?: ExplorerCandidateRequest
   library: LibrarySurface
   onActivity: ActivityRecorder
+  onCandidateRequestHandled: () => void
   onPromptCardRequestHandled: () => void
   onSearchRequestHandled: () => void
   promptCardRequest?: ExplorerPromptCardRequest
@@ -4289,6 +4401,7 @@ function ExplorerTab({
   const [selected, setSelected] = useState<DiscoveryCandidate | undefined>()
   const [catalogDraft, setCatalogDraft] = useState<PublicCatalogItem | undefined>()
   const [completedExplorerQueue, setCompletedExplorerQueue] = useState<CompletedExplorerQueue | undefined>()
+  const handledCandidateRequestId = useRef<number | undefined>(undefined)
   const handledPromptCardRequestId = useRef<number | undefined>(undefined)
   const handledSearchRequestId = useRef<number | undefined>(undefined)
   const type = library.settings.explorerDefaultType
@@ -4718,6 +4831,32 @@ function ExplorerTab({
 
     return () => window.clearTimeout(timeoutId)
   }, [addPromptCard, onPromptCardRequestHandled, promptCardRequest])
+
+  useEffect(() => {
+    if (!candidateRequest || handledCandidateRequestId.current === candidateRequest.requestId) return
+
+    const timeoutId = window.setTimeout(() => {
+      if (handledCandidateRequestId.current === candidateRequest.requestId) return
+
+      handledCandidateRequestId.current = candidateRequest.requestId
+      const candidate = library.discoveryCandidates.find((current) => current.id === candidateRequest.candidateId)
+      if (!candidate) {
+        setMessage('Ese hallazgo ya no esta disponible en el Explorador.')
+        onCandidateRequestHandled()
+        return
+      }
+
+      clearExplorerRecentActions()
+      setMessage(undefined)
+      setView(candidate.status)
+      setSourceFilter(getDiscoverySourceFilter(candidate))
+      setCompletedExplorerQueue(undefined)
+      setSelected(candidate)
+      onCandidateRequestHandled()
+    }, 0)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [candidateRequest, clearExplorerRecentActions, library.discoveryCandidates, onCandidateRequestHandled])
 
   return (
     <section className="content-grid">
