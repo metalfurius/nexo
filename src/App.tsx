@@ -327,6 +327,10 @@ interface DiceRollRequest {
   requestId: number
 }
 
+interface DicePreferencesSaveRequest {
+  requestId: number
+}
+
 interface ExplorerSearchRequest {
   query: string
   requestId: number
@@ -693,6 +697,7 @@ function App() {
   const [libraryPrimaryActionRequest, setLibraryPrimaryActionRequest] = useState<LibraryPrimaryActionRequest | undefined>()
   const [librarySmartViewRequest, setLibrarySmartViewRequest] = useState<LibrarySmartViewRequest | undefined>()
   const [diceRollRequest, setDiceRollRequest] = useState<DiceRollRequest | undefined>()
+  const [dicePreferencesSaveRequest, setDicePreferencesSaveRequest] = useState<DicePreferencesSaveRequest | undefined>()
   const [explorerSearchRequest, setExplorerSearchRequest] = useState<ExplorerSearchRequest | undefined>()
   const [explorerPromptCardRequest, setExplorerPromptCardRequest] = useState<ExplorerPromptCardRequest | undefined>()
   const [explorerCandidateRequest, setExplorerCandidateRequest] = useState<ExplorerCandidateRequest | undefined>()
@@ -714,6 +719,7 @@ function App() {
   })
   const libraryPrimaryActionRequestId = useRef(0)
   const diceRollRequestId = useRef(0)
+  const dicePreferencesSaveRequestId = useRef(0)
   const explorerSearchRequestId = useRef(0)
   const explorerPromptCardRequestId = useRef(0)
   const explorerCandidateRequestId = useRef(0)
@@ -856,6 +862,7 @@ function App() {
   const clearLibraryDraftRequest = useCallback(() => setLibraryDraftRequest(undefined), [])
   const clearLibraryPrimaryActionRequest = useCallback(() => setLibraryPrimaryActionRequest(undefined), [])
   const clearDiceRollRequest = useCallback(() => setDiceRollRequest(undefined), [])
+  const clearDicePreferencesSaveRequest = useCallback(() => setDicePreferencesSaveRequest(undefined), [])
   const clearExplorerSearchRequest = useCallback(() => setExplorerSearchRequest(undefined), [])
   const clearExplorerPromptCardRequest = useCallback(() => setExplorerPromptCardRequest(undefined), [])
   const clearExplorerCandidateRequest = useCallback(() => setExplorerCandidateRequest(undefined), [])
@@ -966,6 +973,11 @@ function App() {
   function requestDiceRoll() {
     diceRollRequestId.current += 1
     setDiceRollRequest({ requestId: diceRollRequestId.current })
+  }
+
+  function requestDicePreferencesSave() {
+    dicePreferencesSaveRequestId.current += 1
+    setDicePreferencesSaveRequest({ requestId: dicePreferencesSaveRequestId.current })
   }
 
   function requestExplorerSearch(query: string) {
@@ -1248,6 +1260,11 @@ function App() {
     requestSettingsSave()
   }
 
+  function saveDicePreferencesFromPalette() {
+    setQuickSearchOpen(false)
+    requestDicePreferencesSave()
+  }
+
   function discardPendingNavigation() {
     if (!pendingNavigation) return
 
@@ -1411,6 +1428,20 @@ function App() {
       title: 'Tirar dado',
       tone: 'section',
     },
+    ...(activeTab === 'dice' && tabsWithUnsavedChanges.dice
+      ? [
+          {
+            Icon: Save,
+            detail: 'Preferencias pendientes',
+            id: 'dice-save-pending',
+            meta: 'Dado',
+            run: saveDicePreferencesFromPalette,
+            searchText: 'guardar dado ajustes cambios pendientes preferencias filtros sorpresa energia',
+            title: 'Guardar ajustes del dado',
+            tone: 'command' as const,
+          },
+        ]
+      : []),
     {
       Icon: Download,
       detail: 'Descargar copia privada JSON',
@@ -1727,8 +1758,10 @@ function App() {
         {activeTab === 'dice' && (
           <DiceTab
             library={library}
+            saveRequest={dicePreferencesSaveRequest}
             rollRequest={diceRollRequest}
             onActivity={recordVisibleActivity}
+            onSaveRequestHandled={clearDicePreferencesSaveRequest}
             onRollRequestHandled={clearDiceRollRequest}
             onUnsavedChange={reportDiceUnsavedChanges}
           />
@@ -3864,14 +3897,18 @@ function LibraryTab({
 
 function DiceTab({
   library,
+  saveRequest,
   rollRequest,
   onActivity,
+  onSaveRequestHandled,
   onRollRequestHandled,
   onUnsavedChange,
 }: {
   library: LibrarySurface
+  saveRequest?: DicePreferencesSaveRequest
   rollRequest?: DiceRollRequest
   onActivity: ActivityRecorder
+  onSaveRequestHandled: () => void
   onRollRequestHandled: () => void
   onUnsavedChange: (hasUnsavedChanges: boolean) => void
 }) {
@@ -3884,6 +3921,7 @@ function DiceTab({
   const [diceUndoAction, setDiceUndoAction] = useState<DiceUndoAction | undefined>()
   const [diceSettingsUndo, setDiceSettingsUndo] = useState<DiceSettingsUndo | undefined>()
   const [diceDecisionSummary, setDiceDecisionSummary] = useState<DiceDecisionSummary | undefined>()
+  const handledSaveRequestId = useRef<number | undefined>(undefined)
   const handledRollRequestId = useRef<number | undefined>(undefined)
   const persistedPreferences = library.settings.recommendationPreferences ?? DEFAULT_RECOMMENDATION_PREFERENCES
   const preferences = draftPreferences ?? persistedPreferences
@@ -4034,10 +4072,17 @@ function DiceTab({
     await rollRecommendation(recommendation.item.id)
   }
 
-  async function savePreferences() {
+  const savePreferences = useCallback(async () => {
     if (!hasUnsavedDicePreferences) return
 
-    const previousDiceSettings = getDiceSettingsUndo('preferences')
+    const previousDiceSettings: DiceSettingsUndo = {
+      allowPausedByDefault: library.settings.allowPausedByDefault,
+      favoriteGenres: [...library.settings.favoriteGenres],
+      favoriteTags: [...library.settings.favoriteTags],
+      kind: 'preferences',
+      preferences: cloneRecommendationPreferences(persistedPreferences),
+      surprisePercent: library.settings.surprisePercent,
+    }
     const nextPreferences = cloneRecommendationPreferences(preferences)
 
     try {
@@ -4059,7 +4104,20 @@ function DiceTab({
     } catch (reason) {
       setStatus(reason instanceof Error ? reason.message : 'No se pudieron guardar los ajustes del dado.')
     }
-  }
+  }, [hasUnsavedDicePreferences, library, onActivity, persistedPreferences, preferences])
+
+  useEffect(() => {
+    if (!saveRequest || handledSaveRequestId.current === saveRequest.requestId) return
+
+    const timeoutId = window.setTimeout(() => {
+      if (handledSaveRequestId.current === saveRequest.requestId) return
+
+      handledSaveRequestId.current = saveRequest.requestId
+      void savePreferences().finally(onSaveRequestHandled)
+    }, 0)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [onSaveRequestHandled, savePreferences, saveRequest])
 
   async function undoDicePreferencesSave() {
     if (!diceSettingsUndo) return

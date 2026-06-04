@@ -480,6 +480,26 @@ test('quick search rolls dice through the pending-change guard', async ({ page }
   await expect(page.getByTestId('recommendation-result')).toContainText('Decision')
 })
 
+test('quick search can save pending dice preferences', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await page.getByLabel('Energia').selectOption('high')
+  await expect(page.getByText('Cambios pendientes')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Busqueda rapida' }).click()
+  const quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  await quickSearch.getByLabel('Buscar en Nexo').fill('guardar dado')
+  const saveDiceAction = quickSearch.getByRole('button', { name: 'Ejecutar Guardar ajustes del dado' })
+  await expect(saveDiceAction).toHaveAttribute('aria-current', 'true')
+  await expect(saveDiceAction).toContainText('Preferencias pendientes')
+  await saveDiceAction.click()
+
+  await expect(page.getByRole('status').filter({ hasText: 'Ajustes del dado guardados' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Ajustes guardados' })).toBeDisabled()
+  await expect(page.getByTestId('session-activity')).toContainText('Preferencias guardadas')
+  await expect(page.getByRole('button', { name: 'Deshacer ajustes del dado' })).toBeVisible()
+})
+
 test('quick search applies theme commands', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Busqueda rapida' }).click()
