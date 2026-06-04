@@ -423,6 +423,10 @@ test('quick search opens library items through the pending-change guard', async 
 test('quick search opens the active result from the keyboard', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByRole('heading', { name: 'Biblioteca privada' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Busqueda rapida' })).toHaveAttribute(
+    'aria-keyshortcuts',
+    '/ Control+K Meta+K',
+  )
   await page.keyboard.press('/')
   const quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
   await expect(quickSearch).toBeVisible()
@@ -432,6 +436,20 @@ test('quick search opens the active result from the keyboard', async ({ page }) 
   await searchInput.press('Enter')
   await expect(page).toHaveURL(/item=game-outer-wilds/)
   await expect(page.getByRole('dialog', { name: 'Entrada' }).getByLabel('Titulo')).toHaveValue('Outer Wilds')
+})
+
+test('quick search keyboard shortcuts avoid normal text entry', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.getByRole('heading', { name: 'Biblioteca privada' })).toBeVisible()
+
+  const librarySearch = page.getByLabel('Buscar en biblioteca')
+  await librarySearch.fill('/')
+  await expect(librarySearch).toHaveValue('/')
+  await expect(page.getByRole('dialog', { name: 'Abrir en Nexo' })).not.toBeVisible()
+
+  await librarySearch.blur()
+  await page.keyboard.press('Control+K')
+  await expect(page.getByRole('dialog', { name: 'Abrir en Nexo' })).toBeVisible()
 })
 
 test('quick search runs command actions', async ({ page }) => {

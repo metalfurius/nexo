@@ -1881,6 +1881,7 @@ function App() {
           )}
           <button
             aria-label="Busqueda rapida"
+            aria-keyshortcuts="/ Control+K Meta+K"
             className="icon-button"
             type="button"
             onClick={() => {
