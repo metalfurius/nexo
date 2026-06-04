@@ -601,6 +601,11 @@ test('settings show pending changes before saving preferences', async ({ page })
   await page.getByRole('button', { name: 'Aplicar rol' }).click()
   await expect(page.getByText('Usuario demo ahora es Moderador')).toBeVisible()
   await expect(page.getByTestId('session-activity')).toContainText('Rol actualizado')
+  await expect(page.getByRole('button', { name: 'Deshacer rol' })).toBeVisible()
+  await page.getByRole('button', { name: 'Deshacer rol' }).click()
+  await expect(page.getByText('Rol de Usuario demo recuperado como Usuario')).toBeVisible()
+  await expect(page.getByLabel('Rol de Usuario demo')).toHaveValue('user')
+  await expect(page.getByTestId('session-activity')).toContainText('Rol recuperado')
   await page.getByRole('button', { name: 'Claro', exact: true }).click()
   await expect(page.getByTestId('settings-confidence')).toContainText('Ajustes pendientes')
   await expect(page.getByText('Cambios pendientes')).toBeVisible()
@@ -1147,6 +1152,116 @@ test('delete all requires explicit confirmation', async ({ page }) => {
   await page.getByRole('button', { name: 'Deshacer borrado total' }).click()
   await expect(page.getByText(/\d+ entradas recuperadas en Biblioteca/)).toBeVisible()
   await expect(page.getByTestId('library-grid')).toContainText('Outer Wilds')
+})
+
+test('library cards stay legible at 1920x1080', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'chromium', 'desktop geometry check')
+
+  await page.setViewportSize({ width: 1920, height: 1080 })
+  await page.goto('/')
+  await expect(page.getByRole('heading', { name: 'Biblioteca privada' })).toBeVisible()
+  await expect(page.getByTestId('library-grid')).toBeVisible()
+
+  const metrics = await page.getByTestId('library-grid').evaluate((grid) => {
+    const cards = Array.from(grid.querySelectorAll('.item-card')).slice(0, 6)
+    return {
+      scrollWidth: document.documentElement.scrollWidth,
+      viewportWidth: document.documentElement.clientWidth,
+      cards: cards.map((card) => {
+        const cardElement = card as HTMLElement
+        const mainElement = cardElement.querySelector('.item-main') as HTMLElement | null
+        const actionsElement = cardElement.querySelector('.card-actions') as HTMLElement | null
+        const coverElement = cardElement.querySelector('.cover-art') as HTMLElement | null
+        const cardRect = cardElement.getBoundingClientRect()
+        const mainRect = mainElement?.getBoundingClientRect()
+        const actionsRect = actionsElement?.getBoundingClientRect()
+        const coverRect = coverElement?.getBoundingClientRect()
+
+        return {
+          actionsHeight: actionsRect?.height ?? 0,
+          actionsTop: actionsRect?.top ?? 0,
+          coverHeight: coverRect?.height ?? 0,
+          coverWidth: coverRect?.width ?? 0,
+          mainBottom: mainRect?.bottom ?? 0,
+          top: cardRect.top,
+          width: cardRect.width,
+        }
+      }),
+    }
+  })
+  const firstRowTop = metrics.cards[0]?.top ?? 0
+  const firstRowCards = metrics.cards.filter((card) => Math.abs(card.top - firstRowTop) < 4)
+
+  expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.viewportWidth + 1)
+  expect(metrics.cards.length).toBeGreaterThanOrEqual(4)
+  expect(firstRowCards.length).toBeLessThanOrEqual(4)
+  for (const card of firstRowCards) {
+    expect(card.width).toBeGreaterThanOrEqual(335)
+    expect(card.coverWidth).toBeGreaterThanOrEqual(100)
+    expect(card.coverHeight).toBeLessThanOrEqual(180)
+    expect(card.actionsHeight).toBeGreaterThanOrEqual(40)
+    expect(card.mainBottom).toBeLessThanOrEqual(card.actionsTop + 1)
+  }
+})
+
+test('library cards fit the mobile PWA viewport', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'mobile', 'mobile geometry check')
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/')
+  await expect(page.getByRole('heading', { name: 'Biblioteca privada' })).toBeVisible()
+  await expect(page.getByTestId('library-grid')).toBeVisible()
+
+  const metrics = await page.getByTestId('library-grid').evaluate((grid) => {
+    const gridRect = grid.getBoundingClientRect()
+    const cards = Array.from(grid.querySelectorAll('.item-card')).slice(0, 3)
+    return {
+      gridWidth: gridRect.width,
+      scrollWidth: document.documentElement.scrollWidth,
+      viewportWidth: document.documentElement.clientWidth,
+      cards: cards.map((card) => {
+        const cardElement = card as HTMLElement
+        const actionsElement = cardElement.querySelector('.card-actions') as HTMLElement | null
+        const primaryAction = cardElement.querySelector('.card-primary-action') as HTMLElement | null
+        const cardRect = cardElement.getBoundingClientRect()
+        const actionsRect = actionsElement?.getBoundingClientRect()
+        const primaryRect = primaryAction?.getBoundingClientRect()
+
+        return {
+          actionsHeight: actionsRect?.height ?? 0,
+          left: cardRect.left,
+          primaryHeight: primaryRect?.height ?? 0,
+          right: cardRect.right,
+          width: cardRect.width,
+        }
+      }),
+    }
+  })
+
+  expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.viewportWidth + 1)
+  for (const card of metrics.cards) {
+    expect(card.left).toBeGreaterThanOrEqual(0)
+    expect(card.right).toBeLessThanOrEqual(metrics.viewportWidth + 1)
+    expect(card.width).toBeGreaterThanOrEqual(metrics.gridWidth - 4)
+    expect(card.actionsHeight).toBeGreaterThanOrEqual(44)
+    expect(card.primaryHeight).toBeGreaterThanOrEqual(44)
+  }
+
+  await page.locator('.item-main').filter({ hasText: 'Outer Wilds' }).click()
+  await expect(page.getByRole('dialog', { name: 'Entrada' })).toBeVisible()
+  const dialogMetrics = await page.getByRole('dialog', { name: 'Entrada' }).evaluate((dialog) => {
+    const rect = dialog.getBoundingClientRect()
+    return {
+      bottom: rect.bottom,
+      documentScrollWidth: document.documentElement.scrollWidth,
+      viewportHeight: document.documentElement.clientHeight,
+      viewportWidth: document.documentElement.clientWidth,
+      width: rect.width,
+    }
+  })
+  expect(dialogMetrics.documentScrollWidth).toBeLessThanOrEqual(dialogMetrics.viewportWidth + 1)
+  expect(dialogMetrics.width).toBeLessThanOrEqual(dialogMetrics.viewportWidth)
+  expect(dialogMetrics.bottom).toBeLessThanOrEqual(dialogMetrics.viewportHeight + 1)
 })
 
 test('launch screens have no serious accessibility violations', async ({ page }) => {

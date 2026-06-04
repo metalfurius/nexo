@@ -4968,8 +4968,12 @@ function AdminRolesPanel({
   onRoleChange: (targetUserId: string, role: UserRole) => Promise<void>
   profiles: UserProfile[]
 }) {
+  type PendingRoleChange = { profile: UserProfile; role: UserRole }
+  type RoleChangeUndo = { profile: UserProfile; previousRole: UserRole; role: UserRole }
+
   const [status, setStatus] = useState<string | undefined>()
-  const [pendingRoleChange, setPendingRoleChange] = useState<{ profile: UserProfile; role: UserRole } | undefined>()
+  const [pendingRoleChange, setPendingRoleChange] = useState<PendingRoleChange | undefined>()
+  const [roleChangeUndo, setRoleChangeUndo] = useState<RoleChangeUndo | undefined>()
   const roleCounts = USER_ROLES.map((role) => ({
     role,
     count: profiles.filter((profile) => profile.role === role).length,
@@ -4982,6 +4986,7 @@ function AdminRolesPanel({
     }
 
     setStatus(undefined)
+    setRoleChangeUndo(undefined)
     setPendingRoleChange({ profile, role })
   }
 
@@ -4994,6 +4999,7 @@ function AdminRolesPanel({
     try {
       await onRoleChange(profile.uid, role)
       setStatus(`${profile.displayName || profile.email || profile.uid} ahora es ${roleLabels[role]}`)
+      setRoleChangeUndo({ profile, previousRole: profile.role, role })
       onActivity({
         detail: `${profile.displayName || profile.email || profile.uid} -> ${roleLabels[role]}`,
         label: 'Rol actualizado',
@@ -5003,6 +5009,28 @@ function AdminRolesPanel({
       setPendingRoleChange(undefined)
     } catch (reason) {
       setStatus(reason instanceof Error ? reason.message : 'No se pudo actualizar el rol.')
+    }
+  }
+
+  async function undoRoleChange() {
+    if (!roleChangeUndo) return
+
+    const label = roleChangeUndo.profile.displayName || roleChangeUndo.profile.email || roleChangeUndo.profile.uid
+
+    setStatus('Deshaciendo cambio de rol...')
+    try {
+      await onRoleChange(roleChangeUndo.profile.uid, roleChangeUndo.previousRole)
+      setStatus(`Rol de ${label} recuperado como ${roleLabels[roleChangeUndo.previousRole]}`)
+      onActivity({
+        detail: `${label}: ${roleLabels[roleChangeUndo.role]} -> ${roleLabels[roleChangeUndo.previousRole]}`,
+        label: 'Rol recuperado',
+        tab: 'settings',
+        tone: 'success',
+      })
+      setPendingRoleChange(undefined)
+      setRoleChangeUndo(undefined)
+    } catch (reason) {
+      setStatus(reason instanceof Error ? reason.message : 'No se pudo deshacer el rol.')
     }
   }
 
@@ -5120,6 +5148,14 @@ function AdminRolesPanel({
       )}
 
       {status && <FeedbackMessage tone={feedbackToneFromText(status)}>{status}</FeedbackMessage>}
+      {roleChangeUndo && !pendingRoleChange && (
+        <div className="feedback-action-row" aria-label="Accion reciente de roles">
+          <button className="secondary-button" type="button" onClick={() => void undoRoleChange()}>
+            <RotateCcw size={16} />
+            Deshacer rol
+          </button>
+        </div>
+      )}
     </section>
   )
 }

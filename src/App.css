@@ -7,6 +7,7 @@
   grid-template-columns: 244px minmax(0, 1fr);
   grid-template-rows: auto 1fr;
   min-height: 100vh;
+  min-height: 100dvh;
 }
 
 .topbar {
@@ -774,6 +775,7 @@
 
 .workspace-panel.wide {
   min-height: calc(100vh - 140px);
+  min-height: calc(100dvh - 140px);
 }
 
 .insight-rail {
@@ -3645,7 +3647,7 @@ label {
 }
 
 .item-grid {
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
 }
 
 .item-grid.list-view {
@@ -3694,6 +3696,7 @@ label {
 }
 
 .item-card {
+  grid-template-rows: minmax(0, 1fr) auto;
   overflow: visible;
   position: relative;
 }
@@ -3794,14 +3797,16 @@ label {
 }
 
 .item-main {
+  align-items: start;
   background: transparent;
   border: 0;
   color: inherit;
   cursor: pointer;
   display: grid;
-  gap: 12px;
-  grid-template-columns: minmax(86px, 116px) minmax(0, 1fr);
-  padding: 12px;
+  gap: 14px;
+  grid-template-columns: minmax(104px, 128px) minmax(0, 1fr);
+  min-height: 246px;
+  padding: 14px;
   text-align: left;
   transition:
     background var(--motion-fast) ease,
@@ -3820,13 +3825,13 @@ label {
 .item-card:not(.list-card) .cover-art {
   aspect-ratio: 3 / 4;
   border-radius: 8px;
-  min-height: 136px;
+  min-height: 0;
 }
 
 .item-body {
   align-content: start;
   display: grid;
-  gap: 10px;
+  gap: 9px;
   min-width: 0;
 }
 
@@ -3915,7 +3920,11 @@ label {
 }
 
 .item-identity h3 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   min-width: 0;
+  overflow: hidden;
   overflow-wrap: anywhere;
 }
 
@@ -3965,7 +3974,7 @@ label {
   border-radius: 8px;
   display: grid;
   gap: 8px;
-  padding: 9px;
+  padding: 8px;
 }
 
 .item-pulse-summary {
@@ -4079,6 +4088,12 @@ label {
   flex-wrap: wrap;
   gap: 6px;
   margin-top: 10px;
+}
+
+.item-tag-row {
+  margin-top: 0;
+  max-height: 62px;
+  overflow: hidden;
 }
 
 .tag-row span,
@@ -6639,6 +6654,7 @@ button:active:not(:disabled),
   display: grid;
   gap: 14px;
   max-height: calc(100vh - 36px);
+  max-height: calc(100dvh - 36px);
   overflow: auto;
   padding: 18px;
   box-shadow: 0 28px 90px rgba(0, 0, 0, 0.38);
@@ -6825,6 +6841,11 @@ textarea:focus-visible {
   .topbar {
     min-height: auto;
     padding: 16px;
+    padding:
+      max(16px, env(safe-area-inset-top))
+      max(16px, env(safe-area-inset-right))
+      16px
+      max(16px, env(safe-area-inset-left));
   }
 
   .tabbar {
@@ -6833,6 +6854,11 @@ textarea:focus-visible {
     flex-direction: row;
     overflow-x: auto;
     padding: 10px 16px;
+    padding:
+      10px
+      max(16px, env(safe-area-inset-right))
+      10px
+      max(16px, env(safe-area-inset-left));
   }
 
   .tab-button {
@@ -6847,6 +6873,11 @@ textarea:focus-visible {
 
   .tab-stage {
     padding: 16px;
+    padding:
+      16px
+      max(16px, env(safe-area-inset-right))
+      max(18px, env(safe-area-inset-bottom))
+      max(16px, env(safe-area-inset-left));
   }
 }
 
@@ -6869,6 +6900,14 @@ textarea:focus-visible {
 }
 
 @media (max-width: 760px) {
+  .workspace-panel {
+    padding: 14px;
+  }
+
+  .workspace-panel.wide {
+    min-height: auto;
+  }
+
   .topbar {
     align-items: flex-start;
     flex-direction: column;
@@ -7336,6 +7375,62 @@ textarea:focus-visible {
 
   .focus-shelf-grid {
     grid-template-columns: 1fr;
+  }
+
+  .item-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .item-card {
+    grid-template-rows: auto auto;
+  }
+
+  .item-select-control {
+    height: 36px;
+    left: 10px;
+    top: 10px;
+    width: 36px;
+  }
+
+  .item-main {
+    gap: 10px;
+    grid-template-columns: minmax(86px, 108px) minmax(0, 1fr);
+    min-height: 0;
+    padding: 10px;
+  }
+
+  .item-card:not(.list-card) .cover-art {
+    min-height: 0;
+  }
+
+  .item-body {
+    gap: 8px;
+  }
+
+  .item-signal-strip {
+    gap: 5px;
+  }
+
+  .item-signal-strip span,
+  .tag-row span {
+    padding: 6px 7px;
+  }
+
+  .item-pulse-panel {
+    gap: 7px;
+    padding: 8px;
+  }
+
+  .item-pulse-meter {
+    grid-template-columns: 54px minmax(0, 1fr);
+  }
+
+  .card-actions {
+    grid-template-columns: minmax(0, 1fr) 44px;
+  }
+
+  .card-actions button {
+    min-height: 46px;
   }
 
   .item-card.list-card {
