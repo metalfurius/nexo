@@ -351,6 +351,10 @@ interface ExplorerCandidateDismissRequest {
   requestId: number
 }
 
+interface SettingsTaxonomyRepairRequest {
+  requestId: number
+}
+
 type PendingNavigation = {
   diceRoll?: boolean
   draftItem?: ListItem
@@ -362,6 +366,7 @@ type PendingNavigation = {
   focus?: ActivityFocus
   libraryPrimaryActionItemId?: string
   librarySmartView?: LibrarySmartView
+  settingsTaxonomyRepair?: boolean
   source: 'app' | 'history'
   tab: AppTab
 }
@@ -684,6 +689,7 @@ function App() {
   const [explorerCandidateRequest, setExplorerCandidateRequest] = useState<ExplorerCandidateRequest | undefined>()
   const [explorerCandidateSaveRequest, setExplorerCandidateSaveRequest] = useState<ExplorerCandidateSaveRequest | undefined>()
   const [explorerCandidateDismissRequest, setExplorerCandidateDismissRequest] = useState<ExplorerCandidateDismissRequest | undefined>()
+  const [settingsTaxonomyRepairRequest, setSettingsTaxonomyRepairRequest] = useState<SettingsTaxonomyRepairRequest | undefined>()
   const [quickSearchOpen, setQuickSearchOpen] = useState(false)
   const [themeMenuOpen, setThemeMenuOpen] = useState(false)
   const [serviceWorkerUpdateReady, setServiceWorkerUpdateReady] = useState(false)
@@ -702,6 +708,7 @@ function App() {
   const explorerCandidateRequestId = useRef(0)
   const explorerCandidateSaveRequestId = useRef(0)
   const explorerCandidateDismissRequestId = useRef(0)
+  const settingsTaxonomyRepairRequestId = useRef(0)
 
   useEffect(() => {
     if (!auth.isFirebaseConfigured) return
@@ -841,6 +848,7 @@ function App() {
   const clearExplorerCandidateRequest = useCallback(() => setExplorerCandidateRequest(undefined), [])
   const clearExplorerCandidateSaveRequest = useCallback(() => setExplorerCandidateSaveRequest(undefined), [])
   const clearExplorerCandidateDismissRequest = useCallback(() => setExplorerCandidateDismissRequest(undefined), [])
+  const clearSettingsTaxonomyRepairRequest = useCallback(() => setSettingsTaxonomyRepairRequest(undefined), [])
   const recordVisibleActivity = useCallback(
     (entry: Omit<ActivityEntry, 'createdAt' | 'id'>) => {
       setActivityClearUndo([])
@@ -973,6 +981,11 @@ function App() {
     setExplorerCandidateDismissRequest({ candidateId, requestId: explorerCandidateDismissRequestId.current })
   }
 
+  function requestSettingsTaxonomyRepair() {
+    settingsTaxonomyRepairRequestId.current += 1
+    setSettingsTaxonomyRepairRequest({ requestId: settingsTaxonomyRepairRequestId.current })
+  }
+
   function rollDiceFromAction() {
     setQuickSearchOpen(false)
     if (activeTab === 'dice') {
@@ -1087,6 +1100,25 @@ function App() {
     writeAppTabToUrl('explorer', 'push')
   }
 
+  function repairPrivateTaxonomyFromPalette() {
+    setQuickSearchOpen(false)
+    if (activeTab === 'settings') {
+      setActivityFocus(undefined)
+      requestSettingsTaxonomyRepair()
+      writeAppTabToUrl('settings', 'push')
+      return
+    }
+    if (tabsWithUnsavedChanges[activeTab]) {
+      setPendingNavigation({ settingsTaxonomyRepair: true, source: 'app', tab: 'settings' })
+      return
+    }
+
+    setActivityFocus(undefined)
+    requestSettingsTaxonomyRepair()
+    setActiveTabState('settings')
+    writeAppTabToUrl('settings', 'push')
+  }
+
   function runLibraryPrimaryActionFromPalette(item: ListItem) {
     setQuickSearchOpen(false)
     if (activeTab === 'library') {
@@ -1181,6 +1213,7 @@ function App() {
       focus,
       libraryPrimaryActionItemId,
       librarySmartView,
+      settingsTaxonomyRepair,
       source,
       tab: nextTab,
     } = pendingNavigation
@@ -1213,6 +1246,9 @@ function App() {
     if (librarySmartView) {
       requestLibrarySmartView(librarySmartView)
     }
+    if (settingsTaxonomyRepair) {
+      requestSettingsTaxonomyRepair()
+    }
     setActivityFocus(focus)
     setActiveTabState(nextTab)
     writeAppTabToUrl(nextTab, source === 'history' ? 'replace' : 'push', focus)
@@ -1221,6 +1257,9 @@ function App() {
   const quickSearchFocusItem = getLibraryFocusItems(library.items)[0]
   const quickSearchFocusAction = quickSearchFocusItem ? getPrimaryItemAction(quickSearchFocusItem.status) : undefined
   const quickSearchQueuedCandidate = library.discoveryCandidates.find((candidate) => candidate.status === 'queued')
+  const quickSearchPrivateTaxonomyRepairCount = library.items.filter((item) =>
+    Boolean(getPrivateTaxonomyRepairDraft(item, catalogTaxonomyTemplates[item.type][0], item.updatedAt)),
+  ).length
   const quickSearchActivityCommands = library.activityEntries.slice(0, 4).map((entry): QuickSearchCommand => {
     const destinationLabel = activityTabLabels[getActivityDestinationTab(entry)]
 
@@ -1332,6 +1371,22 @@ function App() {
       title: 'Carta sorpresa',
       tone: 'section',
     },
+    ...(quickSearchPrivateTaxonomyRepairCount
+      ? [
+          {
+            Icon: Sparkles,
+            detail: `${quickSearchPrivateTaxonomyRepairCount} ${
+              quickSearchPrivateTaxonomyRepairCount === 1 ? 'ficha reparable' : 'fichas reparables'
+            }`,
+            id: 'settings-repair-private-taxonomy',
+            meta: 'Ajustes',
+            run: repairPrivateTaxonomyFromPalette,
+            searchText: 'completar reparar taxonomia privada mantenimiento ajustes generos tags plantillas',
+            title: 'Completar taxonomia privada',
+            tone: 'section' as const,
+          },
+        ]
+      : []),
     ...(library.activityEntries.length
       ? [
           {
@@ -1607,9 +1662,11 @@ function App() {
         {activeTab === 'settings' && (
           <SettingsTab
             library={library}
+            taxonomyRepairRequest={settingsTaxonomyRepairRequest}
             onActivity={recordVisibleActivity}
             onNavigate={changeActiveTab}
             onRollDice={rollDiceFromAction}
+            onTaxonomyRepairRequestHandled={clearSettingsTaxonomyRepairRequest}
             onUnsavedChange={reportSettingsUnsavedChanges}
             setTheme={setTheme}
             theme={theme}
@@ -5562,8 +5619,10 @@ function SettingsTab({
   onActivity,
   onNavigate,
   onRollDice,
+  onTaxonomyRepairRequestHandled,
   onUnsavedChange,
   setTheme,
+  taxonomyRepairRequest,
   theme,
   user,
 }: {
@@ -5571,8 +5630,10 @@ function SettingsTab({
   onActivity: ActivityRecorder
   onNavigate: (tab: AppTab) => void
   onRollDice: () => void
+  onTaxonomyRepairRequestHandled: () => void
   onUnsavedChange: (hasUnsavedChanges: boolean) => void
   setTheme: (theme: ThemeMode) => void
+  taxonomyRepairRequest?: SettingsTaxonomyRepairRequest
   theme: ThemeMode
   user: AuthUserSummary | null
 }) {
@@ -5583,6 +5644,7 @@ function SettingsTab({
   const [settingsImportUndo, setSettingsImportUndo] = useState<LibraryImportRollbackPlan | undefined>()
   const [editingItem, setEditingItem] = useState<ListItem | undefined>()
   const [pendingBackupImport, setPendingBackupImport] = useState<PendingBackupImport | undefined>()
+  const handledTaxonomyRepairRequestId = useRef<number | undefined>(undefined)
   const draftFavoriteTags = splitList(draft.favoriteTags)
   const draftFavoriteGenres = splitList(draft.favoriteGenres)
   const draftBlockedTags = splitList(draft.blockedTags)
@@ -5818,7 +5880,7 @@ function SettingsTab({
     })
   }
 
-  async function repairPrivateTaxonomy() {
+  const repairPrivateTaxonomy = useCallback(async () => {
     if (!privateTaxonomyRepairs.length) {
       setStatus('No hay taxonomia privada que completar')
       return
@@ -5844,7 +5906,20 @@ function SettingsTab({
     } catch (reason) {
       setStatus(reason instanceof Error ? reason.message : 'No se pudo completar la taxonomia privada.')
     }
-  }
+  }, [library, onActivity, privateTaxonomyRepairs])
+
+  useEffect(() => {
+    if (!taxonomyRepairRequest || handledTaxonomyRepairRequestId.current === taxonomyRepairRequest.requestId) return
+
+    const timeoutId = window.setTimeout(() => {
+      if (handledTaxonomyRepairRequestId.current === taxonomyRepairRequest.requestId) return
+
+      handledTaxonomyRepairRequestId.current = taxonomyRepairRequest.requestId
+      void repairPrivateTaxonomy().finally(onTaxonomyRepairRequestHandled)
+    }, 0)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [onTaxonomyRepairRequestHandled, repairPrivateTaxonomy, taxonomyRepairRequest])
 
   async function undoPrivateTaxonomyRepair() {
     if (!privateTaxonomyUndoItems.length) return

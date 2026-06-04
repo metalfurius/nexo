@@ -839,6 +839,58 @@ test('quick search can clear and restore recent activity', async ({ page }) => {
   await expect(page.getByTestId('session-activity')).toContainText('Actividad limpiable')
 })
 
+test('quick search can repair private taxonomy through the pending-change guard', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Ajustes', exact: true }).click()
+  await page.getByLabel('Importar backup JSON').setInputFiles({
+    name: 'nexo-quick-taxonomy-repair.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(
+      JSON.stringify({
+        schemaVersion: 1,
+        exportedAt: '2026-06-03T00:00:00.000Z',
+        items: [
+          {
+            title: 'Quick Taxonomy Probe',
+            type: 'movie',
+            status: 'wishlist',
+            genres: [],
+            tags: [],
+            moodTags: [],
+            weights: { priority: 1, surprise: 0.5, challenge: 0.5 },
+            source: 'manual',
+            createdAt: '2026-06-01T00:00:00.000Z',
+            updatedAt: '2026-06-01T00:00:00.000Z',
+          },
+        ],
+      }),
+    ),
+  })
+  await page.getByRole('button', { name: 'Aplicar backup' }).click()
+  await expect(page.getByTestId('private-action-plan')).toContainText('Completar taxonomia')
+
+  await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await page.getByLabel('Energia').selectOption('high')
+  await expect(page.getByText('Cambios pendientes')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Busqueda rapida' }).click()
+  const quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  await quickSearch.getByLabel('Buscar en Nexo').fill('completar taxonomia privada')
+  const repairAction = quickSearch.getByRole('button', { name: 'Ejecutar Completar taxonomia privada' })
+  await expect(repairAction).toHaveAttribute('aria-current', 'true')
+  await expect(repairAction).toContainText('1 ficha reparable')
+  await repairAction.click()
+
+  await expect(page.getByLabel('Salida con cambios pendientes')).toContainText('Cambios pendientes en Dado')
+  await page.getByLabel('Salida con cambios pendientes').getByRole('button', { name: 'Descartar cambios' }).click()
+
+  await expect(page).toHaveURL(/tab=settings/)
+  await expect(page.getByRole('status').filter({ hasText: 'Taxonomia privada completada en 1 ficha' })).toBeVisible()
+  await expect(page.getByTestId('private-data-health')).toContainText('8/8')
+  await expect(page.getByRole('button', { name: 'Deshacer taxonomia' })).toBeVisible()
+  await expect(page.getByTestId('session-activity')).toContainText('Taxonomia privada completada')
+})
+
 test('library item deep links open and close the focused editor', async ({ page }) => {
   await page.goto('/?item=game-outer-wilds')
   const editor = page.getByRole('dialog', { name: 'Entrada' })
