@@ -1510,7 +1510,7 @@ function App() {
 
   const quickSearchFocusItem = getLibraryFocusItems(library.items)[0]
   const quickSearchFocusAction = quickSearchFocusItem ? getPrimaryItemAction(quickSearchFocusItem.status) : undefined
-  const quickSearchReviewQueue = getLibraryReviewQueues(library.items)[0]
+  const quickSearchReviewQueues = getLibraryReviewQueues(library.items)
   const quickSearchQueuedCandidate = library.discoveryCandidates.find((candidate) => candidate.status === 'queued')
   const quickSearchQueuedSourceCounts = library.discoveryCandidates.reduce<Record<ExplorerSourceFilter, number>>(
     (counts, candidate) => {
@@ -1582,22 +1582,16 @@ function App() {
           },
         ]
       : []),
-    ...(quickSearchReviewQueue
-      ? [
-          {
-            Icon: getLibraryReviewQueueIcon(quickSearchReviewQueue.id),
-            detail: `${quickSearchReviewQueue.label} / ${quickSearchReviewQueue.count} ${
-              quickSearchReviewQueue.count === 1 ? 'pendiente' : 'pendientes'
-            }`,
-            id: `library-review-${quickSearchReviewQueue.id}`,
-            meta: 'Repaso',
-            run: () => startLibraryReviewFromPalette(quickSearchReviewQueue.id),
-            searchText: `repaso guiado biblioteca mantenimiento mejorar dado completar ficha cola ${quickSearchReviewQueue.label} ${quickSearchReviewQueue.detail}`,
-            title: 'Iniciar repaso guiado',
-            tone: 'section' as const,
-          },
-        ]
-      : []),
+    ...quickSearchReviewQueues.map((queue, index) => ({
+      Icon: getLibraryReviewQueueIcon(queue.id),
+      detail: `${queue.label} / ${queue.detail} / ${queue.count} ${queue.count === 1 ? 'pendiente' : 'pendientes'}`,
+      id: `library-review-${queue.id}`,
+      meta: 'Repaso',
+      run: () => startLibraryReviewFromPalette(queue.id),
+      searchText: `repaso guiado biblioteca mantenimiento mejorar dado completar ficha cola ${queue.label} ${queue.detail}`,
+      title: index === 0 ? 'Iniciar repaso guiado' : `Repaso: ${queue.label}`,
+      tone: 'section' as const,
+    })),
     ...(quickSearchQueuedCandidate
       ? [
           {

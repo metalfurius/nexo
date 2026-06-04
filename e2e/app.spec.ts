@@ -685,6 +685,28 @@ test('quick search starts guided library review through the pending-change guard
   await expect(page.getByRole('dialog', { name: 'Entrada' }).getByLabel('Titulo')).toHaveValue('Inception')
 })
 
+test('quick search can start a specific guided review queue', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await page.getByLabel('Energia').selectOption('high')
+  await expect(page.getByText('Cambios pendientes')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Busqueda rapida' }).click()
+  const quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  await quickSearch.getByLabel('Buscar en Nexo').fill('probar dado')
+  const reviewAction = quickSearch.getByRole('button', { name: 'Ejecutar Repaso: Probar dado' })
+  await expect(reviewAction).toHaveAttribute('aria-current', 'true')
+  await expect(reviewAction).toContainText('Candidatas vivas')
+  await reviewAction.click()
+
+  await expect(page.getByLabel('Salida con cambios pendientes')).toContainText('Cambios pendientes en Dado')
+  await page.getByLabel('Salida con cambios pendientes').getByRole('button', { name: 'Descartar cambios' }).click()
+
+  await expect(page.getByRole('heading', { name: 'Elige el siguiente hilo' })).toBeVisible()
+  await expect(page.getByTestId('recommendation-result')).toContainText('Decision')
+  await expect(page.getByTestId('session-activity')).toContainText('Tirada registrada')
+})
+
 test('quick search applies the next library action through the pending-change guard', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
