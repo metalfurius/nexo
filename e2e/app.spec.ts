@@ -704,6 +704,37 @@ test('quick search can save the next explorer candidate through the pending-chan
   await expect(page.getByTestId('library-grid')).toContainText('Odisea')
 })
 
+test('quick search can dismiss the next explorer candidate through the pending-change guard', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Explorador', exact: true }).click()
+  await page.getByLabel('Tipo de busqueda en explorador').selectOption('book')
+  await page.getByLabel('Buscar en explorador').fill('Odisea')
+  await page.getByRole('button', { name: 'Buscar' }).click()
+  await expect(page.getByTestId('session-activity')).toContainText('Busqueda en cola')
+
+  await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await page.getByLabel('Energia').selectOption('high')
+  await expect(page.getByText('Cambios pendientes')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Busqueda rapida' }).click()
+  const quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  await quickSearch.getByLabel('Buscar en Nexo').fill('descartar hallazgo')
+  const dismissCandidateAction = quickSearch.getByRole('button', { name: 'Ejecutar Descartar siguiente hallazgo' })
+  await expect(dismissCandidateAction).toHaveAttribute('aria-current', 'true')
+  await expect(dismissCandidateAction).toContainText('Odisea')
+  await dismissCandidateAction.click()
+
+  await expect(page.getByLabel('Salida con cambios pendientes')).toContainText('Cambios pendientes en Dado')
+  await page.getByLabel('Salida con cambios pendientes').getByRole('button', { name: 'Descartar cambios' }).click()
+
+  await expect(page).toHaveURL(/tab=explorer/)
+  await expect(page.getByText('Odisea descartado de la cola.')).toBeVisible()
+  await expect(page.getByTestId('session-activity')).toContainText('Hallazgo descartado')
+  await expect(page.getByRole('button', { name: 'Deshacer descarte' })).toBeVisible()
+  await page.getByRole('button', { name: 'Deshacer descarte' }).click()
+  await expect(page.getByText('Odisea recuperado a la cola.')).toBeVisible()
+})
+
 test('quick search can create a prefilled item through the pending-change guard', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
