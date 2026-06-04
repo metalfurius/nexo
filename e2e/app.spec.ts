@@ -67,7 +67,7 @@ test('library and weighted dice work in demo mode', async ({ page }) => {
   await expect(outerWildsCard.getByLabel('Pulso de Outer Wilds')).toContainText('Sorpresa')
   await expect(outerWildsCard.getByLabel('Senales rapidas de Outer Wilds')).toContainText('Importacion')
   await expect(outerWildsCard.getByLabel('Senales rapidas de Outer Wilds')).toContainText('12-20h')
-  await page.getByRole('button', { name: 'Anadir' }).click()
+  await page.getByRole('button', { name: 'Anadir' }).first().click()
   const quickEditor = page.getByRole('dialog', { name: 'Entrada' })
   await expect(quickEditor.getByTestId('personal-readiness')).toContainText('Preparacion')
   await expect(quickEditor.getByTestId('personal-readiness')).toContainText('Ficha por afinar')
@@ -266,6 +266,34 @@ test('library review session keeps guided queues actionable', async ({ page }) =
   await reviewSession.getByRole('button', { name: 'Terminar repaso' }).click()
   await expect(reviewSession).not.toBeVisible()
   await expect(page.getByText('Repaso guiado pausado')).toBeVisible()
+})
+
+test('library review session celebrates completed queues', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Borrar todo' }).click()
+  await page.getByLabel('Confirmacion').fill('BORRAR')
+  await page.getByRole('button', { name: 'Borrar todo' }).last().click()
+  await expect(page.getByText('Tu biblioteca ha sido borrada')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Anadir' }).first().click()
+  const draftEditor = page.getByRole('dialog', { name: 'Entrada' })
+  await draftEditor.getByLabel('Titulo').fill('Repaso Final')
+  await draftEditor.getByLabel('Generos', { exact: true }).fill('Drama')
+  await draftEditor.getByRole('button', { name: 'Guardar' }).click()
+  await expect(page.getByText('Repaso Final guardada en Biblioteca')).toBeVisible()
+
+  await page.getByTestId('library-review-queue').getByRole('button', { name: 'Completar ficha' }).click()
+  const reviewEditor = page.getByRole('dialog', { name: 'Entrada' })
+  await expect(reviewEditor.getByLabel('Titulo')).toHaveValue('Repaso Final')
+  await reviewEditor.getByLabel('Notas').fill('Contexto suficiente para cerrar este repaso.')
+  await reviewEditor.getByRole('button', { name: 'Guardar' }).click()
+
+  const completedReview = page.getByTestId('library-review-complete')
+  await expect(completedReview).toContainText('Repaso completado')
+  await expect(completedReview).toContainText('Dar contexto')
+  await expect(completedReview.getByLabel('Pendientes en repaso')).toContainText('0')
+  await completedReview.getByRole('button', { name: 'Cerrar' }).click()
+  await expect(completedReview).not.toBeVisible()
 })
 
 test('mobile layout keeps the core controls reachable', async ({ page }) => {

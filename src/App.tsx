@@ -1380,6 +1380,12 @@ interface LibraryCooldownUndo {
   changes: Array<{ id: string; previousCooldownUntil?: string; title: string }>
 }
 
+interface ActiveLibraryReviewSession {
+  detail: string
+  id: LibrarySmartView
+  label: string
+}
+
 interface PendingCatalogSeedImport {
   fileName: string
   result: PublicCatalogSeedResult
@@ -1425,7 +1431,7 @@ function LibraryTab({
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([])
   const [bulkStatus, setBulkStatus] = useState<ItemStatus>('completed')
-  const [activeReviewQueueId, setActiveReviewQueueId] = useState<LibrarySmartView | undefined>()
+  const [activeReviewSession, setActiveReviewSession] = useState<ActiveLibraryReviewSession | undefined>()
   const viewMode = library.settings.libraryViewMode
   const trimmedQuery = query.trim()
   const hasActiveLibraryFilters = Boolean(trimmedQuery) || typeFilter !== 'all' || statusFilter !== 'all' || smartView !== 'all'
@@ -1483,9 +1489,10 @@ function LibraryTab({
     [library.discoveryCandidates, library.items],
   )
   const reviewQueues = useMemo(() => getLibraryReviewQueues(library.items), [library.items])
-  const activeReviewQueue = activeReviewQueueId
-    ? reviewQueues.find((queue) => queue.id === activeReviewQueueId)
+  const activeReviewQueue = activeReviewSession
+    ? reviewQueues.find((queue) => queue.id === activeReviewSession.id)
     : undefined
+  const completedReviewSession = activeReviewSession && !activeReviewQueue ? activeReviewSession : undefined
   const focusedActivityItem = activityFocusItemId ? library.items.find((item) => item.id === activityFocusItemId) : undefined
   const missingActivityFocus = Boolean(activityFocusItemId && !library.loading && !focusedActivityItem)
   const missingActivitySearchQuery = activityFocusItemId ? getSearchQueryFromItemId(activityFocusItemId) : ''
@@ -2043,8 +2050,12 @@ function LibraryTab({
     setImportStatus(`Vista de repaso: ${label}`)
   }
 
+  function startLibraryReviewSession(queue: LibraryReviewQueue) {
+    setActiveReviewSession({ detail: queue.detail, id: queue.id, label: queue.label })
+  }
+
   function viewLibraryReviewQueue(queue: LibraryReviewQueue) {
-    setActiveReviewQueueId(queue.id)
+    startLibraryReviewSession(queue)
     if (queue.action === 'open-dice') {
       onNavigate('dice')
       return
@@ -2054,7 +2065,7 @@ function LibraryTab({
   }
 
   function runLibraryReviewQueue(queue: LibraryReviewQueue) {
-    setActiveReviewQueueId(queue.id)
+    startLibraryReviewSession(queue)
     if (queue.action === 'open-dice') {
       onNavigate('dice')
       return
@@ -2069,8 +2080,13 @@ function LibraryTab({
   }
 
   function stopLibraryReviewQueue() {
-    setActiveReviewQueueId(undefined)
+    setActiveReviewSession(undefined)
     setImportStatus('Repaso guiado pausado')
+  }
+
+  function closeCompletedReviewSession() {
+    setActiveReviewSession(undefined)
+    setImportStatus('Repaso completado cerrado')
   }
 
   function createItemFromCurrentSearch() {
@@ -2305,6 +2321,33 @@ function LibraryTab({
               )}
               <button className="ghost-button" type="button" onClick={stopLibraryReviewQueue}>
                 Terminar repaso
+              </button>
+            </div>
+          </section>
+        )}
+
+        {completedReviewSession && (
+          <section
+            className="library-review-session completed"
+            aria-label={`Repaso completado ${completedReviewSession.label}`}
+            data-testid="library-review-complete"
+          >
+            <div className="library-review-session-main">
+              <span className="eyebrow">Repaso completado</span>
+              <strong>{completedReviewSession.label}</strong>
+              <p>La cola ya no tiene entradas pendientes.</p>
+            </div>
+            <div className="library-review-session-progress" aria-label="Pendientes en repaso">
+              <strong>0</strong>
+              <span>pendientes</span>
+            </div>
+            <div className="library-review-session-actions">
+              <button className="primary-button" type="button" onClick={() => onNavigate('dice')}>
+                <Dice5 size={16} />
+                Abrir Dado
+              </button>
+              <button className="ghost-button" type="button" onClick={closeCompletedReviewSession}>
+                Cerrar
               </button>
             </div>
           </section>

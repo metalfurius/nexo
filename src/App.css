@@ -1567,6 +1567,21 @@
   min-width: 0;
 }
 
+.library-review-session.completed {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--accent-soft) 72%, transparent), transparent 68%),
+    var(--surface-muted);
+  border-color: color-mix(in srgb, var(--accent) 52%, var(--border));
+}
+
+.library-review-session.completed .library-review-session-progress {
+  border-color: color-mix(in srgb, var(--accent) 44%, var(--border));
+}
+
+.library-review-session.completed .library-review-session-progress strong {
+  color: var(--accent-dark);
+}
+
 .library-focus-shelf {
   background: linear-gradient(135deg, color-mix(in srgb, var(--surface-muted) 86%, transparent), var(--surface));
   border: 1px solid var(--border);
