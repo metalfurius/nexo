@@ -835,6 +835,40 @@ test('quick search can dismiss the next explorer candidate through the pending-c
   await expect(page.getByText('Odisea recuperado a la cola.')).toBeVisible()
 })
 
+test('quick search can dismiss a filtered explorer view through the pending-change guard', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Explorador', exact: true }).click()
+  await page.getByLabel('Tipo de busqueda en explorador').selectOption('book')
+  await page.getByLabel('Buscar en explorador').fill('Odisea')
+  await page.getByRole('button', { name: 'Buscar' }).click()
+  await expect(page.getByTestId('session-activity')).toContainText('Busqueda en cola')
+  await expect(page.getByTestId('explorer-decision-panel')).toContainText('Odisea')
+
+  await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await page.getByLabel('Energia').selectOption('high')
+  await expect(page.getByText('Cambios pendientes')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Busqueda rapida' }).click()
+  const quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  await quickSearch.getByLabel('Buscar en Nexo').fill('descartar vista')
+  const dismissVisibleAction = quickSearch.getByRole('button', { name: 'Ejecutar Descartar vista del explorador' })
+  await expect(dismissVisibleAction).toHaveAttribute('aria-current', 'true')
+  await expect(dismissVisibleAction).toContainText('APIs')
+  await dismissVisibleAction.click()
+
+  await expect(page.getByLabel('Salida con cambios pendientes')).toContainText('Cambios pendientes en Dado')
+  await expect(page).toHaveURL(/tab=dice/)
+  await page.getByLabel('Salida con cambios pendientes').getByRole('button', { name: 'Descartar cambios' }).click()
+
+  await expect(page).toHaveURL(/tab=explorer/)
+  await expect(page.getByText('Odisea descartado de la vista APIs.')).toBeVisible()
+  await expect(page.getByTestId('explorer-completion')).toContainText('APIs limpio')
+  await expect(page.getByRole('button', { name: 'Deshacer descarte' })).toBeVisible()
+  await expect(page.getByTestId('session-activity')).toContainText('Vista descartada')
+  await page.getByRole('button', { name: 'Deshacer descarte' }).click()
+  await expect(page.getByText('Odisea recuperado a la cola.')).toBeVisible()
+})
+
 test('quick search can create a prefilled item through the pending-change guard', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Dado', exact: true }).click()

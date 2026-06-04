@@ -365,6 +365,11 @@ interface ExplorerVisibleSaveRequest {
   sourceFilter: ExplorerSourceFilter
 }
 
+interface ExplorerVisibleDismissRequest {
+  requestId: number
+  sourceFilter: ExplorerSourceFilter
+}
+
 interface SettingsTaxonomyRepairRequest {
   requestId: number
 }
@@ -386,6 +391,7 @@ type PendingNavigation = {
   explorerCandidateSaveId?: string
   explorerPromptCard?: boolean
   explorerSearchQuery?: string
+  explorerVisibleDismissSourceFilter?: ExplorerSourceFilter
   explorerVisibleSaveSourceFilter?: ExplorerSourceFilter
   focus?: ActivityFocus
   libraryPrimaryActionItemId?: string
@@ -717,6 +723,7 @@ function App() {
   const [explorerCandidateSaveRequest, setExplorerCandidateSaveRequest] = useState<ExplorerCandidateSaveRequest | undefined>()
   const [explorerCandidateDismissRequest, setExplorerCandidateDismissRequest] = useState<ExplorerCandidateDismissRequest | undefined>()
   const [explorerVisibleSaveRequest, setExplorerVisibleSaveRequest] = useState<ExplorerVisibleSaveRequest | undefined>()
+  const [explorerVisibleDismissRequest, setExplorerVisibleDismissRequest] = useState<ExplorerVisibleDismissRequest | undefined>()
   const [settingsTaxonomyRepairRequest, setSettingsTaxonomyRepairRequest] = useState<SettingsTaxonomyRepairRequest | undefined>()
   const [settingsTasteSuggestionsRequest, setSettingsTasteSuggestionsRequest] = useState<SettingsTasteSuggestionsRequest | undefined>()
   const [settingsSaveRequest, setSettingsSaveRequest] = useState<SettingsSaveRequest | undefined>()
@@ -741,6 +748,7 @@ function App() {
   const explorerCandidateSaveRequestId = useRef(0)
   const explorerCandidateDismissRequestId = useRef(0)
   const explorerVisibleSaveRequestId = useRef(0)
+  const explorerVisibleDismissRequestId = useRef(0)
   const settingsTaxonomyRepairRequestId = useRef(0)
   const settingsTasteSuggestionsRequestId = useRef(0)
   const settingsSaveRequestId = useRef(0)
@@ -886,6 +894,7 @@ function App() {
   const clearExplorerCandidateSaveRequest = useCallback(() => setExplorerCandidateSaveRequest(undefined), [])
   const clearExplorerCandidateDismissRequest = useCallback(() => setExplorerCandidateDismissRequest(undefined), [])
   const clearExplorerVisibleSaveRequest = useCallback(() => setExplorerVisibleSaveRequest(undefined), [])
+  const clearExplorerVisibleDismissRequest = useCallback(() => setExplorerVisibleDismissRequest(undefined), [])
   const clearSettingsTaxonomyRepairRequest = useCallback(() => setSettingsTaxonomyRepairRequest(undefined), [])
   const clearSettingsTasteSuggestionsRequest = useCallback(() => setSettingsTasteSuggestionsRequest(undefined), [])
   const clearSettingsSaveRequest = useCallback(() => setSettingsSaveRequest(undefined), [])
@@ -1036,6 +1045,11 @@ function App() {
     setExplorerVisibleSaveRequest({ requestId: explorerVisibleSaveRequestId.current, sourceFilter })
   }
 
+  function requestExplorerVisibleDismiss(sourceFilter: ExplorerSourceFilter) {
+    explorerVisibleDismissRequestId.current += 1
+    setExplorerVisibleDismissRequest({ requestId: explorerVisibleDismissRequestId.current, sourceFilter })
+  }
+
   function requestSettingsTaxonomyRepair() {
     settingsTaxonomyRepairRequestId.current += 1
     setSettingsTaxonomyRepairRequest({ requestId: settingsTaxonomyRepairRequestId.current })
@@ -1180,6 +1194,25 @@ function App() {
 
     setActivityFocus(undefined)
     requestExplorerVisibleSave(sourceFilter)
+    setActiveTabState('explorer')
+    writeAppTabToUrl('explorer', 'push')
+  }
+
+  function dismissExplorerVisibleQueueFromPalette(sourceFilter: ExplorerSourceFilter) {
+    setQuickSearchOpen(false)
+    if (activeTab === 'explorer') {
+      setActivityFocus(undefined)
+      requestExplorerVisibleDismiss(sourceFilter)
+      writeAppTabToUrl('explorer', 'push')
+      return
+    }
+    if (tabsWithUnsavedChanges[activeTab]) {
+      setPendingNavigation({ explorerVisibleDismissSourceFilter: sourceFilter, source: 'app', tab: 'explorer' })
+      return
+    }
+
+    setActivityFocus(undefined)
+    requestExplorerVisibleDismiss(sourceFilter)
     setActiveTabState('explorer')
     writeAppTabToUrl('explorer', 'push')
   }
@@ -1343,6 +1376,7 @@ function App() {
       explorerCandidateSaveId,
       explorerPromptCard,
       explorerSearchQuery,
+      explorerVisibleDismissSourceFilter,
       explorerVisibleSaveSourceFilter,
       focus,
       libraryPrimaryActionItemId,
@@ -1374,6 +1408,9 @@ function App() {
     }
     if (explorerSearchQuery) {
       requestExplorerSearch(explorerSearchQuery)
+    }
+    if (explorerVisibleDismissSourceFilter) {
+      requestExplorerVisibleDismiss(explorerVisibleDismissSourceFilter)
     }
     if (explorerVisibleSaveSourceFilter) {
       requestExplorerVisibleSave(explorerVisibleSaveSourceFilter)
@@ -1524,6 +1561,22 @@ function App() {
             searchText: `guardar vista explorador cola lote ${quickSearchExplorerSaveSourceLabel} hallazgos fuentes APIs Nexo ideas`,
             title: 'Guardar vista del explorador',
             tone: 'section' as const,
+          },
+        ]
+      : []),
+    ...(quickSearchExplorerSaveSource && quickSearchExplorerSaveSourceLabel
+      ? [
+          {
+            Icon: X,
+            detail: `${quickSearchQueuedSourceCounts[quickSearchExplorerSaveSource]} ${
+              quickSearchQueuedSourceCounts[quickSearchExplorerSaveSource] === 1 ? 'hallazgo' : 'hallazgos'
+            } / ${quickSearchExplorerSaveSourceLabel}`,
+            id: `explorer-dismiss-visible-${quickSearchExplorerSaveSource}`,
+            meta: 'Explorador',
+            run: () => dismissExplorerVisibleQueueFromPalette(quickSearchExplorerSaveSource),
+            searchText: `descartar vista explorador limpiar cola lote ${quickSearchExplorerSaveSourceLabel} hallazgos fuentes APIs Nexo ideas quitar`,
+            title: 'Descartar vista del explorador',
+            tone: 'command' as const,
           },
         ]
       : []),
@@ -1899,6 +1952,7 @@ function App() {
             candidateSaveRequest={explorerCandidateSaveRequest}
             promptCardRequest={explorerPromptCardRequest}
             searchRequest={explorerSearchRequest}
+            visibleDismissRequest={explorerVisibleDismissRequest}
             visibleSaveRequest={explorerVisibleSaveRequest}
             onActivity={recordVisibleActivity}
             onCandidateDismissRequestHandled={clearExplorerCandidateDismissRequest}
@@ -1906,6 +1960,7 @@ function App() {
             onCandidateSaveRequestHandled={clearExplorerCandidateSaveRequest}
             onPromptCardRequestHandled={clearExplorerPromptCardRequest}
             onSearchRequestHandled={clearExplorerSearchRequest}
+            onVisibleDismissRequestHandled={clearExplorerVisibleDismissRequest}
             onVisibleSaveRequestHandled={clearExplorerVisibleSaveRequest}
           />
         )}
@@ -4895,9 +4950,11 @@ function ExplorerTab({
   onCandidateSaveRequestHandled,
   onPromptCardRequestHandled,
   onSearchRequestHandled,
+  onVisibleDismissRequestHandled,
   onVisibleSaveRequestHandled,
   promptCardRequest,
   searchRequest,
+  visibleDismissRequest,
   visibleSaveRequest,
 }: {
   candidateDismissRequest?: ExplorerCandidateDismissRequest
@@ -4910,9 +4967,11 @@ function ExplorerTab({
   onCandidateSaveRequestHandled: () => void
   onPromptCardRequestHandled: () => void
   onSearchRequestHandled: () => void
+  onVisibleDismissRequestHandled: () => void
   onVisibleSaveRequestHandled: () => void
   promptCardRequest?: ExplorerPromptCardRequest
   searchRequest?: ExplorerSearchRequest
+  visibleDismissRequest?: ExplorerVisibleDismissRequest
   visibleSaveRequest?: ExplorerVisibleSaveRequest
 }) {
   const [query, setQuery] = useState('')
@@ -4933,6 +4992,7 @@ function ExplorerTab({
   const handledCandidateSaveRequestId = useRef<number | undefined>(undefined)
   const handledPromptCardRequestId = useRef<number | undefined>(undefined)
   const handledSearchRequestId = useRef<number | undefined>(undefined)
+  const handledVisibleDismissRequestId = useRef<number | undefined>(undefined)
   const handledVisibleSaveRequestId = useRef<number | undefined>(undefined)
   const type = library.settings.explorerDefaultType
   const explorerDecision = useMemo(
@@ -5143,10 +5203,20 @@ function ExplorerTab({
     }
   }
 
-  async function dismissVisibleQueue() {
-    const candidatesToDismiss = view === 'queued' ? visibleCandidates : []
+  const dismissVisibleQueueForFilter = useCallback(async (targetFilter: ExplorerSourceFilter) => {
+    setView('queued')
+    setSourceFilter(targetFilter)
+    setSelected(undefined)
+    setCompletedExplorerQueue(undefined)
+
+    if (targetFilter === 'all') return
+
+    const sourceLabel = getExplorerSourceFilterLabel(targetFilter)
+    const candidatesToDismiss = library.discoveryCandidates.filter(
+      (candidate) => candidate.status === 'queued' && getDiscoverySourceFilter(candidate) === targetFilter,
+    )
     if (!candidatesToDismiss.length) return
-    const completedQueue = getCompletedExplorerQueue(candidatesToDismiss.length, 'dismissed')
+    const completedQueue = getCompletedExplorerQueue(candidatesToDismiss.length, 'dismissed', sourceLabel)
 
     try {
       await Promise.all(candidatesToDismiss.map((candidate) => library.dismissDiscoveryCandidate(candidate.id)))
@@ -5157,8 +5227,8 @@ function ExplorerTab({
       setCompletedExplorerQueue(completedQueue)
       setMessage(
         candidatesToDismiss.length === 1
-          ? `${candidatesToDismiss[0].title} descartado de la vista ${activeSourceLabel}.`
-          : `${candidatesToDismiss.length} hallazgos descartados de la vista ${activeSourceLabel}.`,
+          ? `${candidatesToDismiss[0].title} descartado de la vista ${sourceLabel}.`
+          : `${candidatesToDismiss.length} hallazgos descartados de la vista ${sourceLabel}.`,
       )
       onActivity({
         detail: candidatesToDismiss.length === 1 ? candidatesToDismiss[0].title : `${candidatesToDismiss.length} hallazgos`,
@@ -5169,6 +5239,11 @@ function ExplorerTab({
     } catch (reason) {
       setMessage(reason instanceof Error ? reason.message : 'No se pudo limpiar la vista.')
     }
+  }, [getCompletedExplorerQueue, library, onActivity])
+
+  async function dismissVisibleQueue() {
+    if (view !== 'queued') return
+    await dismissVisibleQueueForFilter(sourceFilter)
   }
 
   const saveVisibleQueueForFilter = useCallback(async (targetFilter: ExplorerSourceFilter) => {
@@ -5490,6 +5565,21 @@ function ExplorerTab({
 
     return () => window.clearTimeout(timeoutId)
   }, [clearExplorerRecentActions, onVisibleSaveRequestHandled, saveVisibleQueueForFilter, visibleSaveRequest])
+
+  useEffect(() => {
+    if (!visibleDismissRequest || handledVisibleDismissRequestId.current === visibleDismissRequest.requestId) return
+
+    const timeoutId = window.setTimeout(() => {
+      if (handledVisibleDismissRequestId.current === visibleDismissRequest.requestId) return
+
+      handledVisibleDismissRequestId.current = visibleDismissRequest.requestId
+      clearExplorerRecentActions()
+      setMessage(undefined)
+      void dismissVisibleQueueForFilter(visibleDismissRequest.sourceFilter).finally(onVisibleDismissRequestHandled)
+    }, 0)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [clearExplorerRecentActions, dismissVisibleQueueForFilter, onVisibleDismissRequestHandled, visibleDismissRequest])
 
   return (
     <section className="content-grid">
