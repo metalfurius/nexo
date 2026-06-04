@@ -74,6 +74,99 @@
   color-scheme: light;
 }
 
+[data-theme='rose'] {
+  --accent: #c44574;
+  --accent-dark: #8a1f4a;
+  --accent-soft: #ffe4ee;
+  --accent-warm: #b66a2d;
+  --accent-warm-soft: #fff0dc;
+  --border: #ead2da;
+  --danger-bg: #fff0f2;
+  --danger-border: #f0b7bf;
+  --danger-text: #9b2034;
+  --focus: #9d4edd;
+  --mark-book-bg: #fff1d6;
+  --mark-book-text: #946012;
+  --mark-game-bg: #ece7ff;
+  --mark-game-text: #7052b8;
+  --mark-other-bg: #eaf4ff;
+  --mark-other-text: #29659f;
+  --mark-watch-bg: #ffe6f0;
+  --mark-watch-text: #ad2f65;
+  --modal-backdrop: rgba(54, 23, 37, 0.5);
+  --muted: #705e66;
+  --surface: #fff7fa;
+  --surface-muted: #f8edf2;
+  --surface-raised: #ffffff;
+  --surface-elevated: #fff0f5;
+  --text: #45343b;
+  --text-strong: #201217;
+  --shadow: 0 18px 42px rgba(156, 65, 106, 0.13);
+  color-scheme: light;
+}
+
+[data-theme='forest'] {
+  --accent: #2f7d55;
+  --accent-dark: #a8d08d;
+  --accent-soft: rgba(89, 143, 95, 0.2);
+  --accent-warm: #d2a35f;
+  --accent-warm-soft: rgba(210, 163, 95, 0.15);
+  --border: #283a2d;
+  --danger-bg: #32191b;
+  --danger-border: #864248;
+  --danger-text: #ffc1c6;
+  --focus: #e3c46f;
+  --mark-book-bg: #3b321c;
+  --mark-book-text: #e9c66b;
+  --mark-game-bg: #18372b;
+  --mark-game-text: #8fdfac;
+  --mark-other-bg: #302a44;
+  --mark-other-text: #c9b7ff;
+  --mark-watch-bg: #173442;
+  --mark-watch-text: #9fd8ed;
+  --modal-backdrop: rgba(0, 0, 0, 0.78);
+  --muted: #bed0bd;
+  --surface: #0f1712;
+  --surface-muted: #152017;
+  --surface-raised: #1b271e;
+  --surface-elevated: #25352a;
+  --text: #dce8d8;
+  --text-strong: #fbfff4;
+  --shadow: 0 18px 46px rgba(0, 0, 0, 0.3);
+  color-scheme: dark;
+}
+
+[data-theme='ocean'] {
+  --accent: #256f91;
+  --accent-dark: #8bc9ff;
+  --accent-soft: rgba(63, 138, 181, 0.2);
+  --accent-warm: #d18b5b;
+  --accent-warm-soft: rgba(209, 139, 91, 0.14);
+  --border: #26384f;
+  --danger-bg: #32191f;
+  --danger-border: #7f394b;
+  --danger-text: #ffbdca;
+  --focus: #f3bd66;
+  --mark-book-bg: #372f1d;
+  --mark-book-text: #f2c464;
+  --mark-game-bg: #14323c;
+  --mark-game-text: #81dbc8;
+  --mark-other-bg: #282d4a;
+  --mark-other-text: #b9c1ff;
+  --mark-watch-bg: #122d4d;
+  --mark-watch-text: #9fccff;
+  --modal-backdrop: rgba(0, 0, 0, 0.78);
+  --muted: #b9c8d9;
+  --surface: #0d1726;
+  --surface-muted: #121f31;
+  --surface-raised: #19283b;
+  --surface-elevated: #22354d;
+  --text: #d9e4f1;
+  --text-strong: #f7fbff;
+  --shadow: 0 18px 46px rgba(0, 0, 0, 0.3);
+  color-scheme: dark;
+}
+
 * {
   box-sizing: border-box;
 }

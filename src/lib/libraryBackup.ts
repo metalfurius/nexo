@@ -4,6 +4,7 @@ import {
   DEFAULT_WEIGHTS,
   ITEM_STATUSES,
   ITEM_TYPES,
+  THEME_MODES,
   type ExplorerSearchType,
   type ExternalRefs,
   type ItemStatus,
@@ -194,11 +195,17 @@ function normalizeSettings(value: unknown): UserSettings {
     favoriteGenres: stringList(settings.favoriteGenres),
     blockedTags: stringList(settings.blockedTags),
     allowPausedByDefault: typeof settings.allowPausedByDefault === 'boolean' ? settings.allowPausedByDefault : DEFAULT_SETTINGS.allowPausedByDefault,
-    theme: settings.theme === 'light' || settings.theme === 'dark' ? settings.theme : DEFAULT_SETTINGS.theme,
+    theme: readThemeMode(settings.theme),
     recommendationPreferences,
     explorerDefaultType: readExplorerDefaultType(settings.explorerDefaultType),
     libraryViewMode: settings.libraryViewMode === 'list' ? 'list' : DEFAULT_SETTINGS.libraryViewMode,
   }
+}
+
+function readThemeMode(value: unknown) {
+  return typeof value === 'string' && THEME_MODES.includes(value as (typeof THEME_MODES)[number])
+    ? (value as (typeof THEME_MODES)[number])
+    : DEFAULT_SETTINGS.theme
 }
 
 function normalizeRecommendationPreferences(value: unknown): RecommendationPreferences {

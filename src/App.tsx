@@ -18,6 +18,7 @@ import {
   LogOut,
   MoreHorizontal,
   Moon,
+  Palette,
   Pause,
   Play,
   Info,
@@ -28,7 +29,6 @@ import {
   Search,
   ShieldCheck,
   Sparkles,
-  Sun,
   Trash2,
   Upload,
   X,
@@ -43,6 +43,7 @@ import {
   DEFAULT_RECOMMENDATION_PREFERENCES,
   DEFAULT_SETTINGS,
   DEFAULT_WEIGHTS,
+  THEME_MODES,
   type ExternalCandidate,
   ITEM_STATUSES,
   ITEM_TYPES,
@@ -196,6 +197,40 @@ const roleLabels: Record<UserRole, string> = {
   admin: 'Admin',
   moderator: 'Moderador',
   user: 'Usuario',
+}
+
+const themeOptions: Array<{
+  detail: string
+  id: ThemeMode
+  label: string
+  swatches: [string, string, string]
+}> = [
+  { detail: 'Nexo nocturno', id: 'dark', label: 'Oscuro', swatches: ['#0f1214', '#1f6570', '#8bd5df'] },
+  { detail: 'Lectura limpia', id: 'light', label: 'Claro', swatches: ['#f8faf9', '#1f6570', '#a95f2a'] },
+  { detail: 'Rosa suave', id: 'rose', label: 'Rosa', swatches: ['#fff5f8', '#c44574', '#f4a7bd'] },
+  { detail: 'Verde bosque', id: 'forest', label: 'Bosque', swatches: ['#0f1712', '#2f7d55', '#a8d08d'] },
+  { detail: 'Azul profundo', id: 'ocean', label: 'Oceano', swatches: ['#0d1726', '#256f91', '#8bc9ff'] },
+]
+
+const themeLabels: Record<ThemeMode, string> = Object.fromEntries(
+  themeOptions.map((option) => [option.id, option.label]),
+) as Record<ThemeMode, string>
+
+const themeMetaColors: Record<ThemeMode, string> = {
+  dark: '#0f1214',
+  forest: '#0f1712',
+  light: '#f8faf9',
+  ocean: '#0d1726',
+  rose: '#fff5f8',
+}
+
+function isThemeMode(value: string | null): value is ThemeMode {
+  return Boolean(value && THEME_MODES.includes(value as ThemeMode))
+}
+
+function getNextTheme(theme: ThemeMode): ThemeMode {
+  const currentIndex = themeOptions.findIndex((option) => option.id === theme)
+  return themeOptions[(currentIndex + 1) % themeOptions.length].id
 }
 
 const rolePermissionSummaries: Array<{ role: UserRole; detail: string; permissions: string[] }> = [
@@ -544,7 +579,7 @@ function App() {
   const [tabsWithUnsavedChanges, setTabsWithUnsavedChanges] = useState<Partial<Record<AppTab, boolean>>>({})
   const [theme, setTheme] = useState<ThemeMode>(() => {
     const stored = window.localStorage.getItem(themeStorageKey)
-    return stored === 'light' || stored === 'dark' ? stored : DEFAULT_SETTINGS.theme
+    return isThemeMode(stored) ? stored : DEFAULT_SETTINGS.theme
   })
 
   useEffect(() => {
@@ -556,6 +591,7 @@ function App() {
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', themeMetaColors[theme])
     window.localStorage.setItem(themeStorageKey, theme)
   }, [theme])
 
@@ -661,7 +697,7 @@ function App() {
     { id: 'library', label: 'Biblioteca', description: 'Tus pendientes privados', icon: Library },
     { id: 'dice', label: 'Dado', description: 'Decision ponderada', icon: Dice5 },
     { id: 'explorer', label: 'Explorador', description: 'Catalogo y hallazgos', icon: Sparkles },
-    { id: 'settings', label: 'Ajustes', description: 'Preferencias y cuenta', icon: Sun },
+    { id: 'settings', label: 'Ajustes', description: 'Preferencias y cuenta', icon: Palette },
     { id: 'curation', label: 'Curacion', description: 'Catalogo Nexo', icon: ShieldCheck, hidden: !library.isModerator },
   ]
   const visibleNavItems = navItems.filter((item) => !item.hidden)
@@ -748,17 +784,17 @@ function App() {
             <Search size={18} />
           </button>
           <button
-            aria-label={theme === 'dark' ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'}
+            aria-label={`Cambiar tema. Actual ${themeLabels[theme]}`}
             className="icon-button"
             type="button"
             onClick={() => {
-              const nextTheme = theme === 'dark' ? 'light' : 'dark'
+              const nextTheme = getNextTheme(theme)
               setTheme(nextTheme)
               void library.saveSettings({ theme: nextTheme })
             }}
-            title={theme === 'dark' ? 'Tema claro' : 'Tema oscuro'}
+            title={`Tema: ${themeLabels[theme]}`}
           >
-            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+            <Palette size={18} />
           </button>
           {auth.user && (
             <button className="icon-button" type="button" onClick={auth.signOut} title="Salir">
@@ -4272,7 +4308,7 @@ function SettingsTab({
     setSettingsUndo(previousSettings)
     setStatus('Ajustes guardados')
     onActivity({
-      detail: `${draft.theme === 'dark' ? 'Oscuro' : 'Claro'} / ${typeLabels[draft.explorerDefaultType]}`,
+      detail: `${themeLabels[draft.theme]} / ${typeLabels[draft.explorerDefaultType]}`,
       label: 'Ajustes guardados',
       tab: 'settings',
       tone: 'success',
@@ -4293,7 +4329,7 @@ function SettingsTab({
       setSettingsImportUndo(undefined)
       setStatus('Ajustes recuperados')
       onActivity({
-        detail: `${previousSettings.theme === 'dark' ? 'Oscuro' : 'Claro'} / ${typeLabels[previousSettings.explorerDefaultType]}`,
+        detail: `${themeLabels[previousSettings.theme]} / ${typeLabels[previousSettings.explorerDefaultType]}`,
         label: 'Ajustes recuperados',
         tab: 'settings',
         tone: 'success',
@@ -4578,7 +4614,7 @@ function SettingsTab({
               Rol
             </span>
             <span>
-              <strong>{draft.theme === 'dark' ? 'Oscuro' : 'Claro'}</strong>
+              <strong>{themeLabels[draft.theme]}</strong>
               Tema
             </span>
             <span>
@@ -4610,17 +4646,25 @@ function SettingsTab({
         </div>
 
         <div className="settings-section">
-          <h3>Apariencia</h3>
-          <div className="segmented-options" role="group" aria-label="Tema">
-            {(['dark', 'light'] as const).map((mode) => (
+          <h3>Temas</h3>
+          <div className="theme-option-grid" role="group" aria-label="Tema">
+            {themeOptions.map((option) => (
               <button
-                className={draft.theme === mode ? 'segment-option active' : 'segment-option'}
-                key={mode}
+                aria-label={`Tema ${option.label}`}
+                className={draft.theme === option.id ? 'theme-option active' : 'theme-option'}
+                key={option.id}
                 type="button"
-                onClick={() => updateDraft((current) => ({ ...current, theme: mode }))}
+                onClick={() => updateDraft((current) => ({ ...current, theme: option.id }))}
               >
-                {mode === 'dark' ? <Moon size={16} /> : <Sun size={16} />}
-                <span>{mode === 'dark' ? 'Oscuro' : 'Claro'}</span>
+                <span className="theme-swatch" aria-hidden="true">
+                  {option.swatches.map((swatch) => (
+                    <span key={swatch} style={{ background: swatch }} />
+                  ))}
+                </span>
+                <span>
+                  <strong>{option.label}</strong>
+                  <small>{option.detail}</small>
+                </span>
               </button>
             ))}
           </div>

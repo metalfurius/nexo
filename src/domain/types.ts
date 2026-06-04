@@ -19,6 +19,7 @@ export const ITEM_STATUSES = [
 ] as const
 
 export const USER_ROLES = ['user', 'moderator', 'admin'] as const
+export const THEME_MODES = ['dark', 'light', 'rose', 'forest', 'ocean'] as const
 
 export type ItemType = (typeof ITEM_TYPES)[number]
 export type ItemStatus = (typeof ITEM_STATUSES)[number]
@@ -27,7 +28,7 @@ export type UserRole = (typeof USER_ROLES)[number]
 export type EnergyLevel = 'low' | 'medium' | 'high'
 export type IntensityLevel = 'soft' | 'balanced' | 'intense'
 export type NoveltyLevel = 'comfort' | 'balanced' | 'surprise'
-export type ThemeMode = 'dark' | 'light'
+export type ThemeMode = (typeof THEME_MODES)[number]
 export type LibraryViewMode = 'cards' | 'list'
 export type ExplorerSearchType = ItemType | 'watch' | 'any'
 export type DiscoveryOrigin = 'publicCatalog' | 'externalSearch' | 'prompt' | 'roll'

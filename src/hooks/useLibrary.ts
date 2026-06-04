@@ -4,6 +4,7 @@ import {
   DEFAULT_RECOMMENDATION_PREFERENCES,
   DEFAULT_SETTINGS,
   DEFAULT_WEIGHTS,
+  THEME_MODES,
   type DiscoveryCandidate,
   type ExternalCandidate,
   type ItemStatus,
@@ -590,6 +591,10 @@ function mergeSettings(settings: Partial<UserSettings>): UserSettings {
   return {
     ...DEFAULT_SETTINGS,
     ...settings,
+    theme:
+      settings.theme && THEME_MODES.includes(settings.theme as (typeof THEME_MODES)[number])
+        ? settings.theme
+        : DEFAULT_SETTINGS.theme,
     libraryViewMode: settings.libraryViewMode === 'list' ? 'list' : DEFAULT_SETTINGS.libraryViewMode,
     recommendationPreferences: {
       ...DEFAULT_RECOMMENDATION_PREFERENCES,

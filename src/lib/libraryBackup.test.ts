@@ -57,6 +57,19 @@ describe('library backup schema', () => {
     expect(parsed.settings?.libraryViewMode).toBe('list')
   })
 
+  it('keeps a custom color theme from exported settings', () => {
+    const parsed = parseLibraryImportPayload(
+      createLibraryExportPayload(
+        [baseItem],
+        { ...DEFAULT_SETTINGS, theme: 'rose' },
+        '2026-01-02T00:00:00.000Z',
+      ),
+      '2026-01-03T00:00:00.000Z',
+    )
+
+    expect(parsed.settings?.theme).toBe('rose')
+  })
+
   it('summarizes backup imports against the current library before applying them', () => {
     const parsed = parseLibraryImportPayload(
       createLibraryExportPayload(

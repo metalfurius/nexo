@@ -2965,6 +2965,87 @@
   color: var(--text-strong);
 }
 
+.theme-option-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(142px, 1fr));
+}
+
+.theme-option {
+  align-items: center;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  cursor: pointer;
+  display: grid;
+  font: inherit;
+  gap: 9px;
+  grid-template-columns: 44px minmax(0, 1fr);
+  min-height: 62px;
+  padding: 8px;
+  text-align: left;
+  transition:
+    background var(--motion-fast) ease,
+    border-color var(--motion-fast) ease,
+    color var(--motion-fast) ease,
+    transform var(--motion-fast) var(--motion-ease);
+}
+
+.theme-option:hover {
+  background: var(--surface);
+  transform: translateY(-1px);
+}
+
+.theme-option.active {
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 56%, var(--border));
+  color: var(--accent-dark);
+}
+
+.theme-option > span:last-child {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.theme-option strong,
+.theme-option small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.theme-option strong {
+  color: var(--text-strong);
+  font-size: 13px;
+  line-height: 1.1;
+}
+
+.theme-option small {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.15;
+}
+
+.theme-swatch {
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: grid;
+  gap: 2px;
+  grid-template-columns: repeat(3, 1fr);
+  height: 34px;
+  overflow: hidden;
+  padding: 3px;
+}
+
+.theme-swatch span {
+  border-radius: 5px;
+  min-width: 0;
+}
+
 .preference-preview {
   display: grid;
   gap: 10px;
