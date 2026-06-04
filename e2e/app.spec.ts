@@ -559,6 +559,16 @@ test('pwa metadata is present', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Actualizar Nexo', exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Actualizar Nexo', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Actualizar Nexo', exact: true })).not.toBeVisible()
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: false })
+    window.dispatchEvent(new Event('offline'))
+  })
+  await expect(page.getByRole('status', { name: 'Sin conexion', exact: true })).toBeVisible()
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: true })
+    window.dispatchEvent(new Event('online'))
+  })
+  await expect(page.getByRole('status', { name: 'Sin conexion', exact: true })).not.toBeVisible()
 
   await page.getByRole('button', { name: 'Elegir tema. Actual Oscuro', exact: true }).click()
   const themeMenu = page.getByRole('menu', { name: 'Temas de Nexo' })

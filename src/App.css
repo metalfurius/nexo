@@ -421,7 +421,8 @@
   color: var(--accent-dark);
 }
 
-.mode-pill.warning {
+.mode-pill.warning,
+.mode-pill.offline {
   background: var(--accent-warm-soft);
   border-color: color-mix(in srgb, var(--accent-warm) 48%, var(--border));
   color: var(--accent-warm);

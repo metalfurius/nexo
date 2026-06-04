@@ -574,6 +574,7 @@ function App() {
   const [quickSearchOpen, setQuickSearchOpen] = useState(false)
   const [themeMenuOpen, setThemeMenuOpen] = useState(false)
   const [serviceWorkerUpdateReady, setServiceWorkerUpdateReady] = useState(false)
+  const [isOffline, setIsOffline] = useState(() => 'onLine' in navigator && !navigator.onLine)
   const [tabsWithUnsavedChanges, setTabsWithUnsavedChanges] = useState<Partial<Record<AppTab, boolean>>>({})
   const [theme, setTheme] = useState<ThemeMode>(() => {
     const stored = window.localStorage.getItem(themeStorageKey)
@@ -600,6 +601,19 @@ function App() {
 
     window.addEventListener(SERVICE_WORKER_UPDATE_READY_EVENT, handleServiceWorkerUpdateReady)
     return () => window.removeEventListener(SERVICE_WORKER_UPDATE_READY_EVENT, handleServiceWorkerUpdateReady)
+  }, [])
+
+  useEffect(() => {
+    function syncOnlineStatus() {
+      setIsOffline('onLine' in navigator && !navigator.onLine)
+    }
+
+    window.addEventListener('online', syncOnlineStatus)
+    window.addEventListener('offline', syncOnlineStatus)
+    return () => {
+      window.removeEventListener('online', syncOnlineStatus)
+      window.removeEventListener('offline', syncOnlineStatus)
+    }
   }, [])
 
   useEffect(() => {
@@ -790,6 +804,11 @@ function App() {
         <div className="topbar-actions">
           {!auth.isFirebaseConfigured && <span className="mode-pill">Demo local</span>}
           {library.isModerator && <span className="mode-pill moderator">{roleLabels[library.userRole]}</span>}
+          {isOffline && (
+            <span aria-label="Sin conexion" className="mode-pill offline" role="status">
+              Sin conexion
+            </span>
+          )}
           {serviceWorkerUpdateReady && (
             <button
               aria-label="Actualizar Nexo"
