@@ -880,7 +880,7 @@ function App() {
     setDiceRollRequest({ requestId: diceRollRequestId.current })
   }
 
-  function rollDiceFromPalette() {
+  function rollDiceFromAction() {
     setQuickSearchOpen(false)
     if (activeTab === 'dice') {
       requestDiceRoll()
@@ -1013,7 +1013,7 @@ function App() {
       detail: 'Tirar una recomendacion ahora',
       id: 'roll-dice',
       meta: 'Accion',
-      run: rollDiceFromPalette,
+      run: rollDiceFromAction,
       searchText: 'tirar dado recomendar recomendacion azar decision',
       title: 'Tirar dado',
       tone: 'section',
@@ -1243,6 +1243,7 @@ function App() {
             library={library}
             onActivity={recordVisibleActivity}
             onNavigate={changeActiveTab}
+            onRollDice={rollDiceFromAction}
             onUnsavedChange={reportSettingsUnsavedChanges}
             setTheme={setTheme}
             theme={theme}
@@ -4956,6 +4957,7 @@ function SettingsTab({
   library,
   onActivity,
   onNavigate,
+  onRollDice,
   onUnsavedChange,
   setTheme,
   theme,
@@ -4964,6 +4966,7 @@ function SettingsTab({
   library: LibrarySurface
   onActivity: ActivityRecorder
   onNavigate: (tab: AppTab) => void
+  onRollDice: () => void
   onUnsavedChange: (hasUnsavedChanges: boolean) => void
   setTheme: (theme: ThemeMode) => void
   theme: ThemeMode
@@ -5298,7 +5301,7 @@ function SettingsTab({
             Icon: Dice5,
             id: 'dice',
             label: privateDataHealth.diceReadyCount ? 'Tirar dado' : 'Revisar dado',
-            onClick: () => onNavigate('dice'),
+            onClick: privateDataHealth.diceReadyCount ? onRollDice : () => onNavigate('dice'),
             primary: true,
           },
     queuedDiscoveryCount
