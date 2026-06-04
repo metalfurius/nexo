@@ -355,6 +355,10 @@ interface SettingsTaxonomyRepairRequest {
   requestId: number
 }
 
+interface SettingsTasteSuggestionsRequest {
+  requestId: number
+}
+
 type PendingNavigation = {
   diceRoll?: boolean
   draftItem?: ListItem
@@ -366,6 +370,7 @@ type PendingNavigation = {
   focus?: ActivityFocus
   libraryPrimaryActionItemId?: string
   librarySmartView?: LibrarySmartView
+  settingsTasteSuggestions?: boolean
   settingsTaxonomyRepair?: boolean
   source: 'app' | 'history'
   tab: AppTab
@@ -690,6 +695,7 @@ function App() {
   const [explorerCandidateSaveRequest, setExplorerCandidateSaveRequest] = useState<ExplorerCandidateSaveRequest | undefined>()
   const [explorerCandidateDismissRequest, setExplorerCandidateDismissRequest] = useState<ExplorerCandidateDismissRequest | undefined>()
   const [settingsTaxonomyRepairRequest, setSettingsTaxonomyRepairRequest] = useState<SettingsTaxonomyRepairRequest | undefined>()
+  const [settingsTasteSuggestionsRequest, setSettingsTasteSuggestionsRequest] = useState<SettingsTasteSuggestionsRequest | undefined>()
   const [quickSearchOpen, setQuickSearchOpen] = useState(false)
   const [themeMenuOpen, setThemeMenuOpen] = useState(false)
   const [serviceWorkerUpdateReady, setServiceWorkerUpdateReady] = useState(false)
@@ -709,6 +715,7 @@ function App() {
   const explorerCandidateSaveRequestId = useRef(0)
   const explorerCandidateDismissRequestId = useRef(0)
   const settingsTaxonomyRepairRequestId = useRef(0)
+  const settingsTasteSuggestionsRequestId = useRef(0)
 
   useEffect(() => {
     if (!auth.isFirebaseConfigured) return
@@ -849,6 +856,7 @@ function App() {
   const clearExplorerCandidateSaveRequest = useCallback(() => setExplorerCandidateSaveRequest(undefined), [])
   const clearExplorerCandidateDismissRequest = useCallback(() => setExplorerCandidateDismissRequest(undefined), [])
   const clearSettingsTaxonomyRepairRequest = useCallback(() => setSettingsTaxonomyRepairRequest(undefined), [])
+  const clearSettingsTasteSuggestionsRequest = useCallback(() => setSettingsTasteSuggestionsRequest(undefined), [])
   const recordVisibleActivity = useCallback(
     (entry: Omit<ActivityEntry, 'createdAt' | 'id'>) => {
       setActivityClearUndo([])
@@ -986,6 +994,11 @@ function App() {
     setSettingsTaxonomyRepairRequest({ requestId: settingsTaxonomyRepairRequestId.current })
   }
 
+  function requestSettingsTasteSuggestions() {
+    settingsTasteSuggestionsRequestId.current += 1
+    setSettingsTasteSuggestionsRequest({ requestId: settingsTasteSuggestionsRequestId.current })
+  }
+
   function rollDiceFromAction() {
     setQuickSearchOpen(false)
     if (activeTab === 'dice') {
@@ -1119,6 +1132,25 @@ function App() {
     writeAppTabToUrl('settings', 'push')
   }
 
+  function applyTasteSuggestionsFromPalette() {
+    setQuickSearchOpen(false)
+    if (activeTab === 'settings') {
+      setActivityFocus(undefined)
+      requestSettingsTasteSuggestions()
+      writeAppTabToUrl('settings', 'push')
+      return
+    }
+    if (tabsWithUnsavedChanges[activeTab]) {
+      setPendingNavigation({ settingsTasteSuggestions: true, source: 'app', tab: 'settings' })
+      return
+    }
+
+    setActivityFocus(undefined)
+    requestSettingsTasteSuggestions()
+    setActiveTabState('settings')
+    writeAppTabToUrl('settings', 'push')
+  }
+
   function runLibraryPrimaryActionFromPalette(item: ListItem) {
     setQuickSearchOpen(false)
     if (activeTab === 'library') {
@@ -1213,6 +1245,7 @@ function App() {
       focus,
       libraryPrimaryActionItemId,
       librarySmartView,
+      settingsTasteSuggestions,
       settingsTaxonomyRepair,
       source,
       tab: nextTab,
@@ -1246,6 +1279,9 @@ function App() {
     if (librarySmartView) {
       requestLibrarySmartView(librarySmartView)
     }
+    if (settingsTasteSuggestions) {
+      requestSettingsTasteSuggestions()
+    }
     if (settingsTaxonomyRepair) {
       requestSettingsTaxonomyRepair()
     }
@@ -1260,6 +1296,13 @@ function App() {
   const quickSearchPrivateTaxonomyRepairCount = library.items.filter((item) =>
     Boolean(getPrivateTaxonomyRepairDraft(item, catalogTaxonomyTemplates[item.type][0], item.updatedAt)),
   ).length
+  const quickSearchPrivateDataHealth = getPrivateDataHealth(library.items, library.discoveryCandidates)
+  const quickSearchFavoriteGenreKeys = new Set(library.settings.favoriteGenres.map(normalizeKey))
+  const quickSearchFavoriteTagKeys = new Set(library.settings.favoriteTags.map(normalizeKey))
+  const quickSearchTasteSuggestionCount = quickSearchPrivateDataHealth.tasteSuggestions.filter((suggestion) => {
+    const currentKeys = suggestion.kind === 'genre' ? quickSearchFavoriteGenreKeys : quickSearchFavoriteTagKeys
+    return !currentKeys.has(normalizeKey(suggestion.label))
+  }).length
   const quickSearchActivityCommands = library.activityEntries.slice(0, 4).map((entry): QuickSearchCommand => {
     const destinationLabel = activityTabLabels[getActivityDestinationTab(entry)]
 
@@ -1383,6 +1426,22 @@ function App() {
             run: repairPrivateTaxonomyFromPalette,
             searchText: 'completar reparar taxonomia privada mantenimiento ajustes generos tags plantillas',
             title: 'Completar taxonomia privada',
+            tone: 'section' as const,
+          },
+        ]
+      : []),
+    ...(quickSearchTasteSuggestionCount
+      ? [
+          {
+            Icon: Sparkles,
+            detail: `${quickSearchTasteSuggestionCount} ${
+              quickSearchTasteSuggestionCount === 1 ? 'sugerencia pendiente' : 'sugerencias pendientes'
+            }`,
+            id: 'settings-apply-taste-suggestions',
+            meta: 'Ajustes',
+            run: applyTasteSuggestionsFromPalette,
+            searchText: 'aplicar sugerencias gusto gustos generos tags favoritos preferencias ajustes dado',
+            title: 'Aplicar sugerencias de gusto',
             tone: 'section' as const,
           },
         ]
@@ -1662,10 +1721,12 @@ function App() {
         {activeTab === 'settings' && (
           <SettingsTab
             library={library}
+            tasteSuggestionsRequest={settingsTasteSuggestionsRequest}
             taxonomyRepairRequest={settingsTaxonomyRepairRequest}
             onActivity={recordVisibleActivity}
             onNavigate={changeActiveTab}
             onRollDice={rollDiceFromAction}
+            onTasteSuggestionsRequestHandled={clearSettingsTasteSuggestionsRequest}
             onTaxonomyRepairRequestHandled={clearSettingsTaxonomyRepairRequest}
             onUnsavedChange={reportSettingsUnsavedChanges}
             setTheme={setTheme}
@@ -5619,9 +5680,11 @@ function SettingsTab({
   onActivity,
   onNavigate,
   onRollDice,
+  onTasteSuggestionsRequestHandled,
   onTaxonomyRepairRequestHandled,
   onUnsavedChange,
   setTheme,
+  tasteSuggestionsRequest,
   taxonomyRepairRequest,
   theme,
   user,
@@ -5630,9 +5693,11 @@ function SettingsTab({
   onActivity: ActivityRecorder
   onNavigate: (tab: AppTab) => void
   onRollDice: () => void
+  onTasteSuggestionsRequestHandled: () => void
   onTaxonomyRepairRequestHandled: () => void
   onUnsavedChange: (hasUnsavedChanges: boolean) => void
   setTheme: (theme: ThemeMode) => void
+  tasteSuggestionsRequest?: SettingsTasteSuggestionsRequest
   taxonomyRepairRequest?: SettingsTaxonomyRepairRequest
   theme: ThemeMode
   user: AuthUserSummary | null
@@ -5644,10 +5709,11 @@ function SettingsTab({
   const [settingsImportUndo, setSettingsImportUndo] = useState<LibraryImportRollbackPlan | undefined>()
   const [editingItem, setEditingItem] = useState<ListItem | undefined>()
   const [pendingBackupImport, setPendingBackupImport] = useState<PendingBackupImport | undefined>()
+  const handledTasteSuggestionsRequestId = useRef<number | undefined>(undefined)
   const handledTaxonomyRepairRequestId = useRef<number | undefined>(undefined)
-  const draftFavoriteTags = splitList(draft.favoriteTags)
-  const draftFavoriteGenres = splitList(draft.favoriteGenres)
-  const draftBlockedTags = splitList(draft.blockedTags)
+  const draftFavoriteTags = useMemo(() => splitList(draft.favoriteTags), [draft.favoriteTags])
+  const draftFavoriteGenres = useMemo(() => splitList(draft.favoriteGenres), [draft.favoriteGenres])
+  const draftBlockedTags = useMemo(() => splitList(draft.blockedTags), [draft.blockedTags])
   const accountLabel = user?.displayName ?? user?.email ?? 'Sesion demo'
   const accountInitial = accountLabel.slice(0, 1).toUpperCase()
   const queuedDiscoveryCount = library.discoveryCandidates.filter((candidate) => candidate.status === 'queued').length
@@ -5667,11 +5733,11 @@ function SettingsTab({
         Boolean(entry.repair),
       )
   }, [library.items])
-  const pendingTasteSuggestions = privateDataHealth.tasteSuggestions.filter((suggestion) => {
+  const pendingTasteSuggestions = useMemo(() => privateDataHealth.tasteSuggestions.filter((suggestion) => {
     const currentValues = suggestion.kind === 'genre' ? draftFavoriteGenres : draftFavoriteTags
     const suggestionKey = normalizeKey(suggestion.label)
     return !currentValues.some((value) => normalizeKey(value) === suggestionKey)
-  })
+  }), [draftFavoriteGenres, draftFavoriteTags, privateDataHealth.tasteSuggestions])
   const hasUnsavedChanges =
     draft.theme !== theme ||
     draft.explorerDefaultType !== library.settings.explorerDefaultType ||
@@ -5684,10 +5750,10 @@ function SettingsTab({
     return () => onUnsavedChange(false)
   }, [hasUnsavedChanges, onUnsavedChange])
 
-  function updateDraft(updater: (current: SettingsDraft) => SettingsDraft) {
+  const updateDraft = useCallback((updater: (current: SettingsDraft) => SettingsDraft) => {
     setSettingsUndo(undefined)
     setDraft(updater)
-  }
+  }, [])
 
   function applyTasteSuggestion(suggestion: PrivateTasteSuggestion) {
     updateDraft((current) =>
@@ -5698,7 +5764,7 @@ function SettingsTab({
     setStatus(`${suggestion.kind === 'genre' ? 'Genero' : 'Tag'} sugerido anadido`)
   }
 
-  function applyTasteSuggestions() {
+  const applyTasteSuggestions = useCallback(() => {
     if (!pendingTasteSuggestions.length) return
 
     const genres = pendingTasteSuggestions.filter((suggestion) => suggestion.kind === 'genre').map((suggestion) => suggestion.label)
@@ -5709,7 +5775,21 @@ function SettingsTab({
       favoriteTags: tags.length ? mergeListText(current.favoriteTags, tags) : current.favoriteTags,
     }))
     setStatus(`${pendingTasteSuggestions.length} sugerencias anadidas`)
-  }
+  }, [pendingTasteSuggestions, updateDraft])
+
+  useEffect(() => {
+    if (!tasteSuggestionsRequest || handledTasteSuggestionsRequestId.current === tasteSuggestionsRequest.requestId) return
+
+    const timeoutId = window.setTimeout(() => {
+      if (handledTasteSuggestionsRequestId.current === tasteSuggestionsRequest.requestId) return
+
+      handledTasteSuggestionsRequestId.current = tasteSuggestionsRequest.requestId
+      applyTasteSuggestions()
+      onTasteSuggestionsRequestHandled()
+    }, 0)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [applyTasteSuggestions, onTasteSuggestionsRequestHandled, tasteSuggestionsRequest])
 
   async function saveSettings() {
     const previousSettings = cloneUserSettings({ ...library.settings, theme })

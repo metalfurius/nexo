@@ -839,6 +839,30 @@ test('quick search can clear and restore recent activity', async ({ page }) => {
   await expect(page.getByTestId('session-activity')).toContainText('Actividad limpiable')
 })
 
+test('quick search can apply taste suggestions through the pending-change guard', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await page.getByLabel('Energia').selectOption('high')
+  await expect(page.getByText('Cambios pendientes')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Busqueda rapida' }).click()
+  const quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  await quickSearch.getByLabel('Buscar en Nexo').fill('sugerencias gusto')
+  const suggestionsAction = quickSearch.getByRole('button', { name: 'Ejecutar Aplicar sugerencias de gusto' })
+  await expect(suggestionsAction).toHaveAttribute('aria-current', 'true')
+  await expect(suggestionsAction).toContainText('sugerencias pendientes')
+  await suggestionsAction.click()
+
+  await expect(page.getByLabel('Salida con cambios pendientes')).toContainText('Cambios pendientes en Dado')
+  await page.getByLabel('Salida con cambios pendientes').getByRole('button', { name: 'Descartar cambios' }).click()
+
+  await expect(page).toHaveURL(/tab=settings/)
+  await expect(page.getByRole('status').filter({ hasText: /sugerencias anadidas/ })).toBeVisible()
+  await expect(page.getByLabel('Generos favoritos')).toHaveValue('sci-fi')
+  await expect(page.getByLabel('Tags favoritos')).toHaveValue('pelicula, sci-fi')
+  await expect(page.getByText('Cambios pendientes')).toBeVisible()
+})
+
 test('quick search can repair private taxonomy through the pending-change guard', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Ajustes', exact: true }).click()
