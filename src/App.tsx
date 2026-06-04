@@ -1136,6 +1136,7 @@ function App() {
 
   const quickSearchFocusItem = getLibraryFocusItems(library.items)[0]
   const quickSearchFocusAction = quickSearchFocusItem ? getPrimaryItemAction(quickSearchFocusItem.status) : undefined
+  const quickSearchQueuedCandidate = library.discoveryCandidates.find((candidate) => candidate.status === 'queued')
   const quickSearchActivityCommands = library.activityEntries.slice(0, 4).map((entry): QuickSearchCommand => {
     const destinationLabel = activityTabLabels[getActivityDestinationTab(entry)]
 
@@ -1174,6 +1175,22 @@ function App() {
             )}`,
             title: `${quickSearchFocusAction.label} siguiente accion`,
             tone: 'command' as const,
+          },
+        ]
+      : []),
+    ...(quickSearchQueuedCandidate
+      ? [
+          {
+            Icon: typeIcons[quickSearchQueuedCandidate.type],
+            detail: `${quickSearchQueuedCandidate.title} / ${sourceLabels[quickSearchQueuedCandidate.source]}`,
+            id: 'explorer-next-candidate',
+            meta: 'Explorador',
+            run: () => openExplorerCandidateFromPalette(quickSearchQueuedCandidate),
+            searchText: `siguiente hallazgo revisar cola explorador decidir guardar descartar ${quickSearchQueuedCandidate.title} ${
+              sourceLabels[quickSearchQueuedCandidate.source]
+            } ${typeLabels[quickSearchQueuedCandidate.type]}`,
+            title: 'Revisar siguiente hallazgo',
+            tone: 'section' as const,
           },
         ]
       : []),

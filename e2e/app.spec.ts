@@ -644,6 +644,34 @@ test('quick search can reopen explorer candidates through the pending-change gua
   await expect(page.getByRole('dialog', { name: 'Odisea' })).toContainText('Guardar en Biblioteca')
 })
 
+test('quick search can open the next explorer candidate through the pending-change guard', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Explorador', exact: true }).click()
+  await page.getByLabel('Tipo de busqueda en explorador').selectOption('book')
+  await page.getByLabel('Buscar en explorador').fill('Odisea')
+  await page.getByRole('button', { name: 'Buscar' }).click()
+  await expect(page.getByTestId('session-activity')).toContainText('Busqueda en cola')
+
+  await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await page.getByLabel('Energia').selectOption('high')
+  await expect(page.getByText('Cambios pendientes')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Busqueda rapida' }).click()
+  const quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  await quickSearch.getByLabel('Buscar en Nexo').fill('siguiente hallazgo')
+  const nextCandidateAction = quickSearch.getByRole('button', { name: 'Ejecutar Revisar siguiente hallazgo' })
+  await expect(nextCandidateAction).toHaveAttribute('aria-current', 'true')
+  await expect(nextCandidateAction).toContainText('Odisea')
+  await nextCandidateAction.click()
+
+  await expect(page.getByLabel('Salida con cambios pendientes')).toContainText('Cambios pendientes en Dado')
+  await page.getByLabel('Salida con cambios pendientes').getByRole('button', { name: 'Descartar cambios' }).click()
+
+  await expect(page).toHaveURL(/tab=explorer/)
+  await expect(page.getByRole('dialog', { name: 'Odisea' })).toContainText('En cola')
+  await expect(page.getByRole('dialog', { name: 'Odisea' })).toContainText('Guardar en Biblioteca')
+})
+
 test('quick search can create a prefilled item through the pending-change guard', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
