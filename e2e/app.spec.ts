@@ -549,6 +549,26 @@ test('quick search applies theme commands', async ({ page }) => {
   await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#0f1712')
 })
 
+test('global theme menu stays in sync with settings', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Ajustes', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Guardado', exact: true })).toBeDisabled()
+
+  await page.getByRole('button', { name: 'Elegir tema. Actual Oscuro', exact: true }).click()
+  const themeMenu = page.getByRole('menu', { name: 'Temas de Nexo' })
+  await themeMenu.getByRole('menuitemradio', { name: 'Usar tema Rosa' }).click()
+
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'rose')
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#fff5f8')
+  await expect(page.getByRole('button', { name: 'Tema Rosa', exact: true })).toHaveClass(/active/)
+  await expect(page.getByRole('button', { name: 'Guardado', exact: true })).toBeDisabled()
+  await expect(page.getByLabel('Salida con cambios pendientes')).not.toBeVisible()
+
+  await page.getByRole('button', { name: 'Biblioteca', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Biblioteca privada' })).toBeVisible()
+  await expect(page.getByLabel('Salida con cambios pendientes')).not.toBeVisible()
+})
+
 test('quick search can save pending settings', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Ajustes', exact: true }).click()
@@ -640,6 +660,29 @@ test('quick search opens library smart views through the pending-change guard', 
   await expect(page.getByText('4 de 7 entradas')).toBeVisible()
   await expect(page.getByTestId('library-grid')).toContainText('Inception')
   await expect(page.getByTestId('library-grid')).not.toContainText('Outer Wilds')
+})
+
+test('quick search starts guided library review through the pending-change guard', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await page.getByLabel('Energia').selectOption('high')
+  await expect(page.getByText('Cambios pendientes')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Busqueda rapida' }).click()
+  const quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  await quickSearch.getByLabel('Buscar en Nexo').fill('repaso guiado')
+  const reviewAction = quickSearch.getByRole('button', { name: 'Ejecutar Iniciar repaso guiado' })
+  await expect(reviewAction).toHaveAttribute('aria-current', 'true')
+  await expect(reviewAction).toContainText('Dar contexto')
+  await reviewAction.click()
+
+  await expect(page.getByLabel('Salida con cambios pendientes')).toContainText('Cambios pendientes en Dado')
+  await expect(page).toHaveURL(/tab=dice/)
+  await page.getByLabel('Salida con cambios pendientes').getByRole('button', { name: 'Descartar cambios' }).click()
+
+  await expect(page.getByTestId('library-review-session')).toContainText('Repaso activo')
+  await expect(page.getByTestId('library-review-session')).toContainText('Dar contexto')
+  await expect(page.getByRole('dialog', { name: 'Entrada' }).getByLabel('Titulo')).toHaveValue('Inception')
 })
 
 test('quick search applies the next library action through the pending-change guard', async ({ page }) => {

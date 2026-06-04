@@ -328,6 +328,11 @@ interface LibraryImportRequest {
   requestId: number
 }
 
+interface LibraryReviewRequest {
+  id: LibrarySmartView
+  requestId: number
+}
+
 interface DiceRollRequest {
   requestId: number
 }
@@ -400,6 +405,7 @@ type PendingNavigation = {
   focus?: ActivityFocus
   libraryImport?: boolean
   libraryPrimaryActionItemId?: string
+  libraryReview?: LibrarySmartView
   librarySmartView?: LibrarySmartView
   settingsTasteSuggestions?: boolean
   settingsTaxonomyRepair?: boolean
@@ -719,6 +725,7 @@ function App() {
   const [libraryDraftRequest, setLibraryDraftRequest] = useState<ListItem | undefined>()
   const [libraryImportRequest, setLibraryImportRequest] = useState<LibraryImportRequest | undefined>()
   const [libraryPrimaryActionRequest, setLibraryPrimaryActionRequest] = useState<LibraryPrimaryActionRequest | undefined>()
+  const [libraryReviewRequest, setLibraryReviewRequest] = useState<LibraryReviewRequest | undefined>()
   const [librarySmartViewRequest, setLibrarySmartViewRequest] = useState<LibrarySmartViewRequest | undefined>()
   const [diceRollRequest, setDiceRollRequest] = useState<DiceRollRequest | undefined>()
   const [dicePreferencesSaveRequest, setDicePreferencesSaveRequest] = useState<DicePreferencesSaveRequest | undefined>()
@@ -740,6 +747,7 @@ function App() {
   const [isOffline, setIsOffline] = useState(() => 'onLine' in navigator && !navigator.onLine)
   const [tabsWithUnsavedChanges, setTabsWithUnsavedChanges] = useState<Partial<Record<AppTab, boolean>>>({})
   const libraryImportRequestId = useRef(0)
+  const libraryReviewRequestId = useRef(0)
   const librarySmartViewRequestId = useRef(0)
   const [theme, setTheme] = useState<ThemeMode>(() => {
     const stored = window.localStorage.getItem(themeStorageKey)
@@ -893,6 +901,7 @@ function App() {
   const clearLibraryDraftRequest = useCallback(() => setLibraryDraftRequest(undefined), [])
   const clearLibraryImportRequest = useCallback(() => setLibraryImportRequest(undefined), [])
   const clearLibraryPrimaryActionRequest = useCallback(() => setLibraryPrimaryActionRequest(undefined), [])
+  const clearLibraryReviewRequest = useCallback(() => setLibraryReviewRequest(undefined), [])
   const clearDiceRollRequest = useCallback(() => setDiceRollRequest(undefined), [])
   const clearDicePreferencesSaveRequest = useCallback(() => setDicePreferencesSaveRequest(undefined), [])
   const clearDiceCooldownReactivateRequest = useCallback(() => setDiceCooldownReactivateRequest(undefined), [])
@@ -1003,6 +1012,11 @@ function App() {
   function requestLibraryImport() {
     libraryImportRequestId.current += 1
     setLibraryImportRequest({ requestId: libraryImportRequestId.current })
+  }
+
+  function requestLibraryReview(id: LibrarySmartView) {
+    libraryReviewRequestId.current += 1
+    setLibraryReviewRequest({ id, requestId: libraryReviewRequestId.current })
   }
 
   function requestLibraryPrimaryAction(itemId: string) {
@@ -1325,6 +1339,25 @@ function App() {
     writeAppTabToUrl('library', 'push')
   }
 
+  function startLibraryReviewFromPalette(id: LibrarySmartView) {
+    setQuickSearchOpen(false)
+    if (activeTab === 'library') {
+      setActivityFocus(undefined)
+      requestLibraryReview(id)
+      writeAppTabToUrl('library', 'push')
+      return
+    }
+    if (tabsWithUnsavedChanges[activeTab]) {
+      setPendingNavigation({ libraryReview: id, source: 'app', tab: 'library' })
+      return
+    }
+
+    setActivityFocus(undefined)
+    requestLibraryReview(id)
+    setActiveTabState('library')
+    writeAppTabToUrl('library', 'push')
+  }
+
   function createBlankLibraryDraft() {
     openLibraryDraft(blankItem())
   }
@@ -1413,6 +1446,7 @@ function App() {
       focus,
       libraryImport,
       libraryPrimaryActionItemId,
+      libraryReview,
       librarySmartView,
       settingsTasteSuggestions,
       settingsTaxonomyRepair,
@@ -1457,6 +1491,9 @@ function App() {
     if (libraryPrimaryActionItemId) {
       requestLibraryPrimaryAction(libraryPrimaryActionItemId)
     }
+    if (libraryReview) {
+      requestLibraryReview(libraryReview)
+    }
     if (librarySmartView) {
       requestLibrarySmartView(librarySmartView)
     }
@@ -1473,6 +1510,7 @@ function App() {
 
   const quickSearchFocusItem = getLibraryFocusItems(library.items)[0]
   const quickSearchFocusAction = quickSearchFocusItem ? getPrimaryItemAction(quickSearchFocusItem.status) : undefined
+  const quickSearchReviewQueue = getLibraryReviewQueues(library.items)[0]
   const quickSearchQueuedCandidate = library.discoveryCandidates.find((candidate) => candidate.status === 'queued')
   const quickSearchQueuedSourceCounts = library.discoveryCandidates.reduce<Record<ExplorerSourceFilter, number>>(
     (counts, candidate) => {
@@ -1541,6 +1579,22 @@ function App() {
             )}`,
             title: `${quickSearchFocusAction.label} siguiente accion`,
             tone: 'command' as const,
+          },
+        ]
+      : []),
+    ...(quickSearchReviewQueue
+      ? [
+          {
+            Icon: getLibraryReviewQueueIcon(quickSearchReviewQueue.id),
+            detail: `${quickSearchReviewQueue.label} / ${quickSearchReviewQueue.count} ${
+              quickSearchReviewQueue.count === 1 ? 'pendiente' : 'pendientes'
+            }`,
+            id: `library-review-${quickSearchReviewQueue.id}`,
+            meta: 'Repaso',
+            run: () => startLibraryReviewFromPalette(quickSearchReviewQueue.id),
+            searchText: `repaso guiado biblioteca mantenimiento mejorar dado completar ficha cola ${quickSearchReviewQueue.label} ${quickSearchReviewQueue.detail}`,
+            title: 'Iniciar repaso guiado',
+            tone: 'section' as const,
           },
         ]
       : []),
@@ -1968,11 +2022,13 @@ function App() {
             importRequest={libraryImportRequest}
             library={library}
             primaryActionRequest={libraryPrimaryActionRequest}
+            reviewRequest={libraryReviewRequest}
             smartViewRequest={librarySmartViewRequest}
             onActivity={recordVisibleActivity}
             onActivityFocusHandled={clearActivityFocus}
             onImportRequestHandled={clearLibraryImportRequest}
             onPrimaryActionRequestHandled={clearLibraryPrimaryActionRequest}
+            onReviewRequestHandled={clearLibraryReviewRequest}
             onDraftRequestHandled={clearLibraryDraftRequest}
             onNavigate={changeActiveTab}
             onRollDice={rollDiceFromAction}
@@ -2676,11 +2732,13 @@ function LibraryTab({
   importRequest,
   library,
   primaryActionRequest,
+  reviewRequest,
   smartViewRequest,
   onActivity,
   onActivityFocusHandled,
   onImportRequestHandled,
   onPrimaryActionRequestHandled,
+  onReviewRequestHandled,
   onDraftRequestHandled,
   onNavigate,
   onRollDice,
@@ -2691,11 +2749,13 @@ function LibraryTab({
   importRequest?: LibraryImportRequest
   library: LibrarySurface
   primaryActionRequest?: LibraryPrimaryActionRequest
+  reviewRequest?: LibraryReviewRequest
   smartViewRequest?: LibrarySmartViewRequest
   onActivity: ActivityRecorder
   onActivityFocusHandled: () => void
   onImportRequestHandled: () => void
   onPrimaryActionRequestHandled: () => void
+  onReviewRequestHandled: () => void
   onDraftRequestHandled: () => void
   onNavigate: (tab: AppTab, focus?: ActivityFocus) => void
   onRollDice: () => void
@@ -2710,6 +2770,7 @@ function LibraryTab({
   const [handledDraftRequestId, setHandledDraftRequestId] = useState<string | undefined>()
   const [handledSmartViewRequestId, setHandledSmartViewRequestId] = useState<number | undefined>()
   const handledImportRequestId = useRef<number | undefined>(undefined)
+  const handledReviewRequestId = useRef<number | undefined>(undefined)
   const libraryImportInputRef = useRef<HTMLInputElement | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<ListItem | undefined>()
   const [deletedItemUndo, setDeletedItemUndo] = useState<ListItem | undefined>()
@@ -3464,6 +3525,42 @@ function LibraryTab({
 
     return () => window.clearTimeout(timeoutId)
   }, [library, onActivity, onPrimaryActionRequestHandled, primaryActionRequest])
+
+  useEffect(() => {
+    if (!reviewRequest || handledReviewRequestId.current === reviewRequest.requestId) return
+
+    const timeoutId = window.setTimeout(() => {
+      if (handledReviewRequestId.current === reviewRequest.requestId) return
+
+      handledReviewRequestId.current = reviewRequest.requestId
+      const queue = reviewQueues.find((candidate) => candidate.id === reviewRequest.id)
+      if (!queue) {
+        setImportStatus('Ese repaso ya no tiene entradas pendientes')
+        onReviewRequestHandled()
+        return
+      }
+
+      startLibraryReviewSession(queue)
+      if (queue.action === 'open-dice') {
+        onRollDice()
+      } else if (queue.action === 'open-item' && queue.item) {
+        const existingItem = library.items.find((item) => item.id === queue.item?.id)
+        if (existingItem) {
+          setEditingItem(undefined)
+          onNavigate('library', { kind: 'item', id: existingItem.id })
+        } else {
+          setEditingItem(queue.item)
+          onActivityFocusHandled()
+          writeAppTabToUrl('library', 'push')
+        }
+      } else {
+        openLibrarySmartView(queue.id, queue.label)
+      }
+      onReviewRequestHandled()
+    }, 0)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [library.items, onActivityFocusHandled, onNavigate, onReviewRequestHandled, onRollDice, reviewQueues, reviewRequest])
 
   return (
     <section className="content-grid">
@@ -6179,6 +6276,14 @@ function SettingsTab({
     onUnsavedChange(hasUnsavedChanges)
     return () => onUnsavedChange(false)
   }, [hasUnsavedChanges, onUnsavedChange])
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setDraft((current) => (current.theme === theme ? current : { ...current, theme }))
+    }, 0)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [theme])
 
   const updateDraft = useCallback((updater: (current: SettingsDraft) => SettingsDraft) => {
     setSettingsUndo(undefined)
