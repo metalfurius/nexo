@@ -1365,6 +1365,12 @@ type DiceUndoAction =
   | { kind: 'status'; itemId: string; previousStatus: ItemStatus; title: string }
   | { kind: 'snooze'; recommendation: RecommendationResult; title: string }
   | { kind: 'cooldowns'; items: ListItem[] }
+interface DiceDecisionSummary {
+  detail: string
+  itemId: string
+  kind: 'started' | 'snoozed'
+  title: string
+}
 type DiceSettingsUndo = {
   allowPausedByDefault: boolean
   favoriteGenres: string[]
@@ -2799,6 +2805,7 @@ function DiceTab({
   const [status, setStatus] = useState<string | undefined>()
   const [diceUndoAction, setDiceUndoAction] = useState<DiceUndoAction | undefined>()
   const [diceSettingsUndo, setDiceSettingsUndo] = useState<DiceSettingsUndo | undefined>()
+  const [diceDecisionSummary, setDiceDecisionSummary] = useState<DiceDecisionSummary | undefined>()
   const persistedPreferences = library.settings.recommendationPreferences ?? DEFAULT_RECOMMENDATION_PREFERENCES
   const preferences = draftPreferences ?? persistedPreferences
   const hasUnsavedDicePreferences = !sameRecommendationPreferences(preferences, persistedPreferences)
@@ -2822,6 +2829,8 @@ function DiceTab({
     () => (recommendation ? getRecommendationLearningSignals(recommendation.item, library.settings) : undefined),
     [library.settings, recommendation],
   )
+  const activeDiceDecision =
+    recommendation && diceDecisionSummary?.itemId === recommendation.item.id ? diceDecisionSummary : undefined
   const hasCandidates = scoredCandidates.length > 0
   const cooldownRecoveryItems = useMemo(
     () =>
@@ -2876,7 +2885,19 @@ function DiceTab({
     setStatus(undefined)
     setDiceUndoAction(undefined)
     setDiceSettingsUndo(undefined)
+    setDiceDecisionSummary(undefined)
     setDraftPreferences((current) => (typeof update === 'function' ? update(current ?? preferences) : update))
+  }
+
+  function openDiceDecisionItem() {
+    if (!recommendation) return
+    setEditingDiceItem(library.items.find((item) => item.id === recommendation.item.id) ?? recommendation.item)
+  }
+
+  function clearDiceDecisionResult() {
+    setRecommendation(undefined)
+    setDiceDecisionSummary(undefined)
+    setStatus(undefined)
   }
 
   function getDiceSettingsUndo(kind: DiceSettingsUndo['kind']): DiceSettingsUndo {
@@ -2901,6 +2922,7 @@ function DiceTab({
     setStatus(undefined)
     setDiceUndoAction(undefined)
     setDiceSettingsUndo(undefined)
+    setDiceDecisionSummary(undefined)
     setRecommendation(undefined)
     const next = recommendItem(
       library.items,
@@ -3005,6 +3027,12 @@ function DiceTab({
         previousStatus: recommendation.item.status,
         title: recommendation.item.title,
       })
+      setDiceDecisionSummary({
+        detail: 'Ya esta en curso. Puedes afinar la ficha o tirar otra opcion para dejar otra preparada.',
+        itemId: recommendation.item.id,
+        kind: 'started',
+        title: `${recommendation.item.title} iniciado`,
+      })
       setStatus(`${recommendation.item.title} marcado como en progreso.`)
       onActivity({
         detail: recommendation.item.title,
@@ -3048,8 +3076,13 @@ function DiceTab({
       await library.snoozeRecommendation(recommendation.item.id)
       setDiceSettingsUndo(undefined)
       setDiceUndoAction({ kind: 'snooze', recommendation, title: recommendation.item.title })
+      setDiceDecisionSummary({
+        detail: 'Queda fuera hasta manana para que el dado no insista con la misma recomendacion.',
+        itemId: recommendation.item.id,
+        kind: 'snoozed',
+        title: `${recommendation.item.title} apartado`,
+      })
       setStatus(`${recommendation.item.title} queda fuera hasta manana.`)
-      setRecommendation(undefined)
       onActivity({
         detail: recommendation.item.title,
         label: 'Recomendacion enfriada',
@@ -3071,6 +3104,7 @@ function DiceTab({
       setDiceSettingsUndo(undefined)
       setDiceUndoAction({ kind: 'cooldowns', items: recoverySnapshot })
       setRecommendation(undefined)
+      setDiceDecisionSummary(undefined)
       setStatus(count === 1 ? '1 entrada reactivada para el dado' : `${count} entradas reactivadas para el dado`)
       onActivity({
         detail: count === 1 ? '1 entrada en cooldown' : `${count} entradas en cooldown`,
@@ -3088,6 +3122,11 @@ function DiceTab({
       await library.saveItem(item)
       setEditingDiceItem(undefined)
       setRecommendation((current) => (current?.item.id === item.id ? { ...current, item } : current))
+      setDiceDecisionSummary((current) =>
+        current?.itemId === item.id
+          ? { ...current, title: current.kind === 'started' ? `${item.title} iniciado` : `${item.title} apartado` }
+          : current,
+      )
       setDiceUndoAction(undefined)
       setDiceSettingsUndo(undefined)
       setStatus(`${item.title || 'Entrada'} afinada desde el dado.`)
@@ -3146,6 +3185,7 @@ function DiceTab({
         })
       }
       setDiceUndoAction(undefined)
+      setDiceDecisionSummary(undefined)
     } catch (reason) {
       setStatus(reason instanceof Error ? reason.message : 'No se pudo deshacer la decision del dado.')
     }
@@ -3419,44 +3459,69 @@ function DiceTab({
                 </button>
               </section>
             )}
-            <section className="recommendation-decision" aria-label="Decision de la tirada">
-              <div>
-                <span className="eyebrow">Decision</span>
-                <strong>Te lo llevas ahora?</strong>
-                <p>Empezar lo marca en curso. No hoy lo aparta hasta manana para que el dado no insista.</p>
-              </div>
-              <div className="action-row recommendation-actions">
-                <button
-                  className="primary-button"
-                  type="button"
-                  onClick={startRecommendation}
-                >
-                  <Play size={16} />
-                  Empezar
-                </button>
-                <button
-                  className="secondary-button"
-                  type="button"
-                  aria-label="Afinar ficha recomendada"
-                  onClick={() =>
-                    setEditingDiceItem(
-                      library.items.find((item) => item.id === recommendation.item.id) ?? recommendation.item,
-                    )
-                  }
-                >
-                  <Info size={16} />
-                  Afinar ficha
-                </button>
-                <button
-                  className="secondary-button"
-                  type="button"
-                  onClick={skipRecommendation}
-                >
-                  <X size={16} />
-                  No hoy
-                </button>
-              </div>
-            </section>
+            {activeDiceDecision ? (
+              <section
+                className={`recommendation-decision-complete ${activeDiceDecision.kind}`}
+                aria-label="Decision cerrada del dado"
+                data-testid="dice-decision-summary"
+              >
+                <div className="recommendation-decision-complete-main">
+                  {activeDiceDecision.kind === 'started' ? <Play size={17} /> : <Moon size={17} />}
+                  <div>
+                    <span className="eyebrow">Decision cerrada</span>
+                    <strong>{activeDiceDecision.title}</strong>
+                    <p>{activeDiceDecision.detail}</p>
+                  </div>
+                </div>
+                <div className="recommendation-decision-complete-actions">
+                  {activeDiceDecision.kind === 'started' && (
+                    <button className="secondary-button" type="button" onClick={openDiceDecisionItem}>
+                      <Info size={16} />
+                      Afinar ficha
+                    </button>
+                  )}
+                  <button className="primary-button" type="button" onClick={clearDiceDecisionResult}>
+                    <Dice5 size={16} />
+                    Tirar otra
+                  </button>
+                </div>
+              </section>
+            ) : (
+              <section className="recommendation-decision" aria-label="Decision de la tirada">
+                <div>
+                  <span className="eyebrow">Decision</span>
+                  <strong>Te lo llevas ahora?</strong>
+                  <p>Empezar lo marca en curso. No hoy lo aparta hasta manana para que el dado no insista.</p>
+                </div>
+                <div className="action-row recommendation-actions">
+                  <button
+                    className="primary-button"
+                    type="button"
+                    onClick={startRecommendation}
+                  >
+                    <Play size={16} />
+                    Empezar
+                  </button>
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    aria-label="Afinar ficha recomendada"
+                    onClick={openDiceDecisionItem}
+                  >
+                    <Info size={16} />
+                    Afinar ficha
+                  </button>
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    onClick={skipRecommendation}
+                  >
+                    <X size={16} />
+                    No hoy
+                  </button>
+                </div>
+              </section>
+            )}
           </div>
         ) : !hasCandidates ? (
           <EmptyState

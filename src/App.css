@@ -5418,6 +5418,78 @@ button:active:not(:disabled),
   justify-content: flex-end;
 }
 
+.recommendation-decision-complete {
+  align-items: center;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--accent-soft) 68%, transparent), transparent 70%),
+    var(--surface);
+  border: 1px solid color-mix(in srgb, var(--accent) 44%, var(--border));
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 12px;
+}
+
+.recommendation-decision-complete.snoozed {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--accent-warm-soft) 64%, transparent), transparent 72%),
+    var(--surface);
+  border-color: color-mix(in srgb, var(--accent-warm) 38%, var(--border));
+}
+
+.recommendation-decision-complete-main {
+  align-items: start;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 34px minmax(0, 1fr);
+  min-width: 0;
+}
+
+.recommendation-decision-complete-main > svg {
+  background: color-mix(in srgb, var(--accent-soft) 76%, var(--surface-muted));
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--border));
+  border-radius: 8px;
+  color: var(--accent-dark);
+  height: 34px;
+  padding: 7px;
+  width: 34px;
+}
+
+.recommendation-decision-complete.snoozed .recommendation-decision-complete-main > svg {
+  background: color-mix(in srgb, var(--accent-warm-soft) 72%, var(--surface-muted));
+  border-color: color-mix(in srgb, var(--accent-warm) 34%, var(--border));
+  color: var(--accent-warm);
+}
+
+.recommendation-decision-complete-main div {
+  min-width: 0;
+}
+
+.recommendation-decision-complete-main strong {
+  color: var(--text-strong);
+  display: block;
+  font-size: 16px;
+  line-height: 1.15;
+  margin-top: 3px;
+}
+
+.recommendation-decision-complete-main p {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1.35;
+  margin: 4px 0 0;
+}
+
+.recommendation-decision-complete-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 .recommendation-learning {
   align-items: center;
   background: color-mix(in srgb, var(--surface) 70%, transparent);
@@ -7319,6 +7391,19 @@ textarea:focus-visible {
   }
 
   .recommendation-actions button {
+    width: 100%;
+  }
+
+  .recommendation-decision-complete {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+  }
+
+  .recommendation-decision-complete-actions {
+    flex-direction: column;
+  }
+
+  .recommendation-decision-complete-actions button {
     width: 100%;
   }
 
