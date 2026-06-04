@@ -341,10 +341,16 @@ interface ExplorerCandidateRequest {
   requestId: number
 }
 
+interface ExplorerCandidateSaveRequest {
+  candidateId: string
+  requestId: number
+}
+
 type PendingNavigation = {
   diceRoll?: boolean
   draftItem?: ListItem
   explorerCandidateId?: string
+  explorerCandidateSaveId?: string
   explorerPromptCard?: boolean
   explorerSearchQuery?: string
   focus?: ActivityFocus
@@ -670,6 +676,7 @@ function App() {
   const [explorerSearchRequest, setExplorerSearchRequest] = useState<ExplorerSearchRequest | undefined>()
   const [explorerPromptCardRequest, setExplorerPromptCardRequest] = useState<ExplorerPromptCardRequest | undefined>()
   const [explorerCandidateRequest, setExplorerCandidateRequest] = useState<ExplorerCandidateRequest | undefined>()
+  const [explorerCandidateSaveRequest, setExplorerCandidateSaveRequest] = useState<ExplorerCandidateSaveRequest | undefined>()
   const [quickSearchOpen, setQuickSearchOpen] = useState(false)
   const [themeMenuOpen, setThemeMenuOpen] = useState(false)
   const [serviceWorkerUpdateReady, setServiceWorkerUpdateReady] = useState(false)
@@ -686,6 +693,7 @@ function App() {
   const explorerSearchRequestId = useRef(0)
   const explorerPromptCardRequestId = useRef(0)
   const explorerCandidateRequestId = useRef(0)
+  const explorerCandidateSaveRequestId = useRef(0)
 
   useEffect(() => {
     if (!auth.isFirebaseConfigured) return
@@ -823,6 +831,7 @@ function App() {
   const clearExplorerSearchRequest = useCallback(() => setExplorerSearchRequest(undefined), [])
   const clearExplorerPromptCardRequest = useCallback(() => setExplorerPromptCardRequest(undefined), [])
   const clearExplorerCandidateRequest = useCallback(() => setExplorerCandidateRequest(undefined), [])
+  const clearExplorerCandidateSaveRequest = useCallback(() => setExplorerCandidateSaveRequest(undefined), [])
   const recordVisibleActivity = useCallback(
     (entry: Omit<ActivityEntry, 'createdAt' | 'id'>) => {
       setActivityClearUndo([])
@@ -945,6 +954,11 @@ function App() {
     setExplorerCandidateRequest({ candidateId, requestId: explorerCandidateRequestId.current })
   }
 
+  function requestExplorerCandidateSave(candidateId: string) {
+    explorerCandidateSaveRequestId.current += 1
+    setExplorerCandidateSaveRequest({ candidateId, requestId: explorerCandidateSaveRequestId.current })
+  }
+
   function rollDiceFromAction() {
     setQuickSearchOpen(false)
     if (activeTab === 'dice') {
@@ -1017,6 +1031,25 @@ function App() {
 
     setActivityFocus(undefined)
     requestExplorerCandidate(candidate.id)
+    setActiveTabState('explorer')
+    writeAppTabToUrl('explorer', 'push')
+  }
+
+  function saveExplorerCandidateFromPalette(candidate: DiscoveryCandidate) {
+    setQuickSearchOpen(false)
+    if (activeTab === 'explorer') {
+      setActivityFocus(undefined)
+      requestExplorerCandidateSave(candidate.id)
+      writeAppTabToUrl('explorer', 'push')
+      return
+    }
+    if (tabsWithUnsavedChanges[activeTab]) {
+      setPendingNavigation({ explorerCandidateSaveId: candidate.id, source: 'app', tab: 'explorer' })
+      return
+    }
+
+    setActivityFocus(undefined)
+    requestExplorerCandidateSave(candidate.id)
     setActiveTabState('explorer')
     writeAppTabToUrl('explorer', 'push')
   }
@@ -1098,6 +1131,7 @@ function App() {
       diceRoll,
       draftItem,
       explorerCandidateId,
+      explorerCandidateSaveId,
       explorerPromptCard,
       explorerSearchQuery,
       focus,
@@ -1113,6 +1147,9 @@ function App() {
     }
     if (explorerCandidateId) {
       requestExplorerCandidate(explorerCandidateId)
+    }
+    if (explorerCandidateSaveId) {
+      requestExplorerCandidateSave(explorerCandidateSaveId)
     }
     if (explorerPromptCard) {
       requestExplorerPromptCard()
@@ -1191,6 +1228,18 @@ function App() {
             } ${typeLabels[quickSearchQueuedCandidate.type]}`,
             title: 'Revisar siguiente hallazgo',
             tone: 'section' as const,
+          },
+          {
+            Icon: Plus,
+            detail: `${quickSearchQueuedCandidate.title} / ${sourceLabels[quickSearchQueuedCandidate.source]}`,
+            id: 'explorer-save-next-candidate',
+            meta: 'Explorador',
+            run: () => saveExplorerCandidateFromPalette(quickSearchQueuedCandidate),
+            searchText: `guardar siguiente hallazgo cola explorador biblioteca aceptar ${quickSearchQueuedCandidate.title} ${
+              sourceLabels[quickSearchQueuedCandidate.source]
+            } ${typeLabels[quickSearchQueuedCandidate.type]}`,
+            title: 'Guardar siguiente hallazgo',
+            tone: 'command' as const,
           },
         ]
       : []),
@@ -1452,10 +1501,12 @@ function App() {
           <ExplorerTab
             library={library}
             candidateRequest={explorerCandidateRequest}
+            candidateSaveRequest={explorerCandidateSaveRequest}
             promptCardRequest={explorerPromptCardRequest}
             searchRequest={explorerSearchRequest}
             onActivity={recordVisibleActivity}
             onCandidateRequestHandled={clearExplorerCandidateRequest}
+            onCandidateSaveRequestHandled={clearExplorerCandidateSaveRequest}
             onPromptCardRequestHandled={clearExplorerPromptCardRequest}
             onSearchRequestHandled={clearExplorerSearchRequest}
           />
@@ -4388,18 +4439,22 @@ function DiceTab({
 
 function ExplorerTab({
   candidateRequest,
+  candidateSaveRequest,
   library,
   onActivity,
   onCandidateRequestHandled,
+  onCandidateSaveRequestHandled,
   onPromptCardRequestHandled,
   onSearchRequestHandled,
   promptCardRequest,
   searchRequest,
 }: {
   candidateRequest?: ExplorerCandidateRequest
+  candidateSaveRequest?: ExplorerCandidateSaveRequest
   library: LibrarySurface
   onActivity: ActivityRecorder
   onCandidateRequestHandled: () => void
+  onCandidateSaveRequestHandled: () => void
   onPromptCardRequestHandled: () => void
   onSearchRequestHandled: () => void
   promptCardRequest?: ExplorerPromptCardRequest
@@ -4419,6 +4474,7 @@ function ExplorerTab({
   const [catalogDraft, setCatalogDraft] = useState<PublicCatalogItem | undefined>()
   const [completedExplorerQueue, setCompletedExplorerQueue] = useState<CompletedExplorerQueue | undefined>()
   const handledCandidateRequestId = useRef<number | undefined>(undefined)
+  const handledCandidateSaveRequestId = useRef<number | undefined>(undefined)
   const handledPromptCardRequestId = useRef<number | undefined>(undefined)
   const handledSearchRequestId = useRef<number | undefined>(undefined)
   const type = library.settings.explorerDefaultType
@@ -4456,7 +4512,7 @@ function ExplorerTab({
     setCompletedExplorerQueue(undefined)
   }, [])
 
-  function getCompletedExplorerQueue(resolvedCount: number, resolution: 'saved' | 'dismissed'): CompletedExplorerQueue {
+  const getCompletedExplorerQueue = useCallback((resolvedCount: number, resolution: 'saved' | 'dismissed'): CompletedExplorerQueue => {
     const actionLabel = resolution === 'saved' ? 'Ver guardados' : 'Ver descartes'
     const nextView = resolution === 'saved' ? 'saved' : 'dismissed'
     const resolvedLabel = resolvedCount === 1 ? '1 hallazgo' : `${resolvedCount} hallazgos`
@@ -4473,11 +4529,11 @@ function ExplorerTab({
       sourceLabel: activeSourceLabel,
       title: `${activeSourceLabel} limpio`,
     }
-  }
+  }, [activeSourceLabel])
 
-  function candidateCompletesVisibleQueue(candidate: DiscoveryCandidate) {
+  const candidateCompletesVisibleQueue = useCallback((candidate: DiscoveryCandidate) => {
     return view === 'queued' && visibleCandidates.length === 1 && visibleCandidates[0]?.id === candidate.id
-  }
+  }, [view, visibleCandidates])
 
   function openCompletedExplorerQueue() {
     if (!completedExplorerQueue) return
@@ -4566,7 +4622,7 @@ function ExplorerTab({
     }
   }, [clearExplorerRecentActions, library, onActivity])
 
-  async function saveCandidate(candidate: DiscoveryCandidate) {
+  const saveCandidate = useCallback(async (candidate: DiscoveryCandidate) => {
     const completedQueue = candidateCompletesVisibleQueue(candidate) ? getCompletedExplorerQueue(1, 'saved') : undefined
     try {
       setBulkDismissUndo([])
@@ -4588,7 +4644,7 @@ function ExplorerTab({
       setMessage(reason instanceof Error ? reason.message : 'No se pudo guardar el hallazgo.')
       return false
     }
-  }
+  }, [candidateCompletesVisibleQueue, getCompletedExplorerQueue, library, onActivity])
 
   async function dismissCandidate(candidate: DiscoveryCandidate) {
     const completedQueue = candidateCompletesVisibleQueue(candidate) ? getCompletedExplorerQueue(1, 'dismissed') : undefined
@@ -4874,6 +4930,39 @@ function ExplorerTab({
 
     return () => window.clearTimeout(timeoutId)
   }, [candidateRequest, clearExplorerRecentActions, library.discoveryCandidates, onCandidateRequestHandled])
+
+  useEffect(() => {
+    if (!candidateSaveRequest || handledCandidateSaveRequestId.current === candidateSaveRequest.requestId) return
+
+    const timeoutId = window.setTimeout(() => {
+      if (handledCandidateSaveRequestId.current === candidateSaveRequest.requestId) return
+
+      handledCandidateSaveRequestId.current = candidateSaveRequest.requestId
+      const candidate = library.discoveryCandidates.find((current) => current.id === candidateSaveRequest.candidateId)
+      if (!candidate) {
+        setMessage('Ese hallazgo ya no esta disponible en el Explorador.')
+        onCandidateSaveRequestHandled()
+        return
+      }
+
+      clearExplorerRecentActions()
+      setMessage(undefined)
+      setSelected(undefined)
+      setCompletedExplorerQueue(undefined)
+      setView(candidate.status)
+      setSourceFilter(getDiscoverySourceFilter(candidate))
+
+      if (candidate.status !== 'queued') {
+        setMessage(`${candidate.title} ya no esta en cola.`)
+        onCandidateSaveRequestHandled()
+        return
+      }
+
+      void saveCandidate(candidate).finally(onCandidateSaveRequestHandled)
+    }, 0)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [candidateSaveRequest, clearExplorerRecentActions, library.discoveryCandidates, onCandidateSaveRequestHandled, saveCandidate])
 
   return (
     <section className="content-grid">
