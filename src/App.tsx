@@ -314,9 +314,20 @@ type ActivityFocus = ActivityTarget
 type AppTab = ActivityTab
 type PendingNavigation = { draftItem?: ListItem; focus?: ActivityFocus; source: 'app' | 'history'; tab: AppTab }
 type ActivityRecorder = (entry: Omit<ActivityEntry, 'createdAt' | 'id'>) => void
+interface QuickSearchCommand {
+  Icon: LucideIcon
+  detail: string
+  id: string
+  meta: string
+  run: () => void
+  searchText: string
+  title: string
+  tone: 'command' | 'create' | 'section'
+}
+
 type QuickSearchEntry =
   | {
-      Icon: typeof Library
+      Icon: LucideIcon
       detail: string
       id: string
       kind: 'create'
@@ -326,7 +337,7 @@ type QuickSearchEntry =
       title: string
     }
   | {
-      Icon: typeof Library
+      Icon: LucideIcon
       detail: string
       id: string
       item: ListItem
@@ -336,7 +347,7 @@ type QuickSearchEntry =
       title: string
     }
   | {
-      Icon: typeof Library
+      Icon: LucideIcon
       detail: string
       id: string
       kind: 'tab'
@@ -345,12 +356,24 @@ type QuickSearchEntry =
       tone: 'section'
       title: string
     }
+  | {
+      command: QuickSearchCommand
+      Icon: LucideIcon
+      detail: string
+      id: string
+      kind: 'command'
+      meta: string
+      tone: QuickSearchCommand['tone']
+      title: string
+    }
 
 interface ScoredQuickSearchEntry {
   entry: QuickSearchEntry
   index: number
   score: number
 }
+
+type QuickSearchCommandEntry = Extract<QuickSearchEntry, { kind: 'command' }>
 
 interface ShellNavItem {
   description: string
@@ -793,11 +816,7 @@ function App() {
     writeAppTabToUrl(nextTab, 'push', focus)
   }
 
-  function createLibraryDraftFromTitle(title: string) {
-    const trimmedTitle = title.trim()
-    if (!trimmedTitle) return
-
-    const draft = { ...blankItem(), title: trimmedTitle }
+  function openLibraryDraft(draft: ListItem) {
     setQuickSearchOpen(false)
     if (activeTab === 'library') {
       setActivityFocus(undefined)
@@ -816,6 +835,28 @@ function App() {
     writeAppTabToUrl('library', 'push')
   }
 
+  function createBlankLibraryDraft() {
+    openLibraryDraft(blankItem())
+  }
+
+  function createLibraryDraftFromTitle(title: string) {
+    const trimmedTitle = title.trim()
+    if (!trimmedTitle) return
+
+    openLibraryDraft({ ...blankItem(), title: trimmedTitle })
+  }
+
+  function exportQuickBackup() {
+    setQuickSearchOpen(false)
+    downloadLibraryBackup(library.items, library.settings, 'nexo-backup')
+    recordVisibleActivity({
+      detail: `${library.items.length} entradas exportadas`,
+      label: 'Backup privado exportado',
+      tab: 'settings',
+      tone: 'success',
+    })
+  }
+
   function discardPendingNavigation() {
     if (!pendingNavigation) return
 
@@ -829,6 +870,42 @@ function App() {
     setActiveTabState(nextTab)
     writeAppTabToUrl(nextTab, source === 'history' ? 'replace' : 'push', focus)
   }
+
+  const quickSearchCommands: QuickSearchCommand[] = [
+    {
+      Icon: Plus,
+      detail: 'Abrir una ficha privada vacia',
+      id: 'new-item',
+      meta: 'Accion',
+      run: createBlankLibraryDraft,
+      searchText: 'anadir entrada nueva ficha crear manual biblioteca',
+      title: 'Anadir entrada',
+      tone: 'create',
+    },
+    {
+      Icon: Dice5,
+      detail: 'Ir al dado ponderado',
+      id: 'roll-dice',
+      meta: 'Accion',
+      run: () => {
+        setQuickSearchOpen(false)
+        changeActiveTab('dice')
+      },
+      searchText: 'tirar dado recomendar recomendacion azar decision',
+      title: 'Tirar dado',
+      tone: 'section',
+    },
+    {
+      Icon: Download,
+      detail: 'Descargar copia privada JSON',
+      id: 'export-backup',
+      meta: 'Backup',
+      run: exportQuickBackup,
+      searchText: 'exportar backup json copia descargar biblioteca',
+      title: 'Exportar backup JSON',
+      tone: 'command',
+    },
+  ]
 
   return (
     <main className="app-shell">
@@ -969,6 +1046,7 @@ function App() {
 
       {quickSearchOpen && (
         <QuickSearchDialog
+          commands={quickSearchCommands}
           items={library.items}
           navItems={visibleNavItems}
           onClose={() => setQuickSearchOpen(false)}
@@ -1036,6 +1114,7 @@ function App() {
 }
 
 function QuickSearchDialog({
+  commands,
   items,
   navItems,
   onClose,
@@ -1043,6 +1122,7 @@ function QuickSearchDialog({
   onOpenItem,
   onOpenTab,
 }: {
+  commands: QuickSearchCommand[]
   items: ListItem[]
   navItems: ShellNavItem[]
   onClose: () => void
@@ -1056,6 +1136,16 @@ function QuickSearchDialog({
   const normalizedQuery = normalizeKey(query)
   const focusItems = useMemo(() => getLibraryFocusItems(items), [items])
   const results = useMemo(() => {
+    const commandEntries: QuickSearchCommandEntry[] = commands.map((command) => ({
+      Icon: command.Icon,
+      command,
+      detail: command.detail,
+      id: `command-${command.id}`,
+      kind: 'command',
+      meta: command.meta,
+      title: command.title,
+      tone: command.tone,
+    }))
     const navigationEntries: QuickSearchEntry[] = navItems.map((item) => ({
       Icon: item.icon,
       detail: item.description,
@@ -1069,6 +1159,7 @@ function QuickSearchDialog({
 
     if (!normalizedQuery) {
       return [
+        ...commandEntries,
         ...navigationEntries,
         ...focusItems.slice(0, 5).map((item): QuickSearchEntry => ({
           Icon: typeIcons[item.type],
@@ -1085,6 +1176,23 @@ function QuickSearchDialog({
 
     const tokens = normalizedQuery.split(' ').filter(Boolean)
     const exactItemMatch = items.some((item) => normalizeKey(item.title) === normalizedQuery)
+    const scoredCommandEntries = commandEntries
+      .map((entry, index): ScoredQuickSearchEntry | undefined => {
+        const textKey = normalizeKey(`${entry.title} ${entry.detail} ${entry.meta} ${entry.command.searchText}`)
+        const titleKey = normalizeKey(entry.title)
+        if (!tokens.every((token) => textKey.includes(token))) return undefined
+
+        return {
+          entry,
+          index,
+          score:
+            32 +
+            (titleKey === normalizedQuery ? 60 : 0) +
+            (titleKey.startsWith(normalizedQuery) ? 34 : 0) +
+            (titleKey.includes(normalizedQuery) ? 18 : 0),
+        }
+      })
+      .filter((result): result is ScoredQuickSearchEntry => Boolean(result))
     const createEntry: ScoredQuickSearchEntry[] =
       trimmedQuery && !exactItemMatch
         ? [
@@ -1160,13 +1268,13 @@ function QuickSearchDialog({
       })
       .filter((result): result is ScoredQuickSearchEntry => Boolean(result))
 
-    return [...createEntry, ...scoredNavigationEntries, ...scoredItemEntries]
+    return [...scoredCommandEntries, ...createEntry, ...scoredNavigationEntries, ...scoredItemEntries]
       .sort((a, b) => b.score - a.score || a.entry.title.localeCompare(b.entry.title) || a.index - b.index)
       .slice(0, 8)
       .map((result) => result.entry)
-  }, [focusItems, items, navItems, normalizedQuery, trimmedQuery])
-  const resultLabel = normalizedQuery ? 'Resultados' : 'Secciones y foco'
-  const resultTotal = items.length + navItems.length
+  }, [commands, focusItems, items, navItems, normalizedQuery, trimmedQuery])
+  const resultLabel = normalizedQuery ? 'Resultados' : 'Acciones, secciones y foco'
+  const resultTotal = commands.length + items.length + navItems.length
   const activeEntry = results[Math.min(activeResultIndex, Math.max(results.length - 1, 0))]
 
   function updateQuery(nextQuery: string) {
@@ -1175,6 +1283,7 @@ function QuickSearchDialog({
   }
 
   function openActiveResult() {
+    if (activeEntry?.kind === 'command') activeEntry.command.run()
     if (activeEntry?.kind === 'create') onCreateItem(activeEntry.query)
     if (activeEntry?.kind === 'item') onOpenItem(activeEntry.item)
     if (activeEntry?.kind === 'tab') onOpenTab(activeEntry.tab)
@@ -1252,9 +1361,16 @@ function QuickSearchDialog({
                     className={isActive ? 'quick-search-result active' : 'quick-search-result'}
                     id={`quick-search-result-${entry.id}`}
                     type="button"
-                    aria-label={entry.kind === 'create' ? `Crear entrada ${entry.query}` : `Abrir ${entry.title}`}
+                    aria-label={
+                      entry.kind === 'command'
+                        ? `Ejecutar ${entry.title}`
+                        : entry.kind === 'create'
+                          ? `Crear entrada ${entry.query}`
+                          : `Abrir ${entry.title}`
+                    }
                     aria-current={isActive ? 'true' : undefined}
                     onClick={() => {
+                      if (entry.kind === 'command') entry.command.run()
                       if (entry.kind === 'create') onCreateItem(entry.query)
                       if (entry.kind === 'item') onOpenItem(entry.item)
                       if (entry.kind === 'tab') onOpenTab(entry.tab)

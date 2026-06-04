@@ -840,6 +840,11 @@
   color: var(--accent-dark);
 }
 
+.quick-search-type.command {
+  background: color-mix(in srgb, var(--surface-elevated) 80%, var(--accent-soft));
+  color: var(--accent-dark);
+}
+
 .quick-search-type.create {
   background: var(--accent-warm-soft);
   color: var(--accent-warm);

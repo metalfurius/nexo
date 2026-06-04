@@ -422,6 +422,33 @@ test('quick search opens the active result from the keyboard', async ({ page }) 
   await expect(page.getByRole('dialog', { name: 'Entrada' }).getByLabel('Titulo')).toHaveValue('Outer Wilds')
 })
 
+test('quick search runs command actions', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Busqueda rapida' }).click()
+  let quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  await expect(quickSearch.getByRole('button', { name: 'Ejecutar Anadir entrada' })).toBeVisible()
+  await quickSearch.getByRole('button', { name: 'Ejecutar Anadir entrada' }).click()
+  const draftEditor = page.getByRole('dialog', { name: 'Entrada' })
+  await expect(draftEditor.getByLabel('Titulo')).toHaveValue('')
+  await draftEditor.getByRole('button', { name: 'Cerrar', exact: true }).click()
+
+  await page.getByRole('button', { name: 'Busqueda rapida' }).click()
+  quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  await quickSearch.getByLabel('Buscar en Nexo').fill('tirar')
+  await expect(quickSearch.getByRole('button', { name: 'Ejecutar Tirar dado' })).toHaveAttribute('aria-current', 'true')
+  await quickSearch.getByRole('button', { name: 'Ejecutar Tirar dado' }).click()
+  await expect(page.getByRole('heading', { name: 'Elige el siguiente hilo' })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Busqueda rapida' }).click()
+  quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  await quickSearch.getByLabel('Buscar en Nexo').fill('backup')
+  const downloadPromise = page.waitForEvent('download')
+  await quickSearch.getByRole('button', { name: 'Ejecutar Exportar backup JSON' }).click()
+  const download = await downloadPromise
+  expect(download.suggestedFilename()).toMatch(/^nexo-backup-\d{4}-\d{2}-\d{2}\.json$/)
+  await expect(page.getByTestId('session-activity')).toContainText('Backup privado exportado')
+})
+
 test('quick search opens sections through the pending-change guard', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
