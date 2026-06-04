@@ -502,6 +502,26 @@ test('quick search applies theme commands', async ({ page }) => {
   await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#0f1712')
 })
 
+test('quick search can save pending settings', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Ajustes', exact: true }).click()
+  await page.getByRole('button', { name: 'Tema Rosa', exact: true }).click()
+  await expect(page.getByText('Cambios pendientes')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Busqueda rapida' }).click()
+  const quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  await quickSearch.getByLabel('Buscar en Nexo').fill('guardar ajustes')
+  const saveSettingsAction = quickSearch.getByRole('button', { name: 'Ejecutar Guardar ajustes pendientes' })
+  await expect(saveSettingsAction).toHaveAttribute('aria-current', 'true')
+  await expect(saveSettingsAction).toContainText('Preferencias pendientes')
+  await saveSettingsAction.click()
+
+  await expect(page.getByRole('status').filter({ hasText: 'Ajustes guardados' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Guardado', exact: true })).toBeDisabled()
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'rose')
+  await expect(page.getByTestId('session-activity')).toContainText('Ajustes guardados')
+})
+
 test('quick search opens library smart views through the pending-change guard', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Dado', exact: true }).click()

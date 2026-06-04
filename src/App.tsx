@@ -359,6 +359,10 @@ interface SettingsTasteSuggestionsRequest {
   requestId: number
 }
 
+interface SettingsSaveRequest {
+  requestId: number
+}
+
 type PendingNavigation = {
   diceRoll?: boolean
   draftItem?: ListItem
@@ -696,6 +700,7 @@ function App() {
   const [explorerCandidateDismissRequest, setExplorerCandidateDismissRequest] = useState<ExplorerCandidateDismissRequest | undefined>()
   const [settingsTaxonomyRepairRequest, setSettingsTaxonomyRepairRequest] = useState<SettingsTaxonomyRepairRequest | undefined>()
   const [settingsTasteSuggestionsRequest, setSettingsTasteSuggestionsRequest] = useState<SettingsTasteSuggestionsRequest | undefined>()
+  const [settingsSaveRequest, setSettingsSaveRequest] = useState<SettingsSaveRequest | undefined>()
   const [quickSearchOpen, setQuickSearchOpen] = useState(false)
   const [themeMenuOpen, setThemeMenuOpen] = useState(false)
   const [serviceWorkerUpdateReady, setServiceWorkerUpdateReady] = useState(false)
@@ -716,6 +721,7 @@ function App() {
   const explorerCandidateDismissRequestId = useRef(0)
   const settingsTaxonomyRepairRequestId = useRef(0)
   const settingsTasteSuggestionsRequestId = useRef(0)
+  const settingsSaveRequestId = useRef(0)
 
   useEffect(() => {
     if (!auth.isFirebaseConfigured) return
@@ -857,6 +863,7 @@ function App() {
   const clearExplorerCandidateDismissRequest = useCallback(() => setExplorerCandidateDismissRequest(undefined), [])
   const clearSettingsTaxonomyRepairRequest = useCallback(() => setSettingsTaxonomyRepairRequest(undefined), [])
   const clearSettingsTasteSuggestionsRequest = useCallback(() => setSettingsTasteSuggestionsRequest(undefined), [])
+  const clearSettingsSaveRequest = useCallback(() => setSettingsSaveRequest(undefined), [])
   const recordVisibleActivity = useCallback(
     (entry: Omit<ActivityEntry, 'createdAt' | 'id'>) => {
       setActivityClearUndo([])
@@ -997,6 +1004,11 @@ function App() {
   function requestSettingsTasteSuggestions() {
     settingsTasteSuggestionsRequestId.current += 1
     setSettingsTasteSuggestionsRequest({ requestId: settingsTasteSuggestionsRequestId.current })
+  }
+
+  function requestSettingsSave() {
+    settingsSaveRequestId.current += 1
+    setSettingsSaveRequest({ requestId: settingsSaveRequestId.current })
   }
 
   function rollDiceFromAction() {
@@ -1231,6 +1243,11 @@ function App() {
     void undoClearSessionActivity()
   }
 
+  function saveSettingsFromPalette() {
+    setQuickSearchOpen(false)
+    requestSettingsSave()
+  }
+
   function discardPendingNavigation() {
     if (!pendingNavigation) return
 
@@ -1404,6 +1421,20 @@ function App() {
       title: 'Exportar backup JSON',
       tone: 'command',
     },
+    ...(activeTab === 'settings' && tabsWithUnsavedChanges.settings
+      ? [
+          {
+            Icon: Save,
+            detail: 'Preferencias pendientes',
+            id: 'settings-save-pending',
+            meta: 'Ajustes',
+            run: saveSettingsFromPalette,
+            searchText: 'guardar ajustes cambios pendientes preferencias configuracion tema favoritos',
+            title: 'Guardar ajustes pendientes',
+            tone: 'command' as const,
+          },
+        ]
+      : []),
     {
       Icon: Sparkles,
       detail: 'Anadir idea manual al Explorador',
@@ -1721,11 +1752,13 @@ function App() {
         {activeTab === 'settings' && (
           <SettingsTab
             library={library}
+            saveRequest={settingsSaveRequest}
             tasteSuggestionsRequest={settingsTasteSuggestionsRequest}
             taxonomyRepairRequest={settingsTaxonomyRepairRequest}
             onActivity={recordVisibleActivity}
             onNavigate={changeActiveTab}
             onRollDice={rollDiceFromAction}
+            onSaveRequestHandled={clearSettingsSaveRequest}
             onTasteSuggestionsRequestHandled={clearSettingsTasteSuggestionsRequest}
             onTaxonomyRepairRequestHandled={clearSettingsTaxonomyRepairRequest}
             onUnsavedChange={reportSettingsUnsavedChanges}
@@ -5680,9 +5713,11 @@ function SettingsTab({
   onActivity,
   onNavigate,
   onRollDice,
+  onSaveRequestHandled,
   onTasteSuggestionsRequestHandled,
   onTaxonomyRepairRequestHandled,
   onUnsavedChange,
+  saveRequest,
   setTheme,
   tasteSuggestionsRequest,
   taxonomyRepairRequest,
@@ -5693,9 +5728,11 @@ function SettingsTab({
   onActivity: ActivityRecorder
   onNavigate: (tab: AppTab) => void
   onRollDice: () => void
+  onSaveRequestHandled: () => void
   onTasteSuggestionsRequestHandled: () => void
   onTaxonomyRepairRequestHandled: () => void
   onUnsavedChange: (hasUnsavedChanges: boolean) => void
+  saveRequest?: SettingsSaveRequest
   setTheme: (theme: ThemeMode) => void
   tasteSuggestionsRequest?: SettingsTasteSuggestionsRequest
   taxonomyRepairRequest?: SettingsTaxonomyRepairRequest
@@ -5709,6 +5746,7 @@ function SettingsTab({
   const [settingsImportUndo, setSettingsImportUndo] = useState<LibraryImportRollbackPlan | undefined>()
   const [editingItem, setEditingItem] = useState<ListItem | undefined>()
   const [pendingBackupImport, setPendingBackupImport] = useState<PendingBackupImport | undefined>()
+  const handledSaveRequestId = useRef<number | undefined>(undefined)
   const handledTasteSuggestionsRequestId = useRef<number | undefined>(undefined)
   const handledTaxonomyRepairRequestId = useRef<number | undefined>(undefined)
   const draftFavoriteTags = useMemo(() => splitList(draft.favoriteTags), [draft.favoriteTags])
@@ -5791,7 +5829,7 @@ function SettingsTab({
     return () => window.clearTimeout(timeoutId)
   }, [applyTasteSuggestions, onTasteSuggestionsRequestHandled, tasteSuggestionsRequest])
 
-  async function saveSettings() {
+  const saveSettings = useCallback(async () => {
     const previousSettings = cloneUserSettings({ ...library.settings, theme })
     const nextSettings: Partial<UserSettings> = {
       theme: draft.theme,
@@ -5813,7 +5851,20 @@ function SettingsTab({
       tab: 'settings',
       tone: 'success',
     })
-  }
+  }, [draft.explorerDefaultType, draft.theme, draftBlockedTags, draftFavoriteGenres, draftFavoriteTags, library, onActivity, setTheme, theme])
+
+  useEffect(() => {
+    if (!saveRequest || handledSaveRequestId.current === saveRequest.requestId) return
+
+    const timeoutId = window.setTimeout(() => {
+      if (handledSaveRequestId.current === saveRequest.requestId) return
+
+      handledSaveRequestId.current = saveRequest.requestId
+      void saveSettings().finally(onSaveRequestHandled)
+    }, 0)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [onSaveRequestHandled, saveRequest, saveSettings])
 
   async function undoSettingsSave() {
     if (!settingsUndo) return
