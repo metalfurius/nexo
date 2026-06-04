@@ -809,6 +809,36 @@ test('quick search resumes recent activity through the pending-change guard', as
   await expect(page.getByRole('dialog', { name: 'Entrada' }).getByLabel('Titulo')).toHaveValue('Actividad paleta')
 })
 
+test('quick search can clear and restore recent activity', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Anadir' }).click()
+  const editor = page.getByRole('dialog', { name: 'Entrada' })
+  await editor.getByLabel('Titulo').fill('Actividad limpiable')
+  await editor.getByRole('button', { name: 'Guardar' }).click()
+  await expect(page.getByTestId('session-activity')).toContainText('Ficha guardada')
+  await expect(page.getByTestId('session-activity')).toContainText('Actividad limpiable')
+
+  await page.getByRole('button', { name: 'Busqueda rapida' }).click()
+  let quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  await quickSearch.getByLabel('Buscar en Nexo').fill('limpiar actividad')
+  const clearActivityAction = quickSearch.getByRole('button', { name: 'Ejecutar Limpiar actividad reciente' })
+  await expect(clearActivityAction).toHaveAttribute('aria-current', 'true')
+  await clearActivityAction.click()
+
+  await expect(page.getByTestId('session-activity')).toContainText('Actividad limpiada')
+  await expect(page.getByTestId('session-activity')).not.toContainText('Actividad limpiable')
+
+  await page.getByRole('button', { name: 'Busqueda rapida' }).click()
+  quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  await quickSearch.getByLabel('Buscar en Nexo').fill('deshacer limpieza')
+  const undoActivityAction = quickSearch.getByRole('button', { name: 'Ejecutar Deshacer limpieza de actividad' })
+  await expect(undoActivityAction).toHaveAttribute('aria-current', 'true')
+  await undoActivityAction.click()
+
+  await expect(page.getByTestId('session-activity')).toContainText('Ficha guardada')
+  await expect(page.getByTestId('session-activity')).toContainText('Actividad limpiable')
+})
+
 test('library item deep links open and close the focused editor', async ({ page }) => {
   await page.goto('/?item=game-outer-wilds')
   const editor = page.getByRole('dialog', { name: 'Entrada' })

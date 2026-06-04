@@ -1157,6 +1157,16 @@ function App() {
     changeActiveTab(getActivityDestinationTab(entry), getActivityFocus(entry))
   }
 
+  function clearActivityFromPalette() {
+    setQuickSearchOpen(false)
+    void clearSessionActivity()
+  }
+
+  function undoClearActivityFromPalette() {
+    setQuickSearchOpen(false)
+    void undoClearSessionActivity()
+  }
+
   function discardPendingNavigation() {
     if (!pendingNavigation) return
 
@@ -1322,6 +1332,38 @@ function App() {
       title: 'Carta sorpresa',
       tone: 'section',
     },
+    ...(library.activityEntries.length
+      ? [
+          {
+            Icon: Trash2,
+            detail: `${library.activityEntries.length} ${
+              library.activityEntries.length === 1 ? 'entrada reciente' : 'entradas recientes'
+            }`,
+            id: 'clear-session-activity',
+            meta: 'Actividad',
+            run: clearActivityFromPalette,
+            searchText: 'limpiar actividad reciente registro sesion borrar historial',
+            title: 'Limpiar actividad reciente',
+            tone: 'command' as const,
+          },
+        ]
+      : []),
+    ...(activityClearUndo.length
+      ? [
+          {
+            Icon: RotateCcw,
+            detail: `${activityClearUndo.length} ${
+              activityClearUndo.length === 1 ? 'actividad recuperable' : 'actividades recuperables'
+            }`,
+            id: 'undo-clear-session-activity',
+            meta: 'Actividad',
+            run: undoClearActivityFromPalette,
+            searchText: 'deshacer limpieza actividad reciente recuperar registro sesion',
+            title: 'Deshacer limpieza de actividad',
+            tone: 'command' as const,
+          },
+        ]
+      : []),
     ...quickSearchActivityCommands,
     ...themeOptions.map((option): QuickSearchCommand => ({
       Icon: Palette,
