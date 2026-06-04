@@ -225,8 +225,18 @@ const themeMetaColors: Record<ThemeMode, string> = {
   rose: '#fff5f8',
 }
 
+type BeforeInstallPromptEvent = Event & {
+  prompt: () => Promise<void>
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform?: string }>
+}
+
 function isThemeMode(value: string | null): value is ThemeMode {
   return Boolean(value && THEME_MODES.includes(value as ThemeMode))
+}
+
+function isStandalonePwa() {
+  const iosNavigator = navigator as Navigator & { standalone?: boolean }
+  return Boolean(window.matchMedia?.('(display-mode: standalone)').matches || iosNavigator.standalone)
 }
 
 const rolePermissionSummaries: Array<{ role: UserRole; detail: string; permissions: string[] }> = [
@@ -574,6 +584,7 @@ function App() {
   const [quickSearchOpen, setQuickSearchOpen] = useState(false)
   const [themeMenuOpen, setThemeMenuOpen] = useState(false)
   const [serviceWorkerUpdateReady, setServiceWorkerUpdateReady] = useState(false)
+  const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | undefined>()
   const [isOffline, setIsOffline] = useState(() => 'onLine' in navigator && !navigator.onLine)
   const [tabsWithUnsavedChanges, setTabsWithUnsavedChanges] = useState<Partial<Record<AppTab, boolean>>>({})
   const [theme, setTheme] = useState<ThemeMode>(() => {
@@ -613,6 +624,26 @@ function App() {
     return () => {
       window.removeEventListener('online', syncOnlineStatus)
       window.removeEventListener('offline', syncOnlineStatus)
+    }
+  }, [])
+
+  useEffect(() => {
+    function handleBeforeInstallPrompt(event: Event) {
+      if (isStandalonePwa()) return
+
+      event.preventDefault()
+      setInstallPrompt(event as BeforeInstallPromptEvent)
+    }
+
+    function handleAppInstalled() {
+      setInstallPrompt(undefined)
+    }
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
+    window.addEventListener('appinstalled', handleAppInstalled)
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
+      window.removeEventListener('appinstalled', handleAppInstalled)
     }
   }, [])
 
@@ -672,6 +703,15 @@ function App() {
 
     setTheme(nextTheme)
     void library.saveSettings({ theme: nextTheme })
+  }
+
+  async function promptInstallPwa() {
+    if (!installPrompt) return
+
+    const prompt = installPrompt
+    setInstallPrompt(undefined)
+    await prompt.prompt()
+    await prompt.userChoice.catch(() => undefined)
   }
   const reportDiceUnsavedChanges = useCallback(
     (hasUnsavedChanges: boolean) => reportUnsavedChanges('dice', hasUnsavedChanges),
@@ -808,6 +848,17 @@ function App() {
             <span aria-label="Sin conexion" className="mode-pill offline" role="status">
               Sin conexion
             </span>
+          )}
+          {installPrompt && (
+            <button
+              aria-label="Instalar Nexo"
+              className="app-update-button app-install-button"
+              type="button"
+              onClick={() => void promptInstallPwa()}
+            >
+              <Download size={16} />
+              <span>Instalar</span>
+            </button>
           )}
           {serviceWorkerUpdateReady && (
             <button

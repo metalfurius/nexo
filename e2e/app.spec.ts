@@ -555,6 +555,21 @@ test('pwa metadata is present', async ({ page }) => {
       expect.objectContaining({ name: 'Explorador', url: '/?tab=explorer' }),
     ]),
   )
+  await page.evaluate(() => {
+    const installEvent = Object.assign(new Event('beforeinstallprompt'), {
+      prompt: () => {
+        window.localStorage.setItem('nexo-install-prompted', 'yes')
+        return Promise.resolve()
+      },
+      userChoice: Promise.resolve({ outcome: 'accepted', platform: 'web' }),
+    })
+    window.dispatchEvent(installEvent)
+  })
+  await expect(page.getByRole('button', { name: 'Instalar Nexo', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Instalar Nexo', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Instalar Nexo', exact: true })).not.toBeVisible()
+  await page.waitForFunction(() => window.localStorage.getItem('nexo-install-prompted') === 'yes')
+
   await page.evaluate(() => window.dispatchEvent(new CustomEvent('nexo:service-worker-update-ready')))
   await expect(page.getByRole('button', { name: 'Actualizar Nexo', exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Actualizar Nexo', exact: true }).click()

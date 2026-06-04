@@ -185,6 +185,18 @@
   transform: translateY(-1px);
 }
 
+.app-install-button {
+  background: color-mix(in srgb, var(--accent-soft) 82%, var(--surface-muted));
+  border-color: color-mix(in srgb, var(--accent) 44%, var(--border));
+  color: var(--accent-dark);
+}
+
+.app-install-button:hover,
+.app-install-button:focus-visible {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
 .theme-menu-wrap {
   position: relative;
 }
