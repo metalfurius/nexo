@@ -956,6 +956,11 @@ function App() {
     })
   }
 
+  function applyThemeFromPalette(nextTheme: ThemeMode) {
+    setQuickSearchOpen(false)
+    applyTheme(nextTheme)
+  }
+
   function discardPendingNavigation() {
     if (!pendingNavigation) return
 
@@ -1028,6 +1033,16 @@ function App() {
       title: 'Exportar backup JSON',
       tone: 'command',
     },
+    ...themeOptions.map((option): QuickSearchCommand => ({
+      Icon: Palette,
+      detail: option.detail,
+      id: `theme-${option.id}`,
+      meta: 'Tema',
+      run: () => applyThemeFromPalette(option.id),
+      searchText: `tema apariencia color paleta ${option.label} ${option.detail} claro oscuro rosa bosque oceano`,
+      title: `Tema ${option.label}`,
+      tone: 'command',
+    })),
     ...getLibrarySmartViewOptions(library.items)
       .filter((option) => option.id !== 'all')
       .map((option): QuickSearchCommand => ({

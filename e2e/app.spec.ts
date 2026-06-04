@@ -480,6 +480,28 @@ test('quick search rolls dice through the pending-change guard', async ({ page }
   await expect(page.getByTestId('recommendation-result')).toContainText('Decision')
 })
 
+test('quick search applies theme commands', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Busqueda rapida' }).click()
+  let quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  await quickSearch.getByLabel('Buscar en Nexo').fill('rosa')
+  await expect(quickSearch.getByRole('button', { name: 'Ejecutar Tema Rosa' })).toHaveAttribute('aria-current', 'true')
+  await quickSearch.getByRole('button', { name: 'Ejecutar Tema Rosa' }).click()
+
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'rose')
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#fff5f8')
+  await expect(page.getByRole('button', { name: 'Elegir tema. Actual Rosa', exact: true })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Busqueda rapida' }).click()
+  quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  await quickSearch.getByLabel('Buscar en Nexo').fill('bosque')
+  await expect(quickSearch.getByRole('button', { name: 'Ejecutar Tema Bosque' })).toHaveAttribute('aria-current', 'true')
+  await quickSearch.getByRole('button', { name: 'Ejecutar Tema Bosque' }).click()
+
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'forest')
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#0f1712')
+})
+
 test('quick search opens library smart views through the pending-change guard', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
