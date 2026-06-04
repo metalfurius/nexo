@@ -403,6 +403,58 @@ test('library can update selected visible items in bulk', async ({ page }) => {
   await expect(page.locator('.item-card', { hasText: 'Vinland Saga' }).getByLabel('Pulso de Vinland Saga')).toContainText('Cooldown')
 })
 
+test('quick search toggles visible library selection through the pending-change guard', async ({ page }) => {
+  await page.goto('/')
+  await page.getByLabel('Filtrar por tipo').selectOption('game')
+  await expect(page.getByText('Tipo: Juegos')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Busqueda rapida' }).click()
+  let quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  await quickSearch.getByLabel('Buscar en Nexo').fill('seleccionar visibles')
+  const selectVisibleAction = quickSearch.getByRole('button', {
+    name: 'Ejecutar Seleccionar visibles de Biblioteca',
+    exact: true,
+  })
+  await expect(selectVisibleAction).toHaveAttribute('aria-current', 'true')
+  await expect(selectVisibleAction).toContainText('vista filtrada')
+  await selectVisibleAction.click()
+
+  await expect(page.getByLabel('Seleccion de biblioteca')).toContainText('3 seleccionadas')
+  await expect(page.getByRole('status').filter({ hasText: '3 visibles seleccionadas' })).toBeVisible()
+  await expect(page.getByTestId('session-activity')).toContainText('Visibles seleccionadas')
+
+  await page.getByRole('button', { name: 'Busqueda rapida' }).click()
+  quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  await quickSearch.getByLabel('Buscar en Nexo').fill('quitar visibles')
+  const clearVisibleAction = quickSearch.getByRole('button', {
+    name: 'Ejecutar Seleccionar visibles de Biblioteca',
+    exact: true,
+  })
+  await expect(clearVisibleAction).toHaveAttribute('aria-current', 'true')
+  await clearVisibleAction.click()
+
+  await expect(page.getByLabel('Seleccion de biblioteca')).not.toContainText('seleccionadas')
+  await expect(page.getByRole('status').filter({ hasText: '3 visibles quitadas de la seleccion' })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await page.getByLabel('Energia').selectOption('high')
+  await expect(page.getByText('Cambios pendientes')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Busqueda rapida' }).click()
+  quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  await quickSearch.getByLabel('Buscar en Nexo').fill('seleccionar visibles')
+  await quickSearch
+    .getByRole('button', { name: 'Ejecutar Seleccionar visibles de Biblioteca', exact: true })
+    .click()
+
+  await expect(page.getByLabel('Salida con cambios pendientes')).toContainText('Cambios pendientes en Dado')
+  await page.getByLabel('Salida con cambios pendientes').getByRole('button', { name: 'Descartar cambios' }).click()
+
+  await expect(page.getByRole('heading', { name: 'Biblioteca privada' })).toBeVisible()
+  await expect(page.getByLabel('Seleccion de biblioteca')).toContainText('7 seleccionadas')
+  await expect(page.getByRole('status').filter({ hasText: '7 visibles seleccionadas' })).toBeVisible()
+})
+
 test('quick search opens library items through the pending-change guard', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Dado', exact: true }).click()

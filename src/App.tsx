@@ -362,6 +362,10 @@ interface LibraryResetViewRequest {
   requestId: number
 }
 
+interface LibraryVisibleSelectionRequest {
+  requestId: number
+}
+
 interface DiceRollRequest {
   requestId: number
 }
@@ -440,6 +444,7 @@ type PendingNavigation = {
   libraryStatusFilter?: ItemStatus
   librarySmartView?: LibrarySmartView
   libraryTypeFilter?: ItemType
+  libraryVisibleSelection?: boolean
   libraryViewMode?: LibraryViewMode
   settingsTasteSuggestions?: boolean
   settingsTaxonomyRepair?: boolean
@@ -765,6 +770,7 @@ function App() {
   const [libraryStatusFilterRequest, setLibraryStatusFilterRequest] = useState<LibraryStatusFilterRequest | undefined>()
   const [librarySmartViewRequest, setLibrarySmartViewRequest] = useState<LibrarySmartViewRequest | undefined>()
   const [libraryTypeFilterRequest, setLibraryTypeFilterRequest] = useState<LibraryTypeFilterRequest | undefined>()
+  const [libraryVisibleSelectionRequest, setLibraryVisibleSelectionRequest] = useState<LibraryVisibleSelectionRequest | undefined>()
   const [libraryViewModeRequest, setLibraryViewModeRequest] = useState<LibraryViewModeRequest | undefined>()
   const [diceRollRequest, setDiceRollRequest] = useState<DiceRollRequest | undefined>()
   const [dicePreferencesSaveRequest, setDicePreferencesSaveRequest] = useState<DicePreferencesSaveRequest | undefined>()
@@ -1081,6 +1087,10 @@ function App() {
 
   function requestLibraryResetView() {
     setLibraryResetViewRequest((current) => ({ requestId: (current?.requestId ?? 0) + 1 }))
+  }
+
+  function requestLibraryVisibleSelection() {
+    setLibraryVisibleSelectionRequest((current) => ({ requestId: (current?.requestId ?? 0) + 1 }))
   }
 
   function requestDiceRoll() {
@@ -1474,6 +1484,25 @@ function App() {
     writeAppTabToUrl('library', 'push')
   }
 
+  function toggleLibraryVisibleSelectionFromPalette() {
+    setQuickSearchOpen(false)
+    if (activeTab === 'library') {
+      setActivityFocus(undefined)
+      requestLibraryVisibleSelection()
+      writeAppTabToUrl('library', 'push')
+      return
+    }
+    if (tabsWithUnsavedChanges[activeTab]) {
+      setPendingNavigation({ libraryVisibleSelection: true, source: 'app', tab: 'library' })
+      return
+    }
+
+    setActivityFocus(undefined)
+    requestLibraryVisibleSelection()
+    setActiveTabState('library')
+    writeAppTabToUrl('library', 'push')
+  }
+
   function importLibraryBackupFromPalette() {
     setQuickSearchOpen(false)
     if (activeTab === 'library') {
@@ -1606,6 +1635,7 @@ function App() {
       libraryStatusFilter,
       librarySmartView,
       libraryTypeFilter,
+      libraryVisibleSelection,
       libraryViewMode,
       settingsTasteSuggestions,
       settingsTaxonomyRepair,
@@ -1667,6 +1697,9 @@ function App() {
     }
     if (libraryTypeFilter) {
       requestLibraryTypeFilter(libraryTypeFilter)
+    }
+    if (libraryVisibleSelection) {
+      requestLibraryVisibleSelection()
     }
     if (libraryViewMode) {
       requestLibraryViewMode(libraryViewMode)
@@ -2005,6 +2038,16 @@ function App() {
       title: 'Restablecer vista de Biblioteca',
       tone: 'command',
     },
+    {
+      Icon: CheckCircle2,
+      detail: 'Marcar o quitar la vista filtrada para acciones masivas',
+      id: 'library-toggle-visible-selection',
+      meta: 'Biblioteca',
+      run: toggleLibraryVisibleSelectionFromPalette,
+      searchText: 'biblioteca seleccionar visibles quitar visibles seleccion masiva lote marcar vista filtrada',
+      title: 'Seleccionar visibles de Biblioteca',
+      tone: 'command',
+    },
     ...(['cards', 'list'] as const).map((mode): QuickSearchCommand => ({
       Icon: mode === 'cards' ? LayoutGrid : List,
       detail: mode === library.settings.libraryViewMode ? 'Vista actual' : 'Guardar como vista de biblioteca',
@@ -2247,6 +2290,7 @@ function App() {
             statusFilterRequest={libraryStatusFilterRequest}
             smartViewRequest={librarySmartViewRequest}
             typeFilterRequest={libraryTypeFilterRequest}
+            visibleSelectionRequest={libraryVisibleSelectionRequest}
             viewModeRequest={libraryViewModeRequest}
             onActivity={recordVisibleActivity}
             onActivityFocusHandled={clearActivityFocus}
@@ -2962,6 +3006,7 @@ function LibraryTab({
   statusFilterRequest,
   smartViewRequest,
   typeFilterRequest,
+  visibleSelectionRequest,
   viewModeRequest,
   onActivity,
   onActivityFocusHandled,
@@ -2984,6 +3029,7 @@ function LibraryTab({
   statusFilterRequest?: LibraryStatusFilterRequest
   smartViewRequest?: LibrarySmartViewRequest
   typeFilterRequest?: LibraryTypeFilterRequest
+  visibleSelectionRequest?: LibraryVisibleSelectionRequest
   viewModeRequest?: LibraryViewModeRequest
   onActivity: ActivityRecorder
   onActivityFocusHandled: () => void
@@ -3007,6 +3053,7 @@ function LibraryTab({
   const handledStatusFilterRequestId = useRef<number | undefined>(undefined)
   const [handledSmartViewRequestId, setHandledSmartViewRequestId] = useState<number | undefined>()
   const handledTypeFilterRequestId = useRef<number | undefined>(undefined)
+  const handledVisibleSelectionRequestId = useRef<number | undefined>(undefined)
   const handledViewModeRequestId = useRef<number | undefined>(undefined)
   const handledImportRequestId = useRef<number | undefined>(undefined)
   const handledReviewRequestId = useRef<number | undefined>(undefined)
@@ -3443,15 +3490,47 @@ function LibraryTab({
     )
   }
 
-  function toggleVisibleLibrarySelection() {
-    if (!visibleItemIds.length) return
+  const toggleVisibleLibrarySelection = useCallback(() => {
+    if (!visibleItemIds.length) {
+      setImportStatus('No hay entradas visibles para seleccionar')
+      return
+    }
 
-    setSelectedItemIds((current) => {
-      const visibleIdSet = new Set(visibleItemIds)
-      if (allVisibleItemsSelected) return current.filter((id) => !visibleIdSet.has(id))
-      return uniqueValues([...current, ...visibleItemIds])
+    const visibleIdSet = new Set(visibleItemIds)
+    if (allVisibleItemsSelected) {
+      setSelectedItemIds((current) => current.filter((id) => !visibleIdSet.has(id)))
+      setImportStatus(`${visibleItemIds.length} visibles quitadas de la seleccion`)
+      onActivity({
+        detail: `${visibleItemIds.length} entradas`,
+        label: 'Visibles quitadas de la seleccion',
+        tab: 'library',
+        tone: 'info',
+      })
+      return
+    }
+
+    setSelectedItemIds((current) => uniqueValues([...current, ...visibleItemIds]))
+    setImportStatus(`${visibleItemIds.length} visibles seleccionadas`)
+    onActivity({
+      detail: `${visibleItemIds.length} entradas`,
+      label: 'Visibles seleccionadas',
+      tab: 'library',
+      tone: 'success',
     })
-  }
+  }, [allVisibleItemsSelected, onActivity, visibleItemIds])
+
+  useEffect(() => {
+    if (!visibleSelectionRequest || handledVisibleSelectionRequestId.current === visibleSelectionRequest.requestId) return
+
+    const timeoutId = window.setTimeout(() => {
+      if (handledVisibleSelectionRequestId.current === visibleSelectionRequest.requestId) return
+
+      handledVisibleSelectionRequestId.current = visibleSelectionRequest.requestId
+      toggleVisibleLibrarySelection()
+    }, 0)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [toggleVisibleLibrarySelection, visibleSelectionRequest])
 
   async function changeSelectedItemsStatus() {
     const changedItems = selectedItems.filter((item) => item.status !== bulkStatus)
