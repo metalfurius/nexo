@@ -1386,6 +1386,14 @@ interface ActiveLibraryReviewSession {
   label: string
 }
 
+interface CompletedExplorerQueue {
+  actionLabel: string
+  detail: string
+  nextView: DiscoveryStatus
+  sourceLabel: string
+  title: string
+}
+
 interface PendingCatalogSeedImport {
   fileName: string
   result: PublicCatalogSeedResult
@@ -3528,6 +3536,7 @@ function ExplorerTab({
   const [editingSavedItem, setEditingSavedItem] = useState<ListItem | undefined>()
   const [selected, setSelected] = useState<DiscoveryCandidate | undefined>()
   const [catalogDraft, setCatalogDraft] = useState<PublicCatalogItem | undefined>()
+  const [completedExplorerQueue, setCompletedExplorerQueue] = useState<CompletedExplorerQueue | undefined>()
   const type = library.settings.explorerDefaultType
   const explorerDecision = useMemo(
     () => getExplorerDecisionState(library.discoveryCandidates, view, sourceFilter),
@@ -3560,6 +3569,46 @@ function ExplorerTab({
     setBulkSaveUndo([])
     setSavedExplorerItem(undefined)
     setSavedExplorerUndo(undefined)
+    setCompletedExplorerQueue(undefined)
+  }
+
+  function getCompletedExplorerQueue(resolvedCount: number, resolution: 'saved' | 'dismissed'): CompletedExplorerQueue {
+    const actionLabel = resolution === 'saved' ? 'Ver guardados' : 'Ver descartes'
+    const nextView = resolution === 'saved' ? 'saved' : 'dismissed'
+    const resolvedLabel = resolvedCount === 1 ? '1 hallazgo' : `${resolvedCount} hallazgos`
+    const verb = resolution === 'saved' ? 'guardado' : 'descartado'
+    const pluralVerb = resolution === 'saved' ? 'guardados' : 'descartados'
+
+    return {
+      actionLabel,
+      detail:
+        resolvedCount === 1
+          ? `${resolvedLabel} ${verb} desde ${activeSourceLabel}.`
+          : `${resolvedLabel} ${pluralVerb} desde ${activeSourceLabel}.`,
+      nextView,
+      sourceLabel: activeSourceLabel,
+      title: `${activeSourceLabel} limpio`,
+    }
+  }
+
+  function candidateCompletesVisibleQueue(candidate: DiscoveryCandidate) {
+    return view === 'queued' && visibleCandidates.length === 1 && visibleCandidates[0]?.id === candidate.id
+  }
+
+  function openCompletedExplorerQueue() {
+    if (!completedExplorerQueue) return
+    setView(completedExplorerQueue.nextView)
+    setCompletedExplorerQueue(undefined)
+  }
+
+  function changeExplorerView(nextView: DiscoveryStatus) {
+    setView(nextView)
+    setCompletedExplorerQueue(undefined)
+  }
+
+  function changeExplorerSourceFilter(nextFilter: ExplorerSourceFilter) {
+    setSourceFilter(nextFilter)
+    setCompletedExplorerQueue(undefined)
   }
 
   async function changeSearchType(nextType: ExplorerSearchType) {
@@ -3634,12 +3683,14 @@ function ExplorerTab({
   }
 
   async function saveCandidate(candidate: DiscoveryCandidate) {
+    const completedQueue = candidateCompletesVisibleQueue(candidate) ? getCompletedExplorerQueue(1, 'saved') : undefined
     try {
       setBulkDismissUndo([])
       setBulkSaveUndo([])
       const item = await library.saveDiscoveryToLibrary(candidate)
       setSavedExplorerItem(item)
       setSavedExplorerUndo({ candidate, item })
+      setCompletedExplorerQueue(completedQueue)
       setMessage(`${item.title} guardado en Biblioteca.`)
       onActivity({
         detail: item.title,
@@ -3656,9 +3707,11 @@ function ExplorerTab({
   }
 
   async function dismissCandidate(candidate: DiscoveryCandidate) {
+    const completedQueue = candidateCompletesVisibleQueue(candidate) ? getCompletedExplorerQueue(1, 'dismissed') : undefined
     try {
       clearExplorerRecentActions()
       await library.dismissDiscoveryCandidate(candidate.id)
+      setCompletedExplorerQueue(completedQueue)
       setMessage(`${candidate.title} descartado de la cola.`)
       onActivity({
         detail: candidate.title,
@@ -3695,6 +3748,7 @@ function ExplorerTab({
   async function dismissVisibleQueue() {
     const candidatesToDismiss = view === 'queued' ? visibleCandidates : []
     if (!candidatesToDismiss.length) return
+    const completedQueue = getCompletedExplorerQueue(candidatesToDismiss.length, 'dismissed')
 
     try {
       await Promise.all(candidatesToDismiss.map((candidate) => library.dismissDiscoveryCandidate(candidate.id)))
@@ -3702,6 +3756,7 @@ function ExplorerTab({
       setSavedExplorerUndo(undefined)
       setBulkSaveUndo([])
       setBulkDismissUndo(candidatesToDismiss)
+      setCompletedExplorerQueue(completedQueue)
       setMessage(
         candidatesToDismiss.length === 1
           ? `${candidatesToDismiss[0].title} descartado de la vista ${activeSourceLabel}.`
@@ -3721,6 +3776,7 @@ function ExplorerTab({
   async function saveVisibleQueue() {
     const candidatesToSave = view === 'queued' ? visibleCandidates : []
     if (!candidatesToSave.length) return
+    const completedQueue = getCompletedExplorerQueue(candidatesToSave.length, 'saved')
 
     const savedPairs: Array<{ candidate: DiscoveryCandidate; item: ListItem }> = []
     try {
@@ -3732,6 +3788,7 @@ function ExplorerTab({
       setBulkSaveUndo(savedPairs)
       setSavedExplorerItem(savedPairs.length === 1 ? savedPairs[0].item : undefined)
       setSavedExplorerUndo(undefined)
+      setCompletedExplorerQueue(completedQueue)
       setMessage(
         savedPairs.length === 1
           ? `${savedPairs[0].item.title} guardado desde la vista ${activeSourceLabel}.`
@@ -3996,7 +4053,7 @@ function ExplorerTab({
                 key={status}
                 role="tab"
                 type="button"
-                onClick={() => setView(status)}
+                onClick={() => changeExplorerView(status)}
               >
                 <span>{discoveryStatusLabels[status]}</span>
                 <strong>{discoveryCounts[status]}</strong>
@@ -4011,7 +4068,7 @@ function ExplorerTab({
                 className={sourceFilter === filter.id ? 'source-filter-chip active' : 'source-filter-chip'}
                 key={filter.id}
                 type="button"
-                onClick={() => setSourceFilter(filter.id)}
+                onClick={() => changeExplorerSourceFilter(filter.id)}
               >
                 <span>{filter.label}</span>
                 <small>{filter.detail}</small>
@@ -4059,7 +4116,7 @@ function ExplorerTab({
           </div>
           <div className="explorer-decision-actions">
             {sourceFilter !== 'all' && (
-              <button className="secondary-button" type="button" onClick={() => setSourceFilter('all')}>
+              <button className="secondary-button" type="button" onClick={() => changeExplorerSourceFilter('all')}>
                 Ver todos los origenes
               </button>
             )}
@@ -4077,6 +4134,31 @@ function ExplorerTab({
             )}
           </div>
         </section>
+
+        {completedExplorerQueue && (
+          <section
+            className="explorer-completion-card"
+            aria-label={`Bandeja resuelta ${completedExplorerQueue.sourceLabel}`}
+            data-testid="explorer-completion"
+          >
+            <div className="explorer-completion-main">
+              <CheckCircle2 size={18} />
+              <div>
+                <span className="eyebrow">Bandeja resuelta</span>
+                <strong>{completedExplorerQueue.title}</strong>
+                <p>{completedExplorerQueue.detail}</p>
+              </div>
+            </div>
+            <div className="explorer-completion-actions">
+              <button className="primary-button" type="button" onClick={openCompletedExplorerQueue}>
+                {completedExplorerQueue.actionLabel}
+              </button>
+              <button className="ghost-button" type="button" onClick={() => setCompletedExplorerQueue(undefined)}>
+                Cerrar
+              </button>
+            </div>
+          </section>
+        )}
 
         <div className="candidate-feed-header">
           <div>

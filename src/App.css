@@ -3657,6 +3657,65 @@ label {
   min-height: 34px;
 }
 
+.explorer-completion-card {
+  align-items: center;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--accent-soft) 66%, transparent), transparent 70%),
+    var(--surface-muted);
+  border: 1px solid color-mix(in srgb, var(--accent) 46%, var(--border));
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  margin: 0 0 14px;
+  padding: 12px;
+}
+
+.explorer-completion-main {
+  align-items: start;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 34px minmax(0, 1fr);
+  min-width: 0;
+}
+
+.explorer-completion-main > svg {
+  background: color-mix(in srgb, var(--accent-soft) 76%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--accent) 38%, var(--border));
+  border-radius: 8px;
+  color: var(--accent-dark);
+  height: 34px;
+  padding: 7px;
+  width: 34px;
+}
+
+.explorer-completion-main div {
+  min-width: 0;
+}
+
+.explorer-completion-main strong {
+  color: var(--text-strong);
+  display: block;
+  font-size: 16px;
+  line-height: 1.15;
+  margin-top: 3px;
+}
+
+.explorer-completion-main p {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+  margin: 4px 0 0;
+}
+
+.explorer-completion-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 .candidate-feed-header {
   align-items: flex-end;
   display: flex;
@@ -7424,6 +7483,19 @@ textarea:focus-visible {
   }
 
   .explorer-decision-actions button {
+    width: 100%;
+  }
+
+  .explorer-completion-card {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+  }
+
+  .explorer-completion-actions {
+    flex-direction: column;
+  }
+
+  .explorer-completion-actions button {
     width: 100%;
   }
 

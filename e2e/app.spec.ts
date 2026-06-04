@@ -909,6 +909,9 @@ test('explorer can clean a filtered queued view', async ({ page }) => {
   await page.getByRole('button', { name: 'Descartar vista' }).click()
 
   await expect(page.getByText('Odisea descartado de la vista APIs.')).toBeVisible()
+  await expect(page.getByTestId('explorer-completion')).toContainText('Bandeja resuelta')
+  await expect(page.getByTestId('explorer-completion')).toContainText('APIs limpio')
+  await expect(page.getByTestId('explorer-completion')).toContainText('Ver descartes')
   await expect(page.getByRole('button', { name: 'Deshacer descarte' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Sin resultados APIs' })).toBeVisible()
   await page.getByRole('button', { name: 'Deshacer descarte' }).click()
@@ -936,9 +939,12 @@ test('explorer can save a filtered queued view in bulk and undo it', async ({ pa
   await page.getByRole('button', { name: 'Guardar vista' }).click()
 
   await expect(page.getByText('Odisea guardado desde la vista APIs.')).toBeVisible()
+  await expect(page.getByTestId('explorer-completion')).toContainText('Bandeja resuelta')
+  await expect(page.getByTestId('explorer-completion')).toContainText('APIs limpio')
+  await page.getByTestId('explorer-completion').getByRole('button', { name: 'Ver guardados' }).click()
   await expect(page.getByRole('button', { name: 'Afinar ficha guardada Odisea' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Deshacer guardado de vista' })).toBeVisible()
-  await expect(page.getByRole('tab', { name: /Guardados 1/ })).toBeVisible()
+  await expect(page.getByRole('tab', { name: /Guardados 1/ })).toHaveAttribute('aria-selected', 'true')
 
   await page.getByRole('button', { name: 'Deshacer guardado de vista' }).click()
   await expect(page.getByText('Odisea recuperado a la cola y eliminado de Biblioteca.')).toBeVisible()
