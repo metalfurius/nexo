@@ -196,6 +196,11 @@ const librarySortLabels: Record<LibrarySortMode, string> = {
   rating: 'Rating',
 }
 
+const libraryViewLabels: Record<LibraryViewMode, string> = {
+  cards: 'Tarjetas',
+  list: 'Lista',
+}
+
 const roleLabels: Record<UserRole, string> = {
   admin: 'Admin',
   moderator: 'Moderador',
@@ -3386,7 +3391,19 @@ function LibraryTab({
 
   async function changeViewMode(nextViewMode: LibraryViewMode) {
     if (viewMode === nextViewMode) return
-    await library.saveSettings({ libraryViewMode: nextViewMode })
+    const nextLabel = libraryViewLabels[nextViewMode]
+    try {
+      await library.saveSettings({ libraryViewMode: nextViewMode })
+      setImportStatus(`Vista ${nextLabel} guardada`)
+      onActivity({
+        detail: nextLabel,
+        label: 'Vista de biblioteca guardada',
+        tab: 'library',
+        tone: 'success',
+      })
+    } catch (reason) {
+      setImportStatus(reason instanceof Error ? reason.message : 'No se pudo guardar la vista de biblioteca.')
+    }
   }
 
   async function copyLibraryItemLink(item: ListItem) {
