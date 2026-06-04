@@ -717,6 +717,31 @@ test('quick search switches library layout through the pending-change guard', as
   await expect(page.getByRole('status').filter({ hasText: 'Vista Tarjetas guardada' })).toBeVisible()
 })
 
+test('quick search changes library sort through the pending-change guard', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await page.getByLabel('Energia').selectOption('high')
+  await expect(page.getByText('Cambios pendientes')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Busqueda rapida' }).click()
+  const quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  await quickSearch.getByLabel('Buscar en Nexo').fill('orden titulo')
+  const titleSortAction = quickSearch.getByRole('button', { name: 'Ejecutar Orden Titulo', exact: true })
+  await expect(titleSortAction).toHaveAttribute('aria-current', 'true')
+  await expect(titleSortAction).toContainText('Ordenar biblioteca')
+  await titleSortAction.click()
+
+  await expect(page.getByLabel('Salida con cambios pendientes')).toContainText('Cambios pendientes en Dado')
+  await page.getByLabel('Salida con cambios pendientes').getByRole('button', { name: 'Descartar cambios' }).click()
+
+  await expect(page.getByRole('heading', { name: 'Biblioteca privada' })).toBeVisible()
+  await expect(page.getByLabel('Ordenar biblioteca')).toHaveValue('title')
+  await expect(page.getByText('Orden: Titulo')).toBeVisible()
+  await expect(page.locator('[data-testid="library-grid"] .item-card').first()).toContainText('1984 - George Orwell')
+  await expect(page.getByRole('status').filter({ hasText: 'Orden Titulo aplicado' })).toBeVisible()
+  await expect(page.getByTestId('session-activity')).toContainText('Orden de biblioteca aplicado')
+})
+
 test('quick search starts guided library review through the pending-change guard', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Dado', exact: true }).click()

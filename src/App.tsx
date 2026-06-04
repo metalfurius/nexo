@@ -329,6 +329,11 @@ interface LibraryViewModeRequest {
   requestId: number
 }
 
+interface LibrarySortModeRequest {
+  mode: LibrarySortMode
+  requestId: number
+}
+
 interface LibraryPrimaryActionRequest {
   itemId: string
   requestId: number
@@ -416,6 +421,7 @@ type PendingNavigation = {
   libraryImport?: boolean
   libraryPrimaryActionItemId?: string
   libraryReview?: LibrarySmartView
+  librarySortMode?: LibrarySortMode
   librarySmartView?: LibrarySmartView
   libraryViewMode?: LibraryViewMode
   settingsTasteSuggestions?: boolean
@@ -737,6 +743,7 @@ function App() {
   const [libraryImportRequest, setLibraryImportRequest] = useState<LibraryImportRequest | undefined>()
   const [libraryPrimaryActionRequest, setLibraryPrimaryActionRequest] = useState<LibraryPrimaryActionRequest | undefined>()
   const [libraryReviewRequest, setLibraryReviewRequest] = useState<LibraryReviewRequest | undefined>()
+  const [librarySortModeRequest, setLibrarySortModeRequest] = useState<LibrarySortModeRequest | undefined>()
   const [librarySmartViewRequest, setLibrarySmartViewRequest] = useState<LibrarySmartViewRequest | undefined>()
   const [libraryViewModeRequest, setLibraryViewModeRequest] = useState<LibraryViewModeRequest | undefined>()
   const [diceRollRequest, setDiceRollRequest] = useState<DiceRollRequest | undefined>()
@@ -1023,6 +1030,10 @@ function App() {
 
   function requestLibraryViewMode(mode: LibraryViewMode) {
     setLibraryViewModeRequest((current) => ({ mode, requestId: (current?.requestId ?? 0) + 1 }))
+  }
+
+  function requestLibrarySortMode(mode: LibrarySortMode) {
+    setLibrarySortModeRequest((current) => ({ mode, requestId: (current?.requestId ?? 0) + 1 }))
   }
 
   function requestLibraryImport() {
@@ -1355,6 +1366,25 @@ function App() {
     writeAppTabToUrl('library', 'push')
   }
 
+  function applyLibrarySortModeFromPalette(mode: LibrarySortMode) {
+    setQuickSearchOpen(false)
+    if (activeTab === 'library') {
+      setActivityFocus(undefined)
+      requestLibrarySortMode(mode)
+      writeAppTabToUrl('library', 'push')
+      return
+    }
+    if (tabsWithUnsavedChanges[activeTab]) {
+      setPendingNavigation({ librarySortMode: mode, source: 'app', tab: 'library' })
+      return
+    }
+
+    setActivityFocus(undefined)
+    requestLibrarySortMode(mode)
+    setActiveTabState('library')
+    writeAppTabToUrl('library', 'push')
+  }
+
   function importLibraryBackupFromPalette() {
     setQuickSearchOpen(false)
     if (activeTab === 'library') {
@@ -1482,6 +1512,7 @@ function App() {
       libraryImport,
       libraryPrimaryActionItemId,
       libraryReview,
+      librarySortMode,
       librarySmartView,
       libraryViewMode,
       settingsTasteSuggestions,
@@ -1529,6 +1560,9 @@ function App() {
     }
     if (libraryReview) {
       requestLibraryReview(libraryReview)
+    }
+    if (librarySortMode) {
+      requestLibrarySortMode(librarySortMode)
     }
     if (librarySmartView) {
       requestLibrarySmartView(librarySmartView)
@@ -1870,6 +1904,16 @@ function App() {
       title: `Vista ${libraryViewLabels[mode]}`,
       tone: 'command',
     })),
+    ...(Object.keys(librarySortLabels) as LibrarySortMode[]).map((mode): QuickSearchCommand => ({
+      Icon: mode === 'focus' ? Sparkles : mode === 'updated' ? Archive : mode === 'title' ? List : mode === 'priority' ? Dice5 : CheckCircle2,
+      detail: 'Ordenar biblioteca',
+      id: `library-sort-${mode}`,
+      meta: 'Biblioteca',
+      run: () => applyLibrarySortModeFromPalette(mode),
+      searchText: `biblioteca ordenar orden sort ${librarySortLabels[mode]} foco recientes titulo prioridad rating`,
+      title: `Orden ${librarySortLabels[mode]}`,
+      tone: 'command',
+    })),
     ...getLibrarySmartViewOptions(library.items)
       .filter((option) => option.id !== 'all')
       .map((option): QuickSearchCommand => ({
@@ -2067,6 +2111,7 @@ function App() {
             library={library}
             primaryActionRequest={libraryPrimaryActionRequest}
             reviewRequest={libraryReviewRequest}
+            sortModeRequest={librarySortModeRequest}
             smartViewRequest={librarySmartViewRequest}
             viewModeRequest={libraryViewModeRequest}
             onActivity={recordVisibleActivity}
@@ -2778,6 +2823,7 @@ function LibraryTab({
   library,
   primaryActionRequest,
   reviewRequest,
+  sortModeRequest,
   smartViewRequest,
   viewModeRequest,
   onActivity,
@@ -2796,6 +2842,7 @@ function LibraryTab({
   library: LibrarySurface
   primaryActionRequest?: LibraryPrimaryActionRequest
   reviewRequest?: LibraryReviewRequest
+  sortModeRequest?: LibrarySortModeRequest
   smartViewRequest?: LibrarySmartViewRequest
   viewModeRequest?: LibraryViewModeRequest
   onActivity: ActivityRecorder
@@ -2815,6 +2862,7 @@ function LibraryTab({
   const [sortMode, setSortMode] = useState<LibrarySortMode>('focus')
   const [editingItem, setEditingItem] = useState<ListItem | undefined>()
   const [handledDraftRequestId, setHandledDraftRequestId] = useState<string | undefined>()
+  const handledSortModeRequestId = useRef<number | undefined>(undefined)
   const [handledSmartViewRequestId, setHandledSmartViewRequestId] = useState<number | undefined>()
   const handledViewModeRequestId = useRef<number | undefined>(undefined)
   const handledImportRequestId = useRef<number | undefined>(undefined)
@@ -3460,6 +3508,32 @@ function LibraryTab({
     handledViewModeRequestId.current = viewModeRequest.requestId
     void changeViewMode(viewModeRequest.mode)
   }, [changeViewMode, viewModeRequest])
+
+  useEffect(() => {
+    if (!sortModeRequest || handledSortModeRequestId.current === sortModeRequest.requestId) return
+
+    const timeoutId = window.setTimeout(() => {
+      if (handledSortModeRequestId.current === sortModeRequest.requestId) return
+
+      handledSortModeRequestId.current = sortModeRequest.requestId
+      const nextLabel = librarySortLabels[sortModeRequest.mode]
+      if (sortMode === sortModeRequest.mode) {
+        setImportStatus(`Orden ${nextLabel} ya activo`)
+        return
+      }
+
+      setSortMode(sortModeRequest.mode)
+      setImportStatus(`Orden ${nextLabel} aplicado`)
+      onActivity({
+        detail: nextLabel,
+        label: 'Orden de biblioteca aplicado',
+        tab: 'library',
+        tone: 'success',
+      })
+    }, 0)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [onActivity, sortMode, sortModeRequest])
 
   async function copyLibraryItemLink(item: ListItem) {
     const itemUrl = buildItemShareUrl(item.id)
