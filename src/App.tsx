@@ -334,6 +334,16 @@ interface LibrarySortModeRequest {
   requestId: number
 }
 
+interface LibraryStatusFilterRequest {
+  requestId: number
+  status: ItemStatus
+}
+
+interface LibraryTypeFilterRequest {
+  requestId: number
+  type: ItemType
+}
+
 interface LibraryPrimaryActionRequest {
   itemId: string
   requestId: number
@@ -422,7 +432,9 @@ type PendingNavigation = {
   libraryPrimaryActionItemId?: string
   libraryReview?: LibrarySmartView
   librarySortMode?: LibrarySortMode
+  libraryStatusFilter?: ItemStatus
   librarySmartView?: LibrarySmartView
+  libraryTypeFilter?: ItemType
   libraryViewMode?: LibraryViewMode
   settingsTasteSuggestions?: boolean
   settingsTaxonomyRepair?: boolean
@@ -744,7 +756,9 @@ function App() {
   const [libraryPrimaryActionRequest, setLibraryPrimaryActionRequest] = useState<LibraryPrimaryActionRequest | undefined>()
   const [libraryReviewRequest, setLibraryReviewRequest] = useState<LibraryReviewRequest | undefined>()
   const [librarySortModeRequest, setLibrarySortModeRequest] = useState<LibrarySortModeRequest | undefined>()
+  const [libraryStatusFilterRequest, setLibraryStatusFilterRequest] = useState<LibraryStatusFilterRequest | undefined>()
   const [librarySmartViewRequest, setLibrarySmartViewRequest] = useState<LibrarySmartViewRequest | undefined>()
+  const [libraryTypeFilterRequest, setLibraryTypeFilterRequest] = useState<LibraryTypeFilterRequest | undefined>()
   const [libraryViewModeRequest, setLibraryViewModeRequest] = useState<LibraryViewModeRequest | undefined>()
   const [diceRollRequest, setDiceRollRequest] = useState<DiceRollRequest | undefined>()
   const [dicePreferencesSaveRequest, setDicePreferencesSaveRequest] = useState<DicePreferencesSaveRequest | undefined>()
@@ -1034,6 +1048,14 @@ function App() {
 
   function requestLibrarySortMode(mode: LibrarySortMode) {
     setLibrarySortModeRequest((current) => ({ mode, requestId: (current?.requestId ?? 0) + 1 }))
+  }
+
+  function requestLibraryStatusFilter(status: ItemStatus) {
+    setLibraryStatusFilterRequest((current) => ({ requestId: (current?.requestId ?? 0) + 1, status }))
+  }
+
+  function requestLibraryTypeFilter(type: ItemType) {
+    setLibraryTypeFilterRequest((current) => ({ requestId: (current?.requestId ?? 0) + 1, type }))
   }
 
   function requestLibraryImport() {
@@ -1385,6 +1407,44 @@ function App() {
     writeAppTabToUrl('library', 'push')
   }
 
+  function applyLibraryStatusFilterFromPalette(status: ItemStatus) {
+    setQuickSearchOpen(false)
+    if (activeTab === 'library') {
+      setActivityFocus(undefined)
+      requestLibraryStatusFilter(status)
+      writeAppTabToUrl('library', 'push')
+      return
+    }
+    if (tabsWithUnsavedChanges[activeTab]) {
+      setPendingNavigation({ libraryStatusFilter: status, source: 'app', tab: 'library' })
+      return
+    }
+
+    setActivityFocus(undefined)
+    requestLibraryStatusFilter(status)
+    setActiveTabState('library')
+    writeAppTabToUrl('library', 'push')
+  }
+
+  function applyLibraryTypeFilterFromPalette(type: ItemType) {
+    setQuickSearchOpen(false)
+    if (activeTab === 'library') {
+      setActivityFocus(undefined)
+      requestLibraryTypeFilter(type)
+      writeAppTabToUrl('library', 'push')
+      return
+    }
+    if (tabsWithUnsavedChanges[activeTab]) {
+      setPendingNavigation({ libraryTypeFilter: type, source: 'app', tab: 'library' })
+      return
+    }
+
+    setActivityFocus(undefined)
+    requestLibraryTypeFilter(type)
+    setActiveTabState('library')
+    writeAppTabToUrl('library', 'push')
+  }
+
   function importLibraryBackupFromPalette() {
     setQuickSearchOpen(false)
     if (activeTab === 'library') {
@@ -1513,7 +1573,9 @@ function App() {
       libraryPrimaryActionItemId,
       libraryReview,
       librarySortMode,
+      libraryStatusFilter,
       librarySmartView,
+      libraryTypeFilter,
       libraryViewMode,
       settingsTasteSuggestions,
       settingsTaxonomyRepair,
@@ -1564,8 +1626,14 @@ function App() {
     if (librarySortMode) {
       requestLibrarySortMode(librarySortMode)
     }
+    if (libraryStatusFilter) {
+      requestLibraryStatusFilter(libraryStatusFilter)
+    }
     if (librarySmartView) {
       requestLibrarySmartView(librarySmartView)
+    }
+    if (libraryTypeFilter) {
+      requestLibraryTypeFilter(libraryTypeFilter)
     }
     if (libraryViewMode) {
       requestLibraryViewMode(libraryViewMode)
@@ -1914,6 +1982,26 @@ function App() {
       title: `Orden ${librarySortLabels[mode]}`,
       tone: 'command',
     })),
+    ...ITEM_STATUSES.map((status): QuickSearchCommand => ({
+      Icon: status === 'completed' ? Check : status === 'in_progress' ? Play : status === 'paused' ? Pause : status === 'dropped' ? Trash2 : Library,
+      detail: `${library.items.filter((item) => item.status === status).length} entradas`,
+      id: `library-status-${status}`,
+      meta: 'Biblioteca',
+      run: () => applyLibraryStatusFilterFromPalette(status),
+      searchText: `biblioteca filtrar estado status ${statusLabels[status]} pendientes progreso pausado completado droppeado`,
+      title: `Estado ${statusLabels[status]}`,
+      tone: 'command',
+    })),
+    ...ITEM_TYPES.map((type): QuickSearchCommand => ({
+      Icon: typeIcons[type],
+      detail: `${library.items.filter((item) => item.type === type).length} entradas`,
+      id: `library-type-${type}`,
+      meta: 'Biblioteca',
+      run: () => applyLibraryTypeFilterFromPalette(type),
+      searchText: `biblioteca filtrar tipo medio ${typeLabels[type]} juegos libros cine series anime manga manhwa comic`,
+      title: `Tipo ${typeLabels[type]}`,
+      tone: 'command',
+    })),
     ...getLibrarySmartViewOptions(library.items)
       .filter((option) => option.id !== 'all')
       .map((option): QuickSearchCommand => ({
@@ -2112,7 +2200,9 @@ function App() {
             primaryActionRequest={libraryPrimaryActionRequest}
             reviewRequest={libraryReviewRequest}
             sortModeRequest={librarySortModeRequest}
+            statusFilterRequest={libraryStatusFilterRequest}
             smartViewRequest={librarySmartViewRequest}
+            typeFilterRequest={libraryTypeFilterRequest}
             viewModeRequest={libraryViewModeRequest}
             onActivity={recordVisibleActivity}
             onActivityFocusHandled={clearActivityFocus}
@@ -2824,7 +2914,9 @@ function LibraryTab({
   primaryActionRequest,
   reviewRequest,
   sortModeRequest,
+  statusFilterRequest,
   smartViewRequest,
+  typeFilterRequest,
   viewModeRequest,
   onActivity,
   onActivityFocusHandled,
@@ -2843,7 +2935,9 @@ function LibraryTab({
   primaryActionRequest?: LibraryPrimaryActionRequest
   reviewRequest?: LibraryReviewRequest
   sortModeRequest?: LibrarySortModeRequest
+  statusFilterRequest?: LibraryStatusFilterRequest
   smartViewRequest?: LibrarySmartViewRequest
+  typeFilterRequest?: LibraryTypeFilterRequest
   viewModeRequest?: LibraryViewModeRequest
   onActivity: ActivityRecorder
   onActivityFocusHandled: () => void
@@ -2863,7 +2957,9 @@ function LibraryTab({
   const [editingItem, setEditingItem] = useState<ListItem | undefined>()
   const [handledDraftRequestId, setHandledDraftRequestId] = useState<string | undefined>()
   const handledSortModeRequestId = useRef<number | undefined>(undefined)
+  const handledStatusFilterRequestId = useRef<number | undefined>(undefined)
   const [handledSmartViewRequestId, setHandledSmartViewRequestId] = useState<number | undefined>()
+  const handledTypeFilterRequestId = useRef<number | undefined>(undefined)
   const handledViewModeRequestId = useRef<number | undefined>(undefined)
   const handledImportRequestId = useRef<number | undefined>(undefined)
   const handledReviewRequestId = useRef<number | undefined>(undefined)
@@ -3534,6 +3630,66 @@ function LibraryTab({
 
     return () => window.clearTimeout(timeoutId)
   }, [onActivity, sortMode, sortModeRequest])
+
+  useEffect(() => {
+    if (!statusFilterRequest || handledStatusFilterRequestId.current === statusFilterRequest.requestId) return
+
+    const timeoutId = window.setTimeout(() => {
+      if (handledStatusFilterRequestId.current === statusFilterRequest.requestId) return
+
+      handledStatusFilterRequestId.current = statusFilterRequest.requestId
+      const nextLabel = statusLabels[statusFilterRequest.status]
+      if (statusFilter === statusFilterRequest.status && smartView === 'all' && !trimmedQuery) {
+        setImportStatus(`Estado ${nextLabel} ya activo`)
+        return
+      }
+
+      setQuery('')
+      setStatusFilter(statusFilterRequest.status)
+      setSmartView('all')
+      setSelectedItemIds([])
+      setActiveReviewSession(undefined)
+      setImportStatus(`Filtro ${nextLabel} aplicado`)
+      onActivity({
+        detail: nextLabel,
+        label: 'Filtro de estado aplicado',
+        tab: 'library',
+        tone: 'success',
+      })
+    }, 0)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [onActivity, smartView, statusFilter, statusFilterRequest, trimmedQuery])
+
+  useEffect(() => {
+    if (!typeFilterRequest || handledTypeFilterRequestId.current === typeFilterRequest.requestId) return
+
+    const timeoutId = window.setTimeout(() => {
+      if (handledTypeFilterRequestId.current === typeFilterRequest.requestId) return
+
+      handledTypeFilterRequestId.current = typeFilterRequest.requestId
+      const nextLabel = typeLabels[typeFilterRequest.type]
+      if (typeFilter === typeFilterRequest.type && smartView === 'all' && !trimmedQuery) {
+        setImportStatus(`Tipo ${nextLabel} ya activo`)
+        return
+      }
+
+      setQuery('')
+      setTypeFilter(typeFilterRequest.type)
+      setSmartView('all')
+      setSelectedItemIds([])
+      setActiveReviewSession(undefined)
+      setImportStatus(`Tipo ${nextLabel} aplicado`)
+      onActivity({
+        detail: nextLabel,
+        label: 'Filtro de tipo aplicado',
+        tab: 'library',
+        tone: 'success',
+      })
+    }, 0)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [onActivity, smartView, trimmedQuery, typeFilter, typeFilterRequest])
 
   async function copyLibraryItemLink(item: ListItem) {
     const itemUrl = buildItemShareUrl(item.id)

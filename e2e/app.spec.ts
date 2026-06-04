@@ -742,6 +742,49 @@ test('quick search changes library sort through the pending-change guard', async
   await expect(page.getByTestId('session-activity')).toContainText('Orden de biblioteca aplicado')
 })
 
+test('quick search applies library filters through the pending-change guard', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await page.getByLabel('Energia').selectOption('high')
+  await expect(page.getByText('Cambios pendientes')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Busqueda rapida' }).click()
+  let quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  await quickSearch.getByLabel('Buscar en Nexo').fill('estado pendiente')
+  const pendingStatusAction = quickSearch.getByRole('button', { name: 'Ejecutar Estado Pendiente', exact: true })
+  await expect(pendingStatusAction).toHaveAttribute('aria-current', 'true')
+  await expect(pendingStatusAction).toContainText('2 entradas')
+  await pendingStatusAction.click()
+
+  await expect(page.getByLabel('Salida con cambios pendientes')).toContainText('Cambios pendientes en Dado')
+  await page.getByLabel('Salida con cambios pendientes').getByRole('button', { name: 'Descartar cambios' }).click()
+
+  await expect(page.getByRole('heading', { name: 'Biblioteca privada' })).toBeVisible()
+  await expect(page.getByText('Estado: Pendiente')).toBeVisible()
+  await expect(page.getByTestId('library-grid')).toContainText('Outer Wilds')
+  await expect(page.getByTestId('library-grid')).not.toContainText('Inception')
+  await expect(page.getByRole('status').filter({ hasText: 'Filtro Pendiente aplicado' })).toBeVisible()
+  await expect(page.getByTestId('session-activity')).toContainText('Filtro de estado aplicado')
+
+  await page.getByRole('button', { name: 'Restablecer vista' }).click()
+  await expect(page.getByText('Estado: Pendiente')).not.toBeVisible()
+
+  await page.getByRole('button', { name: 'Busqueda rapida' }).click()
+  quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  await quickSearch.getByLabel('Buscar en Nexo').fill('tipo juegos')
+  const gamesTypeAction = quickSearch.getByRole('button', { name: 'Ejecutar Tipo Juegos', exact: true })
+  await expect(gamesTypeAction).toHaveAttribute('aria-current', 'true')
+  await expect(gamesTypeAction).toContainText('3 entradas')
+  await gamesTypeAction.click()
+
+  await expect(page.getByLabel('Filtrar por tipo')).toHaveValue('game')
+  await expect(page.getByText('Tipo: Juegos')).toBeVisible()
+  await expect(page.getByTestId('library-grid')).toContainText('Outer Wilds')
+  await expect(page.getByTestId('library-grid')).not.toContainText('Inception')
+  await expect(page.getByRole('status').filter({ hasText: 'Tipo Juegos aplicado' })).toBeVisible()
+  await expect(page.getByTestId('session-activity')).toContainText('Filtro de tipo aplicado')
+})
+
 test('quick search starts guided library review through the pending-change guard', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
