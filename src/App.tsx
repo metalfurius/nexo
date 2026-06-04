@@ -1225,6 +1225,7 @@ function App() {
             onPrimaryActionRequestHandled={clearLibraryPrimaryActionRequest}
             onDraftRequestHandled={clearLibraryDraftRequest}
             onNavigate={changeActiveTab}
+            onRollDice={rollDiceFromAction}
             setTheme={setTheme}
           />
         )}
@@ -1818,6 +1819,7 @@ function LibraryTab({
   onPrimaryActionRequestHandled,
   onDraftRequestHandled,
   onNavigate,
+  onRollDice,
   setTheme,
 }: {
   activityFocusItemId?: string
@@ -1830,6 +1832,7 @@ function LibraryTab({
   onPrimaryActionRequestHandled: () => void
   onDraftRequestHandled: () => void
   onNavigate: (tab: AppTab, focus?: ActivityFocus) => void
+  onRollDice: () => void
   setTheme: (theme: ThemeMode) => void
 }) {
   const [query, setQuery] = useState('')
@@ -2491,7 +2494,7 @@ function LibraryTab({
   function viewLibraryReviewQueue(queue: LibraryReviewQueue) {
     startLibraryReviewSession(queue)
     if (queue.action === 'open-dice') {
-      onNavigate('dice')
+      onRollDice()
       return
     }
 
@@ -2501,7 +2504,7 @@ function LibraryTab({
   function runLibraryReviewQueue(queue: LibraryReviewQueue) {
     startLibraryReviewSession(queue)
     if (queue.action === 'open-dice') {
-      onNavigate('dice')
+      onRollDice()
       return
     }
 
@@ -2828,9 +2831,9 @@ function LibraryTab({
               <span>pendientes</span>
             </div>
             <div className="library-review-session-actions">
-              <button className="primary-button" type="button" onClick={() => onNavigate('dice')}>
+              <button className="primary-button" type="button" onClick={onRollDice}>
                 <Dice5 size={16} />
-                Abrir Dado
+                Tirar dado
               </button>
               <button className="ghost-button" type="button" onClick={closeCompletedReviewSession}>
                 Cerrar
@@ -7304,7 +7307,7 @@ function getLibraryReviewQueueIcon(id: LibraryReviewQueue['id']): LucideIcon {
 }
 
 function getLibraryReviewQueueActionLabel(queue: LibraryReviewQueue) {
-  if (queue.action === 'open-dice') return 'Abrir Dado'
+  if (queue.action === 'open-dice') return 'Tirar dado'
   if (queue.action === 'open-item') return queue.id === 'needs-taxonomy' ? 'Afinar ficha' : 'Completar ficha'
   return 'Abrir vista'
 }

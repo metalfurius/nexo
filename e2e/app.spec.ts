@@ -267,6 +267,18 @@ test('dice closed decisions can roll another recommendation', async ({ page }) =
   await expect(page.getByTestId('dice-decision-summary')).not.toBeVisible()
 })
 
+test('library dice review queue rolls a recommendation', async ({ page }) => {
+  await page.goto('/')
+  const diceQueue = page.getByTestId('library-review-queue').locator('.library-review-card', { hasText: 'Probar dado' })
+
+  await expect(diceQueue).toContainText('Candidatas vivas')
+  await diceQueue.getByRole('button', { name: 'Tirar dado' }).click()
+
+  await expect(page.getByRole('heading', { name: 'Elige el siguiente hilo' })).toBeVisible()
+  await expect(page.getByTestId('recommendation-result')).toContainText('Decision')
+  await expect(page.getByTestId('session-activity')).toContainText('Tirada registrada')
+})
+
 test('library review session keeps guided queues actionable', async ({ page }) => {
   await page.goto('/')
   await page.getByTestId('library-review-queue').getByRole('button', { name: 'Completar ficha' }).click()
