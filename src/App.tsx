@@ -331,9 +331,14 @@ interface ExplorerSearchRequest {
   requestId: number
 }
 
+interface ExplorerPromptCardRequest {
+  requestId: number
+}
+
 type PendingNavigation = {
   diceRoll?: boolean
   draftItem?: ListItem
+  explorerPromptCard?: boolean
   explorerSearchQuery?: string
   focus?: ActivityFocus
   libraryPrimaryActionItemId?: string
@@ -646,6 +651,7 @@ function App() {
   const [librarySmartViewRequest, setLibrarySmartViewRequest] = useState<LibrarySmartViewRequest | undefined>()
   const [diceRollRequest, setDiceRollRequest] = useState<DiceRollRequest | undefined>()
   const [explorerSearchRequest, setExplorerSearchRequest] = useState<ExplorerSearchRequest | undefined>()
+  const [explorerPromptCardRequest, setExplorerPromptCardRequest] = useState<ExplorerPromptCardRequest | undefined>()
   const [quickSearchOpen, setQuickSearchOpen] = useState(false)
   const [themeMenuOpen, setThemeMenuOpen] = useState(false)
   const [serviceWorkerUpdateReady, setServiceWorkerUpdateReady] = useState(false)
@@ -660,6 +666,7 @@ function App() {
   const libraryPrimaryActionRequestId = useRef(0)
   const diceRollRequestId = useRef(0)
   const explorerSearchRequestId = useRef(0)
+  const explorerPromptCardRequestId = useRef(0)
 
   useEffect(() => {
     if (!auth.isFirebaseConfigured) return
@@ -795,6 +802,7 @@ function App() {
   const clearLibraryPrimaryActionRequest = useCallback(() => setLibraryPrimaryActionRequest(undefined), [])
   const clearDiceRollRequest = useCallback(() => setDiceRollRequest(undefined), [])
   const clearExplorerSearchRequest = useCallback(() => setExplorerSearchRequest(undefined), [])
+  const clearExplorerPromptCardRequest = useCallback(() => setExplorerPromptCardRequest(undefined), [])
   const recordVisibleActivity = useCallback(
     (entry: Omit<ActivityEntry, 'createdAt' | 'id'>) => {
       setActivityClearUndo([])
@@ -907,6 +915,11 @@ function App() {
     setExplorerSearchRequest({ query: trimmedQuery, requestId: explorerSearchRequestId.current })
   }
 
+  function requestExplorerPromptCard() {
+    explorerPromptCardRequestId.current += 1
+    setExplorerPromptCardRequest({ requestId: explorerPromptCardRequestId.current })
+  }
+
   function rollDiceFromAction() {
     setQuickSearchOpen(false)
     if (activeTab === 'dice') {
@@ -941,6 +954,25 @@ function App() {
 
     setActivityFocus(undefined)
     requestExplorerSearch(trimmedQuery)
+    setActiveTabState('explorer')
+    writeAppTabToUrl('explorer', 'push')
+  }
+
+  function addExplorerPromptCardFromPalette() {
+    setQuickSearchOpen(false)
+    if (activeTab === 'explorer') {
+      setActivityFocus(undefined)
+      requestExplorerPromptCard()
+      writeAppTabToUrl('explorer', 'push')
+      return
+    }
+    if (tabsWithUnsavedChanges[activeTab]) {
+      setPendingNavigation({ explorerPromptCard: true, source: 'app', tab: 'explorer' })
+      return
+    }
+
+    setActivityFocus(undefined)
+    requestExplorerPromptCard()
     setActiveTabState('explorer')
     writeAppTabToUrl('explorer', 'push')
   }
@@ -1018,12 +1050,24 @@ function App() {
   function discardPendingNavigation() {
     if (!pendingNavigation) return
 
-    const { diceRoll, draftItem, explorerSearchQuery, focus, libraryPrimaryActionItemId, librarySmartView, source, tab: nextTab } =
-      pendingNavigation
+    const {
+      diceRoll,
+      draftItem,
+      explorerPromptCard,
+      explorerSearchQuery,
+      focus,
+      libraryPrimaryActionItemId,
+      librarySmartView,
+      source,
+      tab: nextTab,
+    } = pendingNavigation
     setTabsWithUnsavedChanges((current) => ({ ...current, [activeTab]: false }))
     setPendingNavigation(undefined)
     if (diceRoll) {
       requestDiceRoll()
+    }
+    if (explorerPromptCard) {
+      requestExplorerPromptCard()
     }
     if (explorerSearchQuery) {
       requestExplorerSearch(explorerSearchQuery)
@@ -1104,6 +1148,16 @@ function App() {
       searchText: 'exportar backup json copia descargar biblioteca',
       title: 'Exportar backup JSON',
       tone: 'command',
+    },
+    {
+      Icon: Sparkles,
+      detail: 'Anadir idea manual al Explorador',
+      id: 'explorer-prompt-card',
+      meta: 'Explorador',
+      run: addExplorerPromptCardFromPalette,
+      searchText: 'carta sorpresa idea explorador descubrir recomendacion manual azar',
+      title: 'Carta sorpresa',
+      tone: 'section',
     },
     ...quickSearchActivityCommands,
     ...themeOptions.map((option): QuickSearchCommand => ({
@@ -1330,8 +1384,10 @@ function App() {
         {activeTab === 'explorer' && (
           <ExplorerTab
             library={library}
+            promptCardRequest={explorerPromptCardRequest}
             searchRequest={explorerSearchRequest}
             onActivity={recordVisibleActivity}
+            onPromptCardRequestHandled={clearExplorerPromptCardRequest}
             onSearchRequestHandled={clearExplorerSearchRequest}
           />
         )}
@@ -4208,12 +4264,16 @@ function DiceTab({
 function ExplorerTab({
   library,
   onActivity,
+  onPromptCardRequestHandled,
   onSearchRequestHandled,
+  promptCardRequest,
   searchRequest,
 }: {
   library: LibrarySurface
   onActivity: ActivityRecorder
+  onPromptCardRequestHandled: () => void
   onSearchRequestHandled: () => void
+  promptCardRequest?: ExplorerPromptCardRequest
   searchRequest?: ExplorerSearchRequest
 }) {
   const [query, setQuery] = useState('')
@@ -4229,6 +4289,7 @@ function ExplorerTab({
   const [selected, setSelected] = useState<DiscoveryCandidate | undefined>()
   const [catalogDraft, setCatalogDraft] = useState<PublicCatalogItem | undefined>()
   const [completedExplorerQueue, setCompletedExplorerQueue] = useState<CompletedExplorerQueue | undefined>()
+  const handledPromptCardRequestId = useRef<number | undefined>(undefined)
   const handledSearchRequestId = useRef<number | undefined>(undefined)
   const type = library.settings.explorerDefaultType
   const explorerDecision = useMemo(
@@ -4357,7 +4418,7 @@ function ExplorerTab({
     }
   }, [clearExplorerRecentActions, library, onActivity, query, type])
 
-  async function addPromptCard() {
+  const addPromptCard = useCallback(async () => {
     try {
       clearExplorerRecentActions()
       const title = promptDeck[Math.floor(Math.random() * promptDeck.length)]
@@ -4373,7 +4434,7 @@ function ExplorerTab({
     } catch (reason) {
       setMessage(reason instanceof Error ? reason.message : 'No se pudo anadir la carta.')
     }
-  }
+  }, [clearExplorerRecentActions, library, onActivity])
 
   async function saveCandidate(candidate: DiscoveryCandidate) {
     const completedQueue = candidateCompletesVisibleQueue(candidate) ? getCompletedExplorerQueue(1, 'saved') : undefined
@@ -4644,6 +4705,19 @@ function ExplorerTab({
 
     return () => window.clearTimeout(timeoutId)
   }, [onSearchRequestHandled, runDiscoverySearch, searchRequest])
+
+  useEffect(() => {
+    if (!promptCardRequest || handledPromptCardRequestId.current === promptCardRequest.requestId) return
+
+    const timeoutId = window.setTimeout(() => {
+      if (handledPromptCardRequestId.current === promptCardRequest.requestId) return
+
+      handledPromptCardRequestId.current = promptCardRequest.requestId
+      void addPromptCard().finally(onPromptCardRequestHandled)
+    }, 0)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [addPromptCard, onPromptCardRequestHandled, promptCardRequest])
 
   return (
     <section className="content-grid">

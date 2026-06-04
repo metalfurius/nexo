@@ -592,6 +592,28 @@ test('quick search can start an explorer search through the pending-change guard
   await expect(page.getByTestId('explorer-decision-panel')).toContainText('Odisea')
 })
 
+test('quick search can add an explorer surprise card through the pending-change guard', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await page.getByLabel('Energia').selectOption('high')
+  await expect(page.getByText('Cambios pendientes')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Busqueda rapida' }).click()
+  const quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  await quickSearch.getByLabel('Buscar en Nexo').fill('carta sorpresa')
+  await expect(quickSearch.getByRole('button', { name: 'Ejecutar Carta sorpresa' })).toHaveAttribute('aria-current', 'true')
+  await quickSearch.getByRole('button', { name: 'Ejecutar Carta sorpresa' }).click()
+
+  await expect(page.getByLabel('Salida con cambios pendientes')).toContainText('Cambios pendientes en Dado')
+  await page.getByLabel('Salida con cambios pendientes').getByRole('button', { name: 'Descartar cambios' }).click()
+
+  await expect(page).toHaveURL(/tab=explorer/)
+  await expect(page.getByRole('heading', { name: 'Encuentra la proxima entrada' })).toBeVisible()
+  await expect(page.getByText('Carta de exploracion anadida.')).toBeVisible()
+  await expect(page.getByTestId('session-activity')).toContainText('Carta sorpresa anadida')
+  await expect(page.getByRole('button', { name: /Ideas/ })).toBeVisible()
+})
+
 test('quick search can create a prefilled item through the pending-change guard', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
