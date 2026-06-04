@@ -322,7 +322,12 @@ interface LibraryPrimaryActionRequest {
   requestId: number
 }
 
+interface DiceRollRequest {
+  requestId: number
+}
+
 type PendingNavigation = {
+  diceRoll?: boolean
   draftItem?: ListItem
   focus?: ActivityFocus
   libraryPrimaryActionItemId?: string
@@ -623,6 +628,7 @@ function App() {
   const [libraryDraftRequest, setLibraryDraftRequest] = useState<ListItem | undefined>()
   const [libraryPrimaryActionRequest, setLibraryPrimaryActionRequest] = useState<LibraryPrimaryActionRequest | undefined>()
   const [librarySmartViewRequest, setLibrarySmartViewRequest] = useState<LibrarySmartViewRequest | undefined>()
+  const [diceRollRequest, setDiceRollRequest] = useState<DiceRollRequest | undefined>()
   const [quickSearchOpen, setQuickSearchOpen] = useState(false)
   const [themeMenuOpen, setThemeMenuOpen] = useState(false)
   const [serviceWorkerUpdateReady, setServiceWorkerUpdateReady] = useState(false)
@@ -635,6 +641,7 @@ function App() {
     return isThemeMode(stored) ? stored : DEFAULT_SETTINGS.theme
   })
   const libraryPrimaryActionRequestId = useRef(0)
+  const diceRollRequestId = useRef(0)
 
   useEffect(() => {
     if (!auth.isFirebaseConfigured) return
@@ -768,6 +775,7 @@ function App() {
   const clearActivityFocus = useCallback(() => setActivityFocus(undefined), [])
   const clearLibraryDraftRequest = useCallback(() => setLibraryDraftRequest(undefined), [])
   const clearLibraryPrimaryActionRequest = useCallback(() => setLibraryPrimaryActionRequest(undefined), [])
+  const clearDiceRollRequest = useCallback(() => setDiceRollRequest(undefined), [])
   const recordVisibleActivity = useCallback(
     (entry: Omit<ActivityEntry, 'createdAt' | 'id'>) => {
       setActivityClearUndo([])
@@ -867,6 +875,27 @@ function App() {
     setLibraryPrimaryActionRequest({ itemId, requestId: libraryPrimaryActionRequestId.current })
   }
 
+  function requestDiceRoll() {
+    diceRollRequestId.current += 1
+    setDiceRollRequest({ requestId: diceRollRequestId.current })
+  }
+
+  function rollDiceFromPalette() {
+    setQuickSearchOpen(false)
+    if (activeTab === 'dice') {
+      requestDiceRoll()
+      return
+    }
+    if (tabsWithUnsavedChanges[activeTab]) {
+      setPendingNavigation({ diceRoll: true, source: 'app', tab: 'dice' })
+      return
+    }
+
+    requestDiceRoll()
+    setActiveTabState('dice')
+    writeAppTabToUrl('dice', 'push')
+  }
+
   function runLibraryPrimaryActionFromPalette(item: ListItem) {
     setQuickSearchOpen(false)
     if (activeTab === 'library') {
@@ -930,9 +959,12 @@ function App() {
   function discardPendingNavigation() {
     if (!pendingNavigation) return
 
-    const { draftItem, focus, libraryPrimaryActionItemId, librarySmartView, source, tab: nextTab } = pendingNavigation
+    const { diceRoll, draftItem, focus, libraryPrimaryActionItemId, librarySmartView, source, tab: nextTab } = pendingNavigation
     setTabsWithUnsavedChanges((current) => ({ ...current, [activeTab]: false }))
     setPendingNavigation(undefined)
+    if (diceRoll) {
+      requestDiceRoll()
+    }
     if (draftItem) {
       setLibraryDraftRequest(draftItem)
     }
@@ -978,13 +1010,10 @@ function App() {
       : []),
     {
       Icon: Dice5,
-      detail: 'Ir al dado ponderado',
+      detail: 'Tirar una recomendacion ahora',
       id: 'roll-dice',
       meta: 'Accion',
-      run: () => {
-        setQuickSearchOpen(false)
-        changeActiveTab('dice')
-      },
+      run: rollDiceFromPalette,
       searchText: 'tirar dado recomendar recomendacion azar decision',
       title: 'Tirar dado',
       tone: 'section',
@@ -1200,7 +1229,13 @@ function App() {
           />
         )}
         {activeTab === 'dice' && (
-          <DiceTab library={library} onActivity={recordVisibleActivity} onUnsavedChange={reportDiceUnsavedChanges} />
+          <DiceTab
+            library={library}
+            rollRequest={diceRollRequest}
+            onActivity={recordVisibleActivity}
+            onRollRequestHandled={clearDiceRollRequest}
+            onUnsavedChange={reportDiceUnsavedChanges}
+          />
         )}
         {activeTab === 'explorer' && <ExplorerTab library={library} onActivity={recordVisibleActivity} />}
         {activeTab === 'settings' && (
@@ -3226,11 +3261,15 @@ function LibraryTab({
 
 function DiceTab({
   library,
+  rollRequest,
   onActivity,
+  onRollRequestHandled,
   onUnsavedChange,
 }: {
   library: LibrarySurface
+  rollRequest?: DiceRollRequest
   onActivity: ActivityRecorder
+  onRollRequestHandled: () => void
   onUnsavedChange: (hasUnsavedChanges: boolean) => void
 }) {
   const [draftPreferences, setDraftPreferences] = useState<RecommendationPreferences | undefined>()
@@ -3242,6 +3281,7 @@ function DiceTab({
   const [diceUndoAction, setDiceUndoAction] = useState<DiceUndoAction | undefined>()
   const [diceSettingsUndo, setDiceSettingsUndo] = useState<DiceSettingsUndo | undefined>()
   const [diceDecisionSummary, setDiceDecisionSummary] = useState<DiceDecisionSummary | undefined>()
+  const handledRollRequestId = useRef<number | undefined>(undefined)
   const persistedPreferences = library.settings.recommendationPreferences ?? DEFAULT_RECOMMENDATION_PREFERENCES
   const preferences = draftPreferences ?? persistedPreferences
   const hasUnsavedDicePreferences = !sameRecommendationPreferences(preferences, persistedPreferences)
@@ -3330,11 +3370,6 @@ function DiceTab({
     setEditingDiceItem(library.items.find((item) => item.id === recommendation.item.id) ?? recommendation.item)
   }
 
-  async function rollAnotherRecommendation() {
-    if (!recommendation) return
-    await rollRecommendation(recommendation.item.id)
-  }
-
   function getDiceSettingsUndo(kind: DiceSettingsUndo['kind']): DiceSettingsUndo {
     return {
       allowPausedByDefault: library.settings.allowPausedByDefault,
@@ -3346,7 +3381,7 @@ function DiceTab({
     }
   }
 
-  async function rollRecommendation(excludedItemId?: string) {
+  const rollRecommendation = useCallback(async (excludedItemId?: string) => {
     const rollItems = excludedItemId ? library.items.filter((item) => item.id !== excludedItemId) : library.items
     const rollCandidates = scoreCandidates(rollItems, preferences, library.settings)
 
@@ -3389,6 +3424,11 @@ function DiceTab({
         tone: 'success',
       })
     }
+  }, [library, onActivity, preferences])
+
+  async function rollAnotherRecommendation() {
+    if (!recommendation) return
+    await rollRecommendation(recommendation.item.id)
   }
 
   async function savePreferences() {
@@ -3645,6 +3685,19 @@ function DiceTab({
     if (!diceSettingsUndo) return 'Deshacer ajustes del dado'
     return diceSettingsUndo.kind === 'taste' ? 'Deshacer gustos' : 'Deshacer ajustes del dado'
   }
+
+  useEffect(() => {
+    if (!rollRequest || handledRollRequestId.current === rollRequest.requestId) return
+
+    const timeoutId = window.setTimeout(() => {
+      if (handledRollRequestId.current === rollRequest.requestId) return
+
+      handledRollRequestId.current = rollRequest.requestId
+      void rollRecommendation().finally(onRollRequestHandled)
+    }, 0)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [onRollRequestHandled, rollRecommendation, rollRequest])
 
   return (
     <section className="dice-layout">

@@ -438,6 +438,8 @@ test('quick search runs command actions', async ({ page }) => {
   await expect(quickSearch.getByRole('button', { name: 'Ejecutar Tirar dado' })).toHaveAttribute('aria-current', 'true')
   await quickSearch.getByRole('button', { name: 'Ejecutar Tirar dado' }).click()
   await expect(page.getByRole('heading', { name: 'Elige el siguiente hilo' })).toBeVisible()
+  await expect(page.getByTestId('recommendation-result')).toContainText('Decision')
+  await expect(page.getByTestId('session-activity')).toContainText('Tirada registrada')
 
   await page.getByRole('button', { name: 'Busqueda rapida' }).click()
   quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
@@ -447,6 +449,23 @@ test('quick search runs command actions', async ({ page }) => {
   const download = await downloadPromise
   expect(download.suggestedFilename()).toMatch(/^nexo-backup-\d{4}-\d{2}-\d{2}\.json$/)
   await expect(page.getByTestId('session-activity')).toContainText('Backup privado exportado')
+})
+
+test('quick search rolls dice through the pending-change guard', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Ajustes', exact: true }).click()
+  await page.getByLabel('Tipo por defecto').selectOption('book')
+  await expect(page.getByText('Cambios pendientes')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Busqueda rapida' }).click()
+  const quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  await quickSearch.getByLabel('Buscar en Nexo').fill('tirar')
+  await quickSearch.getByRole('button', { name: 'Ejecutar Tirar dado' }).click()
+
+  await expect(page.getByLabel('Salida con cambios pendientes')).toContainText('Cambios pendientes en Ajustes')
+  await page.getByLabel('Salida con cambios pendientes').getByRole('button', { name: 'Descartar cambios' }).click()
+  await expect(page.getByRole('heading', { name: 'Elige el siguiente hilo' })).toBeVisible()
+  await expect(page.getByTestId('recommendation-result')).toContainText('Decision')
 })
 
 test('quick search opens library smart views through the pending-change guard', async ({ page }) => {
