@@ -228,11 +228,6 @@ function isThemeMode(value: string | null): value is ThemeMode {
   return Boolean(value && THEME_MODES.includes(value as ThemeMode))
 }
 
-function getNextTheme(theme: ThemeMode): ThemeMode {
-  const currentIndex = themeOptions.findIndex((option) => option.id === theme)
-  return themeOptions[(currentIndex + 1) % themeOptions.length].id
-}
-
 const rolePermissionSummaries: Array<{ role: UserRole; detail: string; permissions: string[] }> = [
   {
     role: 'user',
@@ -576,6 +571,7 @@ function App() {
   const [activityClearUndo, setActivityClearUndo] = useState<ActivityEntry[]>([])
   const [libraryDraftRequest, setLibraryDraftRequest] = useState<ListItem | undefined>()
   const [quickSearchOpen, setQuickSearchOpen] = useState(false)
+  const [themeMenuOpen, setThemeMenuOpen] = useState(false)
   const [tabsWithUnsavedChanges, setTabsWithUnsavedChanges] = useState<Partial<Record<AppTab, boolean>>>({})
   const [theme, setTheme] = useState<ThemeMode>(() => {
     const stored = window.localStorage.getItem(themeStorageKey)
@@ -604,6 +600,7 @@ function App() {
       const isSearchShortcut = event.key === '/' && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && !isTypingTarget
       if (isCommandShortcut || isSearchShortcut) {
         event.preventDefault()
+        setThemeMenuOpen(false)
         setQuickSearchOpen(true)
       }
     }
@@ -643,6 +640,14 @@ function App() {
     })
     if (tab === activeTab && !hasUnsavedChanges) setPendingNavigation(undefined)
   }, [activeTab])
+
+  function applyTheme(nextTheme: ThemeMode) {
+    setThemeMenuOpen(false)
+    if (nextTheme === theme) return
+
+    setTheme(nextTheme)
+    void library.saveSettings({ theme: nextTheme })
+  }
   const reportDiceUnsavedChanges = useCallback(
     (hasUnsavedChanges: boolean) => reportUnsavedChanges('dice', hasUnsavedChanges),
     [reportUnsavedChanges],
@@ -778,24 +783,64 @@ function App() {
             aria-label="Busqueda rapida"
             className="icon-button"
             type="button"
-            onClick={() => setQuickSearchOpen(true)}
+            onClick={() => {
+              setThemeMenuOpen(false)
+              setQuickSearchOpen(true)
+            }}
             title="Busqueda rapida"
           >
             <Search size={18} />
           </button>
-          <button
-            aria-label={`Cambiar tema. Actual ${themeLabels[theme]}`}
-            className="icon-button"
-            type="button"
-            onClick={() => {
-              const nextTheme = getNextTheme(theme)
-              setTheme(nextTheme)
-              void library.saveSettings({ theme: nextTheme })
+          <div
+            className="theme-menu-wrap"
+            onBlur={(event) => {
+              const nextTarget = event.relatedTarget
+              if (!(nextTarget instanceof Node) || !event.currentTarget.contains(nextTarget)) {
+                setThemeMenuOpen(false)
+              }
             }}
-            title={`Tema: ${themeLabels[theme]}`}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') setThemeMenuOpen(false)
+            }}
           >
-            <Palette size={18} />
-          </button>
+            <button
+              aria-expanded={themeMenuOpen}
+              aria-haspopup="menu"
+              aria-label={`Elegir tema. Actual ${themeLabels[theme]}`}
+              className="icon-button"
+              type="button"
+              onClick={() => setThemeMenuOpen((current) => !current)}
+              title={`Tema: ${themeLabels[theme]}`}
+            >
+              <Palette size={18} />
+            </button>
+            {themeMenuOpen && (
+              <div aria-label="Temas de Nexo" className="theme-menu" role="menu">
+                {themeOptions.map((option) => (
+                  <button
+                    aria-checked={theme === option.id}
+                    aria-label={`Usar tema ${option.label}`}
+                    className={theme === option.id ? 'theme-menu-item active' : 'theme-menu-item'}
+                    key={option.id}
+                    role="menuitemradio"
+                    type="button"
+                    onClick={() => applyTheme(option.id)}
+                  >
+                    <span className="theme-menu-swatch" aria-hidden="true">
+                      {option.swatches.map((color) => (
+                        <span key={color} style={{ background: color }} />
+                      ))}
+                    </span>
+                    <span>
+                      <strong>{option.label}</strong>
+                      <small>{option.detail}</small>
+                    </span>
+                    {theme === option.id && <Check size={15} />}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           {auth.user && (
             <button className="icon-button" type="button" onClick={auth.signOut} title="Salir">
               <LogOut size={18} />

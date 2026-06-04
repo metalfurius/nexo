@@ -555,13 +555,31 @@ test('pwa metadata is present', async ({ page }) => {
       expect.objectContaining({ name: 'Explorador', url: '/?tab=explorer' }),
     ]),
   )
-  await page.getByRole('button', { name: 'Cambiar tema. Actual Oscuro', exact: true }).click()
+  await page.getByRole('button', { name: 'Elegir tema. Actual Oscuro', exact: true }).click()
+  const themeMenu = page.getByRole('menu', { name: 'Temas de Nexo' })
+  await expect(themeMenu).toBeVisible()
+  await expect(themeMenu.getByRole('menuitemradio')).toHaveCount(5)
+  const themeMenuBox = await themeMenu.evaluate((element) => {
+    const rect = element.getBoundingClientRect()
+    return {
+      left: rect.left,
+      right: rect.right,
+      top: rect.top,
+      viewportWidth: window.innerWidth,
+    }
+  })
+  expect(themeMenuBox.left).toBeGreaterThanOrEqual(-1)
+  expect(themeMenuBox.right).toBeLessThanOrEqual(themeMenuBox.viewportWidth + 1)
+  expect(themeMenuBox.top).toBeGreaterThanOrEqual(-1)
+  await expect(themeMenu.getByRole('menuitemradio', { name: 'Usar tema Oscuro' })).toHaveAttribute('aria-checked', 'true')
+  await themeMenu.getByRole('menuitemradio', { name: 'Usar tema Claro' }).click()
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
   await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#f8faf9')
-  await page.getByRole('button', { name: 'Cambiar tema. Actual Claro', exact: true }).click()
+  await page.getByRole('button', { name: 'Elegir tema. Actual Claro', exact: true }).click()
+  await page.getByRole('menuitemradio', { name: 'Usar tema Rosa' }).click()
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'rose')
   await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#fff5f8')
-  await expect(page.getByRole('button', { name: 'Cambiar tema. Actual Rosa', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Elegir tema. Actual Rosa', exact: true })).toBeVisible()
 
   await page.goto('/?tab=dice')
   await expect(page.getByRole('heading', { name: 'Elige el siguiente hilo' })).toBeVisible()
