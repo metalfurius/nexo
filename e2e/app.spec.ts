@@ -500,6 +500,33 @@ test('quick search can save pending dice preferences', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Deshacer ajustes del dado' })).toBeVisible()
 })
 
+test('quick search can reactivate dice cooldowns through the pending-change guard', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Mas acciones Outer Wilds' }).click()
+  await page.getByRole('menuitem', { name: 'Enfriar dado Outer Wilds' }).click()
+  await expect(page.getByText('Outer Wilds enfriado para el dado')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Ajustes', exact: true }).click()
+  await page.getByRole('button', { name: 'Tema Rosa', exact: true }).click()
+  await expect(page.getByText('Cambios pendientes')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Busqueda rapida' }).click()
+  const quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  await quickSearch.getByLabel('Buscar en Nexo').fill('reactivar cooldowns')
+  const reactivateAction = quickSearch.getByRole('button', { name: 'Ejecutar Reactivar cooldowns del dado' })
+  await expect(reactivateAction).toHaveAttribute('aria-current', 'true')
+  await expect(reactivateAction).toContainText('1 entrada en cooldown')
+  await reactivateAction.click()
+
+  await expect(page.getByLabel('Salida con cambios pendientes')).toContainText('Cambios pendientes en Ajustes')
+  await page.getByLabel('Salida con cambios pendientes').getByRole('button', { name: 'Descartar cambios' }).click()
+
+  await expect(page).toHaveURL(/tab=dice/)
+  await expect(page.getByRole('status').filter({ hasText: '1 entrada reactivada para el dado' })).toBeVisible()
+  await expect(page.getByTestId('session-activity')).toContainText('Cooldowns reactivados')
+  await expect(page.getByRole('button', { name: 'Deshacer reactivacion' })).toBeVisible()
+})
+
 test('quick search applies theme commands', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Busqueda rapida' }).click()

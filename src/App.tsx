@@ -331,6 +331,10 @@ interface DicePreferencesSaveRequest {
   requestId: number
 }
 
+interface DiceCooldownReactivateRequest {
+  requestId: number
+}
+
 interface ExplorerSearchRequest {
   query: string
   requestId: number
@@ -368,6 +372,7 @@ interface SettingsSaveRequest {
 }
 
 type PendingNavigation = {
+  diceReactivateCooldowns?: boolean
   diceRoll?: boolean
   draftItem?: ListItem
   explorerCandidateId?: string
@@ -698,6 +703,7 @@ function App() {
   const [librarySmartViewRequest, setLibrarySmartViewRequest] = useState<LibrarySmartViewRequest | undefined>()
   const [diceRollRequest, setDiceRollRequest] = useState<DiceRollRequest | undefined>()
   const [dicePreferencesSaveRequest, setDicePreferencesSaveRequest] = useState<DicePreferencesSaveRequest | undefined>()
+  const [diceCooldownReactivateRequest, setDiceCooldownReactivateRequest] = useState<DiceCooldownReactivateRequest | undefined>()
   const [explorerSearchRequest, setExplorerSearchRequest] = useState<ExplorerSearchRequest | undefined>()
   const [explorerPromptCardRequest, setExplorerPromptCardRequest] = useState<ExplorerPromptCardRequest | undefined>()
   const [explorerCandidateRequest, setExplorerCandidateRequest] = useState<ExplorerCandidateRequest | undefined>()
@@ -720,6 +726,7 @@ function App() {
   const libraryPrimaryActionRequestId = useRef(0)
   const diceRollRequestId = useRef(0)
   const dicePreferencesSaveRequestId = useRef(0)
+  const diceCooldownReactivateRequestId = useRef(0)
   const explorerSearchRequestId = useRef(0)
   const explorerPromptCardRequestId = useRef(0)
   const explorerCandidateRequestId = useRef(0)
@@ -863,6 +870,7 @@ function App() {
   const clearLibraryPrimaryActionRequest = useCallback(() => setLibraryPrimaryActionRequest(undefined), [])
   const clearDiceRollRequest = useCallback(() => setDiceRollRequest(undefined), [])
   const clearDicePreferencesSaveRequest = useCallback(() => setDicePreferencesSaveRequest(undefined), [])
+  const clearDiceCooldownReactivateRequest = useCallback(() => setDiceCooldownReactivateRequest(undefined), [])
   const clearExplorerSearchRequest = useCallback(() => setExplorerSearchRequest(undefined), [])
   const clearExplorerPromptCardRequest = useCallback(() => setExplorerPromptCardRequest(undefined), [])
   const clearExplorerCandidateRequest = useCallback(() => setExplorerCandidateRequest(undefined), [])
@@ -978,6 +986,11 @@ function App() {
   function requestDicePreferencesSave() {
     dicePreferencesSaveRequestId.current += 1
     setDicePreferencesSaveRequest({ requestId: dicePreferencesSaveRequestId.current })
+  }
+
+  function requestDiceCooldownReactivate() {
+    diceCooldownReactivateRequestId.current += 1
+    setDiceCooldownReactivateRequest({ requestId: diceCooldownReactivateRequestId.current })
   }
 
   function requestExplorerSearch(query: string) {
@@ -1265,10 +1278,30 @@ function App() {
     requestDicePreferencesSave()
   }
 
+  function reactivateDiceCooldownsFromPalette() {
+    setQuickSearchOpen(false)
+    if (activeTab === 'dice') {
+      setActivityFocus(undefined)
+      requestDiceCooldownReactivate()
+      writeAppTabToUrl('dice', 'push')
+      return
+    }
+    if (tabsWithUnsavedChanges[activeTab]) {
+      setPendingNavigation({ diceReactivateCooldowns: true, source: 'app', tab: 'dice' })
+      return
+    }
+
+    setActivityFocus(undefined)
+    requestDiceCooldownReactivate()
+    setActiveTabState('dice')
+    writeAppTabToUrl('dice', 'push')
+  }
+
   function discardPendingNavigation() {
     if (!pendingNavigation) return
 
     const {
+      diceReactivateCooldowns,
       diceRoll,
       draftItem,
       explorerCandidateId,
@@ -1288,6 +1321,9 @@ function App() {
     setPendingNavigation(undefined)
     if (diceRoll) {
       requestDiceRoll()
+    }
+    if (diceReactivateCooldowns) {
+      requestDiceCooldownReactivate()
     }
     if (explorerCandidateId) {
       requestExplorerCandidate(explorerCandidateId)
@@ -1327,6 +1363,9 @@ function App() {
   const quickSearchFocusItem = getLibraryFocusItems(library.items)[0]
   const quickSearchFocusAction = quickSearchFocusItem ? getPrimaryItemAction(quickSearchFocusItem.status) : undefined
   const quickSearchQueuedCandidate = library.discoveryCandidates.find((candidate) => candidate.status === 'queued')
+  const quickSearchCooldownCount = library.items.filter(
+    (item) => item.status !== 'completed' && item.status !== 'dropped' && isItemInCooldown(item),
+  ).length
   const quickSearchPrivateTaxonomyRepairCount = library.items.filter((item) =>
     Boolean(getPrivateTaxonomyRepairDraft(item, catalogTaxonomyTemplates[item.type][0], item.updatedAt)),
   ).length
@@ -1439,6 +1478,20 @@ function App() {
             searchText: 'guardar dado ajustes cambios pendientes preferencias filtros sorpresa energia',
             title: 'Guardar ajustes del dado',
             tone: 'command' as const,
+          },
+        ]
+      : []),
+    ...(quickSearchCooldownCount
+      ? [
+          {
+            Icon: RotateCcw,
+            detail: `${quickSearchCooldownCount} ${quickSearchCooldownCount === 1 ? 'entrada en cooldown' : 'entradas en cooldown'}`,
+            id: 'dice-reactivate-cooldowns',
+            meta: 'Dado',
+            run: reactivateDiceCooldownsFromPalette,
+            searchText: 'reactivar cooldowns dado recuperar enfriadas candidatas recomendacion',
+            title: 'Reactivar cooldowns del dado',
+            tone: 'section' as const,
           },
         ]
       : []),
@@ -1758,9 +1811,11 @@ function App() {
         {activeTab === 'dice' && (
           <DiceTab
             library={library}
+            cooldownReactivateRequest={diceCooldownReactivateRequest}
             saveRequest={dicePreferencesSaveRequest}
             rollRequest={diceRollRequest}
             onActivity={recordVisibleActivity}
+            onCooldownReactivateRequestHandled={clearDiceCooldownReactivateRequest}
             onSaveRequestHandled={clearDicePreferencesSaveRequest}
             onRollRequestHandled={clearDiceRollRequest}
             onUnsavedChange={reportDiceUnsavedChanges}
@@ -3897,17 +3952,21 @@ function LibraryTab({
 
 function DiceTab({
   library,
+  cooldownReactivateRequest,
   saveRequest,
   rollRequest,
   onActivity,
+  onCooldownReactivateRequestHandled,
   onSaveRequestHandled,
   onRollRequestHandled,
   onUnsavedChange,
 }: {
   library: LibrarySurface
+  cooldownReactivateRequest?: DiceCooldownReactivateRequest
   saveRequest?: DicePreferencesSaveRequest
   rollRequest?: DiceRollRequest
   onActivity: ActivityRecorder
+  onCooldownReactivateRequestHandled: () => void
   onSaveRequestHandled: () => void
   onRollRequestHandled: () => void
   onUnsavedChange: (hasUnsavedChanges: boolean) => void
@@ -3921,6 +3980,7 @@ function DiceTab({
   const [diceUndoAction, setDiceUndoAction] = useState<DiceUndoAction | undefined>()
   const [diceSettingsUndo, setDiceSettingsUndo] = useState<DiceSettingsUndo | undefined>()
   const [diceDecisionSummary, setDiceDecisionSummary] = useState<DiceDecisionSummary | undefined>()
+  const handledCooldownReactivateRequestId = useRef<number | undefined>(undefined)
   const handledSaveRequestId = useRef<number | undefined>(undefined)
   const handledRollRequestId = useRef<number | undefined>(undefined)
   const persistedPreferences = library.settings.recommendationPreferences ?? DEFAULT_RECOMMENDATION_PREFERENCES
@@ -4239,7 +4299,7 @@ function DiceTab({
     }
   }
 
-  async function reactivateDiceCooldowns() {
+  const reactivateDiceCooldowns = useCallback(async () => {
     if (!cooldownRecoveryItems.length) return
     const count = cooldownRecoveryItems.length
     const recoverySnapshot = cooldownRecoveryItems.map((item) => ({ ...item }))
@@ -4259,7 +4319,20 @@ function DiceTab({
     } catch (reason) {
       setStatus(reason instanceof Error ? reason.message : 'No se pudieron reactivar las entradas.')
     }
-  }
+  }, [cooldownRecoveryItems, library, onActivity])
+
+  useEffect(() => {
+    if (!cooldownReactivateRequest || handledCooldownReactivateRequestId.current === cooldownReactivateRequest.requestId) return
+
+    const timeoutId = window.setTimeout(() => {
+      if (handledCooldownReactivateRequestId.current === cooldownReactivateRequest.requestId) return
+
+      handledCooldownReactivateRequestId.current = cooldownReactivateRequest.requestId
+      void reactivateDiceCooldowns().finally(onCooldownReactivateRequestHandled)
+    }, 0)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [cooldownReactivateRequest, onCooldownReactivateRequestHandled, reactivateDiceCooldowns])
 
   async function saveDiceItemEdits(item: ListItem) {
     try {
