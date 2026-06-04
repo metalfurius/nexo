@@ -449,6 +449,27 @@ test('quick search runs command actions', async ({ page }) => {
   await expect(page.getByTestId('session-activity')).toContainText('Backup privado exportado')
 })
 
+test('quick search opens library smart views through the pending-change guard', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await page.getByLabel('Energia').selectOption('high')
+  await expect(page.getByText('Cambios pendientes')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Busqueda rapida' }).click()
+  const quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  await quickSearch.getByLabel('Buscar en Nexo').fill('sin contexto')
+  await expect(quickSearch.getByRole('button', { name: 'Ejecutar Vista Sin contexto' })).toHaveAttribute('aria-current', 'true')
+  await quickSearch.getByRole('button', { name: 'Ejecutar Vista Sin contexto' }).click()
+
+  await expect(page.getByLabel('Salida con cambios pendientes')).toContainText('Cambios pendientes en Dado')
+  await expect(page).toHaveURL(/tab=dice/)
+  await page.getByLabel('Salida con cambios pendientes').getByRole('button', { name: 'Descartar cambios' }).click()
+  await expect(page.getByText('Vista: Sin contexto')).toBeVisible()
+  await expect(page.getByText('4 de 7 entradas')).toBeVisible()
+  await expect(page.getByTestId('library-grid')).toContainText('Inception')
+  await expect(page.getByTestId('library-grid')).not.toContainText('Outer Wilds')
+})
+
 test('quick search opens sections through the pending-change guard', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Dado', exact: true }).click()

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import {
   AlertTriangle,
   Archive,
@@ -312,7 +312,18 @@ function feedbackToneFromText(message: string): FeedbackTone {
 
 type ActivityFocus = ActivityTarget
 type AppTab = ActivityTab
-type PendingNavigation = { draftItem?: ListItem; focus?: ActivityFocus; source: 'app' | 'history'; tab: AppTab }
+interface LibrarySmartViewRequest {
+  id: LibrarySmartView
+  requestId: number
+}
+
+type PendingNavigation = {
+  draftItem?: ListItem
+  focus?: ActivityFocus
+  librarySmartView?: LibrarySmartView
+  source: 'app' | 'history'
+  tab: AppTab
+}
 type ActivityRecorder = (entry: Omit<ActivityEntry, 'createdAt' | 'id'>) => void
 interface QuickSearchCommand {
   Icon: LucideIcon
@@ -604,12 +615,14 @@ function App() {
   const [activityFocus, setActivityFocus] = useState<ActivityFocus | undefined>(() => readInitialActivityFocus())
   const [activityClearUndo, setActivityClearUndo] = useState<ActivityEntry[]>([])
   const [libraryDraftRequest, setLibraryDraftRequest] = useState<ListItem | undefined>()
+  const [librarySmartViewRequest, setLibrarySmartViewRequest] = useState<LibrarySmartViewRequest | undefined>()
   const [quickSearchOpen, setQuickSearchOpen] = useState(false)
   const [themeMenuOpen, setThemeMenuOpen] = useState(false)
   const [serviceWorkerUpdateReady, setServiceWorkerUpdateReady] = useState(false)
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | undefined>()
   const [isOffline, setIsOffline] = useState(() => 'onLine' in navigator && !navigator.onLine)
   const [tabsWithUnsavedChanges, setTabsWithUnsavedChanges] = useState<Partial<Record<AppTab, boolean>>>({})
+  const librarySmartViewRequestId = useRef(0)
   const [theme, setTheme] = useState<ThemeMode>(() => {
     const stored = window.localStorage.getItem(themeStorageKey)
     return isThemeMode(stored) ? stored : DEFAULT_SETTINGS.theme
@@ -835,6 +848,30 @@ function App() {
     writeAppTabToUrl('library', 'push')
   }
 
+  function requestLibrarySmartView(view: LibrarySmartView) {
+    librarySmartViewRequestId.current += 1
+    setLibrarySmartViewRequest({ id: view, requestId: librarySmartViewRequestId.current })
+  }
+
+  function openLibrarySmartViewFromPalette(view: LibrarySmartView) {
+    setQuickSearchOpen(false)
+    if (activeTab === 'library') {
+      setActivityFocus(undefined)
+      requestLibrarySmartView(view)
+      writeAppTabToUrl('library', 'push')
+      return
+    }
+    if (tabsWithUnsavedChanges[activeTab]) {
+      setPendingNavigation({ librarySmartView: view, source: 'app', tab: 'library' })
+      return
+    }
+
+    setActivityFocus(undefined)
+    requestLibrarySmartView(view)
+    setActiveTabState('library')
+    writeAppTabToUrl('library', 'push')
+  }
+
   function createBlankLibraryDraft() {
     openLibraryDraft(blankItem())
   }
@@ -860,11 +897,14 @@ function App() {
   function discardPendingNavigation() {
     if (!pendingNavigation) return
 
-    const { draftItem, focus, source, tab: nextTab } = pendingNavigation
+    const { draftItem, focus, librarySmartView, source, tab: nextTab } = pendingNavigation
     setTabsWithUnsavedChanges((current) => ({ ...current, [activeTab]: false }))
     setPendingNavigation(undefined)
     if (draftItem) {
       setLibraryDraftRequest(draftItem)
+    }
+    if (librarySmartView) {
+      requestLibrarySmartView(librarySmartView)
     }
     setActivityFocus(focus)
     setActiveTabState(nextTab)
@@ -905,6 +945,18 @@ function App() {
       title: 'Exportar backup JSON',
       tone: 'command',
     },
+    ...getLibrarySmartViewOptions(library.items)
+      .filter((option) => option.id !== 'all')
+      .map((option): QuickSearchCommand => ({
+        Icon: option.id === 'dice-ready' ? Dice5 : option.id === 'cooldown' ? Pause : option.id === 'nexo' ? Sparkles : Search,
+        detail: `${option.count} entradas / ${option.detail}`,
+        id: `library-view-${option.id}`,
+        meta: 'Vista',
+        run: () => openLibrarySmartViewFromPalette(option.id),
+        searchText: `${option.label} ${option.detail} vista biblioteca cola filtro dado taxonomia contexto cooldown catalogo`,
+        title: `Vista ${option.label}`,
+        tone: 'section',
+      })),
   ]
 
   return (
@@ -1083,6 +1135,7 @@ function App() {
             activityFocusItemId={activityFocus?.kind === 'item' ? activityFocus.id : undefined}
             draftRequest={libraryDraftRequest}
             library={library}
+            smartViewRequest={librarySmartViewRequest}
             onActivity={recordVisibleActivity}
             onActivityFocusHandled={clearActivityFocus}
             onDraftRequestHandled={clearLibraryDraftRequest}
@@ -1666,6 +1719,7 @@ function LibraryTab({
   activityFocusItemId,
   draftRequest,
   library,
+  smartViewRequest,
   onActivity,
   onActivityFocusHandled,
   onDraftRequestHandled,
@@ -1675,6 +1729,7 @@ function LibraryTab({
   activityFocusItemId?: string
   draftRequest?: ListItem
   library: LibrarySurface
+  smartViewRequest?: LibrarySmartViewRequest
   onActivity: ActivityRecorder
   onActivityFocusHandled: () => void
   onDraftRequestHandled: () => void
@@ -1688,6 +1743,7 @@ function LibraryTab({
   const [sortMode, setSortMode] = useState<LibrarySortMode>('focus')
   const [editingItem, setEditingItem] = useState<ListItem | undefined>()
   const [handledDraftRequestId, setHandledDraftRequestId] = useState<string | undefined>()
+  const [handledSmartViewRequestId, setHandledSmartViewRequestId] = useState<number | undefined>()
   const [deleteTarget, setDeleteTarget] = useState<ListItem | undefined>()
   const [deletedItemUndo, setDeletedItemUndo] = useState<ListItem | undefined>()
   const [deletedLibraryUndo, setDeletedLibraryUndo] = useState<ListItem[]>([])
@@ -1776,6 +1832,17 @@ function LibraryTab({
     setStatusFilter('all')
     setSmartView('all')
     setSortMode('focus')
+  }
+
+  if (smartViewRequest && handledSmartViewRequestId !== smartViewRequest.requestId) {
+    setHandledSmartViewRequestId(smartViewRequest.requestId)
+    setQuery('')
+    setTypeFilter('all')
+    setStatusFilter('all')
+    setSmartView(smartViewRequest.id)
+    setSortMode('focus')
+    setSelectedItemIds([])
+    setActiveReviewSession(undefined)
   }
 
   async function prepareLibraryImportFile(file?: File) {
