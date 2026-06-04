@@ -616,6 +616,32 @@ test('activity entries navigate through the pending-change guard', async ({ page
   await expect(focusedEditor.getByLabel('Titulo')).toHaveValue('Actividad navegable')
 })
 
+test('quick search resumes recent activity through the pending-change guard', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Anadir' }).click()
+  const editor = page.getByRole('dialog', { name: 'Entrada' })
+  await editor.getByLabel('Titulo').fill('Actividad paleta')
+  await editor.getByRole('button', { name: 'Guardar' }).click()
+  await expect(page.getByTestId('session-activity')).toContainText('Ficha guardada')
+
+  await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await page.getByLabel('Energia').selectOption('high')
+  await expect(page.getByText('Cambios pendientes')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Busqueda rapida' }).click()
+  const quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  await quickSearch.getByLabel('Buscar en Nexo').fill('ficha guardada')
+  const activityCommand = quickSearch.getByRole('button', { name: 'Ejecutar Continuar Ficha guardada' })
+  await expect(activityCommand).toHaveAttribute('aria-current', 'true')
+  await expect(activityCommand).toContainText('Actividad paleta')
+  await activityCommand.click()
+
+  await expect(page.getByLabel('Salida con cambios pendientes')).toContainText('Cambios pendientes en Dado')
+  await page.getByLabel('Salida con cambios pendientes').getByRole('button', { name: 'Descartar cambios' }).click()
+  await expect(page).toHaveURL(/item=movie-actividad-paleta/)
+  await expect(page.getByRole('dialog', { name: 'Entrada' }).getByLabel('Titulo')).toHaveValue('Actividad paleta')
+})
+
 test('library item deep links open and close the focused editor', async ({ page }) => {
   await page.goto('/?item=game-outer-wilds')
   const editor = page.getByRole('dialog', { name: 'Entrada' })

@@ -961,6 +961,11 @@ function App() {
     applyTheme(nextTheme)
   }
 
+  function openActivityFromPalette(entry: ActivityEntry) {
+    setQuickSearchOpen(false)
+    changeActiveTab(getActivityDestinationTab(entry), getActivityFocus(entry))
+  }
+
   function discardPendingNavigation() {
     if (!pendingNavigation) return
 
@@ -986,6 +991,20 @@ function App() {
 
   const quickSearchFocusItem = getLibraryFocusItems(library.items)[0]
   const quickSearchFocusAction = quickSearchFocusItem ? getPrimaryItemAction(quickSearchFocusItem.status) : undefined
+  const quickSearchActivityCommands = library.activityEntries.slice(0, 4).map((entry): QuickSearchCommand => {
+    const destinationLabel = activityTabLabels[getActivityDestinationTab(entry)]
+
+    return {
+      Icon: getActivityIcon(entry.tone),
+      detail: `${entry.detail} / ${destinationLabel}`,
+      id: `activity-${entry.id}`,
+      meta: 'Actividad',
+      run: () => openActivityFromPalette(entry),
+      searchText: `continuar actividad reciente sesion ${entry.label} ${entry.detail} ${destinationLabel}`,
+      title: `Continuar ${entry.label}`,
+      tone: 'command',
+    }
+  })
   const quickSearchCommands: QuickSearchCommand[] = [
     {
       Icon: Plus,
@@ -1033,6 +1052,7 @@ function App() {
       title: 'Exportar backup JSON',
       tone: 'command',
     },
+    ...quickSearchActivityCommands,
     ...themeOptions.map((option): QuickSearchCommand => ({
       Icon: Palette,
       detail: option.detail,
