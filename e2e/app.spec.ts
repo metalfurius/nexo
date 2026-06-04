@@ -568,6 +568,30 @@ test('quick search opens sections through the pending-change guard', async ({ pa
   await expect(page.getByRole('heading', { name: 'Encuentra la proxima entrada' })).toBeVisible()
 })
 
+test('quick search can start an explorer search through the pending-change guard', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await page.getByLabel('Energia').selectOption('high')
+  await expect(page.getByText('Cambios pendientes')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Busqueda rapida' }).click()
+  const quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  await quickSearch.getByLabel('Buscar en Nexo').fill('explorar Odisea')
+  const exploreAction = quickSearch.getByRole('button', { name: 'Explorar Odisea', exact: true })
+  await expect(exploreAction).toHaveAttribute('aria-current', 'true')
+  await exploreAction.click()
+
+  await expect(page.getByLabel('Salida con cambios pendientes')).toContainText('Cambios pendientes en Dado')
+  await expect(page).toHaveURL(/tab=dice/)
+  await page.getByLabel('Salida con cambios pendientes').getByRole('button', { name: 'Descartar cambios' }).click()
+
+  await expect(page).toHaveURL(/tab=explorer/)
+  await expect(page.getByRole('heading', { name: 'Encuentra la proxima entrada' })).toBeVisible()
+  await expect(page.getByLabel('Buscar en explorador')).toHaveValue('Odisea')
+  await expect(page.getByTestId('session-activity')).toContainText('Busqueda en cola')
+  await expect(page.getByTestId('explorer-decision-panel')).toContainText('Odisea')
+})
+
 test('quick search can create a prefilled item through the pending-change guard', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
