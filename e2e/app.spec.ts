@@ -683,6 +683,40 @@ test('quick search opens library smart views through the pending-change guard', 
   await expect(page.getByTestId('library-grid')).not.toContainText('Outer Wilds')
 })
 
+test('quick search switches library layout through the pending-change guard', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await page.getByLabel('Energia').selectOption('high')
+  await expect(page.getByText('Cambios pendientes')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Busqueda rapida' }).click()
+  let quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  await quickSearch.getByLabel('Buscar en Nexo').fill('vista lista')
+  const listLayoutAction = quickSearch.getByRole('button', { name: 'Ejecutar Vista Lista', exact: true })
+  await expect(listLayoutAction).toHaveAttribute('aria-current', 'true')
+  await expect(listLayoutAction).toContainText('Guardar como vista de biblioteca')
+  await listLayoutAction.click()
+
+  await expect(page.getByLabel('Salida con cambios pendientes')).toContainText('Cambios pendientes en Dado')
+  await expect(page).toHaveURL(/tab=dice/)
+  await page.getByLabel('Salida con cambios pendientes').getByRole('button', { name: 'Descartar cambios' }).click()
+
+  await expect(page.getByRole('heading', { name: 'Biblioteca privada' })).toBeVisible()
+  await expect(page.getByTestId('library-grid')).toHaveClass(/list-view/)
+  await expect(page.getByRole('status').filter({ hasText: 'Vista Lista guardada' })).toBeVisible()
+  await expect(page.getByTestId('session-activity')).toContainText('Vista de biblioteca guardada')
+
+  await page.getByRole('button', { name: 'Busqueda rapida' }).click()
+  quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  await quickSearch.getByLabel('Buscar en Nexo').fill('vista tarjetas')
+  const cardsLayoutAction = quickSearch.getByRole('button', { name: 'Ejecutar Vista Tarjetas', exact: true })
+  await expect(cardsLayoutAction).toHaveAttribute('aria-current', 'true')
+  await cardsLayoutAction.click()
+
+  await expect(page.getByTestId('library-grid')).not.toHaveClass(/list-view/)
+  await expect(page.getByRole('status').filter({ hasText: 'Vista Tarjetas guardada' })).toBeVisible()
+})
+
 test('quick search starts guided library review through the pending-change guard', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Dado', exact: true }).click()

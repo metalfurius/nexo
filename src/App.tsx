@@ -324,6 +324,11 @@ interface LibrarySmartViewRequest {
   requestId: number
 }
 
+interface LibraryViewModeRequest {
+  mode: LibraryViewMode
+  requestId: number
+}
+
 interface LibraryPrimaryActionRequest {
   itemId: string
   requestId: number
@@ -412,6 +417,7 @@ type PendingNavigation = {
   libraryPrimaryActionItemId?: string
   libraryReview?: LibrarySmartView
   librarySmartView?: LibrarySmartView
+  libraryViewMode?: LibraryViewMode
   settingsTasteSuggestions?: boolean
   settingsTaxonomyRepair?: boolean
   source: 'app' | 'history'
@@ -732,6 +738,7 @@ function App() {
   const [libraryPrimaryActionRequest, setLibraryPrimaryActionRequest] = useState<LibraryPrimaryActionRequest | undefined>()
   const [libraryReviewRequest, setLibraryReviewRequest] = useState<LibraryReviewRequest | undefined>()
   const [librarySmartViewRequest, setLibrarySmartViewRequest] = useState<LibrarySmartViewRequest | undefined>()
+  const [libraryViewModeRequest, setLibraryViewModeRequest] = useState<LibraryViewModeRequest | undefined>()
   const [diceRollRequest, setDiceRollRequest] = useState<DiceRollRequest | undefined>()
   const [dicePreferencesSaveRequest, setDicePreferencesSaveRequest] = useState<DicePreferencesSaveRequest | undefined>()
   const [diceCooldownReactivateRequest, setDiceCooldownReactivateRequest] = useState<DiceCooldownReactivateRequest | undefined>()
@@ -1012,6 +1019,10 @@ function App() {
   function requestLibrarySmartView(view: LibrarySmartView) {
     librarySmartViewRequestId.current += 1
     setLibrarySmartViewRequest({ id: view, requestId: librarySmartViewRequestId.current })
+  }
+
+  function requestLibraryViewMode(mode: LibraryViewMode) {
+    setLibraryViewModeRequest((current) => ({ mode, requestId: (current?.requestId ?? 0) + 1 }))
   }
 
   function requestLibraryImport() {
@@ -1325,6 +1336,25 @@ function App() {
     writeAppTabToUrl('library', 'push')
   }
 
+  function applyLibraryViewModeFromPalette(mode: LibraryViewMode) {
+    setQuickSearchOpen(false)
+    if (activeTab === 'library') {
+      setActivityFocus(undefined)
+      requestLibraryViewMode(mode)
+      writeAppTabToUrl('library', 'push')
+      return
+    }
+    if (tabsWithUnsavedChanges[activeTab]) {
+      setPendingNavigation({ libraryViewMode: mode, source: 'app', tab: 'library' })
+      return
+    }
+
+    setActivityFocus(undefined)
+    requestLibraryViewMode(mode)
+    setActiveTabState('library')
+    writeAppTabToUrl('library', 'push')
+  }
+
   function importLibraryBackupFromPalette() {
     setQuickSearchOpen(false)
     if (activeTab === 'library') {
@@ -1453,6 +1483,7 @@ function App() {
       libraryPrimaryActionItemId,
       libraryReview,
       librarySmartView,
+      libraryViewMode,
       settingsTasteSuggestions,
       settingsTaxonomyRepair,
       source,
@@ -1501,6 +1532,9 @@ function App() {
     }
     if (librarySmartView) {
       requestLibrarySmartView(librarySmartView)
+    }
+    if (libraryViewMode) {
+      requestLibraryViewMode(libraryViewMode)
     }
     if (settingsTasteSuggestions) {
       requestSettingsTasteSuggestions()
@@ -1826,6 +1860,16 @@ function App() {
       title: `Tema ${option.label}`,
       tone: 'command',
     })),
+    ...(['cards', 'list'] as const).map((mode): QuickSearchCommand => ({
+      Icon: mode === 'cards' ? LayoutGrid : List,
+      detail: mode === library.settings.libraryViewMode ? 'Vista actual' : 'Guardar como vista de biblioteca',
+      id: `library-layout-${mode}`,
+      meta: 'Biblioteca',
+      run: () => applyLibraryViewModeFromPalette(mode),
+      searchText: `biblioteca vista layout ${libraryViewLabels[mode]} tarjetas lista columnas modo`,
+      title: `Vista ${libraryViewLabels[mode]}`,
+      tone: 'command',
+    })),
     ...getLibrarySmartViewOptions(library.items)
       .filter((option) => option.id !== 'all')
       .map((option): QuickSearchCommand => ({
@@ -2024,6 +2068,7 @@ function App() {
             primaryActionRequest={libraryPrimaryActionRequest}
             reviewRequest={libraryReviewRequest}
             smartViewRequest={librarySmartViewRequest}
+            viewModeRequest={libraryViewModeRequest}
             onActivity={recordVisibleActivity}
             onActivityFocusHandled={clearActivityFocus}
             onImportRequestHandled={clearLibraryImportRequest}
@@ -2734,6 +2779,7 @@ function LibraryTab({
   primaryActionRequest,
   reviewRequest,
   smartViewRequest,
+  viewModeRequest,
   onActivity,
   onActivityFocusHandled,
   onImportRequestHandled,
@@ -2751,6 +2797,7 @@ function LibraryTab({
   primaryActionRequest?: LibraryPrimaryActionRequest
   reviewRequest?: LibraryReviewRequest
   smartViewRequest?: LibrarySmartViewRequest
+  viewModeRequest?: LibraryViewModeRequest
   onActivity: ActivityRecorder
   onActivityFocusHandled: () => void
   onImportRequestHandled: () => void
@@ -2769,6 +2816,7 @@ function LibraryTab({
   const [editingItem, setEditingItem] = useState<ListItem | undefined>()
   const [handledDraftRequestId, setHandledDraftRequestId] = useState<string | undefined>()
   const [handledSmartViewRequestId, setHandledSmartViewRequestId] = useState<number | undefined>()
+  const handledViewModeRequestId = useRef<number | undefined>(undefined)
   const handledImportRequestId = useRef<number | undefined>(undefined)
   const handledReviewRequestId = useRef<number | undefined>(undefined)
   const libraryImportInputRef = useRef<HTMLInputElement | null>(null)
@@ -3389,7 +3437,7 @@ function LibraryTab({
     })
   }
 
-  async function changeViewMode(nextViewMode: LibraryViewMode) {
+  const changeViewMode = useCallback(async (nextViewMode: LibraryViewMode) => {
     if (viewMode === nextViewMode) return
     const nextLabel = libraryViewLabels[nextViewMode]
     try {
@@ -3404,7 +3452,14 @@ function LibraryTab({
     } catch (reason) {
       setImportStatus(reason instanceof Error ? reason.message : 'No se pudo guardar la vista de biblioteca.')
     }
-  }
+  }, [library, onActivity, viewMode])
+
+  useLayoutEffect(() => {
+    if (!viewModeRequest || handledViewModeRequestId.current === viewModeRequest.requestId) return
+
+    handledViewModeRequestId.current = viewModeRequest.requestId
+    void changeViewMode(viewModeRequest.mode)
+  }, [changeViewMode, viewModeRequest])
 
   async function copyLibraryItemLink(item: ListItem) {
     const itemUrl = buildItemShareUrl(item.id)
