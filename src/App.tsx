@@ -2894,10 +2894,9 @@ function DiceTab({
     setEditingDiceItem(library.items.find((item) => item.id === recommendation.item.id) ?? recommendation.item)
   }
 
-  function clearDiceDecisionResult() {
-    setRecommendation(undefined)
-    setDiceDecisionSummary(undefined)
-    setStatus(undefined)
+  async function rollAnotherRecommendation() {
+    if (!recommendation) return
+    await rollRecommendation(recommendation.item.id)
   }
 
   function getDiceSettingsUndo(kind: DiceSettingsUndo['kind']): DiceSettingsUndo {
@@ -2911,10 +2910,18 @@ function DiceTab({
     }
   }
 
-  async function rollRecommendation() {
-    if (!hasCandidates) {
+  async function rollRecommendation(excludedItemId?: string) {
+    const rollItems = excludedItemId ? library.items.filter((item) => item.id !== excludedItemId) : library.items
+    const rollCandidates = scoreCandidates(rollItems, preferences, library.settings)
+
+    if (!rollCandidates.length) {
       setRecommendation(undefined)
-      setStatus('No hay candidatas disponibles con estos filtros.')
+      setDiceDecisionSummary(undefined)
+      setStatus(
+        excludedItemId
+          ? 'No quedan candidatas distintas con estos filtros.'
+          : 'No hay candidatas disponibles con estos filtros.',
+      )
       return
     }
 
@@ -2925,7 +2932,7 @@ function DiceTab({
     setDiceDecisionSummary(undefined)
     setRecommendation(undefined)
     const next = recommendItem(
-      library.items,
+      rollItems,
       {
         ...preferences,
         seed: `${preferences.seed}-${Date.now()}`,
@@ -3250,7 +3257,7 @@ function DiceTab({
           className={isRolling ? 'dice-orb rolling' : 'dice-orb'}
           disabled={isRolling || !hasCandidates}
           type="button"
-          onClick={rollRecommendation}
+          onClick={() => void rollRecommendation()}
           data-testid="roll-button"
           aria-label="Tirar dado ponderado"
         >
@@ -3480,7 +3487,7 @@ function DiceTab({
                       Afinar ficha
                     </button>
                   )}
-                  <button className="primary-button" type="button" onClick={clearDiceDecisionResult}>
+                  <button className="primary-button" type="button" onClick={() => void rollAnotherRecommendation()}>
                     <Dice5 size={16} />
                     Tirar otra
                   </button>

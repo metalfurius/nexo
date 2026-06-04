@@ -254,6 +254,19 @@ test('library and weighted dice work in demo mode', async ({ page }) => {
   await expect(outerWildsCard.getByLabel('Pulso de Outer Wilds')).toContainText('Continuar')
 })
 
+test('dice closed decisions can roll another recommendation', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await page.getByTestId('roll-button').click()
+  await expect(page.getByTestId('recommendation-result')).toContainText('Decision')
+  await page.getByRole('button', { name: 'No hoy' }).click()
+  await expect(page.getByTestId('dice-decision-summary')).toContainText('apartado')
+
+  await page.getByTestId('dice-decision-summary').getByRole('button', { name: 'Tirar otra' }).click()
+  await expect(page.getByTestId('recommendation-result')).toContainText('Decision')
+  await expect(page.getByTestId('dice-decision-summary')).not.toBeVisible()
+})
+
 test('library review session keeps guided queues actionable', async ({ page }) => {
   await page.goto('/')
   await page.getByTestId('library-review-queue').getByRole('button', { name: 'Completar ficha' }).click()
