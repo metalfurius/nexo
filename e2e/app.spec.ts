@@ -470,6 +470,31 @@ test('quick search opens library smart views through the pending-change guard', 
   await expect(page.getByTestId('library-grid')).not.toContainText('Outer Wilds')
 })
 
+test('quick search applies the next library action through the pending-change guard', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await page.getByLabel('Energia').selectOption('high')
+  await expect(page.getByText('Cambios pendientes')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Busqueda rapida' }).click()
+  const quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  await quickSearch.getByLabel('Buscar en Nexo').fill('siguiente')
+  const nextAction = quickSearch.getByRole('button', { name: 'Ejecutar Completar siguiente accion' })
+  await expect(nextAction).toHaveAttribute('aria-current', 'true')
+  await expect(nextAction).toContainText('Inception')
+  await nextAction.click()
+
+  await expect(page.getByLabel('Salida con cambios pendientes')).toContainText('Cambios pendientes en Dado')
+  await expect(page).toHaveURL(/tab=dice/)
+  await page.getByLabel('Salida con cambios pendientes').getByRole('button', { name: 'Descartar cambios' }).click()
+
+  await expect(page.getByText('Inception ahora es Completado')).toBeVisible()
+  await expect(page.locator('.item-card', { hasText: 'Inception' })).toContainText('Completado')
+  await page.getByLabel('Accion reciente de biblioteca').getByRole('button', { name: 'Deshacer estado' }).click()
+  await expect(page.getByText('Inception recuperado como En progreso')).toBeVisible()
+  await expect(page.locator('.item-card', { hasText: 'Inception' })).toContainText('En progreso')
+})
+
 test('quick search opens sections through the pending-change guard', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Dado', exact: true }).click()

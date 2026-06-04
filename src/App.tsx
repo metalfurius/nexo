@@ -317,9 +317,15 @@ interface LibrarySmartViewRequest {
   requestId: number
 }
 
+interface LibraryPrimaryActionRequest {
+  itemId: string
+  requestId: number
+}
+
 type PendingNavigation = {
   draftItem?: ListItem
   focus?: ActivityFocus
+  libraryPrimaryActionItemId?: string
   librarySmartView?: LibrarySmartView
   source: 'app' | 'history'
   tab: AppTab
@@ -615,6 +621,7 @@ function App() {
   const [activityFocus, setActivityFocus] = useState<ActivityFocus | undefined>(() => readInitialActivityFocus())
   const [activityClearUndo, setActivityClearUndo] = useState<ActivityEntry[]>([])
   const [libraryDraftRequest, setLibraryDraftRequest] = useState<ListItem | undefined>()
+  const [libraryPrimaryActionRequest, setLibraryPrimaryActionRequest] = useState<LibraryPrimaryActionRequest | undefined>()
   const [librarySmartViewRequest, setLibrarySmartViewRequest] = useState<LibrarySmartViewRequest | undefined>()
   const [quickSearchOpen, setQuickSearchOpen] = useState(false)
   const [themeMenuOpen, setThemeMenuOpen] = useState(false)
@@ -627,6 +634,7 @@ function App() {
     const stored = window.localStorage.getItem(themeStorageKey)
     return isThemeMode(stored) ? stored : DEFAULT_SETTINGS.theme
   })
+  const libraryPrimaryActionRequestId = useRef(0)
 
   useEffect(() => {
     if (!auth.isFirebaseConfigured) return
@@ -759,6 +767,7 @@ function App() {
   )
   const clearActivityFocus = useCallback(() => setActivityFocus(undefined), [])
   const clearLibraryDraftRequest = useCallback(() => setLibraryDraftRequest(undefined), [])
+  const clearLibraryPrimaryActionRequest = useCallback(() => setLibraryPrimaryActionRequest(undefined), [])
   const recordVisibleActivity = useCallback(
     (entry: Omit<ActivityEntry, 'createdAt' | 'id'>) => {
       setActivityClearUndo([])
@@ -853,6 +862,30 @@ function App() {
     setLibrarySmartViewRequest({ id: view, requestId: librarySmartViewRequestId.current })
   }
 
+  function requestLibraryPrimaryAction(itemId: string) {
+    libraryPrimaryActionRequestId.current += 1
+    setLibraryPrimaryActionRequest({ itemId, requestId: libraryPrimaryActionRequestId.current })
+  }
+
+  function runLibraryPrimaryActionFromPalette(item: ListItem) {
+    setQuickSearchOpen(false)
+    if (activeTab === 'library') {
+      setActivityFocus(undefined)
+      requestLibraryPrimaryAction(item.id)
+      writeAppTabToUrl('library', 'push')
+      return
+    }
+    if (tabsWithUnsavedChanges[activeTab]) {
+      setPendingNavigation({ libraryPrimaryActionItemId: item.id, source: 'app', tab: 'library' })
+      return
+    }
+
+    setActivityFocus(undefined)
+    requestLibraryPrimaryAction(item.id)
+    setActiveTabState('library')
+    writeAppTabToUrl('library', 'push')
+  }
+
   function openLibrarySmartViewFromPalette(view: LibrarySmartView) {
     setQuickSearchOpen(false)
     if (activeTab === 'library') {
@@ -897,11 +930,14 @@ function App() {
   function discardPendingNavigation() {
     if (!pendingNavigation) return
 
-    const { draftItem, focus, librarySmartView, source, tab: nextTab } = pendingNavigation
+    const { draftItem, focus, libraryPrimaryActionItemId, librarySmartView, source, tab: nextTab } = pendingNavigation
     setTabsWithUnsavedChanges((current) => ({ ...current, [activeTab]: false }))
     setPendingNavigation(undefined)
     if (draftItem) {
       setLibraryDraftRequest(draftItem)
+    }
+    if (libraryPrimaryActionItemId) {
+      requestLibraryPrimaryAction(libraryPrimaryActionItemId)
     }
     if (librarySmartView) {
       requestLibrarySmartView(librarySmartView)
@@ -911,6 +947,8 @@ function App() {
     writeAppTabToUrl(nextTab, source === 'history' ? 'replace' : 'push', focus)
   }
 
+  const quickSearchFocusItem = getLibraryFocusItems(library.items)[0]
+  const quickSearchFocusAction = quickSearchFocusItem ? getPrimaryItemAction(quickSearchFocusItem.status) : undefined
   const quickSearchCommands: QuickSearchCommand[] = [
     {
       Icon: Plus,
@@ -922,6 +960,22 @@ function App() {
       title: 'Anadir entrada',
       tone: 'create',
     },
+    ...(quickSearchFocusItem && quickSearchFocusAction
+      ? [
+          {
+            Icon: quickSearchFocusAction.Icon,
+            detail: `${quickSearchFocusItem.title} / ${getLibraryFocusReason(quickSearchFocusItem)}`,
+            id: 'library-primary-action',
+            meta: 'Foco',
+            run: () => runLibraryPrimaryActionFromPalette(quickSearchFocusItem),
+            searchText: `siguiente accion foco continuar completar empezar retomar ${quickSearchFocusItem.title} ${getLibraryFocusReason(
+              quickSearchFocusItem,
+            )}`,
+            title: `${quickSearchFocusAction.label} siguiente accion`,
+            tone: 'command' as const,
+          },
+        ]
+      : []),
     {
       Icon: Dice5,
       detail: 'Ir al dado ponderado',
@@ -1135,9 +1189,11 @@ function App() {
             activityFocusItemId={activityFocus?.kind === 'item' ? activityFocus.id : undefined}
             draftRequest={libraryDraftRequest}
             library={library}
+            primaryActionRequest={libraryPrimaryActionRequest}
             smartViewRequest={librarySmartViewRequest}
             onActivity={recordVisibleActivity}
             onActivityFocusHandled={clearActivityFocus}
+            onPrimaryActionRequestHandled={clearLibraryPrimaryActionRequest}
             onDraftRequestHandled={clearLibraryDraftRequest}
             onNavigate={changeActiveTab}
             setTheme={setTheme}
@@ -1719,9 +1775,11 @@ function LibraryTab({
   activityFocusItemId,
   draftRequest,
   library,
+  primaryActionRequest,
   smartViewRequest,
   onActivity,
   onActivityFocusHandled,
+  onPrimaryActionRequestHandled,
   onDraftRequestHandled,
   onNavigate,
   setTheme,
@@ -1729,9 +1787,11 @@ function LibraryTab({
   activityFocusItemId?: string
   draftRequest?: ListItem
   library: LibrarySurface
+  primaryActionRequest?: LibraryPrimaryActionRequest
   smartViewRequest?: LibrarySmartViewRequest
   onActivity: ActivityRecorder
   onActivityFocusHandled: () => void
+  onPrimaryActionRequestHandled: () => void
   onDraftRequestHandled: () => void
   onNavigate: (tab: AppTab, focus?: ActivityFocus) => void
   setTheme: (theme: ThemeMode) => void
@@ -1758,6 +1818,7 @@ function LibraryTab({
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([])
   const [bulkStatus, setBulkStatus] = useState<ItemStatus>('completed')
   const [activeReviewSession, setActiveReviewSession] = useState<ActiveLibraryReviewSession | undefined>()
+  const handledPrimaryActionRequestId = useRef<number | undefined>(undefined)
   const viewMode = library.settings.libraryViewMode
   const trimmedQuery = query.trim()
   const hasActiveLibraryFilters = Boolean(trimmedQuery) || typeFilter !== 'all' || statusFilter !== 'all' || smartView !== 'all'
@@ -2435,6 +2496,58 @@ function LibraryTab({
       type: typeFilter === 'all' ? draft.type : typeFilter,
     })
   }
+
+  useEffect(() => {
+    if (!primaryActionRequest || handledPrimaryActionRequestId.current === primaryActionRequest.requestId) return
+
+    const timeoutId = window.setTimeout(() => {
+      if (handledPrimaryActionRequestId.current === primaryActionRequest.requestId) return
+
+      handledPrimaryActionRequestId.current = primaryActionRequest.requestId
+      const item = library.items.find((candidate) => candidate.id === primaryActionRequest.itemId)
+      if (!item) {
+        setImportStatus('La siguiente accion ya no esta disponible')
+        onPrimaryActionRequestHandled()
+        return
+      }
+
+      const primaryAction = getPrimaryItemAction(item.status)
+      setQuery('')
+      setTypeFilter('all')
+      setStatusFilter('all')
+      setSmartView('all')
+      setSortMode('focus')
+      setSelectedItemIds([])
+      setActiveReviewSession(undefined)
+      setImportStatus(`${primaryAction.label}: ${item.title}`)
+
+      void (async () => {
+        try {
+          await library.setStatus(item.id, primaryAction.nextStatus)
+          setDeletedItemUndo(undefined)
+          setDeletedLibraryUndo([])
+          setStatusUndo({ id: item.id, kind: 'single', previousStatus: item.status, title: item.title })
+          setCooldownUndo(undefined)
+          setPendingLibraryImport(undefined)
+          setLibraryImportUndo(undefined)
+          setImportStatus(`${item.title} ahora es ${statusLabels[primaryAction.nextStatus]}`)
+          onActivity({
+            detail: `${item.title} -> ${statusLabels[primaryAction.nextStatus]}`,
+            label: 'Siguiente accion aplicada',
+            tab: 'library',
+            target: { kind: 'item', id: item.id },
+            tone: 'success',
+          })
+        } catch (reason) {
+          setImportStatus(reason instanceof Error ? reason.message : 'No se pudo aplicar la siguiente accion.')
+        } finally {
+          onPrimaryActionRequestHandled()
+        }
+      })()
+    }, 0)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [library, onActivity, onPrimaryActionRequestHandled, primaryActionRequest])
 
   return (
     <section className="content-grid">
