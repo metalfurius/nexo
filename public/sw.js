@@ -5,9 +5,14 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches
       .open(CACHE_VERSION)
-      .then((cache) => cache.addAll(APP_SHELL))
-      .then(() => self.skipWaiting()),
+      .then((cache) => cache.addAll(APP_SHELL)),
   )
+})
+
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'NEXO_SKIP_WAITING') {
+    event.waitUntil(self.skipWaiting())
+  }
 })
 
 self.addEventListener('activate', (event) => {

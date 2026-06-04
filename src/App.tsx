@@ -175,6 +175,7 @@ import {
   type PublicCatalogSeedSummary,
 } from './lib/publicCatalogSeed'
 import { recommendItem, scoreCandidates } from './lib/recommendations'
+import { applyServiceWorkerUpdate, SERVICE_WORKER_UPDATE_READY_EVENT } from './services/serviceWorker'
 import {
   mergeListText,
   normalizeKey,
@@ -572,6 +573,7 @@ function App() {
   const [libraryDraftRequest, setLibraryDraftRequest] = useState<ListItem | undefined>()
   const [quickSearchOpen, setQuickSearchOpen] = useState(false)
   const [themeMenuOpen, setThemeMenuOpen] = useState(false)
+  const [serviceWorkerUpdateReady, setServiceWorkerUpdateReady] = useState(false)
   const [tabsWithUnsavedChanges, setTabsWithUnsavedChanges] = useState<Partial<Record<AppTab, boolean>>>({})
   const [theme, setTheme] = useState<ThemeMode>(() => {
     const stored = window.localStorage.getItem(themeStorageKey)
@@ -590,6 +592,15 @@ function App() {
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', themeMetaColors[theme])
     window.localStorage.setItem(themeStorageKey, theme)
   }, [theme])
+
+  useEffect(() => {
+    function handleServiceWorkerUpdateReady() {
+      setServiceWorkerUpdateReady(true)
+    }
+
+    window.addEventListener(SERVICE_WORKER_UPDATE_READY_EVENT, handleServiceWorkerUpdateReady)
+    return () => window.removeEventListener(SERVICE_WORKER_UPDATE_READY_EVENT, handleServiceWorkerUpdateReady)
+  }, [])
 
   useEffect(() => {
     function openQuickSearchWithShortcut(event: globalThis.KeyboardEvent) {
@@ -779,6 +790,20 @@ function App() {
         <div className="topbar-actions">
           {!auth.isFirebaseConfigured && <span className="mode-pill">Demo local</span>}
           {library.isModerator && <span className="mode-pill moderator">{roleLabels[library.userRole]}</span>}
+          {serviceWorkerUpdateReady && (
+            <button
+              aria-label="Actualizar Nexo"
+              className="app-update-button"
+              type="button"
+              onClick={() => {
+                setServiceWorkerUpdateReady(false)
+                applyServiceWorkerUpdate()
+              }}
+            >
+              <RotateCcw size={16} />
+              <span>Actualizar</span>
+            </button>
+          )}
           <button
             aria-label="Busqueda rapida"
             className="icon-button"

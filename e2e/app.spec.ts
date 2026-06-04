@@ -555,6 +555,11 @@ test('pwa metadata is present', async ({ page }) => {
       expect.objectContaining({ name: 'Explorador', url: '/?tab=explorer' }),
     ]),
   )
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('nexo:service-worker-update-ready')))
+  await expect(page.getByRole('button', { name: 'Actualizar Nexo', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Actualizar Nexo', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Actualizar Nexo', exact: true })).not.toBeVisible()
+
   await page.getByRole('button', { name: 'Elegir tema. Actual Oscuro', exact: true }).click()
   const themeMenu = page.getByRole('menu', { name: 'Temas de Nexo' })
   await expect(themeMenu).toBeVisible()

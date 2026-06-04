@@ -110,6 +110,7 @@ const serviceWorker = await readText('public/sw.js')
 check(serviceWorker.includes("'/manifest.webmanifest'"), 'Service worker should cache the manifest.')
 check(serviceWorker.includes('request.mode === \'navigate\''), 'Service worker should handle navigation requests.')
 check(serviceWorker.includes('/assets/'), 'Service worker should cache built assets.')
+check(serviceWorker.includes('NEXO_SKIP_WAITING'), 'Service worker should support user-triggered updates.')
 
 const changelog = await readText('CHANGELOG.md')
 check(changelog.includes('## 1.0.0'), 'CHANGELOG.md must include 1.0.0 release notes.')
