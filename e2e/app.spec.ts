@@ -248,6 +248,26 @@ test('library and weighted dice work in demo mode', async ({ page }) => {
   await expect(outerWildsCard.getByLabel('Pulso de Outer Wilds')).toContainText('Continuar')
 })
 
+test('library review session keeps guided queues actionable', async ({ page }) => {
+  await page.goto('/')
+  await page.getByTestId('library-review-queue').getByRole('button', { name: 'Completar ficha' }).click()
+  await expect(page.getByTestId('library-review-session')).toContainText('Repaso activo')
+  await expect(page.getByTestId('library-review-session')).toContainText('Dar contexto')
+  await expect(page.getByTestId('library-review-session')).toContainText('Siguiente:')
+  await expect(page.getByLabel('Proximas entradas del repaso')).toContainText('Inception')
+  await expect(page.getByRole('dialog', { name: 'Entrada' })).toBeVisible()
+  await page.getByRole('button', { name: 'Cerrar', exact: true }).click()
+
+  const reviewSession = page.getByTestId('library-review-session')
+  await reviewSession.getByRole('button', { name: 'Ver cola' }).click()
+  await expect(page.getByText('Vista de repaso: Dar contexto')).toBeVisible()
+  await expect(page.getByText('Vista: Sin contexto')).toBeVisible()
+  await expect(reviewSession.getByLabel('Pendientes en repaso')).toContainText('4')
+  await reviewSession.getByRole('button', { name: 'Terminar repaso' }).click()
+  await expect(reviewSession).not.toBeVisible()
+  await expect(page.getByText('Repaso guiado pausado')).toBeVisible()
+})
+
 test('mobile layout keeps the core controls reachable', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByTestId('library-overview')).toBeVisible()

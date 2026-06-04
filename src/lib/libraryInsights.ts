@@ -42,6 +42,7 @@ export interface LibraryReviewQueue {
   detail: string
   id: LibrarySmartView
   item?: ListItem
+  items: ListItem[]
   label: string
   primary: boolean
 }
@@ -187,6 +188,7 @@ export function getLibraryReviewQueues(items: ListItem[], now = Date.now()): Lib
       detail: 'Anade generos, tags o mood tags',
       id: 'needs-taxonomy',
       item: needsTaxonomyItems[0],
+      items: needsTaxonomyItems,
       label: 'Afinar taxonomia',
       primary: true,
     },
@@ -196,6 +198,7 @@ export function getLibraryReviewQueues(items: ListItem[], now = Date.now()): Lib
       detail: 'Completa rating o notas privadas',
       id: 'needs-context',
       item: needsContextItems[0],
+      items: needsContextItems,
       label: 'Dar contexto',
       primary: false,
     },
@@ -205,6 +208,7 @@ export function getLibraryReviewQueues(items: ListItem[], now = Date.now()): Lib
       detail: 'Candidatas vivas para tirar',
       id: 'dice-ready',
       item: diceReadyItems[0],
+      items: diceReadyItems,
       label: 'Probar dado',
       primary: false,
     },
@@ -218,6 +222,7 @@ export function getLibraryReviewQueues(items: ListItem[], now = Date.now()): Lib
       detail: 'Entradas apartadas temporalmente',
       id: 'cooldown',
       item: cooldownItems[0],
+      items: cooldownItems,
       label: 'Revisar cooldowns',
       primary: false,
     },
@@ -227,6 +232,7 @@ export function getLibraryReviewQueues(items: ListItem[], now = Date.now()): Lib
       detail: 'Copias conectadas al catalogo',
       id: 'nexo',
       item: nexoItems[0],
+      items: nexoItems,
       label: 'Revisar Nexo',
       primary: false,
     },

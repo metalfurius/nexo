@@ -1425,6 +1425,7 @@ function LibraryTab({
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([])
   const [bulkStatus, setBulkStatus] = useState<ItemStatus>('completed')
+  const [activeReviewQueueId, setActiveReviewQueueId] = useState<LibrarySmartView | undefined>()
   const viewMode = library.settings.libraryViewMode
   const trimmedQuery = query.trim()
   const hasActiveLibraryFilters = Boolean(trimmedQuery) || typeFilter !== 'all' || statusFilter !== 'all' || smartView !== 'all'
@@ -1482,6 +1483,9 @@ function LibraryTab({
     [library.discoveryCandidates, library.items],
   )
   const reviewQueues = useMemo(() => getLibraryReviewQueues(library.items), [library.items])
+  const activeReviewQueue = activeReviewQueueId
+    ? reviewQueues.find((queue) => queue.id === activeReviewQueueId)
+    : undefined
   const focusedActivityItem = activityFocusItemId ? library.items.find((item) => item.id === activityFocusItemId) : undefined
   const missingActivityFocus = Boolean(activityFocusItemId && !library.loading && !focusedActivityItem)
   const missingActivitySearchQuery = activityFocusItemId ? getSearchQueryFromItemId(activityFocusItemId) : ''
@@ -2039,7 +2043,18 @@ function LibraryTab({
     setImportStatus(`Vista de repaso: ${label}`)
   }
 
+  function viewLibraryReviewQueue(queue: LibraryReviewQueue) {
+    setActiveReviewQueueId(queue.id)
+    if (queue.action === 'open-dice') {
+      onNavigate('dice')
+      return
+    }
+
+    openLibrarySmartView(queue.id, queue.label)
+  }
+
   function runLibraryReviewQueue(queue: LibraryReviewQueue) {
+    setActiveReviewQueueId(queue.id)
     if (queue.action === 'open-dice') {
       onNavigate('dice')
       return
@@ -2051,6 +2066,11 @@ function LibraryTab({
     }
 
     openLibrarySmartView(queue.id, queue.label)
+  }
+
+  function stopLibraryReviewQueue() {
+    setActiveReviewQueueId(undefined)
+    setImportStatus('Repaso guiado pausado')
   }
 
   function createItemFromCurrentSearch() {
@@ -2233,7 +2253,7 @@ function LibraryTab({
                         {getLibraryReviewQueueActionLabel(queue)}
                       </button>
                       {canOpenView && (
-                        <button className="ghost-button" type="button" onClick={() => openLibrarySmartView(queue.id, queue.label)}>
+                        <button className="ghost-button" type="button" onClick={() => viewLibraryReviewQueue(queue)}>
                           Ver cola
                         </button>
                       )}
@@ -2241,6 +2261,51 @@ function LibraryTab({
                   </article>
                 )
               })}
+            </div>
+          </section>
+        )}
+
+        {activeReviewQueue && (
+          <section
+            className="library-review-session"
+            aria-label={`Sesion de repaso ${activeReviewQueue.label}`}
+            data-testid="library-review-session"
+          >
+            <div className="library-review-session-main">
+              <span className="eyebrow">Repaso activo</span>
+              <strong>{activeReviewQueue.label}</strong>
+              <p>{activeReviewQueue.detail}</p>
+              {activeReviewQueue.item && <small>Siguiente: {activeReviewQueue.item.title}</small>}
+              {activeReviewQueue.items.length > 1 && (
+                <div className="library-review-session-stack" aria-label="Proximas entradas del repaso">
+                  {activeReviewQueue.items.slice(0, 3).map((item) => (
+                    <button key={item.id} type="button" onClick={() => openLibraryEditor(item)}>
+                      {item.title}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="library-review-session-progress" aria-label="Pendientes en repaso">
+              <strong>{activeReviewQueue.count}</strong>
+              <span>{activeReviewQueue.count === 1 ? 'pendiente' : 'pendientes'}</span>
+            </div>
+            <div className="library-review-session-actions">
+              <button
+                className="primary-button"
+                type="button"
+                onClick={() => runLibraryReviewQueue(activeReviewQueue)}
+              >
+                {getLibraryReviewQueueActionLabel(activeReviewQueue)}
+              </button>
+              {activeReviewQueue.action !== 'open-dice' && (
+                <button className="secondary-button" type="button" onClick={() => viewLibraryReviewQueue(activeReviewQueue)}>
+                  Ver cola
+                </button>
+              )}
+              <button className="ghost-button" type="button" onClick={stopLibraryReviewQueue}>
+                Terminar repaso
+              </button>
             </div>
           </section>
         )}

@@ -127,6 +127,11 @@ describe('library insights', () => {
       ['dice-ready', 3, 'context'],
       ['cooldown', 1, 'cooldown'],
     ])
+    expect(queues.find((queue) => queue.id === 'needs-context')?.items.map((entry) => entry.id)).toEqual([
+      'context',
+      'cooldown',
+      'nexo',
+    ])
     expect(queues[0]).toMatchObject({ action: 'open-item', label: 'Afinar taxonomia', primary: true })
   })
 
