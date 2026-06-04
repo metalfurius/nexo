@@ -116,6 +116,7 @@ import {
   getCandidateDecisionBrief,
   getDiscoverySourceFilter,
   getExplorerDecisionState,
+  getExplorerSourceFilterLabel,
   type CandidateDecisionBrief,
   type ExplorerSourceFilter,
 } from './lib/explorerInsights'
@@ -359,6 +360,11 @@ interface ExplorerCandidateDismissRequest {
   requestId: number
 }
 
+interface ExplorerVisibleSaveRequest {
+  requestId: number
+  sourceFilter: ExplorerSourceFilter
+}
+
 interface SettingsTaxonomyRepairRequest {
   requestId: number
 }
@@ -380,6 +386,7 @@ type PendingNavigation = {
   explorerCandidateSaveId?: string
   explorerPromptCard?: boolean
   explorerSearchQuery?: string
+  explorerVisibleSaveSourceFilter?: ExplorerSourceFilter
   focus?: ActivityFocus
   libraryPrimaryActionItemId?: string
   librarySmartView?: LibrarySmartView
@@ -709,6 +716,7 @@ function App() {
   const [explorerCandidateRequest, setExplorerCandidateRequest] = useState<ExplorerCandidateRequest | undefined>()
   const [explorerCandidateSaveRequest, setExplorerCandidateSaveRequest] = useState<ExplorerCandidateSaveRequest | undefined>()
   const [explorerCandidateDismissRequest, setExplorerCandidateDismissRequest] = useState<ExplorerCandidateDismissRequest | undefined>()
+  const [explorerVisibleSaveRequest, setExplorerVisibleSaveRequest] = useState<ExplorerVisibleSaveRequest | undefined>()
   const [settingsTaxonomyRepairRequest, setSettingsTaxonomyRepairRequest] = useState<SettingsTaxonomyRepairRequest | undefined>()
   const [settingsTasteSuggestionsRequest, setSettingsTasteSuggestionsRequest] = useState<SettingsTasteSuggestionsRequest | undefined>()
   const [settingsSaveRequest, setSettingsSaveRequest] = useState<SettingsSaveRequest | undefined>()
@@ -732,6 +740,7 @@ function App() {
   const explorerCandidateRequestId = useRef(0)
   const explorerCandidateSaveRequestId = useRef(0)
   const explorerCandidateDismissRequestId = useRef(0)
+  const explorerVisibleSaveRequestId = useRef(0)
   const settingsTaxonomyRepairRequestId = useRef(0)
   const settingsTasteSuggestionsRequestId = useRef(0)
   const settingsSaveRequestId = useRef(0)
@@ -876,6 +885,7 @@ function App() {
   const clearExplorerCandidateRequest = useCallback(() => setExplorerCandidateRequest(undefined), [])
   const clearExplorerCandidateSaveRequest = useCallback(() => setExplorerCandidateSaveRequest(undefined), [])
   const clearExplorerCandidateDismissRequest = useCallback(() => setExplorerCandidateDismissRequest(undefined), [])
+  const clearExplorerVisibleSaveRequest = useCallback(() => setExplorerVisibleSaveRequest(undefined), [])
   const clearSettingsTaxonomyRepairRequest = useCallback(() => setSettingsTaxonomyRepairRequest(undefined), [])
   const clearSettingsTasteSuggestionsRequest = useCallback(() => setSettingsTasteSuggestionsRequest(undefined), [])
   const clearSettingsSaveRequest = useCallback(() => setSettingsSaveRequest(undefined), [])
@@ -1021,6 +1031,11 @@ function App() {
     setExplorerCandidateDismissRequest({ candidateId, requestId: explorerCandidateDismissRequestId.current })
   }
 
+  function requestExplorerVisibleSave(sourceFilter: ExplorerSourceFilter) {
+    explorerVisibleSaveRequestId.current += 1
+    setExplorerVisibleSaveRequest({ requestId: explorerVisibleSaveRequestId.current, sourceFilter })
+  }
+
   function requestSettingsTaxonomyRepair() {
     settingsTaxonomyRepairRequestId.current += 1
     setSettingsTaxonomyRepairRequest({ requestId: settingsTaxonomyRepairRequestId.current })
@@ -1146,6 +1161,25 @@ function App() {
 
     setActivityFocus(undefined)
     requestExplorerCandidateDismiss(candidate.id)
+    setActiveTabState('explorer')
+    writeAppTabToUrl('explorer', 'push')
+  }
+
+  function saveExplorerVisibleQueueFromPalette(sourceFilter: ExplorerSourceFilter) {
+    setQuickSearchOpen(false)
+    if (activeTab === 'explorer') {
+      setActivityFocus(undefined)
+      requestExplorerVisibleSave(sourceFilter)
+      writeAppTabToUrl('explorer', 'push')
+      return
+    }
+    if (tabsWithUnsavedChanges[activeTab]) {
+      setPendingNavigation({ explorerVisibleSaveSourceFilter: sourceFilter, source: 'app', tab: 'explorer' })
+      return
+    }
+
+    setActivityFocus(undefined)
+    requestExplorerVisibleSave(sourceFilter)
     setActiveTabState('explorer')
     writeAppTabToUrl('explorer', 'push')
   }
@@ -1309,6 +1343,7 @@ function App() {
       explorerCandidateSaveId,
       explorerPromptCard,
       explorerSearchQuery,
+      explorerVisibleSaveSourceFilter,
       focus,
       libraryPrimaryActionItemId,
       librarySmartView,
@@ -1340,6 +1375,9 @@ function App() {
     if (explorerSearchQuery) {
       requestExplorerSearch(explorerSearchQuery)
     }
+    if (explorerVisibleSaveSourceFilter) {
+      requestExplorerVisibleSave(explorerVisibleSaveSourceFilter)
+    }
     if (draftItem) {
       setLibraryDraftRequest(draftItem)
     }
@@ -1363,6 +1401,22 @@ function App() {
   const quickSearchFocusItem = getLibraryFocusItems(library.items)[0]
   const quickSearchFocusAction = quickSearchFocusItem ? getPrimaryItemAction(quickSearchFocusItem.status) : undefined
   const quickSearchQueuedCandidate = library.discoveryCandidates.find((candidate) => candidate.status === 'queued')
+  const quickSearchQueuedSourceCounts = library.discoveryCandidates.reduce<Record<ExplorerSourceFilter, number>>(
+    (counts, candidate) => {
+      if (candidate.status !== 'queued') return counts
+
+      counts.all += 1
+      counts[getDiscoverySourceFilter(candidate)] += 1
+      return counts
+    },
+    { all: 0, external: 0, nexo: 0, prompt: 0 },
+  )
+  const quickSearchExplorerSaveSource = (['external', 'nexo', 'prompt'] as const).find(
+    (source) => quickSearchQueuedSourceCounts[source] > 0,
+  )
+  const quickSearchExplorerSaveSourceLabel = quickSearchExplorerSaveSource
+    ? getExplorerSourceFilterLabel(quickSearchExplorerSaveSource)
+    : undefined
   const quickSearchCooldownCount = library.items.filter(
     (item) => item.status !== 'completed' && item.status !== 'dropped' && isItemInCooldown(item),
   ).length
@@ -1454,6 +1508,22 @@ function App() {
             } ${typeLabels[quickSearchQueuedCandidate.type]}`,
             title: 'Descartar siguiente hallazgo',
             tone: 'command' as const,
+          },
+        ]
+      : []),
+    ...(quickSearchExplorerSaveSource && quickSearchExplorerSaveSourceLabel
+      ? [
+          {
+            Icon: Plus,
+            detail: `${quickSearchQueuedSourceCounts[quickSearchExplorerSaveSource]} ${
+              quickSearchQueuedSourceCounts[quickSearchExplorerSaveSource] === 1 ? 'hallazgo' : 'hallazgos'
+            } / ${quickSearchExplorerSaveSourceLabel}`,
+            id: `explorer-save-visible-${quickSearchExplorerSaveSource}`,
+            meta: 'Explorador',
+            run: () => saveExplorerVisibleQueueFromPalette(quickSearchExplorerSaveSource),
+            searchText: `guardar vista explorador cola lote ${quickSearchExplorerSaveSourceLabel} hallazgos fuentes APIs Nexo ideas`,
+            title: 'Guardar vista del explorador',
+            tone: 'section' as const,
           },
         ]
       : []),
@@ -1829,12 +1899,14 @@ function App() {
             candidateSaveRequest={explorerCandidateSaveRequest}
             promptCardRequest={explorerPromptCardRequest}
             searchRequest={explorerSearchRequest}
+            visibleSaveRequest={explorerVisibleSaveRequest}
             onActivity={recordVisibleActivity}
             onCandidateDismissRequestHandled={clearExplorerCandidateDismissRequest}
             onCandidateRequestHandled={clearExplorerCandidateRequest}
             onCandidateSaveRequestHandled={clearExplorerCandidateSaveRequest}
             onPromptCardRequestHandled={clearExplorerPromptCardRequest}
             onSearchRequestHandled={clearExplorerSearchRequest}
+            onVisibleSaveRequestHandled={clearExplorerVisibleSaveRequest}
           />
         )}
         {activeTab === 'settings' && (
@@ -4823,8 +4895,10 @@ function ExplorerTab({
   onCandidateSaveRequestHandled,
   onPromptCardRequestHandled,
   onSearchRequestHandled,
+  onVisibleSaveRequestHandled,
   promptCardRequest,
   searchRequest,
+  visibleSaveRequest,
 }: {
   candidateDismissRequest?: ExplorerCandidateDismissRequest
   candidateRequest?: ExplorerCandidateRequest
@@ -4836,8 +4910,10 @@ function ExplorerTab({
   onCandidateSaveRequestHandled: () => void
   onPromptCardRequestHandled: () => void
   onSearchRequestHandled: () => void
+  onVisibleSaveRequestHandled: () => void
   promptCardRequest?: ExplorerPromptCardRequest
   searchRequest?: ExplorerSearchRequest
+  visibleSaveRequest?: ExplorerVisibleSaveRequest
 }) {
   const [query, setQuery] = useState('')
   const [view, setView] = useState<DiscoveryStatus>('queued')
@@ -4857,6 +4933,7 @@ function ExplorerTab({
   const handledCandidateSaveRequestId = useRef<number | undefined>(undefined)
   const handledPromptCardRequestId = useRef<number | undefined>(undefined)
   const handledSearchRequestId = useRef<number | undefined>(undefined)
+  const handledVisibleSaveRequestId = useRef<number | undefined>(undefined)
   const type = library.settings.explorerDefaultType
   const explorerDecision = useMemo(
     () => getExplorerDecisionState(library.discoveryCandidates, view, sourceFilter),
@@ -4892,7 +4969,7 @@ function ExplorerTab({
     setCompletedExplorerQueue(undefined)
   }, [])
 
-  const getCompletedExplorerQueue = useCallback((resolvedCount: number, resolution: 'saved' | 'dismissed'): CompletedExplorerQueue => {
+  const getCompletedExplorerQueue = useCallback((resolvedCount: number, resolution: 'saved' | 'dismissed', sourceLabel = activeSourceLabel): CompletedExplorerQueue => {
     const actionLabel = resolution === 'saved' ? 'Ver guardados' : 'Ver descartes'
     const nextView = resolution === 'saved' ? 'saved' : 'dismissed'
     const resolvedLabel = resolvedCount === 1 ? '1 hallazgo' : `${resolvedCount} hallazgos`
@@ -4903,11 +4980,11 @@ function ExplorerTab({
       actionLabel,
       detail:
         resolvedCount === 1
-          ? `${resolvedLabel} ${verb} desde ${activeSourceLabel}.`
-          : `${resolvedLabel} ${pluralVerb} desde ${activeSourceLabel}.`,
+          ? `${resolvedLabel} ${verb} desde ${sourceLabel}.`
+          : `${resolvedLabel} ${pluralVerb} desde ${sourceLabel}.`,
       nextView,
-      sourceLabel: activeSourceLabel,
-      title: `${activeSourceLabel} limpio`,
+      sourceLabel,
+      title: `${sourceLabel} limpio`,
     }
   }, [activeSourceLabel])
 
@@ -5094,10 +5171,20 @@ function ExplorerTab({
     }
   }
 
-  async function saveVisibleQueue() {
-    const candidatesToSave = view === 'queued' ? visibleCandidates : []
+  const saveVisibleQueueForFilter = useCallback(async (targetFilter: ExplorerSourceFilter) => {
+    setView('queued')
+    setSourceFilter(targetFilter)
+    setSelected(undefined)
+    setCompletedExplorerQueue(undefined)
+
+    if (targetFilter === 'all') return
+
+    const sourceLabel = getExplorerSourceFilterLabel(targetFilter)
+    const candidatesToSave = library.discoveryCandidates.filter(
+      (candidate) => candidate.status === 'queued' && getDiscoverySourceFilter(candidate) === targetFilter,
+    )
     if (!candidatesToSave.length) return
-    const completedQueue = getCompletedExplorerQueue(candidatesToSave.length, 'saved')
+    const completedQueue = getCompletedExplorerQueue(candidatesToSave.length, 'saved', sourceLabel)
 
     const savedPairs: Array<{ candidate: DiscoveryCandidate; item: ListItem }> = []
     try {
@@ -5112,8 +5199,8 @@ function ExplorerTab({
       setCompletedExplorerQueue(completedQueue)
       setMessage(
         savedPairs.length === 1
-          ? `${savedPairs[0].item.title} guardado desde la vista ${activeSourceLabel}.`
-          : `${savedPairs.length} hallazgos guardados desde la vista ${activeSourceLabel}.`,
+          ? `${savedPairs[0].item.title} guardado desde la vista ${sourceLabel}.`
+          : `${savedPairs.length} hallazgos guardados desde la vista ${sourceLabel}.`,
       )
       onActivity({
         detail: savedPairs.length === 1 ? savedPairs[0].item.title : `${savedPairs.length} hallazgos`,
@@ -5125,6 +5212,11 @@ function ExplorerTab({
       setMessage(reason instanceof Error ? reason.message : 'No se pudo guardar la vista.')
       if (savedPairs.length) setBulkSaveUndo(savedPairs)
     }
+  }, [getCompletedExplorerQueue, library, onActivity])
+
+  async function saveVisibleQueue() {
+    if (view !== 'queued') return
+    await saveVisibleQueueForFilter(sourceFilter)
   }
 
   async function undoDismissVisibleQueue() {
@@ -5383,6 +5475,21 @@ function ExplorerTab({
 
     return () => window.clearTimeout(timeoutId)
   }, [candidateSaveRequest, clearExplorerRecentActions, library.discoveryCandidates, onCandidateSaveRequestHandled, saveCandidate])
+
+  useEffect(() => {
+    if (!visibleSaveRequest || handledVisibleSaveRequestId.current === visibleSaveRequest.requestId) return
+
+    const timeoutId = window.setTimeout(() => {
+      if (handledVisibleSaveRequestId.current === visibleSaveRequest.requestId) return
+
+      handledVisibleSaveRequestId.current = visibleSaveRequest.requestId
+      clearExplorerRecentActions()
+      setMessage(undefined)
+      void saveVisibleQueueForFilter(visibleSaveRequest.sourceFilter).finally(onVisibleSaveRequestHandled)
+    }, 0)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [clearExplorerRecentActions, onVisibleSaveRequestHandled, saveVisibleQueueForFilter, visibleSaveRequest])
 
   return (
     <section className="content-grid">

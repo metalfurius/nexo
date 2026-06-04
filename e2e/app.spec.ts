@@ -771,6 +771,39 @@ test('quick search can save the next explorer candidate through the pending-chan
   await expect(page.getByTestId('library-grid')).toContainText('Odisea')
 })
 
+test('quick search can save a filtered explorer view through the pending-change guard', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Explorador', exact: true }).click()
+  await page.getByLabel('Tipo de busqueda en explorador').selectOption('book')
+  await page.getByLabel('Buscar en explorador').fill('Odisea')
+  await page.getByRole('button', { name: 'Buscar' }).click()
+  await expect(page.getByTestId('session-activity')).toContainText('Busqueda en cola')
+  await expect(page.getByTestId('explorer-decision-panel')).toContainText('Odisea')
+
+  await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await page.getByLabel('Energia').selectOption('high')
+  await expect(page.getByText('Cambios pendientes')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Busqueda rapida' }).click()
+  const quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  await quickSearch.getByLabel('Buscar en Nexo').fill('guardar vista')
+  const saveVisibleAction = quickSearch.getByRole('button', { name: 'Ejecutar Guardar vista del explorador' })
+  await expect(saveVisibleAction).toHaveAttribute('aria-current', 'true')
+  await expect(saveVisibleAction).toContainText('APIs')
+  await saveVisibleAction.click()
+
+  await expect(page.getByLabel('Salida con cambios pendientes')).toContainText('Cambios pendientes en Dado')
+  await expect(page).toHaveURL(/tab=dice/)
+  await page.getByLabel('Salida con cambios pendientes').getByRole('button', { name: 'Descartar cambios' }).click()
+
+  await expect(page).toHaveURL(/tab=explorer/)
+  await expect(page.getByText('Odisea guardado desde la vista APIs.')).toBeVisible()
+  await expect(page.getByTestId('explorer-completion')).toContainText('APIs limpio')
+  await expect(page.getByRole('button', { name: 'Deshacer guardado de vista' })).toBeVisible()
+  await page.getByRole('button', { name: 'Biblioteca', exact: true }).click()
+  await expect(page.getByTestId('library-grid')).toContainText('Odisea')
+})
+
 test('quick search can dismiss the next explorer candidate through the pending-change guard', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Explorador', exact: true }).click()
