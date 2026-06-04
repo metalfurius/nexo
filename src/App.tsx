@@ -358,6 +358,10 @@ interface LibraryReviewRequest {
   requestId: number
 }
 
+interface LibraryResetViewRequest {
+  requestId: number
+}
+
 interface DiceRollRequest {
   requestId: number
 }
@@ -431,6 +435,7 @@ type PendingNavigation = {
   libraryImport?: boolean
   libraryPrimaryActionItemId?: string
   libraryReview?: LibrarySmartView
+  libraryResetView?: boolean
   librarySortMode?: LibrarySortMode
   libraryStatusFilter?: ItemStatus
   librarySmartView?: LibrarySmartView
@@ -755,6 +760,7 @@ function App() {
   const [libraryImportRequest, setLibraryImportRequest] = useState<LibraryImportRequest | undefined>()
   const [libraryPrimaryActionRequest, setLibraryPrimaryActionRequest] = useState<LibraryPrimaryActionRequest | undefined>()
   const [libraryReviewRequest, setLibraryReviewRequest] = useState<LibraryReviewRequest | undefined>()
+  const [libraryResetViewRequest, setLibraryResetViewRequest] = useState<LibraryResetViewRequest | undefined>()
   const [librarySortModeRequest, setLibrarySortModeRequest] = useState<LibrarySortModeRequest | undefined>()
   const [libraryStatusFilterRequest, setLibraryStatusFilterRequest] = useState<LibraryStatusFilterRequest | undefined>()
   const [librarySmartViewRequest, setLibrarySmartViewRequest] = useState<LibrarySmartViewRequest | undefined>()
@@ -1071,6 +1077,10 @@ function App() {
   function requestLibraryPrimaryAction(itemId: string) {
     libraryPrimaryActionRequestId.current += 1
     setLibraryPrimaryActionRequest({ itemId, requestId: libraryPrimaryActionRequestId.current })
+  }
+
+  function requestLibraryResetView() {
+    setLibraryResetViewRequest((current) => ({ requestId: (current?.requestId ?? 0) + 1 }))
   }
 
   function requestDiceRoll() {
@@ -1445,6 +1455,25 @@ function App() {
     writeAppTabToUrl('library', 'push')
   }
 
+  function resetLibraryViewFromPalette() {
+    setQuickSearchOpen(false)
+    if (activeTab === 'library') {
+      setActivityFocus(undefined)
+      requestLibraryResetView()
+      writeAppTabToUrl('library', 'push')
+      return
+    }
+    if (tabsWithUnsavedChanges[activeTab]) {
+      setPendingNavigation({ libraryResetView: true, source: 'app', tab: 'library' })
+      return
+    }
+
+    setActivityFocus(undefined)
+    requestLibraryResetView()
+    setActiveTabState('library')
+    writeAppTabToUrl('library', 'push')
+  }
+
   function importLibraryBackupFromPalette() {
     setQuickSearchOpen(false)
     if (activeTab === 'library') {
@@ -1572,6 +1601,7 @@ function App() {
       libraryImport,
       libraryPrimaryActionItemId,
       libraryReview,
+      libraryResetView,
       librarySortMode,
       libraryStatusFilter,
       librarySmartView,
@@ -1622,6 +1652,9 @@ function App() {
     }
     if (libraryReview) {
       requestLibraryReview(libraryReview)
+    }
+    if (libraryResetView) {
+      requestLibraryResetView()
     }
     if (librarySortMode) {
       requestLibrarySortMode(librarySortMode)
@@ -1962,6 +1995,16 @@ function App() {
       title: `Tema ${option.label}`,
       tone: 'command',
     })),
+    {
+      Icon: X,
+      detail: 'Limpiar filtros, vistas, orden y seleccion',
+      id: 'library-reset-view',
+      meta: 'Biblioteca',
+      run: resetLibraryViewFromPalette,
+      searchText: 'biblioteca restablecer vista limpiar filtros orden busqueda seleccion reset todo',
+      title: 'Restablecer vista de Biblioteca',
+      tone: 'command',
+    },
     ...(['cards', 'list'] as const).map((mode): QuickSearchCommand => ({
       Icon: mode === 'cards' ? LayoutGrid : List,
       detail: mode === library.settings.libraryViewMode ? 'Vista actual' : 'Guardar como vista de biblioteca',
@@ -2198,6 +2241,7 @@ function App() {
             importRequest={libraryImportRequest}
             library={library}
             primaryActionRequest={libraryPrimaryActionRequest}
+            resetViewRequest={libraryResetViewRequest}
             reviewRequest={libraryReviewRequest}
             sortModeRequest={librarySortModeRequest}
             statusFilterRequest={libraryStatusFilterRequest}
@@ -2912,6 +2956,7 @@ function LibraryTab({
   importRequest,
   library,
   primaryActionRequest,
+  resetViewRequest,
   reviewRequest,
   sortModeRequest,
   statusFilterRequest,
@@ -2933,6 +2978,7 @@ function LibraryTab({
   importRequest?: LibraryImportRequest
   library: LibrarySurface
   primaryActionRequest?: LibraryPrimaryActionRequest
+  resetViewRequest?: LibraryResetViewRequest
   reviewRequest?: LibraryReviewRequest
   sortModeRequest?: LibrarySortModeRequest
   statusFilterRequest?: LibraryStatusFilterRequest
@@ -2956,6 +3002,7 @@ function LibraryTab({
   const [sortMode, setSortMode] = useState<LibrarySortMode>('focus')
   const [editingItem, setEditingItem] = useState<ListItem | undefined>()
   const [handledDraftRequestId, setHandledDraftRequestId] = useState<string | undefined>()
+  const handledResetViewRequestId = useRef<number | undefined>(undefined)
   const handledSortModeRequestId = useRef<number | undefined>(undefined)
   const handledStatusFilterRequestId = useRef<number | undefined>(undefined)
   const [handledSmartViewRequestId, setHandledSmartViewRequestId] = useState<number | undefined>()
@@ -3705,13 +3752,35 @@ function LibraryTab({
     })
   }
 
-  function resetLibraryFilters() {
+  const resetLibraryFilters = useCallback(() => {
     setQuery('')
     setTypeFilter('all')
     setStatusFilter('all')
     setSmartView('all')
     setSortMode('focus')
-  }
+    setSelectedItemIds([])
+    setActiveReviewSession(undefined)
+  }, [])
+
+  useEffect(() => {
+    if (!resetViewRequest || handledResetViewRequestId.current === resetViewRequest.requestId) return
+
+    const timeoutId = window.setTimeout(() => {
+      if (handledResetViewRequestId.current === resetViewRequest.requestId) return
+
+      handledResetViewRequestId.current = resetViewRequest.requestId
+      resetLibraryFilters()
+      setImportStatus('Vista de Biblioteca restablecida')
+      onActivity({
+        detail: 'Filtros y orden iniciales',
+        label: 'Vista de biblioteca restablecida',
+        tab: 'library',
+        tone: 'success',
+      })
+    }, 0)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [onActivity, resetLibraryFilters, resetViewRequest])
 
   function openLibrarySmartView(view: LibrarySmartView, label: string) {
     setQuery('')

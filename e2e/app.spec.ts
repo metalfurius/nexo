@@ -785,6 +785,37 @@ test('quick search applies library filters through the pending-change guard', as
   await expect(page.getByTestId('session-activity')).toContainText('Filtro de tipo aplicado')
 })
 
+test('quick search resets the library view through the pending-change guard', async ({ page }) => {
+  await page.goto('/')
+  await page.getByLabel('Filtrar por tipo').selectOption('game')
+  await page.getByLabel('Ordenar biblioteca').selectOption('title')
+  await expect(page.getByText('Tipo: Juegos')).toBeVisible()
+  await expect(page.getByText('Orden: Titulo')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await page.getByLabel('Energia').selectOption('high')
+  await expect(page.getByText('Cambios pendientes')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Busqueda rapida' }).click()
+  const quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  await quickSearch.getByLabel('Buscar en Nexo').fill('restablecer biblioteca')
+  const resetAction = quickSearch.getByRole('button', { name: 'Ejecutar Restablecer vista de Biblioteca', exact: true })
+  await expect(resetAction).toHaveAttribute('aria-current', 'true')
+  await expect(resetAction).toContainText('Limpiar filtros')
+  await resetAction.click()
+
+  await expect(page.getByLabel('Salida con cambios pendientes')).toContainText('Cambios pendientes en Dado')
+  await page.getByLabel('Salida con cambios pendientes').getByRole('button', { name: 'Descartar cambios' }).click()
+
+  await expect(page.getByRole('heading', { name: 'Biblioteca privada' })).toBeVisible()
+  await expect(page.getByLabel('Filtrar por tipo')).toHaveValue('all')
+  await expect(page.getByLabel('Ordenar biblioteca')).toHaveValue('focus')
+  await expect(page.getByText('Tipo: Juegos')).not.toBeVisible()
+  await expect(page.getByText('Orden: Titulo')).not.toBeVisible()
+  await expect(page.getByRole('status').filter({ hasText: 'Vista de Biblioteca restablecida' })).toBeVisible()
+  await expect(page.getByTestId('session-activity')).toContainText('Vista de biblioteca restablecida')
+})
+
 test('quick search starts guided library review through the pending-change guard', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
