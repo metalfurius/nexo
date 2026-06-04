@@ -324,6 +324,10 @@ interface LibraryPrimaryActionRequest {
   requestId: number
 }
 
+interface LibraryImportRequest {
+  requestId: number
+}
+
 interface DiceRollRequest {
   requestId: number
 }
@@ -394,6 +398,7 @@ type PendingNavigation = {
   explorerVisibleDismissSourceFilter?: ExplorerSourceFilter
   explorerVisibleSaveSourceFilter?: ExplorerSourceFilter
   focus?: ActivityFocus
+  libraryImport?: boolean
   libraryPrimaryActionItemId?: string
   librarySmartView?: LibrarySmartView
   settingsTasteSuggestions?: boolean
@@ -712,6 +717,7 @@ function App() {
   const [activityFocus, setActivityFocus] = useState<ActivityFocus | undefined>(() => readInitialActivityFocus())
   const [activityClearUndo, setActivityClearUndo] = useState<ActivityEntry[]>([])
   const [libraryDraftRequest, setLibraryDraftRequest] = useState<ListItem | undefined>()
+  const [libraryImportRequest, setLibraryImportRequest] = useState<LibraryImportRequest | undefined>()
   const [libraryPrimaryActionRequest, setLibraryPrimaryActionRequest] = useState<LibraryPrimaryActionRequest | undefined>()
   const [librarySmartViewRequest, setLibrarySmartViewRequest] = useState<LibrarySmartViewRequest | undefined>()
   const [diceRollRequest, setDiceRollRequest] = useState<DiceRollRequest | undefined>()
@@ -733,6 +739,7 @@ function App() {
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | undefined>()
   const [isOffline, setIsOffline] = useState(() => 'onLine' in navigator && !navigator.onLine)
   const [tabsWithUnsavedChanges, setTabsWithUnsavedChanges] = useState<Partial<Record<AppTab, boolean>>>({})
+  const libraryImportRequestId = useRef(0)
   const librarySmartViewRequestId = useRef(0)
   const [theme, setTheme] = useState<ThemeMode>(() => {
     const stored = window.localStorage.getItem(themeStorageKey)
@@ -884,6 +891,7 @@ function App() {
   )
   const clearActivityFocus = useCallback(() => setActivityFocus(undefined), [])
   const clearLibraryDraftRequest = useCallback(() => setLibraryDraftRequest(undefined), [])
+  const clearLibraryImportRequest = useCallback(() => setLibraryImportRequest(undefined), [])
   const clearLibraryPrimaryActionRequest = useCallback(() => setLibraryPrimaryActionRequest(undefined), [])
   const clearDiceRollRequest = useCallback(() => setDiceRollRequest(undefined), [])
   const clearDicePreferencesSaveRequest = useCallback(() => setDicePreferencesSaveRequest(undefined), [])
@@ -990,6 +998,11 @@ function App() {
   function requestLibrarySmartView(view: LibrarySmartView) {
     librarySmartViewRequestId.current += 1
     setLibrarySmartViewRequest({ id: view, requestId: librarySmartViewRequestId.current })
+  }
+
+  function requestLibraryImport() {
+    libraryImportRequestId.current += 1
+    setLibraryImportRequest({ requestId: libraryImportRequestId.current })
   }
 
   function requestLibraryPrimaryAction(itemId: string) {
@@ -1293,6 +1306,25 @@ function App() {
     writeAppTabToUrl('library', 'push')
   }
 
+  function importLibraryBackupFromPalette() {
+    setQuickSearchOpen(false)
+    if (activeTab === 'library') {
+      setActivityFocus(undefined)
+      requestLibraryImport()
+      writeAppTabToUrl('library', 'push')
+      return
+    }
+    if (tabsWithUnsavedChanges[activeTab]) {
+      setPendingNavigation({ libraryImport: true, source: 'app', tab: 'library' })
+      return
+    }
+
+    setActivityFocus(undefined)
+    requestLibraryImport()
+    setActiveTabState('library')
+    writeAppTabToUrl('library', 'push')
+  }
+
   function createBlankLibraryDraft() {
     openLibraryDraft(blankItem())
   }
@@ -1379,6 +1411,7 @@ function App() {
       explorerVisibleDismissSourceFilter,
       explorerVisibleSaveSourceFilter,
       focus,
+      libraryImport,
       libraryPrimaryActionItemId,
       librarySmartView,
       settingsTasteSuggestions,
@@ -1417,6 +1450,9 @@ function App() {
     }
     if (draftItem) {
       setLibraryDraftRequest(draftItem)
+    }
+    if (libraryImport) {
+      requestLibraryImport()
     }
     if (libraryPrimaryActionItemId) {
       requestLibraryPrimaryAction(libraryPrimaryActionItemId)
@@ -1626,6 +1662,16 @@ function App() {
       run: exportQuickBackup,
       searchText: 'exportar backup json copia descargar biblioteca',
       title: 'Exportar backup JSON',
+      tone: 'command',
+    },
+    {
+      Icon: Upload,
+      detail: 'Elegir un backup JSON para previsualizarlo',
+      id: 'import-backup',
+      meta: 'Backup',
+      run: importLibraryBackupFromPalette,
+      searchText: 'importar backup json restaurar biblioteca archivo copia cargar preview previsualizar',
+      title: 'Importar backup JSON',
       tone: 'command',
     },
     ...(activeTab === 'settings' && tabsWithUnsavedChanges.settings
@@ -1919,11 +1965,13 @@ function App() {
           <LibraryTab
             activityFocusItemId={activityFocus?.kind === 'item' ? activityFocus.id : undefined}
             draftRequest={libraryDraftRequest}
+            importRequest={libraryImportRequest}
             library={library}
             primaryActionRequest={libraryPrimaryActionRequest}
             smartViewRequest={librarySmartViewRequest}
             onActivity={recordVisibleActivity}
             onActivityFocusHandled={clearActivityFocus}
+            onImportRequestHandled={clearLibraryImportRequest}
             onPrimaryActionRequestHandled={clearLibraryPrimaryActionRequest}
             onDraftRequestHandled={clearLibraryDraftRequest}
             onNavigate={changeActiveTab}
@@ -2625,11 +2673,13 @@ interface PendingCatalogSeedImport {
 function LibraryTab({
   activityFocusItemId,
   draftRequest,
+  importRequest,
   library,
   primaryActionRequest,
   smartViewRequest,
   onActivity,
   onActivityFocusHandled,
+  onImportRequestHandled,
   onPrimaryActionRequestHandled,
   onDraftRequestHandled,
   onNavigate,
@@ -2638,11 +2688,13 @@ function LibraryTab({
 }: {
   activityFocusItemId?: string
   draftRequest?: ListItem
+  importRequest?: LibraryImportRequest
   library: LibrarySurface
   primaryActionRequest?: LibraryPrimaryActionRequest
   smartViewRequest?: LibrarySmartViewRequest
   onActivity: ActivityRecorder
   onActivityFocusHandled: () => void
+  onImportRequestHandled: () => void
   onPrimaryActionRequestHandled: () => void
   onDraftRequestHandled: () => void
   onNavigate: (tab: AppTab, focus?: ActivityFocus) => void
@@ -2657,6 +2709,8 @@ function LibraryTab({
   const [editingItem, setEditingItem] = useState<ListItem | undefined>()
   const [handledDraftRequestId, setHandledDraftRequestId] = useState<string | undefined>()
   const [handledSmartViewRequestId, setHandledSmartViewRequestId] = useState<number | undefined>()
+  const handledImportRequestId = useRef<number | undefined>(undefined)
+  const libraryImportInputRef = useRef<HTMLInputElement | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<ListItem | undefined>()
   const [deletedItemUndo, setDeletedItemUndo] = useState<ListItem | undefined>()
   const [deletedLibraryUndo, setDeletedLibraryUndo] = useState<ListItem[]>([])
@@ -2758,6 +2812,15 @@ function LibraryTab({
     setSelectedItemIds([])
     setActiveReviewSession(undefined)
   }
+
+  useLayoutEffect(() => {
+    if (!importRequest || handledImportRequestId.current === importRequest.requestId) return
+
+    handledImportRequestId.current = importRequest.requestId
+    setImportStatus('Elige un backup JSON para previsualizarlo.')
+    libraryImportInputRef.current?.click()
+    onImportRequestHandled()
+  }, [importRequest, onImportRequestHandled])
 
   async function prepareLibraryImportFile(file?: File) {
     if (!file) return
@@ -3442,6 +3505,7 @@ function LibraryTab({
                 <input
                   accept="application/json,.json"
                   aria-label="Importar biblioteca desde JSON"
+                  ref={libraryImportInputRef}
                   type="file"
                   onChange={(event) => {
                     void prepareLibraryImportFile(event.target.files?.[0])

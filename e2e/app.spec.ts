@@ -569,6 +569,58 @@ test('quick search can save pending settings', async ({ page }) => {
   await expect(page.getByTestId('session-activity')).toContainText('Ajustes guardados')
 })
 
+test('quick search can start a backup import through the pending-change guard', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await page.getByLabel('Energia').selectOption('high')
+  await expect(page.getByText('Cambios pendientes')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Busqueda rapida' }).click()
+  const quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  await quickSearch.getByLabel('Buscar en Nexo').fill('importar backup')
+  const importAction = quickSearch.getByRole('button', { name: 'Ejecutar Importar backup JSON' })
+  await expect(importAction).toHaveAttribute('aria-current', 'true')
+  await importAction.click()
+
+  await expect(page.getByLabel('Salida con cambios pendientes')).toContainText('Cambios pendientes en Dado')
+  const fileChooserPromise = page.waitForEvent('filechooser')
+  await page.getByLabel('Salida con cambios pendientes').getByRole('button', { name: 'Descartar cambios' }).click()
+  const fileChooser = await fileChooserPromise
+  await fileChooser.setFiles({
+    name: 'nexo-palette-import.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(
+      JSON.stringify({
+        schemaVersion: 1,
+        exportedAt: '2026-06-03T00:00:00.000Z',
+        items: [
+          {
+            title: 'Palette Import Probe',
+            type: 'book',
+            status: 'wishlist',
+            genres: ['Ensayo'],
+            tags: ['paleta'],
+            moodTags: [],
+            weights: { priority: 1, surprise: 0.5, challenge: 0.5 },
+            source: 'manual',
+            createdAt: '2026-06-01T00:00:00.000Z',
+            updatedAt: '2026-06-01T00:00:00.000Z',
+          },
+        ],
+      }),
+    ),
+  })
+
+  await expect(page.getByRole('heading', { name: 'Biblioteca privada' })).toBeVisible()
+  await expect(page).not.toHaveURL(/tab=dice/)
+  await expect(page.getByText('Backup preparado: 1 nueva / 0 actualizadas')).toBeVisible()
+  await expect(page.getByLabel('Backup preparado en biblioteca')).toContainText('nexo-palette-import.json')
+  await expect(page.getByText('Palette Import Probe')).not.toBeVisible()
+  await page.getByRole('button', { name: 'Aplicar backup' }).click()
+  await expect(page.getByText('Importadas 1 entradas')).toBeVisible()
+  await expect(page.getByTestId('library-grid')).toContainText('Palette Import Probe')
+})
+
 test('quick search opens library smart views through the pending-change guard', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
