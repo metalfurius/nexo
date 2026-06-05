@@ -366,6 +366,21 @@ test('library can update selected visible items in bulk', async ({ page }) => {
 
   const selectionBar = page.getByLabel('Seleccion de biblioteca')
   await expect(selectionBar).toContainText('2 seleccionadas')
+  await selectionBar.getByLabel('Tags para seleccion').fill('lote qa')
+  await selectionBar.getByRole('button', { name: 'Añadir tags' }).click()
+  await expect(page.getByText('2 entradas etiquetadas con lote qa')).toBeVisible()
+  await expect(page.getByTestId('session-activity')).toContainText('Tags masivos actualizados')
+  await page.getByLabel('Buscar en biblioteca').fill('lote qa')
+  await expect(page.getByTestId('library-grid')).toContainText('Outer Wilds')
+  await expect(page.getByTestId('library-grid')).toContainText('Vinland Saga')
+  await page.getByLabel('Accion reciente de biblioteca').getByRole('button', { name: 'Deshacer tags' }).click()
+  await expect(page.getByText('2 tags recuperados')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Sin resultados' })).toBeVisible()
+  await page.getByLabel('Buscar en biblioteca').fill('')
+
+  await page.getByLabel('Seleccionar Outer Wilds').check()
+  await page.getByLabel('Seleccionar Vinland Saga').check()
+  await expect(selectionBar).toContainText('2 seleccionadas')
   await selectionBar.getByLabel('Estado para seleccion').selectOption('completed')
   await selectionBar.getByRole('button', { name: 'Aplicar estado' }).click()
 

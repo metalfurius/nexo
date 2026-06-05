@@ -3186,6 +3186,11 @@ interface LibraryPriorityUndo {
   changes: Array<{ id: string; previousPriority: number; title: string }>
 }
 
+interface LibraryTagUndo {
+  changes: Array<{ id: string; previousTags: string[]; title: string }>
+  tags: string[]
+}
+
 type DeletedLibraryUndoKind = 'all' | 'selection'
 
 interface ActiveLibraryReviewSession {
@@ -3291,6 +3296,7 @@ function LibraryTab({
   const [statusUndo, setStatusUndo] = useState<LibraryStatusUndo | undefined>()
   const [cooldownUndo, setCooldownUndo] = useState<LibraryCooldownUndo | undefined>()
   const [priorityUndo, setPriorityUndo] = useState<LibraryPriorityUndo | undefined>()
+  const [tagUndo, setTagUndo] = useState<LibraryTagUndo | undefined>()
   const [pendingLibraryImport, setPendingLibraryImport] = useState<PendingBackupImport | undefined>()
   const [applyLibraryImportSettings, setApplyLibraryImportSettings] = useState(false)
   const [libraryImportUndo, setLibraryImportUndo] = useState<LibraryImportRollbackPlan | undefined>()
@@ -3303,6 +3309,7 @@ function LibraryTab({
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([])
   const [bulkStatus, setBulkStatus] = useState<ItemStatus>('completed')
   const [bulkPriorityLevel, setBulkPriorityLevel] = useState<LibraryPriorityLevel>('high')
+  const [bulkTagText, setBulkTagText] = useState('')
   const [activeReviewSession, setActiveReviewSession] = useState<ActiveLibraryReviewSession | undefined>()
   const handledPrimaryActionRequestId = useRef<number | undefined>(undefined)
   const viewMode = library.settings.libraryViewMode
@@ -3409,6 +3416,8 @@ function LibraryTab({
     setDeletedLibraryUndo([])
     setStatusUndo(undefined)
     setCooldownUndo(undefined)
+    setPriorityUndo(undefined)
+    setTagUndo(undefined)
     setLibraryImportUndo(undefined)
     try {
       const payload = parseLibraryImportPayload(JSON.parse(await file.text()))
@@ -3457,6 +3466,7 @@ function LibraryTab({
       setStatusUndo(undefined)
       setCooldownUndo(undefined)
       setPriorityUndo(undefined)
+      setTagUndo(undefined)
       setLibraryImportUndo(rollbackPlan)
       setPendingLibraryImport(undefined)
       setApplyLibraryImportSettings(false)
@@ -3498,6 +3508,7 @@ function LibraryTab({
       setPendingLibraryImport(undefined)
       setCooldownUndo(undefined)
       setPriorityUndo(undefined)
+      setTagUndo(undefined)
       setSelectedItemIds([])
     } catch (reason) {
       setImportStatus(reason instanceof Error ? reason.message : 'No se pudo deshacer el backup.')
@@ -3512,6 +3523,7 @@ function LibraryTab({
     setStatusUndo(undefined)
     setCooldownUndo(undefined)
     setPriorityUndo(undefined)
+    setTagUndo(undefined)
     setPendingLibraryImport(undefined)
     setLibraryImportUndo(undefined)
     await library.deleteAllItems()
@@ -3545,6 +3557,7 @@ function LibraryTab({
     setStatusUndo(undefined)
     setCooldownUndo(undefined)
     setPriorityUndo(undefined)
+    setTagUndo(undefined)
     setPendingLibraryImport(undefined)
     setLibraryImportUndo(undefined)
     for (const item of deletedItems) {
@@ -3575,6 +3588,7 @@ function LibraryTab({
     setStatusUndo(undefined)
     setCooldownUndo(undefined)
     setPriorityUndo(undefined)
+    setTagUndo(undefined)
     setPendingLibraryImport(undefined)
     setLibraryImportUndo(undefined)
     setDeleteTarget(undefined)
@@ -3606,6 +3620,7 @@ function LibraryTab({
       setLibraryImportUndo(undefined)
       setCooldownUndo(undefined)
       setPriorityUndo(undefined)
+      setTagUndo(undefined)
     } catch (reason) {
       setImportStatus(reason instanceof Error ? reason.message : 'No se pudo deshacer el borrado.')
     }
@@ -3632,6 +3647,7 @@ function LibraryTab({
       setLibraryImportUndo(undefined)
       setCooldownUndo(undefined)
       setPriorityUndo(undefined)
+      setTagUndo(undefined)
     } catch (reason) {
       setImportStatus(reason instanceof Error ? reason.message : 'No se pudo deshacer el borrado total.')
     }
@@ -3645,6 +3661,7 @@ function LibraryTab({
       setStatusUndo(undefined)
       setCooldownUndo({ changes: [{ id: item.id, previousCooldownUntil: item.recommendationCooldownUntil, title: item.title }] })
       setPriorityUndo(undefined)
+      setTagUndo(undefined)
       setPendingLibraryImport(undefined)
       setLibraryImportUndo(undefined)
       setImportStatus(`${item.title} enfriado para el dado`)
@@ -3668,6 +3685,7 @@ function LibraryTab({
       setStatusUndo(undefined)
       setCooldownUndo({ changes: [{ id: item.id, previousCooldownUntil: item.recommendationCooldownUntil, title: item.title }] })
       setPriorityUndo(undefined)
+      setTagUndo(undefined)
       setPendingLibraryImport(undefined)
       setLibraryImportUndo(undefined)
       setImportStatus(`${item.title} reactivado para el dado`)
@@ -3691,6 +3709,7 @@ function LibraryTab({
       setStatusUndo({ id: item.id, kind: 'single', previousStatus: item.status, title: item.title })
       setCooldownUndo(undefined)
       setPriorityUndo(undefined)
+      setTagUndo(undefined)
       setPendingLibraryImport(undefined)
       setLibraryImportUndo(undefined)
       setImportStatus(`${item.title} ahora es ${statusLabels[status]}`)
@@ -3724,6 +3743,7 @@ function LibraryTab({
         setStatusUndo(undefined)
         setCooldownUndo(undefined)
         setPriorityUndo(undefined)
+        setTagUndo(undefined)
         setPendingLibraryImport(undefined)
         setLibraryImportUndo(undefined)
         return
@@ -3741,6 +3761,7 @@ function LibraryTab({
       setStatusUndo(undefined)
       setCooldownUndo(undefined)
       setPriorityUndo(undefined)
+      setTagUndo(undefined)
       setPendingLibraryImport(undefined)
       setLibraryImportUndo(undefined)
     } catch (reason) {
@@ -3763,6 +3784,7 @@ function LibraryTab({
         tone: 'success',
       })
       setCooldownUndo(undefined)
+      setTagUndo(undefined)
       setPendingLibraryImport(undefined)
       setLibraryImportUndo(undefined)
     } catch (reason) {
@@ -3791,10 +3813,96 @@ function LibraryTab({
         tone: 'success',
       })
       setPriorityUndo(undefined)
+      setTagUndo(undefined)
       setPendingLibraryImport(undefined)
       setLibraryImportUndo(undefined)
     } catch (reason) {
       setImportStatus(reason instanceof Error ? reason.message : 'No se pudo deshacer el foco.')
+    }
+  }
+
+  async function addSelectedItemsTags() {
+    const tagsToAdd = splitList(bulkTagText)
+    if (!selectedItems.length) {
+      setImportStatus('No hay entradas seleccionadas')
+      return
+    }
+    if (!tagsToAdd.length) {
+      setImportStatus('Escribe al menos un tag para la seleccion')
+      return
+    }
+
+    const tagKeys = new Set(tagsToAdd.map(normalizeKey))
+    const changedItems = selectedItems.filter((item) => {
+      const currentKeys = new Set(item.tags.map(normalizeKey))
+      return [...tagKeys].some((tagKey) => !currentKeys.has(tagKey))
+    })
+    if (!changedItems.length) {
+      setImportStatus(`La seleccion ya tiene ${tagsToAdd.join(', ')}`)
+      return
+    }
+
+    try {
+      for (const item of changedItems) {
+        await library.saveItem({
+          ...item,
+          tags: uniqueNormalizedValues([...item.tags, ...tagsToAdd]),
+        })
+      }
+      setDeletedItemUndo(undefined)
+      setDeletedLibraryUndo([])
+      setStatusUndo(undefined)
+      setCooldownUndo(undefined)
+      setPriorityUndo(undefined)
+      setTagUndo({
+        changes: changedItems.map((item) => ({
+          id: item.id,
+          previousTags: [...item.tags],
+          title: item.title,
+        })),
+        tags: tagsToAdd,
+      })
+      setPendingLibraryImport(undefined)
+      setLibraryImportUndo(undefined)
+      setSelectedItemIds([])
+      setBulkTagText('')
+      setImportStatus(`${changedItems.length} entradas etiquetadas con ${tagsToAdd.join(', ')}`)
+      onActivity({
+        detail: `${changedItems.length} -> ${tagsToAdd.join(', ')}`,
+        label: 'Tags masivos actualizados',
+        tab: 'library',
+        tone: 'success',
+      })
+    } catch (reason) {
+      setImportStatus(reason instanceof Error ? reason.message : 'No se pudieron actualizar los tags de la seleccion.')
+    }
+  }
+
+  async function undoLibraryTagChange() {
+    if (!tagUndo) return
+
+    try {
+      for (const change of tagUndo.changes) {
+        const item = library.items.find((candidate) => candidate.id === change.id)
+        if (!item) continue
+
+        await library.saveItem({
+          ...item,
+          tags: [...change.previousTags],
+        })
+      }
+      setImportStatus(`${tagUndo.changes.length} tags recuperados`)
+      onActivity({
+        detail: `${tagUndo.changes.length} entradas / ${tagUndo.tags.join(', ')}`,
+        label: 'Tags recuperados',
+        tab: 'library',
+        tone: 'success',
+      })
+      setTagUndo(undefined)
+      setPendingLibraryImport(undefined)
+      setLibraryImportUndo(undefined)
+    } catch (reason) {
+      setImportStatus(reason instanceof Error ? reason.message : 'No se pudieron deshacer los tags.')
     }
   }
 
@@ -3870,6 +3978,7 @@ function LibraryTab({
       })
       setCooldownUndo(undefined)
       setPriorityUndo(undefined)
+      setTagUndo(undefined)
       setPendingLibraryImport(undefined)
       setLibraryImportUndo(undefined)
       setSelectedItemIds([])
@@ -3931,6 +4040,7 @@ function LibraryTab({
           title: item.title,
         })),
       })
+      setTagUndo(undefined)
       setPendingLibraryImport(undefined)
       setLibraryImportUndo(undefined)
       setSelectedItemIds([])
@@ -3981,6 +4091,7 @@ function LibraryTab({
         })),
       })
       setPriorityUndo(undefined)
+      setTagUndo(undefined)
       setPendingLibraryImport(undefined)
       setLibraryImportUndo(undefined)
       setSelectedItemIds([])
@@ -4018,6 +4129,7 @@ function LibraryTab({
         })),
       })
       setPriorityUndo(undefined)
+      setTagUndo(undefined)
       setPendingLibraryImport(undefined)
       setLibraryImportUndo(undefined)
       setSelectedItemIds([])
@@ -4094,6 +4206,7 @@ function LibraryTab({
       setLibraryImportUndo(undefined)
       setCooldownUndo(undefined)
       setPriorityUndo(undefined)
+      setTagUndo(undefined)
       setEditingItem(undefined)
       onActivityFocusHandled()
       onDraftRequestHandled()
@@ -4394,6 +4507,7 @@ function LibraryTab({
           setStatusUndo({ id: item.id, kind: 'single', previousStatus: item.status, title: item.title })
           setCooldownUndo(undefined)
           setPriorityUndo(undefined)
+          setTagUndo(undefined)
           setPendingLibraryImport(undefined)
           setLibraryImportUndo(undefined)
           setImportStatus(`${item.title} ahora es ${statusLabels[primaryAction.nextStatus]}`)
@@ -4850,6 +4964,24 @@ function LibraryTab({
                   <Dice5 size={16} />
                   Aplicar foco
                 </button>
+                <label className="bulk-tag-control">
+                  <span className="sr-only">Tags para seleccion</span>
+                  <input
+                    aria-label="Tags para seleccion"
+                    placeholder="Tags, separados por coma"
+                    value={bulkTagText}
+                    onChange={(event) => setBulkTagText(event.target.value)}
+                  />
+                </label>
+                <button
+                  className="secondary-button"
+                  disabled={!bulkTagText.trim()}
+                  type="button"
+                  onClick={() => void addSelectedItemsTags()}
+                >
+                  <Plus size={16} />
+                  Añadir tags
+                </button>
                 <button
                   className="secondary-button"
                   disabled={selectedDiceEligibleCount === 0}
@@ -4944,7 +5076,7 @@ function LibraryTab({
             </div>
           </div>
         )}
-        {(deletedItemUndo || deletedLibraryUndo.length > 0 || statusUndo || cooldownUndo || priorityUndo || libraryImportUndo) && (
+        {(deletedItemUndo || deletedLibraryUndo.length > 0 || statusUndo || cooldownUndo || priorityUndo || tagUndo || libraryImportUndo) && (
           <div className="feedback-action-row" aria-label="Accion reciente de biblioteca">
             {libraryImportUndo && (
               <button className="secondary-button" type="button" onClick={() => void undoLibraryImportFile()}>
@@ -4980,6 +5112,12 @@ function LibraryTab({
               <button className="secondary-button" type="button" onClick={() => void undoLibraryPriorityChange()}>
                 <RotateCcw size={16} />
                 Deshacer foco
+              </button>
+            )}
+            {tagUndo && (
+              <button className="secondary-button" type="button" onClick={() => void undoLibraryTagChange()}>
+                <RotateCcw size={16} />
+                Deshacer tags
               </button>
             )}
           </div>

@@ -1258,8 +1258,15 @@
   min-width: 152px;
 }
 
+.bulk-tag-control {
+  flex: 1 1 176px;
+  max-width: 260px;
+  min-width: 176px;
+}
+
 .bulk-status-control select,
-.bulk-priority-control select {
+.bulk-priority-control select,
+.bulk-tag-control input {
   min-height: 38px;
   width: 100%;
 }
@@ -7540,8 +7547,14 @@ textarea:focus-visible {
 
   .library-selection-bar button,
   .bulk-status-control,
-  .bulk-priority-control {
+  .bulk-priority-control,
+  .bulk-tag-control {
     width: 100%;
+  }
+
+  .bulk-tag-control {
+    max-width: none;
+    min-width: 0;
   }
 
   .library-selection-count {
