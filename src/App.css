@@ -1254,11 +1254,12 @@
 }
 
 .bulk-status-control,
-.bulk-priority-control {
+.bulk-priority-control,
+.bulk-signal-kind-control {
   min-width: 152px;
 }
 
-.bulk-tag-control {
+.bulk-signal-control {
   flex: 1 1 176px;
   max-width: 260px;
   min-width: 176px;
@@ -1266,7 +1267,8 @@
 
 .bulk-status-control select,
 .bulk-priority-control select,
-.bulk-tag-control input {
+.bulk-signal-kind-control select,
+.bulk-signal-control input {
   min-height: 38px;
   width: 100%;
 }
@@ -7548,11 +7550,12 @@ textarea:focus-visible {
   .library-selection-bar button,
   .bulk-status-control,
   .bulk-priority-control,
-  .bulk-tag-control {
+  .bulk-signal-kind-control,
+  .bulk-signal-control {
     width: 100%;
   }
 
-  .bulk-tag-control {
+  .bulk-signal-control {
     max-width: none;
     min-width: 0;
   }

@@ -221,6 +221,16 @@ const librarySelectionSignalLabels: Record<LibrarySelectionSignalKind, { plural:
   tag: { plural: 'tags', singular: 'tag', title: 'tag' },
 }
 
+const librarySelectionSignalOptions: Array<{
+  id: LibrarySelectionSignalKind
+  label: string
+  placeholder: string
+}> = [
+  { id: 'tag', label: 'Tags', placeholder: 'Tags, separados por coma' },
+  { id: 'genre', label: 'Generos', placeholder: 'Generos, separados por coma' },
+  { id: 'mood', label: 'Mood tags', placeholder: 'Mood tags, separados por coma' },
+]
+
 const roleLabels: Record<UserRole, string> = {
   admin: 'Admin',
   moderator: 'Moderador',
@@ -3409,7 +3419,8 @@ function LibraryTab({
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([])
   const [bulkStatus, setBulkStatus] = useState<ItemStatus>('completed')
   const [bulkPriorityLevel, setBulkPriorityLevel] = useState<LibraryPriorityLevel>('high')
-  const [bulkTagText, setBulkTagText] = useState('')
+  const [bulkSignalKind, setBulkSignalKind] = useState<LibrarySelectionSignalKind>('tag')
+  const [bulkSignalText, setBulkSignalText] = useState('')
   const [activeReviewSession, setActiveReviewSession] = useState<ActiveLibraryReviewSession | undefined>()
   const handledPrimaryActionRequestId = useRef<number | undefined>(undefined)
   const viewMode = library.settings.libraryViewMode
@@ -3434,7 +3445,7 @@ function LibraryTab({
   const filteredItems = useMemo(() => {
     const matchingItems = library.items
       .filter((item) => {
-        const text = `${item.title} ${item.tags.join(' ')} ${item.genres.join(' ')}`.toLowerCase()
+        const text = `${item.title} ${item.tags.join(' ')} ${item.genres.join(' ')} ${item.moodTags.join(' ')}`.toLowerCase()
         return text.includes(query.toLowerCase())
       })
       .filter((item) => typeFilter === 'all' || item.type === typeFilter)
@@ -3453,6 +3464,8 @@ function LibraryTab({
   const allVisibleItemsSelected = filteredItems.length > 0 && selectedVisibleCount === filteredItems.length
   const selectedDiceEligibleCount = selectedItems.filter((item) => item.status !== 'completed' && item.status !== 'dropped').length
   const selectedCooldownCount = selectedItems.filter(isItemInCooldown).length
+  const bulkSignalLabels = librarySelectionSignalLabels[bulkSignalKind]
+  const bulkSignalOption = librarySelectionSignalOptions.find((option) => option.id === bulkSignalKind) ?? librarySelectionSignalOptions[0]
 
   const stats = useMemo(() => {
     return ITEM_STATUSES.map((status) => ({
@@ -3922,7 +3935,7 @@ function LibraryTab({
   }
 
   const addSelectedItemsSignals = useCallback(async (kind: LibrarySelectionSignalKind, requestedValues?: string[]) => {
-    const valuesToAdd = requestedValues ? uniqueNormalizedValues(requestedValues) : splitList(bulkTagText)
+    const valuesToAdd = requestedValues ? uniqueNormalizedValues(requestedValues) : splitList(bulkSignalText)
     const labels = librarySelectionSignalLabels[kind]
     if (!selectedItems.length) {
       setImportStatus('No hay entradas seleccionadas')
@@ -3967,7 +3980,7 @@ function LibraryTab({
       setPendingLibraryImport(undefined)
       setLibraryImportUndo(undefined)
       setSelectedItemIds([])
-      setBulkTagText('')
+      setBulkSignalText('')
       setImportStatus(`${changedItems.length} entradas ${kind === 'tag' ? 'etiquetadas' : 'actualizadas'} con ${valuesToAdd.join(', ')}`)
       onActivity({
         detail: `${changedItems.length} -> ${valuesToAdd.join(', ')}`,
@@ -3978,7 +3991,7 @@ function LibraryTab({
     } catch (reason) {
       setImportStatus(reason instanceof Error ? reason.message : `No se pudieron actualizar los ${labels.plural} de la seleccion.`)
     }
-  }, [bulkTagText, library, onActivity, selectedItems])
+  }, [bulkSignalText, library, onActivity, selectedItems])
 
   async function undoLibraryTagChange() {
     if (!tagUndo) return
@@ -4982,7 +4995,7 @@ function LibraryTab({
               aria-label="Buscar en biblioteca"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Buscar titulo, genero o tag"
+              placeholder="Buscar titulo, genero, tag o mood"
             />
           </label>
           <select
@@ -5077,23 +5090,37 @@ function LibraryTab({
                   <Dice5 size={16} />
                   Aplicar foco
                 </button>
-                <label className="bulk-tag-control">
-                  <span className="sr-only">Tags para seleccion</span>
+                <label className="bulk-signal-kind-control">
+                  <span className="sr-only">Tipo de senal para seleccion</span>
+                  <select
+                    aria-label="Tipo de senal para seleccion"
+                    value={bulkSignalKind}
+                    onChange={(event) => setBulkSignalKind(event.target.value as LibrarySelectionSignalKind)}
+                  >
+                    {librarySelectionSignalOptions.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="bulk-signal-control">
+                  <span className="sr-only">{bulkSignalOption.label} para seleccion</span>
                   <input
-                    aria-label="Tags para seleccion"
-                    placeholder="Tags, separados por coma"
-                    value={bulkTagText}
-                    onChange={(event) => setBulkTagText(event.target.value)}
+                    aria-label={`${bulkSignalOption.label} para seleccion`}
+                    placeholder={bulkSignalOption.placeholder}
+                    value={bulkSignalText}
+                    onChange={(event) => setBulkSignalText(event.target.value)}
                   />
                 </label>
                 <button
                   className="secondary-button"
-                  disabled={!bulkTagText.trim()}
+                  disabled={!bulkSignalText.trim()}
                   type="button"
-                  onClick={() => void addSelectedItemsSignals('tag')}
+                  onClick={() => void addSelectedItemsSignals(bulkSignalKind)}
                 >
                   <Plus size={16} />
-                  Añadir tags
+                  Añadir {bulkSignalLabels.plural}
                 </button>
                 <button
                   className="secondary-button"
