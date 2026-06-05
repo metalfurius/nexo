@@ -8398,7 +8398,7 @@ function SettingsTab({
                     <span key={swatch} style={{ background: swatch }} />
                   ))}
                 </span>
-                <span>
+                <span className="theme-option-copy">
                   <strong>{option.label}</strong>
                   <small>{option.detail}</small>
                 </span>
