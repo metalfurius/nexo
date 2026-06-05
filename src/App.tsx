@@ -670,6 +670,62 @@ function handleDialogKeyDown(event: KeyboardEvent<HTMLElement>, onClose: () => v
   onClose()
 }
 
+function getCurrentFocusTarget() {
+  if (typeof document === 'undefined') return null
+  const activeElement = document.activeElement
+  if (!(activeElement instanceof HTMLElement)) return null
+  if (activeElement === document.body || activeElement === document.documentElement) return null
+  return activeElement
+}
+
+function restoreDialogFocus(target: HTMLElement | null) {
+  if (!target || !target.isConnected || target.closest('[aria-hidden="true"]')) return
+  if (target.matches(':disabled')) return
+  if (document.querySelector('[aria-modal="true"]')) return
+
+  const activeElement = document.activeElement
+  if (
+    activeElement instanceof HTMLElement &&
+    activeElement !== document.body &&
+    activeElement !== document.documentElement &&
+    activeElement.isConnected
+  ) {
+    return
+  }
+
+  try {
+    target.focus({ preventScroll: true })
+  } catch {
+    target.focus()
+  }
+}
+
+function scheduleDialogFocusRestore(target: HTMLElement | null) {
+  if (typeof window === 'undefined') return
+  if (typeof window.requestAnimationFrame === 'function') {
+    window.requestAnimationFrame(() => restoreDialogFocus(target))
+    return
+  }
+  window.setTimeout(() => restoreDialogFocus(target), 0)
+}
+
+function useRestoreFocusOnUnmount() {
+  const returnFocusTargetRef = useRef<HTMLElement | null | undefined>(undefined)
+  if (returnFocusTargetRef.current === undefined) {
+    returnFocusTargetRef.current = getCurrentFocusTarget()
+  }
+
+  useEffect(() => {
+    const returnFocusTarget = returnFocusTargetRef.current ?? null
+    return () => scheduleDialogFocusRestore(returnFocusTarget)
+  }, [])
+}
+
+function DialogFocusReturn() {
+  useRestoreFocusOnUnmount()
+  return null
+}
+
 interface ShellNavItem {
   description: string
   hidden?: boolean
@@ -989,6 +1045,7 @@ function App() {
   )
   const quickSearchDiceRollSummary =
     activeTab === 'dice' && diceRollSummary ? diceRollSummary : fallbackDiceRollSummary
+  const activeThemeOption = themeOptions.find((option) => option.id === theme) ?? themeOptions[0]
 
   useEffect(() => {
     if (!auth.isFirebaseConfigured) return
@@ -2673,12 +2730,17 @@ function App() {
               aria-expanded={themeMenuOpen}
               aria-haspopup="menu"
               aria-label={`Elegir tema. Actual ${themeLabels[theme]}`}
-              className="icon-button"
+              className="icon-button theme-trigger"
               type="button"
               onClick={() => setThemeMenuOpen((current) => !current)}
               title={`Tema: ${themeLabels[theme]}`}
             >
               <Palette size={18} />
+              <span className="theme-trigger-swatch" aria-hidden="true">
+                {activeThemeOption.swatches.map((color) => (
+                  <span key={color} style={{ background: color }} />
+                ))}
+              </span>
             </button>
             {themeMenuOpen && (
               <div aria-label="Temas de Nexo" className="theme-menu" role="menu">
@@ -2892,6 +2954,8 @@ function QuickSearchDialog({
   onOpenItem: (item: ListItem) => void
   onOpenTab: (tab: AppTab) => void
 }) {
+  useRestoreFocusOnUnmount()
+
   const [query, setQuery] = useState('')
   const [activeResultIndex, setActiveResultIndex] = useState(0)
   const trimmedQuery = query.trim()
@@ -5687,6 +5751,7 @@ function LibraryTab({
 
       {deleteTarget && (
         <div className="modal-backdrop" role="presentation">
+          <DialogFocusReturn />
           <form
             aria-labelledby="delete-item-title"
             aria-modal="true"
@@ -5717,6 +5782,7 @@ function LibraryTab({
 
       {selectedDeleteDialogOpen && (
         <div className="modal-backdrop" role="presentation">
+          <DialogFocusReturn />
           <form
             aria-labelledby="delete-selected-title"
             aria-modal="true"
@@ -5774,6 +5840,7 @@ function LibraryTab({
 
       {deleteDialogOpen && (
         <div className="modal-backdrop" role="presentation">
+          <DialogFocusReturn />
           <form
             aria-labelledby="delete-all-title"
             aria-modal="true"
@@ -9669,6 +9736,7 @@ function CurationTab({
 
       {archiveTarget && (
         <div className="modal-backdrop" role="presentation">
+          <DialogFocusReturn />
           <div
             className="confirm-dialog"
             role="dialog"
@@ -10294,6 +10362,8 @@ function CandidateDialog({
   onRestore: () => void
   onSave: () => void
 }) {
+  useRestoreFocusOnUnmount()
+
   const isQueued = candidate.status === 'queued'
   const isDismissed = candidate.status === 'dismissed'
   const catalogActionLabel = candidate.source === 'nexo' ? 'Editar catalogo' : 'Crear ficha publica'
@@ -10385,6 +10455,8 @@ function ItemEditor({
   onClose: () => void
   onSave: (item: ListItem) => void
 }) {
+  useRestoreFocusOnUnmount()
+
   const initialDraft = useMemo(() => ({
     ...item,
     tagsText: item.tags.join(', '),
@@ -10796,6 +10868,8 @@ function PublicItemEditor({
   onClose: () => void
   onSave: (item: PublicCatalogItem, options?: { createAnother?: boolean }) => Promise<void> | void
 }) {
+  useRestoreFocusOnUnmount()
+
   const initialDraft = useMemo(() => ({
     ...item,
     tagsText: item.tags.join(', '),

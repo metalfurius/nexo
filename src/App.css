@@ -201,6 +201,33 @@
   position: relative;
 }
 
+.theme-trigger {
+  overflow: hidden;
+  position: relative;
+}
+
+.theme-trigger svg {
+  position: relative;
+  z-index: 1;
+}
+
+.theme-trigger-swatch {
+  border: 1px solid color-mix(in srgb, var(--surface-raised) 68%, var(--border));
+  border-radius: 999px;
+  bottom: 5px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  height: 5px;
+  left: 7px;
+  overflow: hidden;
+  position: absolute;
+  right: 7px;
+}
+
+.theme-trigger-swatch span {
+  min-width: 0;
+}
+
 .theme-menu {
   animation: menu-enter var(--motion-fast) var(--motion-ease) both;
   background: var(--surface-raised);

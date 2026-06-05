@@ -7,6 +7,20 @@ async function expectFocusWithin(scope: Locator) {
   expect(hasFocusWithin).toBe(true)
 }
 
+async function expectDialogAnimationsSettled(dialog: Locator) {
+  await expect(dialog).toBeVisible()
+  await dialog.evaluate(async (element) => {
+    const animatedElements = [element, element.closest('.modal-backdrop')].filter((entry): entry is Element =>
+      Boolean(entry),
+    )
+    await Promise.all(
+      animatedElements.flatMap((animatedElement) =>
+        animatedElement.getAnimations().map((animation) => animation.finished.catch(() => undefined)),
+      ),
+    )
+  })
+}
+
 test('library and weighted dice work in demo mode', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByRole('heading', { name: 'Biblioteca privada' })).toBeVisible()
@@ -900,6 +914,15 @@ test('quick search keyboard shortcuts avoid normal text entry', async ({ page })
   await page.goto('/')
   await expect(page.getByRole('heading', { name: 'Biblioteca privada' })).toBeVisible()
 
+  const quickSearchButton = page.getByRole('button', { name: 'Busqueda rapida' })
+  await quickSearchButton.click()
+  let quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  await expect(quickSearch).toBeVisible()
+  await expect(quickSearch.getByLabel('Buscar en Nexo')).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog', { name: 'Abrir en Nexo' })).not.toBeVisible()
+  await expect(quickSearchButton).toBeFocused()
+
   const librarySearch = page.getByLabel('Buscar en biblioteca')
   await librarySearch.fill('/')
   await expect(librarySearch).toHaveValue('/')
@@ -907,7 +930,7 @@ test('quick search keyboard shortcuts avoid normal text entry', async ({ page })
 
   await librarySearch.blur()
   await page.keyboard.press('Control+K')
-  const quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
   await expect(quickSearch).toBeVisible()
   await expect(quickSearch.getByLabel('Buscar en Nexo')).toBeFocused()
   for (let index = 0; index < 10; index += 1) {
@@ -920,14 +943,16 @@ test('dialogs support escape without losing unsaved edits', async ({ page }) => 
   await page.goto('/')
   await expect(page.getByRole('heading', { name: 'Biblioteca privada' })).toBeVisible()
 
-  await page.getByRole('button', { name: 'Anadir' }).first().click()
+  const addButton = page.getByRole('button', { name: 'Anadir' }).first()
+  await addButton.click()
   let privateEditor = page.getByRole('dialog', { name: 'Entrada' })
   await expect(privateEditor).toBeVisible()
   await expect(privateEditor.getByLabel('Titulo')).toBeFocused()
   await page.keyboard.press('Escape')
   await expect(page.getByRole('dialog', { name: 'Entrada' })).not.toBeVisible()
+  await expect(addButton).toBeFocused()
 
-  await page.getByRole('button', { name: 'Anadir' }).first().click()
+  await addButton.click()
   privateEditor = page.getByRole('dialog', { name: 'Entrada' })
   await expect(privateEditor.getByLabel('Titulo')).toBeFocused()
   await privateEditor.getByLabel('Titulo').fill('Borrador con Escape')
@@ -942,6 +967,7 @@ test('dialogs support escape without losing unsaved edits', async ({ page }) => 
   await privateEditor.getByRole('button', { name: 'Cerrar', exact: true }).click()
   await page.getByRole('button', { name: 'Descartar cambios' }).click()
   await expect(page.getByRole('dialog', { name: 'Entrada' })).not.toBeVisible()
+  await expect(addButton).toBeFocused()
 
   await page.getByRole('button', { name: 'Mas acciones Outer Wilds' }).click()
   await page.getByRole('menuitem', { name: 'Borrar Outer Wilds' }).click()
@@ -951,7 +977,8 @@ test('dialogs support escape without losing unsaved edits', async ({ page }) => 
   await expect(page.getByTestId('library-grid')).toContainText('Outer Wilds')
 
   await page.getByRole('button', { name: 'Curacion' }).click()
-  await page.getByRole('button', { name: 'Crear Libros' }).click()
+  const createBooksButton = page.getByRole('button', { name: 'Crear Libros' })
+  await createBooksButton.click()
   const publicEditor = page.locator('.public-item-editor')
   await expect(publicEditor).toBeVisible()
   await expect(publicEditor.getByLabel('Titulo')).toBeFocused()
@@ -963,6 +990,7 @@ test('dialogs support escape without losing unsaved edits', async ({ page }) => 
   await expect(page.getByLabel('Cambios sin guardar')).toContainText('Guarda la ficha')
   await page.getByRole('button', { name: 'Descartar cambios' }).click()
   await expect(publicEditor).not.toBeVisible()
+  await expect(createBooksButton).toBeFocused()
 })
 
 test('quick search runs command actions', async ({ page }) => {
@@ -2916,7 +2944,7 @@ test('core tabs have no serious accessibility violations', async ({ page }) => {
 test('editors have no serious accessibility violations', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Anadir' }).first().click()
-  await expect(page.getByRole('dialog', { name: 'Entrada' })).toBeVisible()
+  await expectDialogAnimationsSettled(page.getByRole('dialog', { name: 'Entrada' }))
   let results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze()
   let seriousViolations = results.violations.filter((violation) => ['serious', 'critical'].includes(violation.impact ?? ''))
   expect(seriousViolations, 'private editor has serious accessibility violations').toEqual([])
@@ -2924,7 +2952,7 @@ test('editors have no serious accessibility violations', async ({ page }) => {
 
   await page.getByRole('button', { name: 'Curacion' }).click()
   await page.getByRole('button', { name: 'Crear Libros' }).click()
-  await expect(page.locator('.public-item-editor')).toBeVisible()
+  await expectDialogAnimationsSettled(page.locator('.public-item-editor'))
   results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze()
   seriousViolations = results.violations.filter((violation) => ['serious', 'critical'].includes(violation.impact ?? ''))
   expect(seriousViolations, 'public editor has serious accessibility violations').toEqual([])
