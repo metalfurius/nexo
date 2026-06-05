@@ -1253,11 +1253,13 @@
   line-height: 1.1;
 }
 
-.bulk-status-control {
+.bulk-status-control,
+.bulk-priority-control {
   min-width: 152px;
 }
 
-.bulk-status-control select {
+.bulk-status-control select,
+.bulk-priority-control select {
   min-height: 38px;
   width: 100%;
 }
@@ -7537,7 +7539,8 @@ textarea:focus-visible {
   }
 
   .library-selection-bar button,
-  .bulk-status-control {
+  .bulk-status-control,
+  .bulk-priority-control {
     width: 100%;
   }
 

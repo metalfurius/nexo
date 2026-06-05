@@ -380,6 +380,18 @@ test('library can update selected visible items in bulk', async ({ page }) => {
 
   await page.getByLabel('Seleccionar Outer Wilds').check()
   await page.getByLabel('Seleccionar Vinland Saga').check()
+  await selectionBar.getByLabel('Foco para seleccion').selectOption('high')
+  await selectionBar.getByRole('button', { name: 'Aplicar foco' }).click()
+  await expect(page.getByText('2 entradas ahora tienen Foco alto')).toBeVisible()
+  await expect(page.locator('.item-card', { hasText: 'Outer Wilds' })).toContainText('Alta prioridad')
+  await expect(page.locator('.item-card', { hasText: 'Vinland Saga' })).toContainText('Alta prioridad')
+  await page.getByLabel('Accion reciente de biblioteca').getByRole('button', { name: 'Deshacer foco' }).click()
+  await expect(page.getByText('2 focos recuperados')).toBeVisible()
+  await expect(page.locator('.item-card', { hasText: 'Outer Wilds' })).not.toContainText('Alta prioridad')
+  await expect(page.locator('.item-card', { hasText: 'Vinland Saga' })).not.toContainText('Alta prioridad')
+
+  await page.getByLabel('Seleccionar Outer Wilds').check()
+  await page.getByLabel('Seleccionar Vinland Saga').check()
   await selectionBar.getByRole('button', { name: 'Enfriar dado' }).click()
   await expect(page.getByText('2 entradas enfriadas para el dado')).toBeVisible()
   await expect(page.locator('.item-card', { hasText: 'Outer Wilds' }).getByLabel('Pulso de Outer Wilds')).toContainText('Cooldown')
@@ -542,6 +554,50 @@ test('quick search updates dice cooldowns for the current library selection', as
   await expect(page.getByText('Dado deshecho: 2 cooldowns recuperados')).toBeVisible()
   await expect(page.locator('.item-card', { hasText: 'Outer Wilds' }).getByLabel('Pulso de Outer Wilds')).toContainText('Cooldown')
   await expect(page.locator('.item-card', { hasText: 'Vinland Saga' }).getByLabel('Pulso de Vinland Saga')).toContainText('Cooldown')
+})
+
+test('quick search updates focus for the current library selection', async ({ page }) => {
+  await page.goto('/')
+  await page.getByLabel('Seleccionar Outer Wilds').check()
+  await page.getByLabel('Seleccionar Vinland Saga').check()
+  await expect(page.getByLabel('Seleccion de biblioteca')).toContainText('2 seleccionadas')
+
+  await page.getByRole('button', { name: 'Busqueda rapida' }).click()
+  let quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  await quickSearch.getByLabel('Buscar en Nexo').fill('seleccion foco alto')
+  const focusSelectionAction = quickSearch.getByRole('button', {
+    name: 'Ejecutar Seleccion: Foco alto',
+    exact: true,
+  })
+  await expect(focusSelectionAction).toHaveAttribute('aria-current', 'true')
+  await expect(focusSelectionAction).toContainText('foco del dado')
+  await focusSelectionAction.click()
+
+  await expect(page.getByText('2 entradas ahora tienen Foco alto')).toBeVisible()
+  await expect(page.locator('.item-card', { hasText: 'Outer Wilds' })).toContainText('Alta prioridad')
+  await expect(page.locator('.item-card', { hasText: 'Vinland Saga' })).toContainText('Alta prioridad')
+  await expect(page.getByTestId('session-activity')).toContainText('Foco masivo actualizado')
+
+  await page.getByLabel('Accion reciente de biblioteca').getByRole('button', { name: 'Deshacer foco' }).click()
+  await expect(page.getByText('2 focos recuperados')).toBeVisible()
+  await expect(page.locator('.item-card', { hasText: 'Outer Wilds' })).not.toContainText('Alta prioridad')
+  await expect(page.locator('.item-card', { hasText: 'Vinland Saga' })).not.toContainText('Alta prioridad')
+
+  await page.getByLabel('Seleccionar Outer Wilds').check()
+  await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await page.getByLabel('Energia').selectOption('high')
+  await expect(page.getByText('Cambios pendientes')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Busqueda rapida' }).click()
+  quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  await quickSearch.getByLabel('Buscar en Nexo').fill('seleccion foco normal')
+  await quickSearch.getByRole('button', { name: 'Ejecutar Seleccion: Foco normal', exact: true }).click()
+
+  await expect(page.getByLabel('Salida con cambios pendientes')).toContainText('Cambios pendientes en Dado')
+  await page.getByLabel('Salida con cambios pendientes').getByRole('button', { name: 'Descartar cambios' }).click()
+
+  await expect(page.getByRole('heading', { name: 'Biblioteca privada' })).toBeVisible()
+  await expect(page.getByText('No hay entradas seleccionadas')).toBeVisible()
 })
 
 test('quick search opens library items through the pending-change guard', async ({ page }) => {

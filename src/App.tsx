@@ -201,6 +201,19 @@ const libraryViewLabels: Record<LibraryViewMode, string> = {
   list: 'Lista',
 }
 
+type LibraryPriorityLevel = 'low' | 'normal' | 'high'
+
+const libraryPriorityOptions: Array<{
+  detail: string
+  id: LibraryPriorityLevel
+  label: string
+  value: number
+}> = [
+  { detail: 'Apartar del dado sin pausar la ficha', id: 'low', label: 'Foco bajo', value: 0.7 },
+  { detail: 'Peso equilibrado para el dado', id: 'normal', label: 'Foco normal', value: 1 },
+  { detail: 'Subir en la cola del dado', id: 'high', label: 'Foco alto', value: 1.35 },
+]
+
 const roleLabels: Record<UserRole, string> = {
   admin: 'Admin',
   moderator: 'Moderador',
@@ -310,7 +323,8 @@ function feedbackToneFromText(message: string): FeedbackTone {
     normalized.includes('descartado') ||
     normalized.includes('limpiad') ||
     normalized.includes('recuperad') ||
-    normalized.includes('ahora es')
+    normalized.includes('ahora es') ||
+    normalized.includes('ahora tienen')
   ) {
     return 'success'
   }
@@ -373,6 +387,11 @@ interface LibrarySelectedStatusRequest {
 
 interface LibrarySelectedDiceActionRequest {
   action: 'snooze' | 'reactivate'
+  requestId: number
+}
+
+interface LibrarySelectedPriorityRequest {
+  level: LibraryPriorityLevel
   requestId: number
 }
 
@@ -451,6 +470,7 @@ type PendingNavigation = {
   libraryReview?: LibrarySmartView
   libraryResetView?: boolean
   librarySelectedDiceAction?: LibrarySelectedDiceActionRequest['action']
+  librarySelectedPriority?: LibraryPriorityLevel
   librarySelectedStatus?: ItemStatus
   librarySortMode?: LibrarySortMode
   libraryStatusFilter?: ItemStatus
@@ -779,6 +799,7 @@ function App() {
   const [libraryReviewRequest, setLibraryReviewRequest] = useState<LibraryReviewRequest | undefined>()
   const [libraryResetViewRequest, setLibraryResetViewRequest] = useState<LibraryResetViewRequest | undefined>()
   const [librarySelectedDiceActionRequest, setLibrarySelectedDiceActionRequest] = useState<LibrarySelectedDiceActionRequest | undefined>()
+  const [librarySelectedPriorityRequest, setLibrarySelectedPriorityRequest] = useState<LibrarySelectedPriorityRequest | undefined>()
   const [librarySelectedStatusRequest, setLibrarySelectedStatusRequest] = useState<LibrarySelectedStatusRequest | undefined>()
   const [librarySortModeRequest, setLibrarySortModeRequest] = useState<LibrarySortModeRequest | undefined>()
   const [libraryStatusFilterRequest, setLibraryStatusFilterRequest] = useState<LibraryStatusFilterRequest | undefined>()
@@ -1113,6 +1134,10 @@ function App() {
 
   function requestLibrarySelectedDiceAction(action: LibrarySelectedDiceActionRequest['action']) {
     setLibrarySelectedDiceActionRequest((current) => ({ action, requestId: (current?.requestId ?? 0) + 1 }))
+  }
+
+  function requestLibrarySelectedPriority(level: LibraryPriorityLevel) {
+    setLibrarySelectedPriorityRequest((current) => ({ level, requestId: (current?.requestId ?? 0) + 1 }))
   }
 
   function requestDiceRoll() {
@@ -1563,6 +1588,25 @@ function App() {
     writeAppTabToUrl('library', 'push')
   }
 
+  function applyLibrarySelectedPriorityFromPalette(level: LibraryPriorityLevel) {
+    setQuickSearchOpen(false)
+    if (activeTab === 'library') {
+      setActivityFocus(undefined)
+      requestLibrarySelectedPriority(level)
+      writeAppTabToUrl('library', 'push')
+      return
+    }
+    if (tabsWithUnsavedChanges[activeTab]) {
+      setPendingNavigation({ librarySelectedPriority: level, source: 'app', tab: 'library' })
+      return
+    }
+
+    setActivityFocus(undefined)
+    requestLibrarySelectedPriority(level)
+    setActiveTabState('library')
+    writeAppTabToUrl('library', 'push')
+  }
+
   function importLibraryBackupFromPalette() {
     setQuickSearchOpen(false)
     if (activeTab === 'library') {
@@ -1692,6 +1736,7 @@ function App() {
       libraryReview,
       libraryResetView,
       librarySelectedDiceAction,
+      librarySelectedPriority,
       librarySelectedStatus,
       librarySortMode,
       libraryStatusFilter,
@@ -1750,6 +1795,9 @@ function App() {
     }
     if (librarySelectedDiceAction) {
       requestLibrarySelectedDiceAction(librarySelectedDiceAction)
+    }
+    if (librarySelectedPriority) {
+      requestLibrarySelectedPriority(librarySelectedPriority)
     }
     if (librarySelectedStatus) {
       requestLibrarySelectedStatus(librarySelectedStatus)
@@ -2126,6 +2174,16 @@ function App() {
       title: `Seleccion: ${statusLabels[status]}`,
       tone: 'command',
     })),
+    ...libraryPriorityOptions.map((option): QuickSearchCommand => ({
+      Icon: Dice5,
+      detail: 'Aplicar foco del dado a la seleccion actual',
+      id: `library-selected-priority-${option.id}`,
+      meta: 'Biblioteca',
+      run: () => applyLibrarySelectedPriorityFromPalette(option.id),
+      searchText: `biblioteca seleccion seleccionadas foco prioridad dado masivo aplicar ${option.label} ${option.detail}`,
+      title: `Seleccion: ${option.label}`,
+      tone: 'command',
+    })),
     {
       Icon: Moon,
       detail: 'Pausar la seleccion como candidata del dado',
@@ -2385,6 +2443,7 @@ function App() {
             resetViewRequest={libraryResetViewRequest}
             reviewRequest={libraryReviewRequest}
             selectedDiceActionRequest={librarySelectedDiceActionRequest}
+            selectedPriorityRequest={librarySelectedPriorityRequest}
             selectedStatusRequest={librarySelectedStatusRequest}
             sortModeRequest={librarySortModeRequest}
             statusFilterRequest={libraryStatusFilterRequest}
@@ -3074,6 +3133,10 @@ interface LibraryCooldownUndo {
   changes: Array<{ id: string; previousCooldownUntil?: string; title: string }>
 }
 
+interface LibraryPriorityUndo {
+  changes: Array<{ id: string; previousPriority: number; title: string }>
+}
+
 interface ActiveLibraryReviewSession {
   detail: string
   id: LibrarySmartView
@@ -3103,6 +3166,7 @@ function LibraryTab({
   resetViewRequest,
   reviewRequest,
   selectedDiceActionRequest,
+  selectedPriorityRequest,
   selectedStatusRequest,
   sortModeRequest,
   statusFilterRequest,
@@ -3128,6 +3192,7 @@ function LibraryTab({
   resetViewRequest?: LibraryResetViewRequest
   reviewRequest?: LibraryReviewRequest
   selectedDiceActionRequest?: LibrarySelectedDiceActionRequest
+  selectedPriorityRequest?: LibrarySelectedPriorityRequest
   selectedStatusRequest?: LibrarySelectedStatusRequest
   sortModeRequest?: LibrarySortModeRequest
   statusFilterRequest?: LibraryStatusFilterRequest
@@ -3154,6 +3219,7 @@ function LibraryTab({
   const [handledDraftRequestId, setHandledDraftRequestId] = useState<string | undefined>()
   const handledResetViewRequestId = useRef<number | undefined>(undefined)
   const handledSelectedDiceActionRequestId = useRef<number | undefined>(undefined)
+  const handledSelectedPriorityRequestId = useRef<number | undefined>(undefined)
   const handledSelectedStatusRequestId = useRef<number | undefined>(undefined)
   const handledSortModeRequestId = useRef<number | undefined>(undefined)
   const handledStatusFilterRequestId = useRef<number | undefined>(undefined)
@@ -3169,6 +3235,7 @@ function LibraryTab({
   const [deletedLibraryUndo, setDeletedLibraryUndo] = useState<ListItem[]>([])
   const [statusUndo, setStatusUndo] = useState<LibraryStatusUndo | undefined>()
   const [cooldownUndo, setCooldownUndo] = useState<LibraryCooldownUndo | undefined>()
+  const [priorityUndo, setPriorityUndo] = useState<LibraryPriorityUndo | undefined>()
   const [pendingLibraryImport, setPendingLibraryImport] = useState<PendingBackupImport | undefined>()
   const [libraryImportUndo, setLibraryImportUndo] = useState<LibraryImportRollbackPlan | undefined>()
   const [libraryLinkCopy, setLibraryLinkCopy] = useState<{ title: string; url: string } | undefined>()
@@ -3177,6 +3244,7 @@ function LibraryTab({
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([])
   const [bulkStatus, setBulkStatus] = useState<ItemStatus>('completed')
+  const [bulkPriorityLevel, setBulkPriorityLevel] = useState<LibraryPriorityLevel>('high')
   const [activeReviewSession, setActiveReviewSession] = useState<ActiveLibraryReviewSession | undefined>()
   const handledPrimaryActionRequestId = useRef<number | undefined>(undefined)
   const viewMode = library.settings.libraryViewMode
@@ -3326,6 +3394,7 @@ function LibraryTab({
       setDeletedLibraryUndo([])
       setStatusUndo(undefined)
       setCooldownUndo(undefined)
+      setPriorityUndo(undefined)
       setLibraryImportUndo(rollbackPlan)
       setPendingLibraryImport(undefined)
       setSelectedItemIds([])
@@ -3364,6 +3433,7 @@ function LibraryTab({
       setLibraryImportUndo(undefined)
       setPendingLibraryImport(undefined)
       setCooldownUndo(undefined)
+      setPriorityUndo(undefined)
       setSelectedItemIds([])
     } catch (reason) {
       setImportStatus(reason instanceof Error ? reason.message : 'No se pudo deshacer el backup.')
@@ -3377,6 +3447,7 @@ function LibraryTab({
     setDeletedLibraryUndo([])
     setStatusUndo(undefined)
     setCooldownUndo(undefined)
+    setPriorityUndo(undefined)
     setPendingLibraryImport(undefined)
     setLibraryImportUndo(undefined)
     await library.deleteAllItems()
@@ -3403,6 +3474,7 @@ function LibraryTab({
     setDeletedLibraryUndo([])
     setStatusUndo(undefined)
     setCooldownUndo(undefined)
+    setPriorityUndo(undefined)
     setPendingLibraryImport(undefined)
     setLibraryImportUndo(undefined)
     setDeleteTarget(undefined)
@@ -3433,6 +3505,7 @@ function LibraryTab({
       setPendingLibraryImport(undefined)
       setLibraryImportUndo(undefined)
       setCooldownUndo(undefined)
+      setPriorityUndo(undefined)
     } catch (reason) {
       setImportStatus(reason instanceof Error ? reason.message : 'No se pudo deshacer el borrado.')
     }
@@ -3457,6 +3530,7 @@ function LibraryTab({
       setPendingLibraryImport(undefined)
       setLibraryImportUndo(undefined)
       setCooldownUndo(undefined)
+      setPriorityUndo(undefined)
     } catch (reason) {
       setImportStatus(reason instanceof Error ? reason.message : 'No se pudo deshacer el borrado total.')
     }
@@ -3469,6 +3543,7 @@ function LibraryTab({
       setDeletedLibraryUndo([])
       setStatusUndo(undefined)
       setCooldownUndo({ changes: [{ id: item.id, previousCooldownUntil: item.recommendationCooldownUntil, title: item.title }] })
+      setPriorityUndo(undefined)
       setPendingLibraryImport(undefined)
       setLibraryImportUndo(undefined)
       setImportStatus(`${item.title} enfriado para el dado`)
@@ -3491,6 +3566,7 @@ function LibraryTab({
       setDeletedLibraryUndo([])
       setStatusUndo(undefined)
       setCooldownUndo({ changes: [{ id: item.id, previousCooldownUntil: item.recommendationCooldownUntil, title: item.title }] })
+      setPriorityUndo(undefined)
       setPendingLibraryImport(undefined)
       setLibraryImportUndo(undefined)
       setImportStatus(`${item.title} reactivado para el dado`)
@@ -3513,6 +3589,7 @@ function LibraryTab({
       setDeletedLibraryUndo([])
       setStatusUndo({ id: item.id, kind: 'single', previousStatus: item.status, title: item.title })
       setCooldownUndo(undefined)
+      setPriorityUndo(undefined)
       setPendingLibraryImport(undefined)
       setLibraryImportUndo(undefined)
       setImportStatus(`${item.title} ahora es ${statusLabels[status]}`)
@@ -3545,6 +3622,7 @@ function LibraryTab({
         })
         setStatusUndo(undefined)
         setCooldownUndo(undefined)
+        setPriorityUndo(undefined)
         setPendingLibraryImport(undefined)
         setLibraryImportUndo(undefined)
         return
@@ -3561,6 +3639,7 @@ function LibraryTab({
       })
       setStatusUndo(undefined)
       setCooldownUndo(undefined)
+      setPriorityUndo(undefined)
       setPendingLibraryImport(undefined)
       setLibraryImportUndo(undefined)
     } catch (reason) {
@@ -3587,6 +3666,34 @@ function LibraryTab({
       setLibraryImportUndo(undefined)
     } catch (reason) {
       setImportStatus(reason instanceof Error ? reason.message : 'No se pudo deshacer el cambio del dado.')
+    }
+  }
+
+  async function undoLibraryPriorityChange() {
+    if (!priorityUndo) return
+
+    try {
+      for (const change of priorityUndo.changes) {
+        const item = library.items.find((candidate) => candidate.id === change.id)
+        if (!item) continue
+
+        await library.saveItem({
+          ...item,
+          weights: { ...item.weights, priority: change.previousPriority },
+        })
+      }
+      setImportStatus(`${priorityUndo.changes.length} focos recuperados`)
+      onActivity({
+        detail: `${priorityUndo.changes.length} entradas`,
+        label: 'Foco recuperado',
+        tab: 'library',
+        tone: 'success',
+      })
+      setPriorityUndo(undefined)
+      setPendingLibraryImport(undefined)
+      setLibraryImportUndo(undefined)
+    } catch (reason) {
+      setImportStatus(reason instanceof Error ? reason.message : 'No se pudo deshacer el foco.')
     }
   }
 
@@ -3661,6 +3768,7 @@ function LibraryTab({
         kind: 'bulk',
       })
       setCooldownUndo(undefined)
+      setPriorityUndo(undefined)
       setPendingLibraryImport(undefined)
       setLibraryImportUndo(undefined)
       setSelectedItemIds([])
@@ -3689,6 +3797,67 @@ function LibraryTab({
     return () => window.clearTimeout(timeoutId)
   }, [changeSelectedItemsStatus, selectedStatusRequest])
 
+  const changeSelectedItemsPriority = useCallback(async (nextLevel = bulkPriorityLevel) => {
+    setBulkPriorityLevel(nextLevel)
+    const priorityOption = libraryPriorityOptions.find((option) => option.id === nextLevel) ?? libraryPriorityOptions[1]
+    const changedItems = selectedItems.filter(
+      (item) => Math.abs(item.weights.priority - priorityOption.value) > 0.001,
+    )
+    if (!selectedItems.length) {
+      setImportStatus('No hay entradas seleccionadas')
+      return
+    }
+    if (!changedItems.length) {
+      setImportStatus(`La seleccion ya tiene ${priorityOption.label.toLowerCase()}`)
+      return
+    }
+
+    try {
+      for (const item of changedItems) {
+        await library.saveItem({
+          ...item,
+          weights: { ...item.weights, priority: priorityOption.value },
+        })
+      }
+      setDeletedItemUndo(undefined)
+      setDeletedLibraryUndo([])
+      setStatusUndo(undefined)
+      setCooldownUndo(undefined)
+      setPriorityUndo({
+        changes: changedItems.map((item) => ({
+          id: item.id,
+          previousPriority: item.weights.priority,
+          title: item.title,
+        })),
+      })
+      setPendingLibraryImport(undefined)
+      setLibraryImportUndo(undefined)
+      setSelectedItemIds([])
+      setImportStatus(`${changedItems.length} entradas ahora tienen ${priorityOption.label}`)
+      onActivity({
+        detail: `${changedItems.length} -> ${priorityOption.label}`,
+        label: 'Foco masivo actualizado',
+        tab: 'library',
+        tone: 'success',
+      })
+    } catch (reason) {
+      setImportStatus(reason instanceof Error ? reason.message : 'No se pudo actualizar el foco de la seleccion.')
+    }
+  }, [bulkPriorityLevel, library, onActivity, selectedItems])
+
+  useEffect(() => {
+    if (!selectedPriorityRequest || handledSelectedPriorityRequestId.current === selectedPriorityRequest.requestId) return
+
+    const timeoutId = window.setTimeout(() => {
+      if (handledSelectedPriorityRequestId.current === selectedPriorityRequest.requestId) return
+
+      handledSelectedPriorityRequestId.current = selectedPriorityRequest.requestId
+      void changeSelectedItemsPriority(selectedPriorityRequest.level)
+    }, 0)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [changeSelectedItemsPriority, selectedPriorityRequest])
+
   const snoozeSelectedItems = useCallback(async () => {
     const itemsToSnooze = selectedItems.filter((item) => item.status !== 'completed' && item.status !== 'dropped')
     if (!itemsToSnooze.length) {
@@ -3710,6 +3879,7 @@ function LibraryTab({
           title: item.title,
         })),
       })
+      setPriorityUndo(undefined)
       setPendingLibraryImport(undefined)
       setLibraryImportUndo(undefined)
       setSelectedItemIds([])
@@ -3746,6 +3916,7 @@ function LibraryTab({
           title: item.title,
         })),
       })
+      setPriorityUndo(undefined)
       setPendingLibraryImport(undefined)
       setLibraryImportUndo(undefined)
       setSelectedItemIds([])
@@ -3821,6 +3992,7 @@ function LibraryTab({
       setPendingLibraryImport(undefined)
       setLibraryImportUndo(undefined)
       setCooldownUndo(undefined)
+      setPriorityUndo(undefined)
       setEditingItem(undefined)
       onActivityFocusHandled()
       onDraftRequestHandled()
@@ -4091,6 +4263,7 @@ function LibraryTab({
           setDeletedLibraryUndo([])
           setStatusUndo({ id: item.id, kind: 'single', previousStatus: item.status, title: item.title })
           setCooldownUndo(undefined)
+          setPriorityUndo(undefined)
           setPendingLibraryImport(undefined)
           setLibraryImportUndo(undefined)
           setImportStatus(`${item.title} ahora es ${statusLabels[primaryAction.nextStatus]}`)
@@ -4525,6 +4698,24 @@ function LibraryTab({
                   <Save size={16} />
                   Aplicar estado
                 </button>
+                <label className="bulk-priority-control">
+                  <span className="sr-only">Foco para seleccion</span>
+                  <select
+                    aria-label="Foco para seleccion"
+                    value={bulkPriorityLevel}
+                    onChange={(event) => setBulkPriorityLevel(event.target.value as LibraryPriorityLevel)}
+                  >
+                    {libraryPriorityOptions.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button className="secondary-button" type="button" onClick={() => void changeSelectedItemsPriority()}>
+                  <Dice5 size={16} />
+                  Aplicar foco
+                </button>
                 <button
                   className="secondary-button"
                   disabled={selectedDiceEligibleCount === 0}
@@ -4598,7 +4789,7 @@ function LibraryTab({
             </div>
           </div>
         )}
-        {(deletedItemUndo || deletedLibraryUndo.length > 0 || statusUndo || cooldownUndo || libraryImportUndo) && (
+        {(deletedItemUndo || deletedLibraryUndo.length > 0 || statusUndo || cooldownUndo || priorityUndo || libraryImportUndo) && (
           <div className="feedback-action-row" aria-label="Accion reciente de biblioteca">
             {libraryImportUndo && (
               <button className="secondary-button" type="button" onClick={() => void undoLibraryImportFile()}>
@@ -4628,6 +4819,12 @@ function LibraryTab({
               <button className="secondary-button" type="button" onClick={() => void undoLibraryCooldownChange()}>
                 <RotateCcw size={16} />
                 Deshacer dado
+              </button>
+            )}
+            {priorityUndo && (
+              <button className="secondary-button" type="button" onClick={() => void undoLibraryPriorityChange()}>
+                <RotateCcw size={16} />
+                Deshacer foco
               </button>
             )}
           </div>
