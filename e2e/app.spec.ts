@@ -550,11 +550,11 @@ test('quick search toggles visible library selection through the pending-change 
   let quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
   await quickSearch.getByLabel('Buscar en Nexo').fill('seleccionar visibles')
   const selectVisibleAction = quickSearch.getByRole('button', {
-    name: 'Ejecutar Marcar/quitar visibles de Biblioteca',
+    name: 'Ejecutar Seleccionar visibles de Biblioteca',
     exact: true,
   })
   await expect(selectVisibleAction).toHaveAttribute('aria-current', 'true')
-  await expect(selectVisibleAction).toContainText('Seleccionar o quitar la vista filtrada')
+  await expect(selectVisibleAction).toContainText('0 de 3 visibles seleccionadas')
   await selectVisibleAction.click()
 
   await expect(page.getByLabel('Seleccion de biblioteca')).toContainText('3 seleccionadas')
@@ -565,10 +565,11 @@ test('quick search toggles visible library selection through the pending-change 
   quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
   await quickSearch.getByLabel('Buscar en Nexo').fill('quitar visibles')
   const clearVisibleAction = quickSearch.getByRole('button', {
-    name: 'Ejecutar Marcar/quitar visibles de Biblioteca',
+    name: 'Ejecutar Quitar visibles de Biblioteca',
     exact: true,
   })
   await expect(clearVisibleAction).toHaveAttribute('aria-current', 'true')
+  await expect(clearVisibleAction).toContainText('3 visibles seleccionadas')
   await clearVisibleAction.click()
 
   await expect(page.getByLabel('Seleccion de biblioteca')).not.toContainText('seleccionadas')
@@ -582,7 +583,7 @@ test('quick search toggles visible library selection through the pending-change 
   quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
   await quickSearch.getByLabel('Buscar en Nexo').fill('seleccionar visibles')
   await quickSearch
-    .getByRole('button', { name: 'Ejecutar Marcar/quitar visibles de Biblioteca', exact: true })
+    .getByRole('button', { name: 'Ejecutar Seleccionar visibles de Biblioteca', exact: true })
     .click()
 
   await expect(page.getByLabel('Salida con cambios pendientes')).toContainText('Cambios pendientes en Dado')

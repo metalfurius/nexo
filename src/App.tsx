@@ -414,6 +414,12 @@ interface LibraryVisibleSelectionRequest {
   requestId: number
 }
 
+interface LibraryVisibleSelectionSummary {
+  allVisibleItemsSelected: boolean
+  selectedVisibleCount: number
+  visibleCount: number
+}
+
 interface LibrarySelectedStatusRequest {
   requestId: number
   status: ItemStatus
@@ -870,6 +876,9 @@ function App() {
   const [settingsTasteSuggestionsRequest, setSettingsTasteSuggestionsRequest] = useState<SettingsTasteSuggestionsRequest | undefined>()
   const [settingsSaveRequest, setSettingsSaveRequest] = useState<SettingsSaveRequest | undefined>()
   const [selectedLibraryItemIds, setSelectedLibraryItemIds] = useState<string[]>([])
+  const [libraryVisibleSelectionSummary, setLibraryVisibleSelectionSummary] = useState<
+    LibraryVisibleSelectionSummary | undefined
+  >()
   const [quickSearchOpen, setQuickSearchOpen] = useState(false)
   const [themeMenuOpen, setThemeMenuOpen] = useState(false)
   const [serviceWorkerUpdateReady, setServiceWorkerUpdateReady] = useState(false)
@@ -906,6 +915,15 @@ function App() {
     (item) => item.status !== 'completed' && item.status !== 'dropped',
   ).length
   const selectedLibraryCooldownCount = selectedLibraryItems.filter(isItemInCooldown).length
+  const fallbackLibraryVisibleSelectionSummary: LibraryVisibleSelectionSummary = {
+    allVisibleItemsSelected: library.items.length > 0 && selectedLibraryCount === library.items.length,
+    selectedVisibleCount: selectedLibraryCount,
+    visibleCount: library.items.length,
+  }
+  const quickSearchVisibleSelectionSummary =
+    activeTab === 'library' && libraryVisibleSelectionSummary
+      ? libraryVisibleSelectionSummary
+      : fallbackLibraryVisibleSelectionSummary
 
   useEffect(() => {
     if (!auth.isFirebaseConfigured) return
@@ -2048,6 +2066,18 @@ function App() {
   ]
   const quickSearchSelectionLabel = selectedLibraryCount === 1 ? '1 seleccionada' : `${selectedLibraryCount} seleccionadas`
   const quickSearchSelectionDetail = selectedLibraryCount ? `${quickSearchSelectionLabel} / seleccion actual` : 'Sin seleccion activa'
+  const quickSearchVisibleSelectionTitle = quickSearchVisibleSelectionSummary.allVisibleItemsSelected
+    ? 'Quitar visibles de Biblioteca'
+    : 'Seleccionar visibles de Biblioteca'
+  const quickSearchVisibleCountLabel =
+    quickSearchVisibleSelectionSummary.visibleCount === 1
+      ? '1 visible'
+      : `${quickSearchVisibleSelectionSummary.visibleCount} visibles`
+  const quickSearchVisibleSelectionAdjective =
+    quickSearchVisibleSelectionSummary.visibleCount === 1 ? 'seleccionada' : 'seleccionadas'
+  const quickSearchVisibleSelectionDetail = quickSearchVisibleSelectionSummary.allVisibleItemsSelected
+    ? `${quickSearchVisibleCountLabel} ${quickSearchVisibleSelectionAdjective}`
+    : `${quickSearchVisibleSelectionSummary.selectedVisibleCount} de ${quickSearchVisibleCountLabel} ${quickSearchVisibleSelectionAdjective}`
   const quickSearchActivityCommands = library.activityEntries.slice(0, 4).map((entry): QuickSearchCommand => {
     const destinationLabel = activityTabLabels[getActivityDestinationTab(entry)]
 
@@ -2352,16 +2382,20 @@ function App() {
       title: 'Restablecer vista de Biblioteca',
       tone: 'command',
     },
-    {
-      Icon: CheckCircle2,
-      detail: 'Seleccionar o quitar la vista filtrada para acciones masivas',
-      id: 'library-toggle-visible-selection',
-      meta: 'Biblioteca',
-      run: toggleLibraryVisibleSelectionFromPalette,
-      searchText: 'biblioteca seleccionar visibles quitar visibles seleccion masiva lote marcar vista filtrada',
-      title: 'Marcar/quitar visibles de Biblioteca',
-      tone: 'command',
-    },
+    ...(quickSearchVisibleSelectionSummary.visibleCount
+      ? [
+          {
+            Icon: CheckCircle2,
+            detail: `${quickSearchVisibleSelectionDetail} / acciones masivas`,
+            id: 'library-toggle-visible-selection',
+            meta: 'Biblioteca',
+            run: toggleLibraryVisibleSelectionFromPalette,
+            searchText: 'biblioteca seleccionar visibles quitar visibles seleccion masiva lote marcar vista filtrada',
+            title: quickSearchVisibleSelectionTitle,
+            tone: 'command' as const,
+          },
+        ]
+      : []),
     ...(selectedLibraryCount
       ? [
           {
@@ -2691,6 +2725,7 @@ function App() {
             onImportRequestHandled={clearLibraryImportRequest}
             onPrimaryActionRequestHandled={clearLibraryPrimaryActionRequest}
             onReviewRequestHandled={clearLibraryReviewRequest}
+            onVisibleSelectionSummaryChange={setLibraryVisibleSelectionSummary}
             onDraftRequestHandled={clearLibraryDraftRequest}
             onNavigate={changeActiveTab}
             onRollDice={rollDiceFromAction}
@@ -3426,6 +3461,7 @@ function LibraryTab({
   onImportRequestHandled,
   onPrimaryActionRequestHandled,
   onReviewRequestHandled,
+  onVisibleSelectionSummaryChange,
   onDraftRequestHandled,
   onNavigate,
   onRollDice,
@@ -3456,6 +3492,7 @@ function LibraryTab({
   onImportRequestHandled: () => void
   onPrimaryActionRequestHandled: () => void
   onReviewRequestHandled: () => void
+  onVisibleSelectionSummaryChange: (summary: LibraryVisibleSelectionSummary) => void
   onDraftRequestHandled: () => void
   onNavigate: (tab: AppTab, focus?: ActivityFocus) => void
   onRollDice: () => void
@@ -3555,6 +3592,14 @@ function LibraryTab({
   const selectedCooldownCount = selectedItems.filter(isItemInCooldown).length
   const bulkSignalLabels = librarySelectionSignalLabels[bulkSignalKind]
   const bulkSignalOption = librarySelectionSignalOptions.find((option) => option.id === bulkSignalKind) ?? librarySelectionSignalOptions[0]
+
+  useEffect(() => {
+    onVisibleSelectionSummaryChange({
+      allVisibleItemsSelected,
+      selectedVisibleCount,
+      visibleCount: filteredItems.length,
+    })
+  }, [allVisibleItemsSelected, filteredItems.length, onVisibleSelectionSummaryChange, selectedVisibleCount])
 
   const stats = useMemo(() => {
     return ITEM_STATUSES.map((status) => ({
