@@ -10463,7 +10463,7 @@ function ItemEditor({
                 {linkCopyStatus?.tone === 'success' ? <Check size={18} /> : <Copy size={18} />}
               </button>
             )}
-            <button className="icon-button" type="button" autoFocus onClick={requestClose} title="Cerrar">
+            <button className="icon-button" type="button" onClick={requestClose} title="Cerrar">
               <X size={18} />
             </button>
           </div>
@@ -10582,7 +10582,7 @@ function ItemEditor({
           <h3>Identidad</h3>
           <label>
             Titulo
-            <input required value={draft.title} onChange={(event) => update('title', event.target.value)} />
+            <input autoFocus required value={draft.title} onChange={(event) => update('title', event.target.value)} />
           </label>
           <div className="form-grid">
             <label>
@@ -10904,7 +10904,7 @@ function PublicItemEditor({
             <h2 id="public-item-editor-title">Catalogo Nexo</h2>
             <p>Entrada publica curada</p>
           </div>
-          <button className="icon-button" type="button" autoFocus onClick={requestClose} title="Cerrar">
+          <button className="icon-button" type="button" onClick={requestClose} title="Cerrar">
             <X size={18} />
           </button>
         </div>
@@ -11038,7 +11038,7 @@ function PublicItemEditor({
               <h3>Identidad</h3>
               <label>
                 Titulo
-                <input required value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} />
+                <input autoFocus required value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} />
               </label>
               <div className="form-grid">
                 <label>
