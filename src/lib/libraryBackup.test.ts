@@ -32,6 +32,15 @@ describe('library backup schema', () => {
     expect(payload.settings.libraryViewMode).toBe('cards')
   })
 
+  it('creates a scoped export payload without private settings', () => {
+    const payload = createLibraryExportPayload([baseItem], undefined, '2026-01-02T00:00:00.000Z')
+
+    expect(payload.schemaVersion).toBe(1)
+    expect(payload.exportedAt).toBe('2026-01-02T00:00:00.000Z')
+    expect(payload.items).toEqual([baseItem])
+    expect(payload.settings).toBeUndefined()
+  })
+
   it('parses a valid export and stamps imported items as updated now', () => {
     const parsed = parseLibraryImportPayload(
       createLibraryExportPayload([baseItem], DEFAULT_SETTINGS, '2026-01-02T00:00:00.000Z'),

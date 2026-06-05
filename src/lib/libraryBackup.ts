@@ -23,7 +23,7 @@ export interface LibraryExportPayload {
   schemaVersion: typeof LIBRARY_EXPORT_SCHEMA_VERSION
   exportedAt: string
   items: ListItem[]
-  settings: UserSettings
+  settings?: UserSettings
 }
 
 export interface ParsedLibraryImport {
@@ -47,14 +47,14 @@ export interface LibraryImportRollbackPlan {
 
 export function createLibraryExportPayload(
   items: ListItem[],
-  settings: UserSettings,
+  settings?: UserSettings,
   exportedAt = nowIso(),
 ): LibraryExportPayload {
   return {
     schemaVersion: LIBRARY_EXPORT_SCHEMA_VERSION,
     exportedAt,
     items,
-    settings,
+    ...(settings ? { settings } : {}),
   }
 }
 

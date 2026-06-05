@@ -415,7 +415,7 @@ test('library can update selected visible items in bulk', async ({ page }) => {
   await expect(page.locator('.item-card', { hasText: 'Vinland Saga' }).getByLabel('Pulso de Vinland Saga')).toContainText('Cooldown')
 })
 
-test('library can export the current selection as a scoped backup', async ({ page }) => {
+test('library can export the current selection without private settings', async ({ page }) => {
   await page.goto('/')
   await page.getByLabel('Seleccionar Outer Wilds').check()
   await page.getByLabel('Seleccionar Vinland Saga').check()
@@ -429,8 +429,8 @@ test('library can export the current selection as a scoped backup', async ({ pag
   expect(downloadPath).toBeTruthy()
   const payload = JSON.parse(await readFile(downloadPath!, 'utf8')) as { items: Array<{ title: string }>; settings?: unknown }
   expect(payload.items.map((item) => item.title).sort()).toEqual(['Outer Wilds', 'Vinland Saga'])
-  expect(payload.settings).toBeTruthy()
-  await expect(page.getByText('2 entradas seleccionadas exportadas')).toBeVisible()
+  expect(payload.settings).toBeUndefined()
+  await expect(page.getByText('2 entradas seleccionadas exportadas sin ajustes')).toBeVisible()
   await expect(page.getByTestId('session-activity')).toContainText('Seleccion exportada')
 
   await page.getByRole('button', { name: 'Busqueda rapida' }).click()

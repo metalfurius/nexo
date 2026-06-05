@@ -4127,15 +4127,15 @@ function LibraryTab({
       return
     }
 
-    downloadLibraryBackup(selectedItems, library.settings, 'nexo-selection')
-    setImportStatus(`${selectedItems.length} entradas seleccionadas exportadas`)
+    downloadLibraryBackup(selectedItems, undefined, 'nexo-selection')
+    setImportStatus(`${selectedItems.length} entradas seleccionadas exportadas sin ajustes`)
     onActivity({
-      detail: `${selectedItems.length} entradas exportadas`,
+      detail: `${selectedItems.length} entradas sin ajustes`,
       label: 'Seleccion exportada',
       tab: 'library',
       tone: 'success',
     })
-  }, [library.settings, onActivity, selectedItems])
+  }, [onActivity, selectedItems])
 
   useEffect(() => {
     if (!selectedExportRequest || handledSelectedExportRequestId.current === selectedExportRequest.requestId) return
@@ -9339,7 +9339,7 @@ function CandidateDecisionBriefView({ brief }: { brief: CandidateDecisionBrief }
   )
 }
 
-function downloadLibraryBackup(items: ListItem[], settings: UserSettings, prefix: string) {
+function downloadLibraryBackup(items: ListItem[], settings: UserSettings | undefined, prefix: string) {
   downloadJsonFile(createLibraryExportPayload(items, settings), `${prefix}-${new Date().toISOString().slice(0, 10)}.json`)
 }
 
