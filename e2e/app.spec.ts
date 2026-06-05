@@ -2805,6 +2805,40 @@ test('library cards fit the mobile PWA viewport', async ({ page }, testInfo) => 
   expect(dialogMetrics.bottom).toBeLessThanOrEqual(dialogMetrics.viewportHeight - dialogMetrics.paddingBottom + geometryTolerance)
 })
 
+test('settings layout keeps the status area compact', async ({ page }, testInfo) => {
+  if (testInfo.project.name === 'chromium') {
+    await page.setViewportSize({ width: 1920, height: 1080 })
+  } else {
+    await page.setViewportSize({ width: 390, height: 844 })
+  }
+
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Ajustes', exact: true }).click()
+  await expect(page.getByTestId('settings-confidence')).toBeVisible()
+
+  const metrics = await page.locator('.settings-panel').evaluate((panel) => {
+    const heading = panel.querySelector('.panel-heading') as HTMLElement | null
+    const status = panel.querySelector('.settings-status') as HTMLElement | null
+    const confidence = panel.querySelector('.settings-confidence-panel') as HTMLElement | null
+    const headingRect = heading?.getBoundingClientRect()
+    const statusRect = status?.getBoundingClientRect()
+    const confidenceRect = confidence?.getBoundingClientRect()
+
+    return {
+      headingStatusGap: headingRect && statusRect ? statusRect.top - headingRect.bottom : 0,
+      scrollWidth: document.documentElement.scrollWidth,
+      statusConfidenceGap: statusRect && confidenceRect ? confidenceRect.top - statusRect.bottom : 0,
+      statusHeight: statusRect?.height ?? 0,
+      viewportWidth: document.documentElement.clientWidth,
+    }
+  })
+
+  expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.viewportWidth + 1)
+  expect(metrics.headingStatusGap).toBeLessThanOrEqual(48)
+  expect(metrics.statusHeight).toBeLessThanOrEqual(66)
+  expect(metrics.statusConfidenceGap).toBeLessThanOrEqual(24)
+})
+
 test('launch screens have no serious accessibility violations', async ({ page }) => {
   await page.goto('/')
   const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze()

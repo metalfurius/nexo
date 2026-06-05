@@ -881,6 +881,7 @@
 }
 
 .settings-grid {
+  align-items: start;
   grid-template-columns: minmax(0, 1fr) minmax(300px, 420px);
 }
 
@@ -2756,6 +2757,11 @@
 .settings-side {
   display: grid;
   gap: 16px;
+}
+
+.settings-panel {
+  align-content: start;
+  grid-auto-rows: min-content;
 }
 
 .settings-side {
