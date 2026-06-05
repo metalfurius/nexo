@@ -2354,12 +2354,12 @@ function App() {
     },
     {
       Icon: CheckCircle2,
-      detail: 'Marcar o quitar la vista filtrada para acciones masivas',
+      detail: 'Seleccionar o quitar la vista filtrada para acciones masivas',
       id: 'library-toggle-visible-selection',
       meta: 'Biblioteca',
       run: toggleLibraryVisibleSelectionFromPalette,
       searchText: 'biblioteca seleccionar visibles quitar visibles seleccion masiva lote marcar vista filtrada',
-      title: 'Seleccionar visibles de Biblioteca',
+      title: 'Marcar/quitar visibles de Biblioteca',
       tone: 'command',
     },
     ...(selectedLibraryCount
