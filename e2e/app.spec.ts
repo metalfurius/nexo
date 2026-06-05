@@ -455,6 +455,49 @@ test('quick search toggles visible library selection through the pending-change 
   await expect(page.getByRole('status').filter({ hasText: '7 visibles seleccionadas' })).toBeVisible()
 })
 
+test('quick search applies a status to the current library selection', async ({ page }) => {
+  await page.goto('/')
+  await page.getByLabel('Seleccionar Outer Wilds').check()
+  await page.getByLabel('Seleccionar Vinland Saga').check()
+  await expect(page.getByLabel('Seleccion de biblioteca')).toContainText('2 seleccionadas')
+
+  await page.getByRole('button', { name: 'Busqueda rapida' }).click()
+  let quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  await quickSearch.getByLabel('Buscar en Nexo').fill('seleccion completado')
+  const completeSelectionAction = quickSearch.getByRole('button', {
+    name: 'Ejecutar Seleccion: Completado',
+    exact: true,
+  })
+  await expect(completeSelectionAction).toHaveAttribute('aria-current', 'true')
+  await expect(completeSelectionAction).toContainText('seleccion actual')
+  await completeSelectionAction.click()
+
+  await expect(page.getByText('2 entradas ahora son Completado')).toBeVisible()
+  await expect(page.locator('.item-card', { hasText: 'Outer Wilds' })).toContainText('Completado')
+  await expect(page.locator('.item-card', { hasText: 'Vinland Saga' })).toContainText('Completado')
+  await expect(page.getByTestId('session-activity')).toContainText('Estado masivo actualizado')
+
+  await page.getByLabel('Accion reciente de biblioteca').getByRole('button', { name: 'Deshacer estado' }).click()
+  await expect(page.getByText('2 estados recuperados')).toBeVisible()
+  await expect(page.locator('.item-card', { hasText: 'Outer Wilds' })).toContainText('Pendiente')
+  await expect(page.locator('.item-card', { hasText: 'Vinland Saga' })).toContainText('Pendiente')
+
+  await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await page.getByLabel('Energia').selectOption('high')
+  await expect(page.getByText('Cambios pendientes')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Busqueda rapida' }).click()
+  quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  await quickSearch.getByLabel('Buscar en Nexo').fill('seleccion pendiente')
+  await quickSearch.getByRole('button', { name: 'Ejecutar Seleccion: Pendiente', exact: true }).click()
+
+  await expect(page.getByLabel('Salida con cambios pendientes')).toContainText('Cambios pendientes en Dado')
+  await page.getByLabel('Salida con cambios pendientes').getByRole('button', { name: 'Descartar cambios' }).click()
+
+  await expect(page.getByRole('heading', { name: 'Biblioteca privada' })).toBeVisible()
+  await expect(page.getByText('No hay entradas seleccionadas')).toBeVisible()
+})
+
 test('quick search opens library items through the pending-change guard', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Dado', exact: true }).click()

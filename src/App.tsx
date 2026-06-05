@@ -366,6 +366,11 @@ interface LibraryVisibleSelectionRequest {
   requestId: number
 }
 
+interface LibrarySelectedStatusRequest {
+  requestId: number
+  status: ItemStatus
+}
+
 interface DiceRollRequest {
   requestId: number
 }
@@ -440,6 +445,7 @@ type PendingNavigation = {
   libraryPrimaryActionItemId?: string
   libraryReview?: LibrarySmartView
   libraryResetView?: boolean
+  librarySelectedStatus?: ItemStatus
   librarySortMode?: LibrarySortMode
   libraryStatusFilter?: ItemStatus
   librarySmartView?: LibrarySmartView
@@ -766,6 +772,7 @@ function App() {
   const [libraryPrimaryActionRequest, setLibraryPrimaryActionRequest] = useState<LibraryPrimaryActionRequest | undefined>()
   const [libraryReviewRequest, setLibraryReviewRequest] = useState<LibraryReviewRequest | undefined>()
   const [libraryResetViewRequest, setLibraryResetViewRequest] = useState<LibraryResetViewRequest | undefined>()
+  const [librarySelectedStatusRequest, setLibrarySelectedStatusRequest] = useState<LibrarySelectedStatusRequest | undefined>()
   const [librarySortModeRequest, setLibrarySortModeRequest] = useState<LibrarySortModeRequest | undefined>()
   const [libraryStatusFilterRequest, setLibraryStatusFilterRequest] = useState<LibraryStatusFilterRequest | undefined>()
   const [librarySmartViewRequest, setLibrarySmartViewRequest] = useState<LibrarySmartViewRequest | undefined>()
@@ -1091,6 +1098,10 @@ function App() {
 
   function requestLibraryVisibleSelection() {
     setLibraryVisibleSelectionRequest((current) => ({ requestId: (current?.requestId ?? 0) + 1 }))
+  }
+
+  function requestLibrarySelectedStatus(status: ItemStatus) {
+    setLibrarySelectedStatusRequest((current) => ({ requestId: (current?.requestId ?? 0) + 1, status }))
   }
 
   function requestDiceRoll() {
@@ -1503,6 +1514,25 @@ function App() {
     writeAppTabToUrl('library', 'push')
   }
 
+  function applyLibrarySelectedStatusFromPalette(status: ItemStatus) {
+    setQuickSearchOpen(false)
+    if (activeTab === 'library') {
+      setActivityFocus(undefined)
+      requestLibrarySelectedStatus(status)
+      writeAppTabToUrl('library', 'push')
+      return
+    }
+    if (tabsWithUnsavedChanges[activeTab]) {
+      setPendingNavigation({ librarySelectedStatus: status, source: 'app', tab: 'library' })
+      return
+    }
+
+    setActivityFocus(undefined)
+    requestLibrarySelectedStatus(status)
+    setActiveTabState('library')
+    writeAppTabToUrl('library', 'push')
+  }
+
   function importLibraryBackupFromPalette() {
     setQuickSearchOpen(false)
     if (activeTab === 'library') {
@@ -1631,6 +1661,7 @@ function App() {
       libraryPrimaryActionItemId,
       libraryReview,
       libraryResetView,
+      librarySelectedStatus,
       librarySortMode,
       libraryStatusFilter,
       librarySmartView,
@@ -1685,6 +1716,9 @@ function App() {
     }
     if (libraryResetView) {
       requestLibraryResetView()
+    }
+    if (librarySelectedStatus) {
+      requestLibrarySelectedStatus(librarySelectedStatus)
     }
     if (librarySortMode) {
       requestLibrarySortMode(librarySortMode)
@@ -2048,6 +2082,16 @@ function App() {
       title: 'Seleccionar visibles de Biblioteca',
       tone: 'command',
     },
+    ...ITEM_STATUSES.map((status): QuickSearchCommand => ({
+      Icon: status === 'completed' ? Check : status === 'in_progress' ? Play : status === 'paused' ? Pause : status === 'dropped' ? Trash2 : Library,
+      detail: 'Aplicar estado a la seleccion actual',
+      id: `library-selected-status-${status}`,
+      meta: 'Biblioteca',
+      run: () => applyLibrarySelectedStatusFromPalette(status),
+      searchText: `biblioteca seleccion seleccionadas estado masivo cambiar aplicar ${statusLabels[status]} pendientes progreso pausado completado droppeado`,
+      title: `Seleccion: ${statusLabels[status]}`,
+      tone: 'command',
+    })),
     ...(['cards', 'list'] as const).map((mode): QuickSearchCommand => ({
       Icon: mode === 'cards' ? LayoutGrid : List,
       detail: mode === library.settings.libraryViewMode ? 'Vista actual' : 'Guardar como vista de biblioteca',
@@ -2286,6 +2330,7 @@ function App() {
             primaryActionRequest={libraryPrimaryActionRequest}
             resetViewRequest={libraryResetViewRequest}
             reviewRequest={libraryReviewRequest}
+            selectedStatusRequest={librarySelectedStatusRequest}
             sortModeRequest={librarySortModeRequest}
             statusFilterRequest={libraryStatusFilterRequest}
             smartViewRequest={librarySmartViewRequest}
@@ -3002,6 +3047,7 @@ function LibraryTab({
   primaryActionRequest,
   resetViewRequest,
   reviewRequest,
+  selectedStatusRequest,
   sortModeRequest,
   statusFilterRequest,
   smartViewRequest,
@@ -3025,6 +3071,7 @@ function LibraryTab({
   primaryActionRequest?: LibraryPrimaryActionRequest
   resetViewRequest?: LibraryResetViewRequest
   reviewRequest?: LibraryReviewRequest
+  selectedStatusRequest?: LibrarySelectedStatusRequest
   sortModeRequest?: LibrarySortModeRequest
   statusFilterRequest?: LibraryStatusFilterRequest
   smartViewRequest?: LibrarySmartViewRequest
@@ -3049,6 +3096,7 @@ function LibraryTab({
   const [editingItem, setEditingItem] = useState<ListItem | undefined>()
   const [handledDraftRequestId, setHandledDraftRequestId] = useState<string | undefined>()
   const handledResetViewRequestId = useRef<number | undefined>(undefined)
+  const handledSelectedStatusRequestId = useRef<number | undefined>(undefined)
   const handledSortModeRequestId = useRef<number | undefined>(undefined)
   const handledStatusFilterRequestId = useRef<number | undefined>(undefined)
   const [handledSmartViewRequestId, setHandledSmartViewRequestId] = useState<number | undefined>()
@@ -3532,17 +3580,21 @@ function LibraryTab({
     return () => window.clearTimeout(timeoutId)
   }, [toggleVisibleLibrarySelection, visibleSelectionRequest])
 
-  async function changeSelectedItemsStatus() {
-    const changedItems = selectedItems.filter((item) => item.status !== bulkStatus)
-    if (!selectedItems.length) return
+  const changeSelectedItemsStatus = useCallback(async (nextStatus = bulkStatus) => {
+    setBulkStatus(nextStatus)
+    const changedItems = selectedItems.filter((item) => item.status !== nextStatus)
+    if (!selectedItems.length) {
+      setImportStatus('No hay entradas seleccionadas')
+      return
+    }
     if (!changedItems.length) {
-      setImportStatus(`La seleccion ya esta en ${statusLabels[bulkStatus]}`)
+      setImportStatus(`La seleccion ya esta en ${statusLabels[nextStatus]}`)
       return
     }
 
     try {
       for (const item of changedItems) {
-        await library.setStatus(item.id, bulkStatus)
+        await library.setStatus(item.id, nextStatus)
       }
       setDeletedItemUndo(undefined)
       setDeletedLibraryUndo([])
@@ -3554,9 +3606,9 @@ function LibraryTab({
       setPendingLibraryImport(undefined)
       setLibraryImportUndo(undefined)
       setSelectedItemIds([])
-      setImportStatus(`${changedItems.length} entradas ahora son ${statusLabels[bulkStatus]}`)
+      setImportStatus(`${changedItems.length} entradas ahora son ${statusLabels[nextStatus]}`)
       onActivity({
-        detail: `${changedItems.length} -> ${statusLabels[bulkStatus]}`,
+        detail: `${changedItems.length} -> ${statusLabels[nextStatus]}`,
         label: 'Estado masivo actualizado',
         tab: 'library',
         tone: 'success',
@@ -3564,7 +3616,20 @@ function LibraryTab({
     } catch (reason) {
       setImportStatus(reason instanceof Error ? reason.message : 'No se pudo actualizar la seleccion.')
     }
-  }
+  }, [bulkStatus, library, onActivity, selectedItems])
+
+  useEffect(() => {
+    if (!selectedStatusRequest || handledSelectedStatusRequestId.current === selectedStatusRequest.requestId) return
+
+    const timeoutId = window.setTimeout(() => {
+      if (handledSelectedStatusRequestId.current === selectedStatusRequest.requestId) return
+
+      handledSelectedStatusRequestId.current = selectedStatusRequest.requestId
+      void changeSelectedItemsStatus(selectedStatusRequest.status)
+    }, 0)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [changeSelectedItemsStatus, selectedStatusRequest])
 
   async function snoozeSelectedItems() {
     const itemsToSnooze = selectedItems.filter((item) => item.status !== 'completed' && item.status !== 'dropped')
