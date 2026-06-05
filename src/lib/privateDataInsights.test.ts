@@ -186,6 +186,29 @@ describe('private data insights', () => {
     ])
   })
 
+  it('does not suggest tastes that are blocked signals', () => {
+    const health = getPrivateDataHealth(
+      [
+        item({
+          id: 'horror',
+          title: 'Horror',
+          status: 'completed',
+          rating: 9,
+          genres: ['Terror', 'Drama'],
+          tags: ['oscuro', 'autor'],
+        }),
+      ],
+      [],
+      now,
+      ['terror', 'oscuro'],
+    )
+
+    expect(health.tasteSuggestions).toEqual([
+      { kind: 'genre', label: 'Drama', sourceCount: 1 },
+      { kind: 'tag', label: 'autor', sourceCount: 1 },
+    ])
+  })
+
   it('builds private taxonomy repairs only for entries without signals', () => {
     const template = {
       genres: ['Drama', 'Drama'],

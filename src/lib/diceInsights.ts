@@ -171,9 +171,9 @@ export function getRecommendationLearningSignals(
 ): RecommendationLearningSignals {
   const favoriteGenreKeys = new Set(settings.favoriteGenres.map(normalizeKey))
   const favoriteTagKeys = new Set(settings.favoriteTags.map(normalizeKey))
-  const blockedTagKeys = new Set(settings.blockedTags.map(normalizeKey))
-  const genres = collectNewLearningSignals(item.genres, favoriteGenreKeys).slice(0, limit)
-  const tags = collectNewLearningSignals(item.tags, new Set([...favoriteTagKeys, ...blockedTagKeys])).slice(
+  const blockedSignalKeys = new Set(settings.blockedTags.map(normalizeKey))
+  const genres = collectNewLearningSignals(item.genres, new Set([...favoriteGenreKeys, ...blockedSignalKeys])).slice(0, limit)
+  const tags = collectNewLearningSignals(item.tags, new Set([...favoriteTagKeys, ...blockedSignalKeys])).slice(
     0,
     Math.max(0, limit - genres.length),
   )

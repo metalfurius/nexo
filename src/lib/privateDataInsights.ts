@@ -45,6 +45,7 @@ export function getPrivateDataHealth(
   items: ListItem[],
   candidates: DiscoveryCandidate[],
   now = Date.now(),
+  blockedSignals: string[] = [],
 ): PrivateDataHealth {
   const totalItems = items.length
   const taxonomyReadyCount = items.filter((item) => item.genres.length + item.tags.length + item.moodTags.length > 0).length
@@ -56,7 +57,7 @@ export function getPrivateDataHealth(
   const queuedDiscoveryCount = candidates.filter((candidate) => candidate.status === 'queued').length
   const taxonomyCoveragePercent = totalItems ? Math.round((taxonomyReadyCount / totalItems) * 100) : 0
   const needsAttention = totalItems === 0 || missingTaxonomyCount > 0 || diceReadyCount === 0
-  const tasteSuggestions = getPrivateTasteSuggestions(items)
+  const tasteSuggestions = getPrivateTasteSuggestions(items, 6, blockedSignals)
   const summaryLabel =
     totalItems === 0 ? 'Sin biblioteca todavia' : needsAttention ? 'Faltan senales privadas' : 'Biblioteca preparada'
   const summaryCopy =
@@ -124,15 +125,16 @@ export function getPrivateDataHealth(
   }
 }
 
-export function getPrivateTasteSuggestions(items: ListItem[], limit = 6): PrivateTasteSuggestion[] {
+export function getPrivateTasteSuggestions(items: ListItem[], limit = 6, blockedSignals: string[] = []): PrivateTasteSuggestion[] {
   const suggestions = new Map<string, PrivateTasteSuggestion>()
+  const blockedSignalKeys = new Set(blockedSignals.map(normalizeKey))
 
   for (const item of items) {
     if (!isPositiveTasteSignal(item)) continue
 
     const seenForItem = new Set<string>()
-    collectSuggestionValues(suggestions, seenForItem, 'genre', item.genres)
-    collectSuggestionValues(suggestions, seenForItem, 'tag', item.tags)
+    collectSuggestionValues(suggestions, seenForItem, 'genre', item.genres, blockedSignalKeys)
+    collectSuggestionValues(suggestions, seenForItem, 'tag', item.tags, blockedSignalKeys)
   }
 
   return [...suggestions.values()]
@@ -209,13 +211,14 @@ function collectSuggestionValues(
   seenForItem: Set<string>,
   kind: PrivateTasteSuggestion['kind'],
   values: string[],
+  blockedSignalKeys: Set<string>,
 ) {
   for (const value of values) {
     const label = value.trim()
     const key = normalizeKey(label)
     const suggestionKey = `${kind}:${key}`
 
-    if (!key || seenForItem.has(suggestionKey)) continue
+    if (!key || blockedSignalKeys.has(key) || seenForItem.has(suggestionKey)) continue
 
     const current = suggestions.get(suggestionKey)
     if (current) {

@@ -1961,7 +1961,12 @@ function App() {
   const quickSearchPrivateTaxonomyRepairCount = library.items.filter((item) =>
     Boolean(getPrivateTaxonomyRepairDraft(item, catalogTaxonomyTemplates[item.type][0], item.updatedAt)),
   ).length
-  const quickSearchPrivateDataHealth = getPrivateDataHealth(library.items, library.discoveryCandidates)
+  const quickSearchPrivateDataHealth = getPrivateDataHealth(
+    library.items,
+    library.discoveryCandidates,
+    undefined,
+    library.settings.blockedTags,
+  )
   const quickSearchFavoriteGenreKeys = new Set(library.settings.favoriteGenres.map(normalizeKey))
   const quickSearchFavoriteTagKeys = new Set(library.settings.favoriteTags.map(normalizeKey))
   const quickSearchTasteSuggestionCount = quickSearchPrivateDataHealth.tasteSuggestions.filter((suggestion) => {
@@ -7603,14 +7608,15 @@ function SettingsTab({
   const draftFavoriteTags = useMemo(() => splitList(draft.favoriteTags), [draft.favoriteTags])
   const draftFavoriteGenres = useMemo(() => splitList(draft.favoriteGenres), [draft.favoriteGenres])
   const draftBlockedTags = useMemo(() => splitList(draft.blockedTags), [draft.blockedTags])
+  const draftBlockedSignalKeys = useMemo(() => new Set(draftBlockedTags.map(normalizeKey)), [draftBlockedTags])
   const accountLabel = user?.displayName ?? user?.email ?? 'Sesion demo'
   const accountInitial = accountLabel.slice(0, 1).toUpperCase()
   const queuedDiscoveryCount = library.discoveryCandidates.filter((candidate) => candidate.status === 'queued').length
   const resolvedDiscoveryCount = library.discoveryCandidates.length - queuedDiscoveryCount
   const firstMissingTaxonomyItem = library.items.find((item) => !hasItemTaxonomy(item))
   const privateDataHealth = useMemo(
-    () => getPrivateDataHealth(library.items, library.discoveryCandidates),
-    [library.items, library.discoveryCandidates],
+    () => getPrivateDataHealth(library.items, library.discoveryCandidates, undefined, library.settings.blockedTags),
+    [library.discoveryCandidates, library.items, library.settings.blockedTags],
   )
   const privateTaxonomyRepairs = useMemo(() => {
     return library.items
@@ -7622,11 +7628,15 @@ function SettingsTab({
         Boolean(entry.repair),
       )
   }, [library.items])
-  const pendingTasteSuggestions = useMemo(() => privateDataHealth.tasteSuggestions.filter((suggestion) => {
+  const visibleTasteSuggestions = useMemo(
+    () => privateDataHealth.tasteSuggestions.filter((suggestion) => !draftBlockedSignalKeys.has(normalizeKey(suggestion.label))),
+    [draftBlockedSignalKeys, privateDataHealth.tasteSuggestions],
+  )
+  const pendingTasteSuggestions = useMemo(() => visibleTasteSuggestions.filter((suggestion) => {
     const currentValues = suggestion.kind === 'genre' ? draftFavoriteGenres : draftFavoriteTags
     const suggestionKey = normalizeKey(suggestion.label)
     return !currentValues.some((value) => normalizeKey(value) === suggestionKey)
-  }), [draftFavoriteGenres, draftFavoriteTags, privateDataHealth.tasteSuggestions])
+  }), [draftFavoriteGenres, draftFavoriteTags, visibleTasteSuggestions])
   const hasUnsavedChanges =
     draft.theme !== theme ||
     draft.explorerDefaultType !== library.settings.explorerDefaultType ||
@@ -8140,7 +8150,7 @@ function SettingsTab({
             Senales bloqueadas
             <input value={draft.blockedTags} onChange={(event) => updateDraft((current) => ({ ...current, blockedTags: event.target.value }))} />
           </label>
-          {privateDataHealth.tasteSuggestions.length > 0 && (
+          {visibleTasteSuggestions.length > 0 && (
             <div className="taste-suggestions" aria-label="Sugerencias de gusto" data-testid="taste-suggestions">
               <div className="taste-suggestions-heading">
                 <div>
@@ -8155,7 +8165,7 @@ function SettingsTab({
                 )}
               </div>
               <div className="taste-suggestion-row">
-                {privateDataHealth.tasteSuggestions.map((suggestion) => {
+                {visibleTasteSuggestions.map((suggestion) => {
                   const suggestionKey = `${suggestion.kind}:${normalizeKey(suggestion.label)}`
                   const isApplied = !pendingTasteSuggestions.some(
                     (pending) => pending.kind === suggestion.kind && normalizeKey(pending.label) === normalizeKey(suggestion.label),

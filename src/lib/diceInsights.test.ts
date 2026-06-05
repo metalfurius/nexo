@@ -168,15 +168,15 @@ describe('dice insights', () => {
         }),
         {
           ...DEFAULT_SETTINGS,
-          blockedTags: ['terror'],
+          blockedTags: ['terror', 'sci fi'],
           favoriteGenres: ['Drama'],
           favoriteTags: ['raro'],
         },
       ),
     ).toEqual({
-      genres: ['Sci-Fi'],
+      genres: [],
       tags: ['pelicula'],
-      total: 2,
+      total: 1,
     })
   })
 })
