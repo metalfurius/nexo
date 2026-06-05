@@ -4442,6 +4442,7 @@ function LibraryTab({
 
   function exportLibrary() {
     downloadLibraryBackup(library.items, library.settings, 'nexo-export')
+    setImportStatus('Backup JSON descargado')
     onActivity({
       detail: `${library.items.length} entradas exportadas`,
       label: 'Backup privado exportado',

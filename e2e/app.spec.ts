@@ -473,6 +473,13 @@ test('library can update selected visible items in bulk', async ({ page }) => {
 
 test('library can export the current selection without private settings', async ({ page }) => {
   await page.goto('/')
+  const fullDownloadPromise = page.waitForEvent('download')
+  await page.getByLabel('Herramientas de biblioteca').getByRole('button', { name: 'Exportar' }).click()
+  const fullDownload = await fullDownloadPromise
+  expect(fullDownload.suggestedFilename()).toMatch(/^nexo-export-\d{4}-\d{2}-\d{2}\.json$/)
+  await expect(page.getByRole('status').filter({ hasText: 'Backup JSON descargado' })).toBeVisible()
+  await expect(page.getByTestId('session-activity')).toContainText('Backup privado exportado')
+
   await page.getByLabel('Seleccionar Outer Wilds').check()
   await page.getByLabel('Seleccionar Vinland Saga').check()
   await expect(page.getByLabel('Seleccion de biblioteca')).toContainText('2 seleccionadas')
