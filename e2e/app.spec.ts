@@ -366,6 +366,11 @@ test('library can update selected visible items in bulk', async ({ page }) => {
 
   const selectionBar = page.getByLabel('Seleccion de biblioteca')
   await expect(selectionBar).toContainText('2 seleccionadas')
+  await page.getByLabel('Buscar en biblioteca').fill('zzzz no match')
+  await expect(page.getByRole('heading', { name: 'Sin resultados' })).toBeVisible()
+  await expect(selectionBar).toContainText('2 seleccionadas')
+  await expect(selectionBar.getByRole('button', { name: 'Seleccionar visibles' })).toBeDisabled()
+  await page.getByLabel('Buscar en biblioteca').fill('')
   await selectionBar.getByLabel('Tags para seleccion').fill('lote qa')
   await selectionBar.getByRole('button', { name: 'Añadir tags' }).click()
   await expect(page.getByText('2 entradas etiquetadas con lote qa')).toBeVisible()

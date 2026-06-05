@@ -5171,9 +5171,14 @@ function LibraryTab({
           </div>
         )}
 
-        {filteredItems.length > 0 && (
+        {(filteredItems.length > 0 || selectedItems.length > 0) && (
           <div className="library-selection-bar" aria-label="Seleccion de biblioteca">
-            <button className="secondary-button" type="button" onClick={toggleVisibleLibrarySelection}>
+            <button
+              className="secondary-button"
+              disabled={filteredItems.length === 0}
+              type="button"
+              onClick={toggleVisibleLibrarySelection}
+            >
               <CheckCircle2 size={16} />
               {allVisibleItemsSelected ? 'Quitar visibles' : 'Seleccionar visibles'}
             </button>
