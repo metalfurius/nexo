@@ -3993,6 +3993,65 @@ function LibraryTab({
     }
   }, [bulkSignalText, library, onActivity, selectedItems])
 
+  const removeSelectedItemsSignals = useCallback(async (kind: LibrarySelectionSignalKind, requestedValues?: string[]) => {
+    const valuesToRemove = requestedValues ? uniqueNormalizedValues(requestedValues) : splitList(bulkSignalText)
+    const labels = librarySelectionSignalLabels[kind]
+    if (!selectedItems.length) {
+      setImportStatus('No hay entradas seleccionadas')
+      return
+    }
+    if (!valuesToRemove.length) {
+      setImportStatus(`Escribe al menos un ${labels.singular} para quitar de la seleccion`)
+      return
+    }
+
+    const signalKeys = new Set(valuesToRemove.map(normalizeKey))
+    const changedItems = selectedItems.filter((item) =>
+      getLibrarySelectionSignals(item, kind).some((signal) => signalKeys.has(normalizeKey(signal))),
+    )
+    if (!changedItems.length) {
+      setImportStatus(`La seleccion no tiene ${valuesToRemove.join(', ')}`)
+      return
+    }
+
+    try {
+      for (const item of changedItems) {
+        await library.saveItem(setLibrarySelectionSignals(
+          item,
+          kind,
+          getLibrarySelectionSignals(item, kind).filter((signal) => !signalKeys.has(normalizeKey(signal))),
+        ))
+      }
+      setDeletedItemUndo(undefined)
+      setDeletedLibraryUndo([])
+      setStatusUndo(undefined)
+      setCooldownUndo(undefined)
+      setPriorityUndo(undefined)
+      setTagUndo({
+        changes: changedItems.map((item) => ({
+          id: item.id,
+          previousValues: [...getLibrarySelectionSignals(item, kind)],
+          title: item.title,
+        })),
+        kind,
+        values: valuesToRemove,
+      })
+      setPendingLibraryImport(undefined)
+      setLibraryImportUndo(undefined)
+      setSelectedItemIds([])
+      setBulkSignalText('')
+      setImportStatus(`${changedItems.length} entradas actualizadas sin ${valuesToRemove.join(', ')}`)
+      onActivity({
+        detail: `${changedItems.length} -> sin ${valuesToRemove.join(', ')}`,
+        label: `${labels.plural.slice(0, 1).toUpperCase()}${labels.plural.slice(1)} masivos retirados`,
+        tab: 'library',
+        tone: 'success',
+      })
+    } catch (reason) {
+      setImportStatus(reason instanceof Error ? reason.message : `No se pudieron quitar los ${labels.plural} de la seleccion.`)
+    }
+  }, [bulkSignalText, library, onActivity, selectedItems])
+
   async function undoLibraryTagChange() {
     if (!tagUndo) return
     const labels = librarySelectionSignalLabels[tagUndo.kind]
@@ -5121,6 +5180,15 @@ function LibraryTab({
                 >
                   <Plus size={16} />
                   Añadir {bulkSignalLabels.plural}
+                </button>
+                <button
+                  className="ghost-button"
+                  disabled={!bulkSignalText.trim()}
+                  type="button"
+                  onClick={() => void removeSelectedItemsSignals(bulkSignalKind)}
+                >
+                  <X size={16} />
+                  Quitar {bulkSignalLabels.plural}
                 </button>
                 <button
                   className="secondary-button"
