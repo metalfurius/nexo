@@ -7615,8 +7615,8 @@ function SettingsTab({
   const resolvedDiscoveryCount = library.discoveryCandidates.length - queuedDiscoveryCount
   const firstMissingTaxonomyItem = library.items.find((item) => !hasItemTaxonomy(item))
   const privateDataHealth = useMemo(
-    () => getPrivateDataHealth(library.items, library.discoveryCandidates, undefined, library.settings.blockedTags),
-    [library.discoveryCandidates, library.items, library.settings.blockedTags],
+    () => getPrivateDataHealth(library.items, library.discoveryCandidates, undefined, draftBlockedTags),
+    [draftBlockedTags, library.discoveryCandidates, library.items],
   )
   const privateTaxonomyRepairs = useMemo(() => {
     return library.items
