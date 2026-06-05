@@ -371,6 +371,11 @@ interface LibrarySelectedStatusRequest {
   status: ItemStatus
 }
 
+interface LibrarySelectedDiceActionRequest {
+  action: 'snooze' | 'reactivate'
+  requestId: number
+}
+
 interface DiceRollRequest {
   requestId: number
 }
@@ -445,6 +450,7 @@ type PendingNavigation = {
   libraryPrimaryActionItemId?: string
   libraryReview?: LibrarySmartView
   libraryResetView?: boolean
+  librarySelectedDiceAction?: LibrarySelectedDiceActionRequest['action']
   librarySelectedStatus?: ItemStatus
   librarySortMode?: LibrarySortMode
   libraryStatusFilter?: ItemStatus
@@ -772,6 +778,7 @@ function App() {
   const [libraryPrimaryActionRequest, setLibraryPrimaryActionRequest] = useState<LibraryPrimaryActionRequest | undefined>()
   const [libraryReviewRequest, setLibraryReviewRequest] = useState<LibraryReviewRequest | undefined>()
   const [libraryResetViewRequest, setLibraryResetViewRequest] = useState<LibraryResetViewRequest | undefined>()
+  const [librarySelectedDiceActionRequest, setLibrarySelectedDiceActionRequest] = useState<LibrarySelectedDiceActionRequest | undefined>()
   const [librarySelectedStatusRequest, setLibrarySelectedStatusRequest] = useState<LibrarySelectedStatusRequest | undefined>()
   const [librarySortModeRequest, setLibrarySortModeRequest] = useState<LibrarySortModeRequest | undefined>()
   const [libraryStatusFilterRequest, setLibraryStatusFilterRequest] = useState<LibraryStatusFilterRequest | undefined>()
@@ -1102,6 +1109,10 @@ function App() {
 
   function requestLibrarySelectedStatus(status: ItemStatus) {
     setLibrarySelectedStatusRequest((current) => ({ requestId: (current?.requestId ?? 0) + 1, status }))
+  }
+
+  function requestLibrarySelectedDiceAction(action: LibrarySelectedDiceActionRequest['action']) {
+    setLibrarySelectedDiceActionRequest((current) => ({ action, requestId: (current?.requestId ?? 0) + 1 }))
   }
 
   function requestDiceRoll() {
@@ -1533,6 +1544,25 @@ function App() {
     writeAppTabToUrl('library', 'push')
   }
 
+  function applyLibrarySelectedDiceActionFromPalette(action: LibrarySelectedDiceActionRequest['action']) {
+    setQuickSearchOpen(false)
+    if (activeTab === 'library') {
+      setActivityFocus(undefined)
+      requestLibrarySelectedDiceAction(action)
+      writeAppTabToUrl('library', 'push')
+      return
+    }
+    if (tabsWithUnsavedChanges[activeTab]) {
+      setPendingNavigation({ librarySelectedDiceAction: action, source: 'app', tab: 'library' })
+      return
+    }
+
+    setActivityFocus(undefined)
+    requestLibrarySelectedDiceAction(action)
+    setActiveTabState('library')
+    writeAppTabToUrl('library', 'push')
+  }
+
   function importLibraryBackupFromPalette() {
     setQuickSearchOpen(false)
     if (activeTab === 'library') {
@@ -1661,6 +1691,7 @@ function App() {
       libraryPrimaryActionItemId,
       libraryReview,
       libraryResetView,
+      librarySelectedDiceAction,
       librarySelectedStatus,
       librarySortMode,
       libraryStatusFilter,
@@ -1716,6 +1747,9 @@ function App() {
     }
     if (libraryResetView) {
       requestLibraryResetView()
+    }
+    if (librarySelectedDiceAction) {
+      requestLibrarySelectedDiceAction(librarySelectedDiceAction)
     }
     if (librarySelectedStatus) {
       requestLibrarySelectedStatus(librarySelectedStatus)
@@ -2092,6 +2126,26 @@ function App() {
       title: `Seleccion: ${statusLabels[status]}`,
       tone: 'command',
     })),
+    {
+      Icon: Moon,
+      detail: 'Pausar la seleccion como candidata del dado',
+      id: 'library-selected-dice-snooze',
+      meta: 'Biblioteca',
+      run: () => applyLibrarySelectedDiceActionFromPalette('snooze'),
+      searchText: 'biblioteca seleccion seleccionadas enfriar dado cooldown pausar candidatas masivo',
+      title: 'Enfriar seleccion del dado',
+      tone: 'command',
+    },
+    {
+      Icon: RotateCcw,
+      detail: 'Recuperar cooldowns activos de la seleccion',
+      id: 'library-selected-dice-reactivate',
+      meta: 'Biblioteca',
+      run: () => applyLibrarySelectedDiceActionFromPalette('reactivate'),
+      searchText: 'biblioteca seleccion seleccionadas reactivar dado cooldown recuperar candidatas masivo',
+      title: 'Reactivar seleccion del dado',
+      tone: 'command',
+    },
     ...(['cards', 'list'] as const).map((mode): QuickSearchCommand => ({
       Icon: mode === 'cards' ? LayoutGrid : List,
       detail: mode === library.settings.libraryViewMode ? 'Vista actual' : 'Guardar como vista de biblioteca',
@@ -2330,6 +2384,7 @@ function App() {
             primaryActionRequest={libraryPrimaryActionRequest}
             resetViewRequest={libraryResetViewRequest}
             reviewRequest={libraryReviewRequest}
+            selectedDiceActionRequest={librarySelectedDiceActionRequest}
             selectedStatusRequest={librarySelectedStatusRequest}
             sortModeRequest={librarySortModeRequest}
             statusFilterRequest={libraryStatusFilterRequest}
@@ -3047,6 +3102,7 @@ function LibraryTab({
   primaryActionRequest,
   resetViewRequest,
   reviewRequest,
+  selectedDiceActionRequest,
   selectedStatusRequest,
   sortModeRequest,
   statusFilterRequest,
@@ -3071,6 +3127,7 @@ function LibraryTab({
   primaryActionRequest?: LibraryPrimaryActionRequest
   resetViewRequest?: LibraryResetViewRequest
   reviewRequest?: LibraryReviewRequest
+  selectedDiceActionRequest?: LibrarySelectedDiceActionRequest
   selectedStatusRequest?: LibrarySelectedStatusRequest
   sortModeRequest?: LibrarySortModeRequest
   statusFilterRequest?: LibraryStatusFilterRequest
@@ -3096,6 +3153,7 @@ function LibraryTab({
   const [editingItem, setEditingItem] = useState<ListItem | undefined>()
   const [handledDraftRequestId, setHandledDraftRequestId] = useState<string | undefined>()
   const handledResetViewRequestId = useRef<number | undefined>(undefined)
+  const handledSelectedDiceActionRequestId = useRef<number | undefined>(undefined)
   const handledSelectedStatusRequestId = useRef<number | undefined>(undefined)
   const handledSortModeRequestId = useRef<number | undefined>(undefined)
   const handledStatusFilterRequestId = useRef<number | undefined>(undefined)
@@ -3631,7 +3689,7 @@ function LibraryTab({
     return () => window.clearTimeout(timeoutId)
   }, [changeSelectedItemsStatus, selectedStatusRequest])
 
-  async function snoozeSelectedItems() {
+  const snoozeSelectedItems = useCallback(async () => {
     const itemsToSnooze = selectedItems.filter((item) => item.status !== 'completed' && item.status !== 'dropped')
     if (!itemsToSnooze.length) {
       setImportStatus('La seleccion no tiene candidatas vivas para el dado')
@@ -3665,9 +3723,9 @@ function LibraryTab({
     } catch (reason) {
       setImportStatus(reason instanceof Error ? reason.message : 'No se pudo enfriar la seleccion.')
     }
-  }
+  }, [library, onActivity, selectedItems])
 
-  async function reactivateSelectedItems() {
+  const reactivateSelectedItems = useCallback(async () => {
     const itemsToReactivate = selectedItems.filter(isItemInCooldown)
     if (!itemsToReactivate.length) {
       setImportStatus('La seleccion no tiene cooldowns activos')
@@ -3701,7 +3759,25 @@ function LibraryTab({
     } catch (reason) {
       setImportStatus(reason instanceof Error ? reason.message : 'No se pudo reactivar la seleccion.')
     }
-  }
+  }, [library, onActivity, selectedItems])
+
+  useEffect(() => {
+    if (
+      !selectedDiceActionRequest ||
+      handledSelectedDiceActionRequestId.current === selectedDiceActionRequest.requestId
+    ) {
+      return
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      if (handledSelectedDiceActionRequestId.current === selectedDiceActionRequest.requestId) return
+
+      handledSelectedDiceActionRequestId.current = selectedDiceActionRequest.requestId
+      void (selectedDiceActionRequest.action === 'snooze' ? snoozeSelectedItems() : reactivateSelectedItems())
+    }, 0)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [reactivateSelectedItems, selectedDiceActionRequest, snoozeSelectedItems])
 
   function openLibraryEditor(item: ListItem) {
     const existingItem = library.items.find((libraryItem) => libraryItem.id === item.id)

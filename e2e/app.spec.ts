@@ -498,6 +498,52 @@ test('quick search applies a status to the current library selection', async ({ 
   await expect(page.getByText('No hay entradas seleccionadas')).toBeVisible()
 })
 
+test('quick search updates dice cooldowns for the current library selection', async ({ page }) => {
+  await page.goto('/')
+  await page.getByLabel('Seleccionar Outer Wilds').check()
+  await page.getByLabel('Seleccionar Vinland Saga').check()
+  await expect(page.getByLabel('Seleccion de biblioteca')).toContainText('2 seleccionadas')
+
+  await page.getByRole('button', { name: 'Busqueda rapida' }).click()
+  let quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  await quickSearch.getByLabel('Buscar en Nexo').fill('enfriar seleccion')
+  const snoozeSelectionAction = quickSearch.getByRole('button', {
+    name: 'Ejecutar Enfriar seleccion del dado',
+    exact: true,
+  })
+  await expect(snoozeSelectionAction).toHaveAttribute('aria-current', 'true')
+  await expect(snoozeSelectionAction).toContainText('candidata del dado')
+  await snoozeSelectionAction.click()
+
+  await expect(page.getByText('2 entradas enfriadas para el dado')).toBeVisible()
+  await expect(page.locator('.item-card', { hasText: 'Outer Wilds' }).getByLabel('Pulso de Outer Wilds')).toContainText('Cooldown')
+  await expect(page.locator('.item-card', { hasText: 'Vinland Saga' }).getByLabel('Pulso de Vinland Saga')).toContainText('Cooldown')
+  await expect(page.getByTestId('session-activity')).toContainText('Seleccion enfriada')
+
+  await page.getByLabel('Seleccionar Outer Wilds').check()
+  await page.getByLabel('Seleccionar Vinland Saga').check()
+  await page.getByRole('button', { name: 'Busqueda rapida' }).click()
+  quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  await quickSearch.getByLabel('Buscar en Nexo').fill('reactivar seleccion')
+  const reactivateSelectionAction = quickSearch.getByRole('button', {
+    name: 'Ejecutar Reactivar seleccion del dado',
+    exact: true,
+  })
+  await expect(reactivateSelectionAction).toHaveAttribute('aria-current', 'true')
+  await expect(reactivateSelectionAction).toContainText('cooldowns activos')
+  await reactivateSelectionAction.click()
+
+  await expect(page.getByText('2 entradas reactivadas para el dado')).toBeVisible()
+  await expect(page.locator('.item-card', { hasText: 'Outer Wilds' }).getByLabel('Pulso de Outer Wilds')).toContainText('Disponible')
+  await expect(page.locator('.item-card', { hasText: 'Vinland Saga' }).getByLabel('Pulso de Vinland Saga')).toContainText('Disponible')
+  await expect(page.getByTestId('session-activity')).toContainText('Seleccion reactivada')
+
+  await page.getByLabel('Accion reciente de biblioteca').getByRole('button', { name: 'Deshacer dado' }).click()
+  await expect(page.getByText('Dado deshecho: 2 cooldowns recuperados')).toBeVisible()
+  await expect(page.locator('.item-card', { hasText: 'Outer Wilds' }).getByLabel('Pulso de Outer Wilds')).toContainText('Cooldown')
+  await expect(page.locator('.item-card', { hasText: 'Vinland Saga' }).getByLabel('Pulso de Vinland Saga')).toContainText('Cooldown')
+})
+
 test('quick search opens library items through the pending-change guard', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
