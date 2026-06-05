@@ -623,6 +623,13 @@ interface ScoredQuickSearchEntry {
 
 type QuickSearchCommandEntry = Extract<QuickSearchEntry, { kind: 'command' }>
 
+function closeDialogOnEscape(event: KeyboardEvent<HTMLElement>, onClose: () => void) {
+  if (event.key !== 'Escape') return
+  event.preventDefault()
+  event.stopPropagation()
+  onClose()
+}
+
 interface ShellNavItem {
   description: string
   hidden?: boolean
@@ -5647,6 +5654,7 @@ function LibraryTab({
             aria-modal="true"
             className="confirm-dialog"
             role="dialog"
+            onKeyDown={(event) => closeDialogOnEscape(event, () => setDeleteTarget(undefined))}
             onSubmit={(event) => {
               event.preventDefault()
               void deleteSingleItem()
@@ -5657,7 +5665,7 @@ function LibraryTab({
               <p>Vas a eliminar {deleteTarget.title} de tu biblioteca privada. El catalogo publico no cambia.</p>
             </div>
             <div className="action-row end">
-              <button className="ghost-button" type="button" onClick={() => setDeleteTarget(undefined)}>
+              <button className="ghost-button" type="button" autoFocus onClick={() => setDeleteTarget(undefined)}>
                 Cancelar
               </button>
               <button className="danger-button" type="submit">
@@ -5676,6 +5684,12 @@ function LibraryTab({
             aria-modal="true"
             className="confirm-dialog"
             role="dialog"
+            onKeyDown={(event) =>
+              closeDialogOnEscape(event, () => {
+                setSelectedDeleteDialogOpen(false)
+                setSelectedDeleteConfirmText('')
+              })
+            }
             onSubmit={(event) => {
               event.preventDefault()
               if (selectedDeleteConfirmText === 'BORRAR') void deleteSelectedItems()
@@ -5727,6 +5741,12 @@ function LibraryTab({
             aria-modal="true"
             className="confirm-dialog"
             role="dialog"
+            onKeyDown={(event) =>
+              closeDialogOnEscape(event, () => {
+                setDeleteDialogOpen(false)
+                setDeleteConfirmText('')
+              })
+            }
             onSubmit={(event) => {
               event.preventDefault()
               if (deleteConfirmText === 'BORRAR') void deleteEntireLibrary()
@@ -9611,13 +9631,19 @@ function CurationTab({
 
       {archiveTarget && (
         <div className="modal-backdrop" role="presentation">
-          <div className="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="archive-title">
+          <div
+            className="confirm-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="archive-title"
+            onKeyDown={(event) => closeDialogOnEscape(event, () => setArchiveTarget(undefined))}
+          >
             <div className="panel-heading compact">
               <div>
                 <h2 id="archive-title">Archivar entrada publica</h2>
                 <p>{archiveTarget.title} dejara de aparecer en Explorador y busquedas del catalogo.</p>
               </div>
-              <button className="icon-button" type="button" onClick={() => setArchiveTarget(undefined)} title="Cerrar">
+              <button className="icon-button" type="button" autoFocus onClick={() => setArchiveTarget(undefined)} title="Cerrar">
                 <X size={18} />
               </button>
             </div>
@@ -10236,8 +10262,14 @@ function CandidateDialog({
 
   return (
     <div className="modal-backdrop" role="presentation">
-      <section className="detail-dialog" role="dialog" aria-modal="true" aria-labelledby="candidate-detail-title">
-        <button className="icon-button dialog-close" type="button" onClick={onClose} title="Cerrar">
+      <section
+        className="detail-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="candidate-detail-title"
+        onKeyDown={(event) => closeDialogOnEscape(event, onClose)}
+      >
+        <button className="icon-button dialog-close" type="button" autoFocus onClick={onClose} title="Cerrar">
           <X size={18} />
         </button>
         <CoverArt title={candidate.title} type={candidate.type} posterUrl={candidate.posterUrl} />
@@ -10390,6 +10422,7 @@ function ItemEditor({
         role="dialog"
         aria-modal="true"
         aria-labelledby="item-editor-title"
+        onKeyDown={(event) => closeDialogOnEscape(event, requestClose)}
         onSubmit={(event) => {
           event.preventDefault()
           const priorityWeight = Number(draft.weights.priority)
@@ -10430,7 +10463,7 @@ function ItemEditor({
                 {linkCopyStatus?.tone === 'success' ? <Check size={18} /> : <Copy size={18} />}
               </button>
             )}
-            <button className="icon-button" type="button" onClick={requestClose} title="Cerrar">
+            <button className="icon-button" type="button" autoFocus onClick={requestClose} title="Cerrar">
               <X size={18} />
             </button>
           </div>
@@ -10859,6 +10892,7 @@ function PublicItemEditor({
         role="dialog"
         aria-modal="true"
         aria-labelledby="public-item-editor-title"
+        onKeyDown={(event) => closeDialogOnEscape(event, requestClose)}
         onSubmit={(event) => {
           event.preventDefault()
           const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null
@@ -10870,7 +10904,7 @@ function PublicItemEditor({
             <h2 id="public-item-editor-title">Catalogo Nexo</h2>
             <p>Entrada publica curada</p>
           </div>
-          <button className="icon-button" type="button" onClick={requestClose} title="Cerrar">
+          <button className="icon-button" type="button" autoFocus onClick={requestClose} title="Cerrar">
             <X size={18} />
           </button>
         </div>
