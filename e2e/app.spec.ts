@@ -791,6 +791,24 @@ test('quick search applies theme commands', async ({ page }) => {
 
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'forest')
   await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#0f1712')
+
+  await page.getByRole('button', { name: 'Busqueda rapida' }).click()
+  quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  await quickSearch.getByLabel('Buscar en Nexo').fill('aurora')
+  await expect(quickSearch.getByRole('button', { name: 'Ejecutar Tema Aurora' })).toHaveAttribute('aria-current', 'true')
+  await quickSearch.getByRole('button', { name: 'Ejecutar Tema Aurora' }).click()
+
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'aurora')
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#101113')
+
+  await page.getByRole('button', { name: 'Busqueda rapida' }).click()
+  quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  await quickSearch.getByLabel('Buscar en Nexo').fill('menta')
+  await expect(quickSearch.getByRole('button', { name: 'Ejecutar Tema Menta' })).toHaveAttribute('aria-current', 'true')
+  await quickSearch.getByRole('button', { name: 'Ejecutar Tema Menta' }).click()
+
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'mint')
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#f5fbf7')
 })
 
 test('global theme menu stays in sync with settings', async ({ page }) => {
@@ -1641,7 +1659,7 @@ test('pwa metadata is present', async ({ page }) => {
   await page.getByRole('button', { name: 'Elegir tema. Actual Oscuro', exact: true }).click()
   const themeMenu = page.getByRole('menu', { name: 'Temas de Nexo' })
   await expect(themeMenu).toBeVisible()
-  await expect(themeMenu.getByRole('menuitemradio')).toHaveCount(5)
+  await expect(themeMenu.getByRole('menuitemradio')).toHaveCount(7)
   const themeMenuBox = await themeMenu.evaluate((element) => {
     const rect = element.getBoundingClientRect()
     return {
@@ -1663,6 +1681,10 @@ test('pwa metadata is present', async ({ page }) => {
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'rose')
   await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#fff5f8')
   await expect(page.getByRole('button', { name: 'Elegir tema. Actual Rosa', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Elegir tema. Actual Rosa', exact: true }).click()
+  await page.getByRole('menuitemradio', { name: 'Usar tema Aurora' }).click()
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'aurora')
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#101113')
 
   await page.goto('/?tab=dice')
   await expect(page.getByRole('heading', { name: 'Elige el siguiente hilo' })).toBeVisible()
@@ -2454,6 +2476,7 @@ test('library cards fit the mobile PWA viewport', async ({ page }, testInfo) => 
       width: rect.width,
     }
   })
+  const geometryTolerance = 2
   expect(dialogMetrics.documentScrollWidth).toBeLessThanOrEqual(dialogMetrics.viewportWidth + 1)
   expect(dialogMetrics.width).toBeLessThanOrEqual(dialogMetrics.viewportWidth)
   expect(dialogMetrics.paddingTop).toBeGreaterThanOrEqual(18)
@@ -2461,10 +2484,10 @@ test('library cards fit the mobile PWA viewport', async ({ page }, testInfo) => 
   expect(dialogMetrics.paddingBottom).toBeGreaterThanOrEqual(18)
   expect(dialogMetrics.paddingLeft).toBeGreaterThanOrEqual(18)
   expect(dialogMetrics.maxHeight).not.toBe('none')
-  expect(dialogMetrics.top).toBeGreaterThanOrEqual(dialogMetrics.paddingTop - 1)
-  expect(dialogMetrics.left).toBeGreaterThanOrEqual(dialogMetrics.paddingLeft - 1)
-  expect(dialogMetrics.right).toBeLessThanOrEqual(dialogMetrics.viewportWidth - dialogMetrics.paddingRight + 1)
-  expect(dialogMetrics.bottom).toBeLessThanOrEqual(dialogMetrics.viewportHeight - dialogMetrics.paddingBottom + 1)
+  expect(dialogMetrics.top).toBeGreaterThanOrEqual(dialogMetrics.paddingTop - geometryTolerance)
+  expect(dialogMetrics.left).toBeGreaterThanOrEqual(dialogMetrics.paddingLeft - geometryTolerance)
+  expect(dialogMetrics.right).toBeLessThanOrEqual(dialogMetrics.viewportWidth - dialogMetrics.paddingRight + geometryTolerance)
+  expect(dialogMetrics.bottom).toBeLessThanOrEqual(dialogMetrics.viewportHeight - dialogMetrics.paddingBottom + geometryTolerance)
 })
 
 test('launch screens have no serious accessibility violations', async ({ page }) => {

@@ -19,7 +19,7 @@ export const ITEM_STATUSES = [
 ] as const
 
 export const USER_ROLES = ['user', 'moderator', 'admin'] as const
-export const THEME_MODES = ['dark', 'light', 'rose', 'forest', 'ocean'] as const
+export const THEME_MODES = ['dark', 'light', 'rose', 'forest', 'ocean', 'mint', 'aurora'] as const
 
 export type ItemType = (typeof ITEM_TYPES)[number]
 export type ItemStatus = (typeof ITEM_STATUSES)[number]

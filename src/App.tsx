@@ -231,6 +231,8 @@ const themeOptions: Array<{
   { detail: 'Rosa suave', id: 'rose', label: 'Rosa', swatches: ['#fff5f8', '#c44574', '#f4a7bd'] },
   { detail: 'Verde bosque', id: 'forest', label: 'Bosque', swatches: ['#0f1712', '#2f7d55', '#a8d08d'] },
   { detail: 'Azul profundo', id: 'ocean', label: 'Oceano', swatches: ['#0d1726', '#256f91', '#8bc9ff'] },
+  { detail: 'Menta clara', id: 'mint', label: 'Menta', swatches: ['#f5fbf7', '#2f8c7a', '#d96b56'] },
+  { detail: 'Neon calmado', id: 'aurora', label: 'Aurora', swatches: ['#101113', '#29b8a4', '#d85f9c'] },
 ]
 
 const themeLabels: Record<ThemeMode, string> = Object.fromEntries(
@@ -238,9 +240,11 @@ const themeLabels: Record<ThemeMode, string> = Object.fromEntries(
 ) as Record<ThemeMode, string>
 
 const themeMetaColors: Record<ThemeMode, string> = {
+  aurora: '#101113',
   dark: '#0f1214',
   forest: '#0f1712',
   light: '#f8faf9',
+  mint: '#f5fbf7',
   ocean: '#0d1726',
   rose: '#fff5f8',
 }
@@ -2140,7 +2144,7 @@ function App() {
       id: `theme-${option.id}`,
       meta: 'Tema',
       run: () => applyThemeFromPalette(option.id),
-      searchText: `tema apariencia color paleta ${option.label} ${option.detail} claro oscuro rosa bosque oceano`,
+      searchText: `tema apariencia color paleta ${option.label} ${option.detail} claro oscuro rosa bosque oceano menta aurora`,
       title: `Tema ${option.label}`,
       tone: 'command',
     })),
