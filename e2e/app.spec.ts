@@ -669,6 +669,27 @@ test('quick search updates focus for the current library selection', async ({ pa
   await expect(page.getByText('No hay entradas seleccionadas')).toBeVisible()
 })
 
+test('quick search adds known tags to the current library selection', async ({ page }) => {
+  await page.goto('/')
+  await page.getByLabel('Seleccionar Outer Wilds').check()
+  await page.getByLabel('Seleccionar Vinland Saga').check()
+  await expect(page.getByLabel('Seleccion de biblioteca')).toContainText('2 seleccionadas')
+
+  await page.getByRole('button', { name: 'Busqueda rapida' }).click()
+  const quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  await quickSearch.getByLabel('Buscar en Nexo').fill('seleccion tag sci-fi')
+  const tagSelectionAction = quickSearch.getByRole('button', { name: 'Ejecutar Seleccion: tag sci-fi', exact: true })
+  await expect(tagSelectionAction).toHaveAttribute('aria-current', 'true')
+  await tagSelectionAction.click()
+
+  await expect(page.getByText('1 entradas etiquetadas con sci-fi')).toBeVisible()
+  await page.getByLabel('Buscar en biblioteca').fill('Vinland Saga')
+  await expect(page.locator('.item-card', { hasText: 'Vinland Saga' })).toContainText('sci-fi')
+  await page.getByLabel('Accion reciente de biblioteca').getByRole('button', { name: 'Deshacer tags' }).click()
+  await expect(page.getByText('1 tags recuperados')).toBeVisible()
+  await expect(page.locator('.item-card', { hasText: 'Vinland Saga' })).not.toContainText('sci-fi')
+})
+
 test('quick search opens library items through the pending-change guard', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Dado', exact: true }).click()

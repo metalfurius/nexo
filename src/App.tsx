@@ -400,6 +400,11 @@ interface LibrarySelectedPriorityRequest {
   requestId: number
 }
 
+interface LibrarySelectedTagsRequest {
+  requestId: number
+  tags: string[]
+}
+
 interface LibrarySelectedExportRequest {
   requestId: number
 }
@@ -482,6 +487,7 @@ type PendingNavigation = {
   librarySelectedExport?: boolean
   librarySelectedPriority?: LibraryPriorityLevel
   librarySelectedStatus?: ItemStatus
+  librarySelectedTags?: string[]
   librarySortMode?: LibrarySortMode
   libraryStatusFilter?: ItemStatus
   librarySmartView?: LibrarySmartView
@@ -812,6 +818,7 @@ function App() {
   const [librarySelectedExportRequest, setLibrarySelectedExportRequest] = useState<LibrarySelectedExportRequest | undefined>()
   const [librarySelectedPriorityRequest, setLibrarySelectedPriorityRequest] = useState<LibrarySelectedPriorityRequest | undefined>()
   const [librarySelectedStatusRequest, setLibrarySelectedStatusRequest] = useState<LibrarySelectedStatusRequest | undefined>()
+  const [librarySelectedTagsRequest, setLibrarySelectedTagsRequest] = useState<LibrarySelectedTagsRequest | undefined>()
   const [librarySortModeRequest, setLibrarySortModeRequest] = useState<LibrarySortModeRequest | undefined>()
   const [libraryStatusFilterRequest, setLibraryStatusFilterRequest] = useState<LibraryStatusFilterRequest | undefined>()
   const [librarySmartViewRequest, setLibrarySmartViewRequest] = useState<LibrarySmartViewRequest | undefined>()
@@ -1153,6 +1160,13 @@ function App() {
 
   function requestLibrarySelectedPriority(level: LibraryPriorityLevel) {
     setLibrarySelectedPriorityRequest((current) => ({ level, requestId: (current?.requestId ?? 0) + 1 }))
+  }
+
+  function requestLibrarySelectedTags(tags: string[]) {
+    const nextTags = uniqueNormalizedValues(tags)
+    if (!nextTags.length) return
+
+    setLibrarySelectedTagsRequest((current) => ({ requestId: (current?.requestId ?? 0) + 1, tags: nextTags }))
   }
 
   function requestDiceRoll() {
@@ -1641,6 +1655,25 @@ function App() {
     writeAppTabToUrl('library', 'push')
   }
 
+  function applyLibrarySelectedTagsFromPalette(tags: string[]) {
+    setQuickSearchOpen(false)
+    if (activeTab === 'library') {
+      setActivityFocus(undefined)
+      requestLibrarySelectedTags(tags)
+      writeAppTabToUrl('library', 'push')
+      return
+    }
+    if (tabsWithUnsavedChanges[activeTab]) {
+      setPendingNavigation({ librarySelectedTags: tags, source: 'app', tab: 'library' })
+      return
+    }
+
+    setActivityFocus(undefined)
+    requestLibrarySelectedTags(tags)
+    setActiveTabState('library')
+    writeAppTabToUrl('library', 'push')
+  }
+
   function importLibraryBackupFromPalette() {
     setQuickSearchOpen(false)
     if (activeTab === 'library') {
@@ -1773,6 +1806,7 @@ function App() {
       librarySelectedExport,
       librarySelectedPriority,
       librarySelectedStatus,
+      librarySelectedTags,
       librarySortMode,
       libraryStatusFilter,
       librarySmartView,
@@ -1840,6 +1874,9 @@ function App() {
     if (librarySelectedStatus) {
       requestLibrarySelectedStatus(librarySelectedStatus)
     }
+    if (librarySelectedTags) {
+      requestLibrarySelectedTags(librarySelectedTags)
+    }
     if (librarySortMode) {
       requestLibrarySortMode(librarySortMode)
     }
@@ -1902,6 +1939,31 @@ function App() {
     const currentKeys = suggestion.kind === 'genre' ? quickSearchFavoriteGenreKeys : quickSearchFavoriteTagKeys
     return !currentKeys.has(normalizeKey(suggestion.label))
   }).length
+  const quickSearchLibraryTagCounts = library.items.reduce<Map<string, number>>((counts, item) => {
+    for (const tag of item.tags) {
+      const key = normalizeKey(tag)
+      if (key) counts.set(key, (counts.get(key) ?? 0) + 1)
+    }
+    return counts
+  }, new Map())
+  const quickSearchSelectionTagOptions = uniqueNormalizedValues([
+    ...library.settings.favoriteTags,
+    ...library.items.flatMap((item) => item.tags),
+  ])
+    .map((label) => {
+      const key = normalizeKey(label)
+      return {
+        count: quickSearchLibraryTagCounts.get(key) ?? 0,
+        favorite: quickSearchFavoriteTagKeys.has(key),
+        label,
+      }
+    })
+    .sort((left, right) => {
+      if (left.favorite !== right.favorite) return left.favorite ? -1 : 1
+      if (left.count !== right.count) return right.count - left.count
+      return left.label.localeCompare(right.label, 'es')
+    })
+    .slice(0, 8)
   const quickSearchActivityCommands = library.activityEntries.slice(0, 4).map((entry): QuickSearchCommand => {
     const destinationLabel = activityTabLabels[getActivityDestinationTab(entry)]
 
@@ -2232,6 +2294,18 @@ function App() {
       title: `Seleccion: ${option.label}`,
       tone: 'command',
     })),
+    ...quickSearchSelectionTagOptions.map((option): QuickSearchCommand => ({
+      Icon: Plus,
+      detail: option.favorite
+        ? `${option.count} ${option.count === 1 ? 'entrada' : 'entradas'} / favorito`
+        : `${option.count} ${option.count === 1 ? 'entrada' : 'entradas'}`,
+      id: `library-selected-tag-${slugify(option.label)}`,
+      meta: 'Biblioteca',
+      run: () => applyLibrarySelectedTagsFromPalette([option.label]),
+      searchText: `biblioteca seleccion seleccionadas tag tags etiqueta senal masivo aplicar ${option.label}`,
+      title: `Seleccion: tag ${option.label}`,
+      tone: 'command',
+    })),
     {
       Icon: Moon,
       detail: 'Pausar la seleccion como candidata del dado',
@@ -2494,6 +2568,7 @@ function App() {
             selectedExportRequest={librarySelectedExportRequest}
             selectedPriorityRequest={librarySelectedPriorityRequest}
             selectedStatusRequest={librarySelectedStatusRequest}
+            selectedTagsRequest={librarySelectedTagsRequest}
             sortModeRequest={librarySortModeRequest}
             statusFilterRequest={libraryStatusFilterRequest}
             smartViewRequest={librarySmartViewRequest}
@@ -3225,6 +3300,7 @@ function LibraryTab({
   selectedExportRequest,
   selectedPriorityRequest,
   selectedStatusRequest,
+  selectedTagsRequest,
   sortModeRequest,
   statusFilterRequest,
   smartViewRequest,
@@ -3252,6 +3328,7 @@ function LibraryTab({
   selectedExportRequest?: LibrarySelectedExportRequest
   selectedPriorityRequest?: LibrarySelectedPriorityRequest
   selectedStatusRequest?: LibrarySelectedStatusRequest
+  selectedTagsRequest?: LibrarySelectedTagsRequest
   sortModeRequest?: LibrarySortModeRequest
   statusFilterRequest?: LibraryStatusFilterRequest
   smartViewRequest?: LibrarySmartViewRequest
@@ -3280,6 +3357,7 @@ function LibraryTab({
   const handledSelectedExportRequestId = useRef<number | undefined>(undefined)
   const handledSelectedPriorityRequestId = useRef<number | undefined>(undefined)
   const handledSelectedStatusRequestId = useRef<number | undefined>(undefined)
+  const handledSelectedTagsRequestId = useRef<number | undefined>(undefined)
   const handledSortModeRequestId = useRef<number | undefined>(undefined)
   const handledStatusFilterRequestId = useRef<number | undefined>(undefined)
   const [handledSmartViewRequestId, setHandledSmartViewRequestId] = useState<number | undefined>()
@@ -3821,8 +3899,8 @@ function LibraryTab({
     }
   }
 
-  async function addSelectedItemsTags() {
-    const tagsToAdd = splitList(bulkTagText)
+  const addSelectedItemsTags = useCallback(async (requestedTags?: string[]) => {
+    const tagsToAdd = requestedTags ? uniqueNormalizedValues(requestedTags) : splitList(bulkTagText)
     if (!selectedItems.length) {
       setImportStatus('No hay entradas seleccionadas')
       return
@@ -3876,7 +3954,7 @@ function LibraryTab({
     } catch (reason) {
       setImportStatus(reason instanceof Error ? reason.message : 'No se pudieron actualizar los tags de la seleccion.')
     }
-  }
+  }, [bulkTagText, library, onActivity, selectedItems])
 
   async function undoLibraryTagChange() {
     if (!tagUndo) return
@@ -3905,6 +3983,19 @@ function LibraryTab({
       setImportStatus(reason instanceof Error ? reason.message : 'No se pudieron deshacer los tags.')
     }
   }
+
+  useEffect(() => {
+    if (!selectedTagsRequest || handledSelectedTagsRequestId.current === selectedTagsRequest.requestId) return
+
+    const timeoutId = window.setTimeout(() => {
+      if (handledSelectedTagsRequestId.current === selectedTagsRequest.requestId) return
+
+      handledSelectedTagsRequestId.current = selectedTagsRequest.requestId
+      void addSelectedItemsTags(selectedTagsRequest.tags)
+    }, 0)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [addSelectedItemsTags, selectedTagsRequest])
 
   function toggleLibraryItemSelection(itemId: string) {
     setSelectedItemIds((current) =>
