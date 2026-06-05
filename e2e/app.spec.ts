@@ -598,7 +598,7 @@ test('quick search applies a status to the current library selection', async ({ 
     exact: true,
   })
   await expect(completeSelectionAction).toHaveAttribute('aria-current', 'true')
-  await expect(completeSelectionAction).toContainText('seleccion actual')
+  await expect(completeSelectionAction).toContainText('2 seleccionadas')
   await completeSelectionAction.click()
 
   await expect(page.getByText('2 entradas ahora son Completado')).toBeVisible()
@@ -610,6 +610,8 @@ test('quick search applies a status to the current library selection', async ({ 
   await expect(page.getByText('2 estados recuperados')).toBeVisible()
   await expect(page.locator('.item-card', { hasText: 'Outer Wilds' })).toContainText('Pendiente')
   await expect(page.locator('.item-card', { hasText: 'Vinland Saga' })).toContainText('Pendiente')
+  await page.getByLabel('Seleccionar Inception').check()
+  await expect(page.getByLabel('Seleccion de biblioteca')).toContainText('1 seleccionada')
 
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
   await page.getByLabel('Energia').selectOption('high')
@@ -618,13 +620,16 @@ test('quick search applies a status to the current library selection', async ({ 
   await page.getByRole('button', { name: 'Busqueda rapida' }).click()
   quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
   await quickSearch.getByLabel('Buscar en Nexo').fill('seleccion pendiente')
-  await quickSearch.getByRole('button', { name: 'Ejecutar Seleccion: Pendiente', exact: true }).click()
+  const pendingSelectionAction = quickSearch.getByRole('button', { name: 'Ejecutar Seleccion: Pendiente', exact: true })
+  await expect(pendingSelectionAction).toContainText('1 seleccionada')
+  await pendingSelectionAction.click()
 
   await expect(page.getByLabel('Salida con cambios pendientes')).toContainText('Cambios pendientes en Dado')
   await page.getByLabel('Salida con cambios pendientes').getByRole('button', { name: 'Descartar cambios' }).click()
 
   await expect(page.getByRole('heading', { name: 'Biblioteca privada' })).toBeVisible()
-  await expect(page.getByText('No hay entradas seleccionadas')).toBeVisible()
+  await expect(page.getByText('1 entrada ahora es Pendiente')).toBeVisible()
+  await expect(page.locator('.item-card', { hasText: 'Inception' })).toContainText('Pendiente')
 })
 
 test('quick search updates dice cooldowns for the current library selection', async ({ page }) => {
@@ -641,7 +646,7 @@ test('quick search updates dice cooldowns for the current library selection', as
     exact: true,
   })
   await expect(snoozeSelectionAction).toHaveAttribute('aria-current', 'true')
-  await expect(snoozeSelectionAction).toContainText('candidata del dado')
+  await expect(snoozeSelectionAction).toContainText('2 candidatas del dado')
   await snoozeSelectionAction.click()
 
   await expect(page.getByText('2 entradas enfriadas para el dado')).toBeVisible()
@@ -659,7 +664,7 @@ test('quick search updates dice cooldowns for the current library selection', as
     exact: true,
   })
   await expect(reactivateSelectionAction).toHaveAttribute('aria-current', 'true')
-  await expect(reactivateSelectionAction).toContainText('cooldowns activos')
+  await expect(reactivateSelectionAction).toContainText('2 cooldowns activos')
   await reactivateSelectionAction.click()
 
   await expect(page.getByText('2 entradas reactivadas para el dado')).toBeVisible()
@@ -687,7 +692,7 @@ test('quick search updates focus for the current library selection', async ({ pa
     exact: true,
   })
   await expect(focusSelectionAction).toHaveAttribute('aria-current', 'true')
-  await expect(focusSelectionAction).toContainText('foco del dado')
+  await expect(focusSelectionAction).toContainText('2 seleccionadas')
   await focusSelectionAction.click()
 
   await expect(page.getByText('2 entradas ahora tienen Foco alto')).toBeVisible()
@@ -707,14 +712,16 @@ test('quick search updates focus for the current library selection', async ({ pa
 
   await page.getByRole('button', { name: 'Busqueda rapida' }).click()
   quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
-  await quickSearch.getByLabel('Buscar en Nexo').fill('seleccion foco normal')
-  await quickSearch.getByRole('button', { name: 'Ejecutar Seleccion: Foco normal', exact: true }).click()
+  await quickSearch.getByLabel('Buscar en Nexo').fill('seleccion foco bajo')
+  const lowFocusSelectionAction = quickSearch.getByRole('button', { name: 'Ejecutar Seleccion: Foco bajo', exact: true })
+  await expect(lowFocusSelectionAction).toContainText('1 seleccionada')
+  await lowFocusSelectionAction.click()
 
   await expect(page.getByLabel('Salida con cambios pendientes')).toContainText('Cambios pendientes en Dado')
   await page.getByLabel('Salida con cambios pendientes').getByRole('button', { name: 'Descartar cambios' }).click()
 
   await expect(page.getByRole('heading', { name: 'Biblioteca privada' })).toBeVisible()
-  await expect(page.getByText('No hay entradas seleccionadas')).toBeVisible()
+  await expect(page.getByText('1 entrada ahora tiene Foco bajo')).toBeVisible()
 })
 
 test('quick search adds known taxonomy signals to the current library selection', async ({ page }) => {

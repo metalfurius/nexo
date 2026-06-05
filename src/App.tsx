@@ -1,4 +1,15 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type KeyboardEvent,
+  type ReactNode,
+  type SetStateAction,
+} from 'react'
 import {
   AlertTriangle,
   Archive,
@@ -858,6 +869,7 @@ function App() {
   const [settingsTaxonomyRepairRequest, setSettingsTaxonomyRepairRequest] = useState<SettingsTaxonomyRepairRequest | undefined>()
   const [settingsTasteSuggestionsRequest, setSettingsTasteSuggestionsRequest] = useState<SettingsTasteSuggestionsRequest | undefined>()
   const [settingsSaveRequest, setSettingsSaveRequest] = useState<SettingsSaveRequest | undefined>()
+  const [selectedLibraryItemIds, setSelectedLibraryItemIds] = useState<string[]>([])
   const [quickSearchOpen, setQuickSearchOpen] = useState(false)
   const [themeMenuOpen, setThemeMenuOpen] = useState(false)
   const [serviceWorkerUpdateReady, setServiceWorkerUpdateReady] = useState(false)
@@ -885,6 +897,15 @@ function App() {
   const settingsTaxonomyRepairRequestId = useRef(0)
   const settingsTasteSuggestionsRequestId = useRef(0)
   const settingsSaveRequestId = useRef(0)
+  const selectedLibraryItems = useMemo(() => {
+    const selectedIds = new Set(selectedLibraryItemIds)
+    return library.items.filter((item) => selectedIds.has(item.id))
+  }, [library.items, selectedLibraryItemIds])
+  const selectedLibraryCount = selectedLibraryItems.length
+  const selectedLibraryDiceEligibleCount = selectedLibraryItems.filter(
+    (item) => item.status !== 'completed' && item.status !== 'dropped',
+  ).length
+  const selectedLibraryCooldownCount = selectedLibraryItems.filter(isItemInCooldown).length
 
   useEffect(() => {
     if (!auth.isFirebaseConfigured) return
@@ -2011,6 +2032,8 @@ function App() {
     ...quickSearchSelectionSignalOptions('tag'),
     ...quickSearchSelectionSignalOptions('mood'),
   ]
+  const quickSearchSelectionLabel = selectedLibraryCount === 1 ? '1 seleccionada' : `${selectedLibraryCount} seleccionadas`
+  const quickSearchSelectionDetail = selectedLibraryCount ? `${quickSearchSelectionLabel} / seleccion actual` : 'Sin seleccion activa'
   const quickSearchActivityCommands = library.activityEntries.slice(0, 4).map((entry): QuickSearchCommand => {
     const destinationLabel = activityTabLabels[getActivityDestinationTab(entry)]
 
@@ -2184,7 +2207,7 @@ function App() {
     },
     {
       Icon: Download,
-      detail: 'Descargar solo las fichas seleccionadas',
+      detail: selectedLibraryCount ? `${quickSearchSelectionLabel} / sin ajustes privados` : 'Sin seleccion activa',
       id: 'export-selection',
       meta: 'Backup',
       run: exportLibrarySelectionFromPalette,
@@ -2323,7 +2346,7 @@ function App() {
     },
     ...ITEM_STATUSES.map((status): QuickSearchCommand => ({
       Icon: status === 'completed' ? Check : status === 'in_progress' ? Play : status === 'paused' ? Pause : status === 'dropped' ? Trash2 : Library,
-      detail: 'Aplicar estado a la seleccion actual',
+      detail: quickSearchSelectionDetail,
       id: `library-selected-status-${status}`,
       meta: 'Biblioteca',
       run: () => applyLibrarySelectedStatusFromPalette(status),
@@ -2333,7 +2356,7 @@ function App() {
     })),
     ...libraryPriorityOptions.map((option): QuickSearchCommand => ({
       Icon: Dice5,
-      detail: 'Aplicar foco del dado a la seleccion actual',
+      detail: selectedLibraryCount ? `${quickSearchSelectionLabel} / foco del dado` : 'Sin seleccion activa',
       id: `library-selected-priority-${option.id}`,
       meta: 'Biblioteca',
       run: () => applyLibrarySelectedPriorityFromPalette(option.id),
@@ -2343,9 +2366,9 @@ function App() {
     })),
     ...quickSearchSelectionSignalOptionsList.map((option): QuickSearchCommand => ({
       Icon: Plus,
-      detail: option.favorite
-        ? `${option.count} ${option.count === 1 ? 'entrada' : 'entradas'} / favorito`
-        : `${option.count} ${option.count === 1 ? 'entrada' : 'entradas'}`,
+      detail: selectedLibraryCount
+        ? `${quickSearchSelectionLabel} / ${option.count} ${option.count === 1 ? 'entrada' : 'entradas'} con senal`
+        : 'Sin seleccion activa',
       id: `library-selected-${option.kind}-${slugify(option.label)}`,
       meta: 'Biblioteca',
       run: () => applyLibrarySelectedSignalsFromPalette('add', option.kind, [option.label]),
@@ -2355,7 +2378,9 @@ function App() {
     })),
     ...quickSearchSelectionSignalOptionsList.map((option): QuickSearchCommand => ({
       Icon: X,
-      detail: `Quitar ${librarySelectionSignalLabels[option.kind].singular} de la seleccion actual`,
+      detail: selectedLibraryCount
+        ? `${quickSearchSelectionLabel} / quitar ${librarySelectionSignalLabels[option.kind].singular}`
+        : 'Sin seleccion activa',
       id: `library-selected-remove-${option.kind}-${slugify(option.label)}`,
       meta: 'Biblioteca',
       run: () => applyLibrarySelectedSignalsFromPalette('remove', option.kind, [option.label]),
@@ -2365,7 +2390,9 @@ function App() {
     })),
     {
       Icon: Moon,
-      detail: 'Pausar la seleccion como candidata del dado',
+      detail: selectedLibraryCount
+        ? `${quickSearchSelectionLabel} / ${selectedLibraryDiceEligibleCount} candidatas del dado`
+        : 'Sin seleccion activa',
       id: 'library-selected-dice-snooze',
       meta: 'Biblioteca',
       run: () => applyLibrarySelectedDiceActionFromPalette('snooze'),
@@ -2375,7 +2402,9 @@ function App() {
     },
     {
       Icon: RotateCcw,
-      detail: 'Recuperar cooldowns activos de la seleccion',
+      detail: selectedLibraryCount
+        ? `${quickSearchSelectionLabel} / ${selectedLibraryCooldownCount} cooldowns activos`
+        : 'Sin seleccion activa',
       id: 'library-selected-dice-reactivate',
       meta: 'Biblioteca',
       run: () => applyLibrarySelectedDiceActionFromPalette('reactivate'),
@@ -2626,6 +2655,7 @@ function App() {
             selectedPriorityRequest={librarySelectedPriorityRequest}
             selectedStatusRequest={librarySelectedStatusRequest}
             selectedSignalsRequest={librarySelectedSignalsRequest}
+            selectedItemIds={selectedLibraryItemIds}
             sortModeRequest={librarySortModeRequest}
             statusFilterRequest={libraryStatusFilterRequest}
             smartViewRequest={librarySmartViewRequest}
@@ -2640,6 +2670,7 @@ function App() {
             onDraftRequestHandled={clearLibraryDraftRequest}
             onNavigate={changeActiveTab}
             onRollDice={rollDiceFromAction}
+            setSelectedItemIds={setSelectedLibraryItemIds}
             setTheme={setTheme}
           />
         )}
@@ -3359,6 +3390,7 @@ function LibraryTab({
   selectedPriorityRequest,
   selectedStatusRequest,
   selectedSignalsRequest,
+  selectedItemIds,
   sortModeRequest,
   statusFilterRequest,
   smartViewRequest,
@@ -3373,6 +3405,7 @@ function LibraryTab({
   onDraftRequestHandled,
   onNavigate,
   onRollDice,
+  setSelectedItemIds,
   setTheme,
 }: {
   activityFocusItemId?: string
@@ -3387,6 +3420,7 @@ function LibraryTab({
   selectedPriorityRequest?: LibrarySelectedPriorityRequest
   selectedStatusRequest?: LibrarySelectedStatusRequest
   selectedSignalsRequest?: LibrarySelectedSignalsRequest
+  selectedItemIds: string[]
   sortModeRequest?: LibrarySortModeRequest
   statusFilterRequest?: LibraryStatusFilterRequest
   smartViewRequest?: LibrarySmartViewRequest
@@ -3401,6 +3435,7 @@ function LibraryTab({
   onDraftRequestHandled: () => void
   onNavigate: (tab: AppTab, focus?: ActivityFocus) => void
   onRollDice: () => void
+  setSelectedItemIds: Dispatch<SetStateAction<string[]>>
   setTheme: (theme: ThemeMode) => void
 }) {
   const [query, setQuery] = useState('')
@@ -3442,7 +3477,6 @@ function LibraryTab({
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
   const [selectedDeleteDialogOpen, setSelectedDeleteDialogOpen] = useState(false)
   const [selectedDeleteConfirmText, setSelectedDeleteConfirmText] = useState('')
-  const [selectedItemIds, setSelectedItemIds] = useState<string[]>([])
   const [bulkStatus, setBulkStatus] = useState<ItemStatus>('completed')
   const [bulkPriorityLevel, setBulkPriorityLevel] = useState<LibraryPriorityLevel>('high')
   const [bulkSignalKind, setBulkSignalKind] = useState<LibrarySelectionSignalKind>('tag')
@@ -4017,7 +4051,7 @@ function LibraryTab({
     } catch (reason) {
       setImportStatus(reason instanceof Error ? reason.message : `No se pudieron actualizar los ${labels.plural} de la seleccion.`)
     }
-  }, [bulkSignalText, library, onActivity, selectedItems])
+  }, [bulkSignalText, library, onActivity, selectedItems, setSelectedItemIds])
 
   const removeSelectedItemsSignals = useCallback(async (kind: LibrarySelectionSignalKind, requestedValues?: string[]) => {
     const valuesToRemove = requestedValues ? uniqueNormalizedValues(requestedValues) : splitList(bulkSignalText)
@@ -4076,7 +4110,7 @@ function LibraryTab({
     } catch (reason) {
       setImportStatus(reason instanceof Error ? reason.message : `No se pudieron quitar los ${labels.plural} de la seleccion.`)
     }
-  }, [bulkSignalText, library, onActivity, selectedItems])
+  }, [bulkSignalText, library, onActivity, selectedItems, setSelectedItemIds])
 
   async function undoLibraryTagChange() {
     if (!tagUndo) return
@@ -4155,7 +4189,7 @@ function LibraryTab({
       tab: 'library',
       tone: 'success',
     })
-  }, [allVisibleItemsSelected, onActivity, visibleItemIds])
+  }, [allVisibleItemsSelected, onActivity, setSelectedItemIds, visibleItemIds])
 
   useEffect(() => {
     if (!visibleSelectionRequest || handledVisibleSelectionRequestId.current === visibleSelectionRequest.requestId) return
@@ -4198,7 +4232,11 @@ function LibraryTab({
       setPendingLibraryImport(undefined)
       setLibraryImportUndo(undefined)
       setSelectedItemIds([])
-      setImportStatus(`${changedItems.length} entradas ahora son ${statusLabels[nextStatus]}`)
+      setImportStatus(
+        changedItems.length === 1
+          ? `1 entrada ahora es ${statusLabels[nextStatus]}`
+          : `${changedItems.length} entradas ahora son ${statusLabels[nextStatus]}`,
+      )
       onActivity({
         detail: `${changedItems.length} -> ${statusLabels[nextStatus]}`,
         label: 'Estado masivo actualizado',
@@ -4208,7 +4246,7 @@ function LibraryTab({
     } catch (reason) {
       setImportStatus(reason instanceof Error ? reason.message : 'No se pudo actualizar la seleccion.')
     }
-  }, [bulkStatus, library, onActivity, selectedItems])
+  }, [bulkStatus, library, onActivity, selectedItems, setSelectedItemIds])
 
   useEffect(() => {
     if (!selectedStatusRequest || handledSelectedStatusRequestId.current === selectedStatusRequest.requestId) return
@@ -4260,7 +4298,11 @@ function LibraryTab({
       setPendingLibraryImport(undefined)
       setLibraryImportUndo(undefined)
       setSelectedItemIds([])
-      setImportStatus(`${changedItems.length} entradas ahora tienen ${priorityOption.label}`)
+      setImportStatus(
+        changedItems.length === 1
+          ? `1 entrada ahora tiene ${priorityOption.label}`
+          : `${changedItems.length} entradas ahora tienen ${priorityOption.label}`,
+      )
       onActivity({
         detail: `${changedItems.length} -> ${priorityOption.label}`,
         label: 'Foco masivo actualizado',
@@ -4270,7 +4312,7 @@ function LibraryTab({
     } catch (reason) {
       setImportStatus(reason instanceof Error ? reason.message : 'No se pudo actualizar el foco de la seleccion.')
     }
-  }, [bulkPriorityLevel, library, onActivity, selectedItems])
+  }, [bulkPriorityLevel, library, onActivity, selectedItems, setSelectedItemIds])
 
   useEffect(() => {
     if (!selectedPriorityRequest || handledSelectedPriorityRequestId.current === selectedPriorityRequest.requestId) return
@@ -4321,7 +4363,7 @@ function LibraryTab({
     } catch (reason) {
       setImportStatus(reason instanceof Error ? reason.message : 'No se pudo enfriar la seleccion.')
     }
-  }, [library, onActivity, selectedItems])
+  }, [library, onActivity, selectedItems, setSelectedItemIds])
 
   const reactivateSelectedItems = useCallback(async () => {
     const itemsToReactivate = selectedItems.filter(isItemInCooldown)
@@ -4359,7 +4401,7 @@ function LibraryTab({
     } catch (reason) {
       setImportStatus(reason instanceof Error ? reason.message : 'No se pudo reactivar la seleccion.')
     }
-  }, [library, onActivity, selectedItems])
+  }, [library, onActivity, selectedItems, setSelectedItemIds])
 
   useEffect(() => {
     if (
@@ -4558,7 +4600,7 @@ function LibraryTab({
     }, 0)
 
     return () => window.clearTimeout(timeoutId)
-  }, [onActivity, smartView, statusFilter, statusFilterRequest, trimmedQuery])
+  }, [onActivity, setSelectedItemIds, smartView, statusFilter, statusFilterRequest, trimmedQuery])
 
   useEffect(() => {
     if (!typeFilterRequest || handledTypeFilterRequestId.current === typeFilterRequest.requestId) return
@@ -4588,7 +4630,7 @@ function LibraryTab({
     }, 0)
 
     return () => window.clearTimeout(timeoutId)
-  }, [onActivity, smartView, trimmedQuery, typeFilter, typeFilterRequest])
+  }, [onActivity, setSelectedItemIds, smartView, trimmedQuery, typeFilter, typeFilterRequest])
 
   async function copyLibraryItemLink(item: ListItem) {
     const itemUrl = buildItemShareUrl(item.id)
@@ -4612,7 +4654,7 @@ function LibraryTab({
     setSortMode('focus')
     setSelectedItemIds([])
     setActiveReviewSession(undefined)
-  }, [])
+  }, [setSelectedItemIds])
 
   useEffect(() => {
     if (!resetViewRequest || handledResetViewRequestId.current === resetViewRequest.requestId) return
@@ -4744,7 +4786,7 @@ function LibraryTab({
     }, 0)
 
     return () => window.clearTimeout(timeoutId)
-  }, [library, onActivity, onPrimaryActionRequestHandled, primaryActionRequest])
+  }, [library, onActivity, onPrimaryActionRequestHandled, primaryActionRequest, setSelectedItemIds])
 
   useEffect(() => {
     if (!reviewRequest || handledReviewRequestId.current === reviewRequest.requestId) return
@@ -5138,7 +5180,7 @@ function LibraryTab({
             {selectedItems.length > 0 && (
               <>
                 <div className="library-selection-count">
-                  <strong>{selectedItems.length} seleccionadas</strong>
+                  <strong>{selectedItems.length === 1 ? '1 seleccionada' : `${selectedItems.length} seleccionadas`}</strong>
                   <span>{selectedVisibleCount} visibles en esta vista</span>
                 </div>
                 <button className="secondary-button" type="button" onClick={exportSelectedItems}>
