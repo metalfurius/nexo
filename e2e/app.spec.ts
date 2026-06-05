@@ -1,6 +1,11 @@
 import { readFile } from 'node:fs/promises'
 import AxeBuilder from '@axe-core/playwright'
-import { expect, test } from '@playwright/test'
+import { expect, test, type Locator } from '@playwright/test'
+
+async function expectFocusWithin(scope: Locator) {
+  const hasFocusWithin = await scope.evaluate((element) => element.contains(document.activeElement))
+  expect(hasFocusWithin).toBe(true)
+}
 
 test('library and weighted dice work in demo mode', async ({ page }) => {
   await page.goto('/')
@@ -902,7 +907,13 @@ test('quick search keyboard shortcuts avoid normal text entry', async ({ page })
 
   await librarySearch.blur()
   await page.keyboard.press('Control+K')
-  await expect(page.getByRole('dialog', { name: 'Abrir en Nexo' })).toBeVisible()
+  const quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  await expect(quickSearch).toBeVisible()
+  await expect(quickSearch.getByLabel('Buscar en Nexo')).toBeFocused()
+  for (let index = 0; index < 10; index += 1) {
+    await page.keyboard.press('Tab')
+    await expectFocusWithin(quickSearch)
+  }
 })
 
 test('dialogs support escape without losing unsaved edits', async ({ page }) => {
@@ -920,6 +931,9 @@ test('dialogs support escape without losing unsaved edits', async ({ page }) => 
   privateEditor = page.getByRole('dialog', { name: 'Entrada' })
   await expect(privateEditor.getByLabel('Titulo')).toBeFocused()
   await privateEditor.getByLabel('Titulo').fill('Borrador con Escape')
+  await privateEditor.getByRole('button', { name: 'Guardar', exact: true }).focus()
+  await page.keyboard.press('Tab')
+  await expectFocusWithin(privateEditor)
   await page.keyboard.press('Escape')
   await expect(privateEditor).toBeVisible()
   await expect(page.getByLabel('Cambios sin guardar')).toContainText('Guarda la ficha')
@@ -942,6 +956,9 @@ test('dialogs support escape without losing unsaved edits', async ({ page }) => 
   await expect(publicEditor).toBeVisible()
   await expect(publicEditor.getByLabel('Titulo')).toBeFocused()
   await publicEditor.getByLabel('Titulo').fill('Catalogo con Escape')
+  await publicEditor.getByRole('button', { name: 'Guardar en catalogo' }).focus()
+  await page.keyboard.press('Tab')
+  await expectFocusWithin(publicEditor)
   await page.keyboard.press('Escape')
   await expect(page.getByLabel('Cambios sin guardar')).toContainText('Guarda la ficha')
   await page.getByRole('button', { name: 'Descartar cambios' }).click()

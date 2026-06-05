@@ -623,7 +623,47 @@ interface ScoredQuickSearchEntry {
 
 type QuickSearchCommandEntry = Extract<QuickSearchEntry, { kind: 'command' }>
 
-function closeDialogOnEscape(event: KeyboardEvent<HTMLElement>, onClose: () => void) {
+const dialogFocusableSelector = [
+  'a[href]',
+  'button:not([disabled])',
+  'input:not([disabled]):not([type="hidden"])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+].join(',')
+
+function getDialogFocusableElements(container: HTMLElement) {
+  return Array.from(container.querySelectorAll<HTMLElement>(dialogFocusableSelector)).filter(
+    (element) => element.getClientRects().length > 0 && !element.closest('[aria-hidden="true"]'),
+  )
+}
+
+function trapDialogFocus(event: KeyboardEvent<HTMLElement>) {
+  if (event.key !== 'Tab' || event.defaultPrevented) return
+  const focusableElements = getDialogFocusableElements(event.currentTarget)
+  if (!focusableElements.length) return
+
+  const firstElement = focusableElements[0]
+  const lastElement = focusableElements[focusableElements.length - 1]
+  const activeElement = document.activeElement
+
+  if (event.shiftKey && (activeElement === firstElement || !event.currentTarget.contains(activeElement))) {
+    event.preventDefault()
+    lastElement.focus()
+    return
+  }
+
+  if (!event.shiftKey && activeElement === lastElement) {
+    event.preventDefault()
+    firstElement.focus()
+  }
+}
+
+function handleDialogKeyDown(event: KeyboardEvent<HTMLElement>, onClose: () => void) {
+  if (event.key === 'Tab') {
+    trapDialogFocus(event)
+    return
+  }
   if (event.key !== 'Escape') return
   event.preventDefault()
   event.stopPropagation()
@@ -3109,9 +3149,7 @@ function QuickSearchDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="quick-search-title"
-        onKeyDown={(event) => {
-          if (event.key === 'Escape') onClose()
-        }}
+        onKeyDown={(event) => handleDialogKeyDown(event, onClose)}
       >
         <div className="panel-heading compact">
           <div>
@@ -5654,7 +5692,7 @@ function LibraryTab({
             aria-modal="true"
             className="confirm-dialog"
             role="dialog"
-            onKeyDown={(event) => closeDialogOnEscape(event, () => setDeleteTarget(undefined))}
+            onKeyDown={(event) => handleDialogKeyDown(event, () => setDeleteTarget(undefined))}
             onSubmit={(event) => {
               event.preventDefault()
               void deleteSingleItem()
@@ -5685,7 +5723,7 @@ function LibraryTab({
             className="confirm-dialog"
             role="dialog"
             onKeyDown={(event) =>
-              closeDialogOnEscape(event, () => {
+              handleDialogKeyDown(event, () => {
                 setSelectedDeleteDialogOpen(false)
                 setSelectedDeleteConfirmText('')
               })
@@ -5742,7 +5780,7 @@ function LibraryTab({
             className="confirm-dialog"
             role="dialog"
             onKeyDown={(event) =>
-              closeDialogOnEscape(event, () => {
+              handleDialogKeyDown(event, () => {
                 setDeleteDialogOpen(false)
                 setDeleteConfirmText('')
               })
@@ -9636,7 +9674,7 @@ function CurationTab({
             role="dialog"
             aria-modal="true"
             aria-labelledby="archive-title"
-            onKeyDown={(event) => closeDialogOnEscape(event, () => setArchiveTarget(undefined))}
+            onKeyDown={(event) => handleDialogKeyDown(event, () => setArchiveTarget(undefined))}
           >
             <div className="panel-heading compact">
               <div>
@@ -10267,7 +10305,7 @@ function CandidateDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="candidate-detail-title"
-        onKeyDown={(event) => closeDialogOnEscape(event, onClose)}
+        onKeyDown={(event) => handleDialogKeyDown(event, onClose)}
       >
         <button className="icon-button dialog-close" type="button" autoFocus onClick={onClose} title="Cerrar">
           <X size={18} />
@@ -10422,7 +10460,7 @@ function ItemEditor({
         role="dialog"
         aria-modal="true"
         aria-labelledby="item-editor-title"
-        onKeyDown={(event) => closeDialogOnEscape(event, requestClose)}
+        onKeyDown={(event) => handleDialogKeyDown(event, requestClose)}
         onSubmit={(event) => {
           event.preventDefault()
           const priorityWeight = Number(draft.weights.priority)
@@ -10892,7 +10930,7 @@ function PublicItemEditor({
         role="dialog"
         aria-modal="true"
         aria-labelledby="public-item-editor-title"
-        onKeyDown={(event) => closeDialogOnEscape(event, requestClose)}
+        onKeyDown={(event) => handleDialogKeyDown(event, requestClose)}
         onSubmit={(event) => {
           event.preventDefault()
           const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null
