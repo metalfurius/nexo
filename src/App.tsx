@@ -8402,6 +8402,12 @@ function SettingsTab({
                   <strong>{option.label}</strong>
                   <small>{option.detail}</small>
                 </span>
+                {draft.theme === option.id && (
+                  <span className="theme-option-status" aria-hidden="true">
+                    <Check size={13} />
+                    Actual
+                  </span>
+                )}
               </button>
             ))}
           </div>

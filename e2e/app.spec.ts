@@ -1157,7 +1157,9 @@ test('global theme menu stays in sync with settings', async ({ page }) => {
 
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'rose')
   await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#fff5f8')
-  await expect(page.getByRole('button', { name: 'Tema Rosa', exact: true })).toHaveClass(/active/)
+  const roseThemeButton = page.getByRole('button', { name: 'Tema Rosa', exact: true })
+  await expect(roseThemeButton).toHaveClass(/active/)
+  await expect(roseThemeButton.locator('.theme-option-status')).toContainText('Actual')
   await expect(page.getByRole('button', { name: 'Guardado', exact: true })).toBeDisabled()
   await expect(page.getByLabel('Salida con cambios pendientes')).not.toBeVisible()
 
