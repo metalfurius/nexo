@@ -68,6 +68,21 @@ describe('recommendations', () => {
     expect(result?.item.status).not.toBe('completed')
   })
 
+  it('blocks recommendations by genre, tag or mood signal', () => {
+    const candidates = scoreCandidates(
+      [
+        baseItem({ id: 'genre', title: 'Genre blocked', genres: ['Terror'] }),
+        baseItem({ id: 'tag', title: 'Tag blocked', tags: ['gore'] }),
+        baseItem({ id: 'mood', title: 'Mood blocked', moodTags: ['oscuro'] }),
+        baseItem({ id: 'safe', title: 'Safe', genres: ['Aventura'], moodTags: ['ligero'] }),
+      ],
+      prefs,
+      { ...DEFAULT_SETTINGS, blockedTags: ['terror', 'gore', 'oscuro'] },
+    )
+
+    expect(candidates.map((candidate) => candidate.item.id)).toEqual(['safe'])
+  })
+
   it('penalizes very recent recommendations so the dice does not repeat the same top item', () => {
     const candidates = scoreCandidates(
       [

@@ -59,21 +59,23 @@ describe('dice insights', () => {
           recommendationCooldownUntil: '2026-06-04T12:00:00.000Z',
         }),
         item({ id: 'medium', title: 'Medium', type: 'book' }),
-        item({ id: 'blocked', title: 'Blocked', tags: ['terror'] }),
+        item({ id: 'blocked-tag', title: 'Blocked tag', tags: ['terror'] }),
+        item({ id: 'blocked-genre', title: 'Blocked genre', genres: ['Gore'] }),
+        item({ id: 'blocked-mood', title: 'Blocked mood', moodTags: ['oscuro'] }),
       ],
       preferences,
-      { ...DEFAULT_SETTINGS, blockedTags: ['Terror'] },
+      { ...DEFAULT_SETTINGS, blockedTags: ['Terror', 'gore', 'Oscuro'] },
       now,
     )
 
     expect(breakdown).toEqual({
       available: 1,
-      blockedTags: 1,
+      blockedTags: 3,
       cooldown: 1,
       medium: 1,
       paused: 1,
       resolved: 1,
-      total: 6,
+      total: 8,
     })
   })
 
@@ -109,7 +111,7 @@ describe('dice insights', () => {
       'Energia: Alta',
       'Novedad: Sorpresa',
       'Incluye pausados',
-      '2 tags bloqueados',
+      '2 senales bloqueadas',
     ])
   })
 

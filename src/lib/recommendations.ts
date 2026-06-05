@@ -59,7 +59,7 @@ export function scoreCandidates(
       }
       if (preferences.medium === 'watch') return WATCH_TYPES.includes(item.type)
       if (preferences.medium !== 'any' && item.type !== preferences.medium) return false
-      return !settings.blockedTags.some((tag) => item.tags.map(normalizeKey).includes(normalizeKey(tag)))
+      return !hasBlockedSignal(item, settings)
     })
     .map((item) => scoreItem(item, preferences, likedSignals, now))
     .sort((a, b) => b.score - a.score || a.item.title.localeCompare(b.item.title, 'es'))
@@ -218,6 +218,11 @@ function collectLikedSignals(items: ListItem[], settings: UserSettings) {
   }
 
   return { tags, genres }
+}
+
+function hasBlockedSignal(item: ListItem, settings: UserSettings) {
+  const itemSignals = new Set([...item.genres, ...item.tags, ...item.moodTags].map(normalizeKey))
+  return settings.blockedTags.some((tag) => itemSignals.has(normalizeKey(tag)))
 }
 
 function getMoodKeys(item: ListItem) {

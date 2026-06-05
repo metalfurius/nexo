@@ -6407,7 +6407,7 @@ function DiceTab({
             icon={AlertTriangle}
             tone="warning"
             title="No hay tirada posible"
-            detail="Cambia medio, tiempo, tags bloqueados o incluye pausados para abrir el abanico."
+            detail="Cambia medio, tiempo, senales bloqueadas o incluye pausados para abrir el abanico."
           />
         ) : (
           <EmptyState icon={Dice5} title="El dado espera" detail="Ajusta el clima de la sesion y tira cuando quieras una recomendacion." />
@@ -8137,7 +8137,7 @@ function SettingsTab({
             <input value={draft.favoriteGenres} onChange={(event) => updateDraft((current) => ({ ...current, favoriteGenres: event.target.value }))} />
           </label>
           <label>
-            Tags bloqueados
+            Senales bloqueadas
             <input value={draft.blockedTags} onChange={(event) => updateDraft((current) => ({ ...current, blockedTags: event.target.value }))} />
           </label>
           {privateDataHealth.tasteSuggestions.length > 0 && (
@@ -11194,7 +11194,7 @@ function DiceEligibilityPanel({
     { label: 'Pausadas', value: breakdown.paused },
     { label: 'Cooldown', value: breakdown.cooldown },
     { label: 'Medio', value: breakdown.medium },
-    { label: 'Tags bloqueados', value: breakdown.blockedTags },
+    { label: 'Senales bloqueadas', value: breakdown.blockedTags },
   ].filter((row) => row.value > 0)
 
   return (

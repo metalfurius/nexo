@@ -84,7 +84,7 @@ export function getDiceEligibilityBreakdown(
     resolved: 0,
     total: items.length,
   }
-  const blockedTagKeys = settings.blockedTags.map(normalizeKey)
+  const blockedTagKeys = new Set(settings.blockedTags.map(normalizeKey))
 
   for (const item of items) {
     if (item.status === 'completed' || item.status === 'dropped') {
@@ -103,7 +103,7 @@ export function getDiceEligibilityBreakdown(
       breakdown.medium += 1
       continue
     }
-    if (blockedTagKeys.some((tag) => item.tags.map(normalizeKey).includes(tag))) {
+    if ([...item.genres, ...item.tags, ...item.moodTags].some((signal) => blockedTagKeys.has(normalizeKey(signal)))) {
       breakdown.blockedTags += 1
       continue
     }
@@ -126,7 +126,7 @@ export function getActiveDiceFilters(preferences: RecommendationPreferences, set
     `Energia: ${diceEnergyLabels[preferences.energy]}`,
     `Novedad: ${diceNoveltyLabels[preferences.novelty]}`,
     preferences.includePaused ? 'Incluye pausados' : 'Pausados fuera',
-    settings.blockedTags.length ? `${settings.blockedTags.length} tags bloqueados` : 'Sin tags bloqueados',
+    settings.blockedTags.length ? `${settings.blockedTags.length} senales bloqueadas` : 'Sin senales bloqueadas',
   ]
 }
 
