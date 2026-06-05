@@ -3292,6 +3292,7 @@ function LibraryTab({
   const [cooldownUndo, setCooldownUndo] = useState<LibraryCooldownUndo | undefined>()
   const [priorityUndo, setPriorityUndo] = useState<LibraryPriorityUndo | undefined>()
   const [pendingLibraryImport, setPendingLibraryImport] = useState<PendingBackupImport | undefined>()
+  const [applyLibraryImportSettings, setApplyLibraryImportSettings] = useState(false)
   const [libraryImportUndo, setLibraryImportUndo] = useState<LibraryImportRollbackPlan | undefined>()
   const [libraryLinkCopy, setLibraryLinkCopy] = useState<{ title: string; url: string } | undefined>()
   const [importStatus, setImportStatus] = useState<string | undefined>()
@@ -3413,10 +3414,12 @@ function LibraryTab({
       const payload = parseLibraryImportPayload(JSON.parse(await file.text()))
       const summary = getLibraryImportSummary(payload, library.items)
       setPendingLibraryImport({ fileName: file.name, payload, summary })
+      setApplyLibraryImportSettings(Boolean(payload.settings))
       setSelectedItemIds([])
       setImportStatus(`Backup preparado: ${formatBackupImportSummary(summary)}`)
     } catch (reason) {
       setPendingLibraryImport(undefined)
+      setApplyLibraryImportSettings(false)
       setImportStatus(reason instanceof Error ? reason.message : 'No se pudo importar el archivo')
     }
   }
@@ -3427,22 +3430,24 @@ function LibraryTab({
     setImportStatus('Importando biblioteca...')
     try {
       const { payload, summary } = pendingLibraryImport
-      const rollbackPlan = getLibraryImportRollbackPlan(payload, library.items, library.settings)
+      const shouldApplySettings = applyLibraryImportSettings && Boolean(payload.settings)
+      const payloadToApply: ParsedLibraryImport = shouldApplySettings ? payload : { ...payload, settings: undefined }
+      const rollbackPlan = getLibraryImportRollbackPlan(payloadToApply, library.items, library.settings)
 
       for (const item of payload.items) {
         await library.saveItem(item)
       }
-      if (payload.settings) {
+      if (shouldApplySettings && payload.settings) {
         await library.saveSettings(payload.settings)
         setTheme(payload.settings.theme)
       }
       setImportStatus(
-        payload.settings
+        shouldApplySettings
           ? `Importadas ${summary.totalItems} entradas y ajustes`
           : `Importadas ${summary.totalItems} entradas`,
       )
       onActivity({
-        detail: payload.settings ? `${summary.totalItems} entradas y ajustes` : `${summary.totalItems} entradas`,
+        detail: shouldApplySettings ? `${summary.totalItems} entradas y ajustes` : `${summary.totalItems} entradas`,
         label: 'Backup privado aplicado',
         tab: 'library',
         tone: 'success',
@@ -3454,6 +3459,7 @@ function LibraryTab({
       setPriorityUndo(undefined)
       setLibraryImportUndo(rollbackPlan)
       setPendingLibraryImport(undefined)
+      setApplyLibraryImportSettings(false)
       setSelectedItemIds([])
     } catch (reason) {
       setImportStatus(reason instanceof Error ? reason.message : 'No se pudo importar el archivo')
@@ -3462,6 +3468,7 @@ function LibraryTab({
 
   function cancelLibraryImportFile() {
     setPendingLibraryImport(undefined)
+    setApplyLibraryImportSettings(false)
     setImportStatus('Importacion de backup cancelada')
   }
 
@@ -4915,6 +4922,16 @@ function LibraryTab({
               <span>{formatBackupImportSummary(pendingLibraryImport.summary)}</span>
               <small>{pendingLibraryImport.summary.totalItems} entradas revisadas antes de aplicar</small>
             </div>
+            {pendingLibraryImport.summary.settingsIncluded && (
+              <label className="check-row">
+                <input
+                  checked={applyLibraryImportSettings}
+                  type="checkbox"
+                  onChange={(event) => setApplyLibraryImportSettings(event.target.checked)}
+                />
+                Aplicar ajustes del backup
+              </label>
+            )}
             <div className="action-row end">
               <button className="ghost-button" type="button" onClick={cancelLibraryImportFile}>
                 <X size={16} />
@@ -7207,6 +7224,7 @@ function SettingsTab({
   const [settingsImportUndo, setSettingsImportUndo] = useState<LibraryImportRollbackPlan | undefined>()
   const [editingItem, setEditingItem] = useState<ListItem | undefined>()
   const [pendingBackupImport, setPendingBackupImport] = useState<PendingBackupImport | undefined>()
+  const [applyBackupImportSettings, setApplyBackupImportSettings] = useState(false)
   const handledSaveRequestId = useRef<number | undefined>(undefined)
   const handledTasteSuggestionsRequestId = useRef<number | undefined>(undefined)
   const handledTaxonomyRepairRequestId = useRef<number | undefined>(undefined)
@@ -7310,6 +7328,7 @@ function SettingsTab({
     setTheme(draft.theme)
     await library.saveSettings(nextSettings)
     setPendingBackupImport(undefined)
+    setApplyBackupImportSettings(false)
     setPrivateTaxonomyUndoItems([])
     setSettingsImportUndo(undefined)
     setSettingsUndo(previousSettings)
@@ -7345,6 +7364,7 @@ function SettingsTab({
       setDraft(settingsDraftFromSettings(previousSettings))
       setSettingsUndo(undefined)
       setPendingBackupImport(undefined)
+      setApplyBackupImportSettings(false)
       setPrivateTaxonomyUndoItems([])
       setSettingsImportUndo(undefined)
       setStatus('Ajustes recuperados')
@@ -7386,9 +7406,11 @@ function SettingsTab({
       setPrivateTaxonomyUndoItems([])
       setSettingsImportUndo(undefined)
       setPendingBackupImport({ fileName: file.name, payload, summary })
+      setApplyBackupImportSettings(Boolean(payload.settings))
       setStatus(`Backup preparado: ${formatBackupImportSummary(summary)}`)
     } catch (reason) {
       setPendingBackupImport(undefined)
+      setApplyBackupImportSettings(false)
       setStatus(reason instanceof Error ? reason.message : 'No se pudo importar el backup.')
     }
   }
@@ -7399,12 +7421,14 @@ function SettingsTab({
     setStatus('Importando backup JSON...')
     try {
       const { payload, summary } = pendingBackupImport
-      const rollbackPlan = getLibraryImportRollbackPlan(payload, library.items, library.settings)
+      const shouldApplySettings = applyBackupImportSettings && Boolean(payload.settings)
+      const payloadToApply: ParsedLibraryImport = shouldApplySettings ? payload : { ...payload, settings: undefined }
+      const rollbackPlan = getLibraryImportRollbackPlan(payloadToApply, library.items, library.settings)
 
       for (const item of payload.items) {
         await library.saveItem(item)
       }
-      if (payload.settings) {
+      if (shouldApplySettings && payload.settings) {
         await library.saveSettings(payload.settings)
         setTheme(payload.settings.theme)
         setDraft(settingsDraftFromSettings(payload.settings))
@@ -7414,17 +7438,18 @@ function SettingsTab({
       setSettingsUndo(undefined)
       setSettingsImportUndo(rollbackPlan)
       setStatus(
-        payload.settings
+        shouldApplySettings
           ? `Importadas ${summary.totalItems} entradas y ajustes desde backup`
           : `Importadas ${summary.totalItems} entradas desde backup`,
       )
       onActivity({
-        detail: payload.settings ? `${summary.totalItems} entradas y ajustes` : `${summary.totalItems} entradas`,
+        detail: shouldApplySettings ? `${summary.totalItems} entradas y ajustes` : `${summary.totalItems} entradas`,
         label: 'Backup privado aplicado',
         tab: 'settings',
         tone: 'success',
       })
       setPendingBackupImport(undefined)
+      setApplyBackupImportSettings(false)
     } catch (reason) {
       setStatus(reason instanceof Error ? reason.message : 'No se pudo importar el backup.')
     }
@@ -7432,6 +7457,7 @@ function SettingsTab({
 
   function cancelPrivateBackupImport() {
     setPendingBackupImport(undefined)
+    setApplyBackupImportSettings(false)
     setStatus('Importacion de backup cancelada')
   }
 
@@ -7452,6 +7478,7 @@ function SettingsTab({
         setDraft(settingsDraftFromSettings(settingsImportUndo.previousSettings))
       }
       setSettingsImportUndo(undefined)
+      setApplyBackupImportSettings(false)
       setPrivateTaxonomyUndoItems([])
       setStatus(formatLibraryImportRollbackStatus(settingsImportUndo))
       onActivity({
@@ -7989,6 +8016,16 @@ function SettingsTab({
                   <span>{formatBackupImportSummary(pendingBackupImport.summary)}</span>
                   <small>{pendingBackupImport.summary.totalItems} entradas revisadas antes de aplicar</small>
                 </div>
+                {pendingBackupImport.summary.settingsIncluded && (
+                  <label className="check-row">
+                    <input
+                      checked={applyBackupImportSettings}
+                      type="checkbox"
+                      onChange={(event) => setApplyBackupImportSettings(event.target.checked)}
+                    />
+                    Aplicar ajustes del backup
+                  </label>
+                )}
                 <div className="action-row end">
                   <button className="ghost-button" type="button" onClick={cancelPrivateBackupImport}>
                     <X size={16} />
