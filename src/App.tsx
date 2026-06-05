@@ -202,6 +202,7 @@ const libraryViewLabels: Record<LibraryViewMode, string> = {
 }
 
 type LibraryPriorityLevel = 'low' | 'normal' | 'high'
+type LibrarySelectionSignalKind = 'genre' | 'mood' | 'tag'
 
 const libraryPriorityOptions: Array<{
   detail: string
@@ -213,6 +214,12 @@ const libraryPriorityOptions: Array<{
   { detail: 'Peso equilibrado para el dado', id: 'normal', label: 'Foco normal', value: 1 },
   { detail: 'Subir en la cola del dado', id: 'high', label: 'Foco alto', value: 1.35 },
 ]
+
+const librarySelectionSignalLabels: Record<LibrarySelectionSignalKind, { plural: string; singular: string; title: string }> = {
+  genre: { plural: 'generos', singular: 'genero', title: 'genero' },
+  mood: { plural: 'mood tags', singular: 'mood tag', title: 'mood' },
+  tag: { plural: 'tags', singular: 'tag', title: 'tag' },
+}
 
 const roleLabels: Record<UserRole, string> = {
   admin: 'Admin',
@@ -400,9 +407,10 @@ interface LibrarySelectedPriorityRequest {
   requestId: number
 }
 
-interface LibrarySelectedTagsRequest {
+interface LibrarySelectedSignalsRequest {
+  kind: LibrarySelectionSignalKind
   requestId: number
-  tags: string[]
+  values: string[]
 }
 
 interface LibrarySelectedExportRequest {
@@ -487,7 +495,7 @@ type PendingNavigation = {
   librarySelectedExport?: boolean
   librarySelectedPriority?: LibraryPriorityLevel
   librarySelectedStatus?: ItemStatus
-  librarySelectedTags?: string[]
+  librarySelectedSignals?: { kind: LibrarySelectionSignalKind; values: string[] }
   librarySortMode?: LibrarySortMode
   libraryStatusFilter?: ItemStatus
   librarySmartView?: LibrarySmartView
@@ -818,7 +826,7 @@ function App() {
   const [librarySelectedExportRequest, setLibrarySelectedExportRequest] = useState<LibrarySelectedExportRequest | undefined>()
   const [librarySelectedPriorityRequest, setLibrarySelectedPriorityRequest] = useState<LibrarySelectedPriorityRequest | undefined>()
   const [librarySelectedStatusRequest, setLibrarySelectedStatusRequest] = useState<LibrarySelectedStatusRequest | undefined>()
-  const [librarySelectedTagsRequest, setLibrarySelectedTagsRequest] = useState<LibrarySelectedTagsRequest | undefined>()
+  const [librarySelectedSignalsRequest, setLibrarySelectedSignalsRequest] = useState<LibrarySelectedSignalsRequest | undefined>()
   const [librarySortModeRequest, setLibrarySortModeRequest] = useState<LibrarySortModeRequest | undefined>()
   const [libraryStatusFilterRequest, setLibraryStatusFilterRequest] = useState<LibraryStatusFilterRequest | undefined>()
   const [librarySmartViewRequest, setLibrarySmartViewRequest] = useState<LibrarySmartViewRequest | undefined>()
@@ -1162,11 +1170,11 @@ function App() {
     setLibrarySelectedPriorityRequest((current) => ({ level, requestId: (current?.requestId ?? 0) + 1 }))
   }
 
-  function requestLibrarySelectedTags(tags: string[]) {
-    const nextTags = uniqueNormalizedValues(tags)
-    if (!nextTags.length) return
+  function requestLibrarySelectedSignals(kind: LibrarySelectionSignalKind, values: string[]) {
+    const nextValues = uniqueNormalizedValues(values)
+    if (!nextValues.length) return
 
-    setLibrarySelectedTagsRequest((current) => ({ requestId: (current?.requestId ?? 0) + 1, tags: nextTags }))
+    setLibrarySelectedSignalsRequest((current) => ({ kind, requestId: (current?.requestId ?? 0) + 1, values: nextValues }))
   }
 
   function requestDiceRoll() {
@@ -1655,21 +1663,21 @@ function App() {
     writeAppTabToUrl('library', 'push')
   }
 
-  function applyLibrarySelectedTagsFromPalette(tags: string[]) {
+  function applyLibrarySelectedSignalsFromPalette(kind: LibrarySelectionSignalKind, values: string[]) {
     setQuickSearchOpen(false)
     if (activeTab === 'library') {
       setActivityFocus(undefined)
-      requestLibrarySelectedTags(tags)
+      requestLibrarySelectedSignals(kind, values)
       writeAppTabToUrl('library', 'push')
       return
     }
     if (tabsWithUnsavedChanges[activeTab]) {
-      setPendingNavigation({ librarySelectedTags: tags, source: 'app', tab: 'library' })
+      setPendingNavigation({ librarySelectedSignals: { kind, values }, source: 'app', tab: 'library' })
       return
     }
 
     setActivityFocus(undefined)
-    requestLibrarySelectedTags(tags)
+    requestLibrarySelectedSignals(kind, values)
     setActiveTabState('library')
     writeAppTabToUrl('library', 'push')
   }
@@ -1806,7 +1814,7 @@ function App() {
       librarySelectedExport,
       librarySelectedPriority,
       librarySelectedStatus,
-      librarySelectedTags,
+      librarySelectedSignals,
       librarySortMode,
       libraryStatusFilter,
       librarySmartView,
@@ -1874,8 +1882,8 @@ function App() {
     if (librarySelectedStatus) {
       requestLibrarySelectedStatus(librarySelectedStatus)
     }
-    if (librarySelectedTags) {
-      requestLibrarySelectedTags(librarySelectedTags)
+    if (librarySelectedSignals) {
+      requestLibrarySelectedSignals(librarySelectedSignals.kind, librarySelectedSignals.values)
     }
     if (librarySortMode) {
       requestLibrarySortMode(librarySortMode)
@@ -1939,31 +1947,44 @@ function App() {
     const currentKeys = suggestion.kind === 'genre' ? quickSearchFavoriteGenreKeys : quickSearchFavoriteTagKeys
     return !currentKeys.has(normalizeKey(suggestion.label))
   }).length
-  const quickSearchLibraryTagCounts = library.items.reduce<Map<string, number>>((counts, item) => {
-    for (const tag of item.tags) {
-      const key = normalizeKey(tag)
+  const quickSearchLibrarySignalCounts = (kind: LibrarySelectionSignalKind) => library.items.reduce<Map<string, number>>((counts, item) => {
+    for (const signal of getLibrarySelectionSignals(item, kind)) {
+      const key = normalizeKey(signal)
       if (key) counts.set(key, (counts.get(key) ?? 0) + 1)
     }
     return counts
   }, new Map())
-  const quickSearchSelectionTagOptions = uniqueNormalizedValues([
-    ...library.settings.favoriteTags,
-    ...library.items.flatMap((item) => item.tags),
-  ])
-    .map((label) => {
-      const key = normalizeKey(label)
-      return {
-        count: quickSearchLibraryTagCounts.get(key) ?? 0,
-        favorite: quickSearchFavoriteTagKeys.has(key),
-        label,
-      }
-    })
-    .sort((left, right) => {
-      if (left.favorite !== right.favorite) return left.favorite ? -1 : 1
-      if (left.count !== right.count) return right.count - left.count
-      return left.label.localeCompare(right.label, 'es')
-    })
-    .slice(0, 8)
+  const quickSearchSelectionSignalOptions = (kind: LibrarySelectionSignalKind) => {
+    const counts = quickSearchLibrarySignalCounts(kind)
+    const favoriteKeys = kind === 'genre' ? quickSearchFavoriteGenreKeys : kind === 'tag' ? quickSearchFavoriteTagKeys : new Set<string>()
+    const values = kind === 'genre'
+      ? [...library.settings.favoriteGenres, ...library.items.flatMap((item) => item.genres)]
+      : kind === 'tag'
+        ? [...library.settings.favoriteTags, ...library.items.flatMap((item) => item.tags)]
+        : library.items.flatMap((item) => item.moodTags)
+
+    return uniqueNormalizedValues(values)
+      .map((label) => {
+        const key = normalizeKey(label)
+        return {
+          count: counts.get(key) ?? 0,
+          favorite: favoriteKeys.has(key),
+          kind,
+          label,
+        }
+      })
+      .sort((left, right) => {
+        if (left.favorite !== right.favorite) return left.favorite ? -1 : 1
+        if (left.count !== right.count) return right.count - left.count
+        return left.label.localeCompare(right.label, 'es')
+      })
+      .slice(0, kind === 'tag' ? 8 : 6)
+  }
+  const quickSearchSelectionSignalOptionsList = [
+    ...quickSearchSelectionSignalOptions('genre'),
+    ...quickSearchSelectionSignalOptions('tag'),
+    ...quickSearchSelectionSignalOptions('mood'),
+  ]
   const quickSearchActivityCommands = library.activityEntries.slice(0, 4).map((entry): QuickSearchCommand => {
     const destinationLabel = activityTabLabels[getActivityDestinationTab(entry)]
 
@@ -2294,16 +2315,16 @@ function App() {
       title: `Seleccion: ${option.label}`,
       tone: 'command',
     })),
-    ...quickSearchSelectionTagOptions.map((option): QuickSearchCommand => ({
+    ...quickSearchSelectionSignalOptionsList.map((option): QuickSearchCommand => ({
       Icon: Plus,
       detail: option.favorite
         ? `${option.count} ${option.count === 1 ? 'entrada' : 'entradas'} / favorito`
         : `${option.count} ${option.count === 1 ? 'entrada' : 'entradas'}`,
-      id: `library-selected-tag-${slugify(option.label)}`,
+      id: `library-selected-${option.kind}-${slugify(option.label)}`,
       meta: 'Biblioteca',
-      run: () => applyLibrarySelectedTagsFromPalette([option.label]),
-      searchText: `biblioteca seleccion seleccionadas tag tags etiqueta senal masivo aplicar ${option.label}`,
-      title: `Seleccion: tag ${option.label}`,
+      run: () => applyLibrarySelectedSignalsFromPalette(option.kind, [option.label]),
+      searchText: `biblioteca seleccion seleccionadas ${librarySelectionSignalLabels[option.kind].singular} ${librarySelectionSignalLabels[option.kind].plural} tags etiqueta senal masivo aplicar ${option.label}`,
+      title: `Seleccion: ${librarySelectionSignalLabels[option.kind].title} ${option.label}`,
       tone: 'command',
     })),
     {
@@ -2568,7 +2589,7 @@ function App() {
             selectedExportRequest={librarySelectedExportRequest}
             selectedPriorityRequest={librarySelectedPriorityRequest}
             selectedStatusRequest={librarySelectedStatusRequest}
-            selectedTagsRequest={librarySelectedTagsRequest}
+            selectedSignalsRequest={librarySelectedSignalsRequest}
             sortModeRequest={librarySortModeRequest}
             statusFilterRequest={libraryStatusFilterRequest}
             smartViewRequest={librarySmartViewRequest}
@@ -3262,8 +3283,9 @@ interface LibraryPriorityUndo {
 }
 
 interface LibraryTagUndo {
-  changes: Array<{ id: string; previousTags: string[]; title: string }>
-  tags: string[]
+  changes: Array<{ id: string; previousValues: string[]; title: string }>
+  kind: LibrarySelectionSignalKind
+  values: string[]
 }
 
 type DeletedLibraryUndoKind = 'all' | 'selection'
@@ -3300,7 +3322,7 @@ function LibraryTab({
   selectedExportRequest,
   selectedPriorityRequest,
   selectedStatusRequest,
-  selectedTagsRequest,
+  selectedSignalsRequest,
   sortModeRequest,
   statusFilterRequest,
   smartViewRequest,
@@ -3328,7 +3350,7 @@ function LibraryTab({
   selectedExportRequest?: LibrarySelectedExportRequest
   selectedPriorityRequest?: LibrarySelectedPriorityRequest
   selectedStatusRequest?: LibrarySelectedStatusRequest
-  selectedTagsRequest?: LibrarySelectedTagsRequest
+  selectedSignalsRequest?: LibrarySelectedSignalsRequest
   sortModeRequest?: LibrarySortModeRequest
   statusFilterRequest?: LibraryStatusFilterRequest
   smartViewRequest?: LibrarySmartViewRequest
@@ -3357,7 +3379,7 @@ function LibraryTab({
   const handledSelectedExportRequestId = useRef<number | undefined>(undefined)
   const handledSelectedPriorityRequestId = useRef<number | undefined>(undefined)
   const handledSelectedStatusRequestId = useRef<number | undefined>(undefined)
-  const handledSelectedTagsRequestId = useRef<number | undefined>(undefined)
+  const handledSelectedSignalsRequestId = useRef<number | undefined>(undefined)
   const handledSortModeRequestId = useRef<number | undefined>(undefined)
   const handledStatusFilterRequestId = useRef<number | undefined>(undefined)
   const [handledSmartViewRequestId, setHandledSmartViewRequestId] = useState<number | undefined>()
@@ -3899,33 +3921,34 @@ function LibraryTab({
     }
   }
 
-  const addSelectedItemsTags = useCallback(async (requestedTags?: string[]) => {
-    const tagsToAdd = requestedTags ? uniqueNormalizedValues(requestedTags) : splitList(bulkTagText)
+  const addSelectedItemsSignals = useCallback(async (kind: LibrarySelectionSignalKind, requestedValues?: string[]) => {
+    const valuesToAdd = requestedValues ? uniqueNormalizedValues(requestedValues) : splitList(bulkTagText)
+    const labels = librarySelectionSignalLabels[kind]
     if (!selectedItems.length) {
       setImportStatus('No hay entradas seleccionadas')
       return
     }
-    if (!tagsToAdd.length) {
-      setImportStatus('Escribe al menos un tag para la seleccion')
+    if (!valuesToAdd.length) {
+      setImportStatus(`Escribe al menos un ${labels.singular} para la seleccion`)
       return
     }
 
-    const tagKeys = new Set(tagsToAdd.map(normalizeKey))
+    const signalKeys = new Set(valuesToAdd.map(normalizeKey))
     const changedItems = selectedItems.filter((item) => {
-      const currentKeys = new Set(item.tags.map(normalizeKey))
-      return [...tagKeys].some((tagKey) => !currentKeys.has(tagKey))
+      const currentKeys = new Set(getLibrarySelectionSignals(item, kind).map(normalizeKey))
+      return [...signalKeys].some((signalKey) => !currentKeys.has(signalKey))
     })
     if (!changedItems.length) {
-      setImportStatus(`La seleccion ya tiene ${tagsToAdd.join(', ')}`)
+      setImportStatus(`La seleccion ya tiene ${valuesToAdd.join(', ')}`)
       return
     }
 
     try {
       for (const item of changedItems) {
-        await library.saveItem({
-          ...item,
-          tags: uniqueNormalizedValues([...item.tags, ...tagsToAdd]),
-        })
+        await library.saveItem(setLibrarySelectionSignals(item, kind, uniqueNormalizedValues([
+          ...getLibrarySelectionSignals(item, kind),
+          ...valuesToAdd,
+        ])))
       }
       setDeletedItemUndo(undefined)
       setDeletedLibraryUndo([])
@@ -3935,44 +3958,43 @@ function LibraryTab({
       setTagUndo({
         changes: changedItems.map((item) => ({
           id: item.id,
-          previousTags: [...item.tags],
+          previousValues: [...getLibrarySelectionSignals(item, kind)],
           title: item.title,
         })),
-        tags: tagsToAdd,
+        kind,
+        values: valuesToAdd,
       })
       setPendingLibraryImport(undefined)
       setLibraryImportUndo(undefined)
       setSelectedItemIds([])
       setBulkTagText('')
-      setImportStatus(`${changedItems.length} entradas etiquetadas con ${tagsToAdd.join(', ')}`)
+      setImportStatus(`${changedItems.length} entradas ${kind === 'tag' ? 'etiquetadas' : 'actualizadas'} con ${valuesToAdd.join(', ')}`)
       onActivity({
-        detail: `${changedItems.length} -> ${tagsToAdd.join(', ')}`,
-        label: 'Tags masivos actualizados',
+        detail: `${changedItems.length} -> ${valuesToAdd.join(', ')}`,
+        label: `${labels.plural.slice(0, 1).toUpperCase()}${labels.plural.slice(1)} masivos actualizados`,
         tab: 'library',
         tone: 'success',
       })
     } catch (reason) {
-      setImportStatus(reason instanceof Error ? reason.message : 'No se pudieron actualizar los tags de la seleccion.')
+      setImportStatus(reason instanceof Error ? reason.message : `No se pudieron actualizar los ${labels.plural} de la seleccion.`)
     }
   }, [bulkTagText, library, onActivity, selectedItems])
 
   async function undoLibraryTagChange() {
     if (!tagUndo) return
+    const labels = librarySelectionSignalLabels[tagUndo.kind]
 
     try {
       for (const change of tagUndo.changes) {
         const item = library.items.find((candidate) => candidate.id === change.id)
         if (!item) continue
 
-        await library.saveItem({
-          ...item,
-          tags: [...change.previousTags],
-        })
+        await library.saveItem(setLibrarySelectionSignals(item, tagUndo.kind, [...change.previousValues]))
       }
-      setImportStatus(`${tagUndo.changes.length} tags recuperados`)
+      setImportStatus(`${tagUndo.changes.length} ${labels.plural} recuperados`)
       onActivity({
-        detail: `${tagUndo.changes.length} entradas / ${tagUndo.tags.join(', ')}`,
-        label: 'Tags recuperados',
+        detail: `${tagUndo.changes.length} entradas / ${tagUndo.values.join(', ')}`,
+        label: `${labels.plural} recuperados`,
         tab: 'library',
         tone: 'success',
       })
@@ -3980,22 +4002,22 @@ function LibraryTab({
       setPendingLibraryImport(undefined)
       setLibraryImportUndo(undefined)
     } catch (reason) {
-      setImportStatus(reason instanceof Error ? reason.message : 'No se pudieron deshacer los tags.')
+      setImportStatus(reason instanceof Error ? reason.message : `No se pudieron deshacer los ${labels.plural}.`)
     }
   }
 
   useEffect(() => {
-    if (!selectedTagsRequest || handledSelectedTagsRequestId.current === selectedTagsRequest.requestId) return
+    if (!selectedSignalsRequest || handledSelectedSignalsRequestId.current === selectedSignalsRequest.requestId) return
 
     const timeoutId = window.setTimeout(() => {
-      if (handledSelectedTagsRequestId.current === selectedTagsRequest.requestId) return
+      if (handledSelectedSignalsRequestId.current === selectedSignalsRequest.requestId) return
 
-      handledSelectedTagsRequestId.current = selectedTagsRequest.requestId
-      void addSelectedItemsTags(selectedTagsRequest.tags)
+      handledSelectedSignalsRequestId.current = selectedSignalsRequest.requestId
+      void addSelectedItemsSignals(selectedSignalsRequest.kind, selectedSignalsRequest.values)
     }, 0)
 
     return () => window.clearTimeout(timeoutId)
-  }, [addSelectedItemsTags, selectedTagsRequest])
+  }, [addSelectedItemsSignals, selectedSignalsRequest])
 
   function toggleLibraryItemSelection(itemId: string) {
     setSelectedItemIds((current) =>
@@ -5068,7 +5090,7 @@ function LibraryTab({
                   className="secondary-button"
                   disabled={!bulkTagText.trim()}
                   type="button"
-                  onClick={() => void addSelectedItemsTags()}
+                  onClick={() => void addSelectedItemsSignals('tag')}
                 >
                   <Plus size={16} />
                   Añadir tags
@@ -5208,7 +5230,7 @@ function LibraryTab({
             {tagUndo && (
               <button className="secondary-button" type="button" onClick={() => void undoLibraryTagChange()}>
                 <RotateCcw size={16} />
-                Deshacer tags
+                Deshacer {librarySelectionSignalLabels[tagUndo.kind].plural}
               </button>
             )}
           </div>
@@ -9570,6 +9592,18 @@ function CandidateDecisionBriefView({ brief }: { brief: CandidateDecisionBrief }
 
 function downloadLibraryBackup(items: ListItem[], settings: UserSettings | undefined, prefix: string) {
   downloadJsonFile(createLibraryExportPayload(items, settings), `${prefix}-${new Date().toISOString().slice(0, 10)}.json`)
+}
+
+function getLibrarySelectionSignals(item: ListItem, kind: LibrarySelectionSignalKind) {
+  if (kind === 'genre') return item.genres
+  if (kind === 'mood') return item.moodTags
+  return item.tags
+}
+
+function setLibrarySelectionSignals(item: ListItem, kind: LibrarySelectionSignalKind, values: string[]): ListItem {
+  if (kind === 'genre') return { ...item, genres: values }
+  if (kind === 'mood') return { ...item, moodTags: values }
+  return { ...item, tags: values }
 }
 
 function downloadJsonFile(payload: unknown, filename: string) {

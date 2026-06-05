@@ -669,7 +669,7 @@ test('quick search updates focus for the current library selection', async ({ pa
   await expect(page.getByText('No hay entradas seleccionadas')).toBeVisible()
 })
 
-test('quick search adds known tags to the current library selection', async ({ page }) => {
+test('quick search adds known taxonomy signals to the current library selection', async ({ page }) => {
   await page.goto('/')
   await page.getByLabel('Seleccionar Outer Wilds').check()
   await page.getByLabel('Seleccionar Vinland Saga').check()
@@ -688,6 +688,44 @@ test('quick search adds known tags to the current library selection', async ({ p
   await page.getByLabel('Accion reciente de biblioteca').getByRole('button', { name: 'Deshacer tags' }).click()
   await expect(page.getByText('1 tags recuperados')).toBeVisible()
   await expect(page.locator('.item-card', { hasText: 'Vinland Saga' })).not.toContainText('sci-fi')
+
+  await page.getByLabel('Buscar en biblioteca').fill('')
+  await page.getByLabel('Seleccionar Outer Wilds').check()
+  await page.getByLabel('Seleccionar Vinland Saga').check()
+  await expect(page.getByLabel('Seleccion de biblioteca')).toContainText('2 seleccionadas')
+
+  await page.getByRole('button', { name: 'Busqueda rapida' }).click()
+  const genreQuickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  await genreQuickSearch.getByLabel('Buscar en Nexo').fill('seleccion genero misterio')
+  const genreSelectionAction = genreQuickSearch.getByRole('button', { name: 'Ejecutar Seleccion: genero misterio', exact: true })
+  await expect(genreSelectionAction).toHaveAttribute('aria-current', 'true')
+  await genreSelectionAction.click()
+
+  await expect(page.getByText('1 entradas actualizadas con misterio')).toBeVisible()
+  await page.getByLabel('Buscar en biblioteca').fill('Vinland Saga')
+  await expect(page.locator('.item-card', { hasText: 'Vinland Saga' })).toContainText('misterio')
+  await page.getByLabel('Accion reciente de biblioteca').getByRole('button', { name: 'Deshacer generos' }).click()
+  await expect(page.getByText('1 generos recuperados')).toBeVisible()
+  await expect(page.locator('.item-card', { hasText: 'Vinland Saga' })).not.toContainText('misterio')
+
+  await page.getByLabel('Buscar en biblioteca').fill('')
+  await page.getByLabel('Seleccionar Outer Wilds').check()
+  await page.getByLabel('Seleccionar Vinland Saga').check()
+  await expect(page.getByLabel('Seleccion de biblioteca')).toContainText('2 seleccionadas')
+
+  await page.getByRole('button', { name: 'Busqueda rapida' }).click()
+  const moodQuickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  await moodQuickSearch.getByLabel('Buscar en Nexo').fill('seleccion mood intenso')
+  const moodSelectionAction = moodQuickSearch.getByRole('button', { name: 'Ejecutar Seleccion: mood intenso', exact: true })
+  await expect(moodSelectionAction).toHaveAttribute('aria-current', 'true')
+  await moodSelectionAction.click()
+
+  await expect(page.getByText('2 entradas actualizadas con intenso')).toBeVisible()
+  await page.getByLabel('Buscar en biblioteca').fill('Vinland Saga')
+  await expect(page.locator('.item-card', { hasText: 'Vinland Saga' })).toContainText('intenso')
+  await page.getByLabel('Accion reciente de biblioteca').getByRole('button', { name: 'Deshacer mood tags' }).click()
+  await expect(page.getByText('2 mood tags recuperados')).toBeVisible()
+  await expect(page.locator('.item-card', { hasText: 'Vinland Saga' })).not.toContainText('intenso')
 })
 
 test('quick search opens library items through the pending-change guard', async ({ page }) => {
