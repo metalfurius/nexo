@@ -313,6 +313,7 @@ function feedbackToneFromText(message: string): FeedbackTone {
     normalized.includes('borrad') ||
     normalized.includes('deshech') ||
     normalized.includes('archivad') ||
+    normalized.includes('exportad') ||
     normalized.includes('importadas') ||
     normalized.includes('descargad') ||
     normalized.includes('copiad') ||
@@ -399,6 +400,10 @@ interface LibrarySelectedPriorityRequest {
   requestId: number
 }
 
+interface LibrarySelectedExportRequest {
+  requestId: number
+}
+
 interface DiceRollRequest {
   requestId: number
 }
@@ -474,6 +479,7 @@ type PendingNavigation = {
   libraryReview?: LibrarySmartView
   libraryResetView?: boolean
   librarySelectedDiceAction?: LibrarySelectedDiceActionRequest['action']
+  librarySelectedExport?: boolean
   librarySelectedPriority?: LibraryPriorityLevel
   librarySelectedStatus?: ItemStatus
   librarySortMode?: LibrarySortMode
@@ -803,6 +809,7 @@ function App() {
   const [libraryReviewRequest, setLibraryReviewRequest] = useState<LibraryReviewRequest | undefined>()
   const [libraryResetViewRequest, setLibraryResetViewRequest] = useState<LibraryResetViewRequest | undefined>()
   const [librarySelectedDiceActionRequest, setLibrarySelectedDiceActionRequest] = useState<LibrarySelectedDiceActionRequest | undefined>()
+  const [librarySelectedExportRequest, setLibrarySelectedExportRequest] = useState<LibrarySelectedExportRequest | undefined>()
   const [librarySelectedPriorityRequest, setLibrarySelectedPriorityRequest] = useState<LibrarySelectedPriorityRequest | undefined>()
   const [librarySelectedStatusRequest, setLibrarySelectedStatusRequest] = useState<LibrarySelectedStatusRequest | undefined>()
   const [librarySortModeRequest, setLibrarySortModeRequest] = useState<LibrarySortModeRequest | undefined>()
@@ -1138,6 +1145,10 @@ function App() {
 
   function requestLibrarySelectedDiceAction(action: LibrarySelectedDiceActionRequest['action']) {
     setLibrarySelectedDiceActionRequest((current) => ({ action, requestId: (current?.requestId ?? 0) + 1 }))
+  }
+
+  function requestLibrarySelectedExport() {
+    setLibrarySelectedExportRequest((current) => ({ requestId: (current?.requestId ?? 0) + 1 }))
   }
 
   function requestLibrarySelectedPriority(level: LibraryPriorityLevel) {
@@ -1592,6 +1603,25 @@ function App() {
     writeAppTabToUrl('library', 'push')
   }
 
+  function exportLibrarySelectionFromPalette() {
+    setQuickSearchOpen(false)
+    if (activeTab === 'library') {
+      setActivityFocus(undefined)
+      requestLibrarySelectedExport()
+      writeAppTabToUrl('library', 'push')
+      return
+    }
+    if (tabsWithUnsavedChanges[activeTab]) {
+      setPendingNavigation({ librarySelectedExport: true, source: 'app', tab: 'library' })
+      return
+    }
+
+    setActivityFocus(undefined)
+    requestLibrarySelectedExport()
+    setActiveTabState('library')
+    writeAppTabToUrl('library', 'push')
+  }
+
   function applyLibrarySelectedPriorityFromPalette(level: LibraryPriorityLevel) {
     setQuickSearchOpen(false)
     if (activeTab === 'library') {
@@ -1740,6 +1770,7 @@ function App() {
       libraryReview,
       libraryResetView,
       librarySelectedDiceAction,
+      librarySelectedExport,
       librarySelectedPriority,
       librarySelectedStatus,
       librarySortMode,
@@ -1799,6 +1830,9 @@ function App() {
     }
     if (librarySelectedDiceAction) {
       requestLibrarySelectedDiceAction(librarySelectedDiceAction)
+    }
+    if (librarySelectedExport) {
+      requestLibrarySelectedExport()
     }
     if (librarySelectedPriority) {
       requestLibrarySelectedPriority(librarySelectedPriority)
@@ -2037,6 +2071,16 @@ function App() {
       run: exportQuickBackup,
       searchText: 'exportar backup json copia descargar biblioteca',
       title: 'Exportar backup JSON',
+      tone: 'command',
+    },
+    {
+      Icon: Download,
+      detail: 'Descargar solo las fichas seleccionadas',
+      id: 'export-selection',
+      meta: 'Backup',
+      run: exportLibrarySelectionFromPalette,
+      searchText: 'exportar seleccion json backup fichas seleccionadas biblioteca descargar lote',
+      title: 'Exportar seleccion JSON',
       tone: 'command',
     },
     {
@@ -2447,6 +2491,7 @@ function App() {
             resetViewRequest={libraryResetViewRequest}
             reviewRequest={libraryReviewRequest}
             selectedDiceActionRequest={librarySelectedDiceActionRequest}
+            selectedExportRequest={librarySelectedExportRequest}
             selectedPriorityRequest={librarySelectedPriorityRequest}
             selectedStatusRequest={librarySelectedStatusRequest}
             sortModeRequest={librarySortModeRequest}
@@ -3172,6 +3217,7 @@ function LibraryTab({
   resetViewRequest,
   reviewRequest,
   selectedDiceActionRequest,
+  selectedExportRequest,
   selectedPriorityRequest,
   selectedStatusRequest,
   sortModeRequest,
@@ -3198,6 +3244,7 @@ function LibraryTab({
   resetViewRequest?: LibraryResetViewRequest
   reviewRequest?: LibraryReviewRequest
   selectedDiceActionRequest?: LibrarySelectedDiceActionRequest
+  selectedExportRequest?: LibrarySelectedExportRequest
   selectedPriorityRequest?: LibrarySelectedPriorityRequest
   selectedStatusRequest?: LibrarySelectedStatusRequest
   sortModeRequest?: LibrarySortModeRequest
@@ -3225,6 +3272,7 @@ function LibraryTab({
   const [handledDraftRequestId, setHandledDraftRequestId] = useState<string | undefined>()
   const handledResetViewRequestId = useRef<number | undefined>(undefined)
   const handledSelectedDiceActionRequestId = useRef<number | undefined>(undefined)
+  const handledSelectedExportRequestId = useRef<number | undefined>(undefined)
   const handledSelectedPriorityRequestId = useRef<number | undefined>(undefined)
   const handledSelectedStatusRequestId = useRef<number | undefined>(undefined)
   const handledSortModeRequestId = useRef<number | undefined>(undefined)
@@ -4066,6 +4114,35 @@ function LibraryTab({
     })
   }
 
+  const exportSelectedItems = useCallback(() => {
+    if (!selectedItems.length) {
+      setImportStatus('No hay entradas seleccionadas')
+      return
+    }
+
+    downloadLibraryBackup(selectedItems, library.settings, 'nexo-selection')
+    setImportStatus(`${selectedItems.length} entradas seleccionadas exportadas`)
+    onActivity({
+      detail: `${selectedItems.length} entradas exportadas`,
+      label: 'Seleccion exportada',
+      tab: 'library',
+      tone: 'success',
+    })
+  }, [library.settings, onActivity, selectedItems])
+
+  useEffect(() => {
+    if (!selectedExportRequest || handledSelectedExportRequestId.current === selectedExportRequest.requestId) return
+
+    const timeoutId = window.setTimeout(() => {
+      if (handledSelectedExportRequestId.current === selectedExportRequest.requestId) return
+
+      handledSelectedExportRequestId.current = selectedExportRequest.requestId
+      exportSelectedItems()
+    }, 0)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [exportSelectedItems, selectedExportRequest])
+
   const changeViewMode = useCallback(async (nextViewMode: LibraryViewMode) => {
     if (viewMode === nextViewMode) return
     const nextLabel = libraryViewLabels[nextViewMode]
@@ -4726,6 +4803,10 @@ function LibraryTab({
                   <strong>{selectedItems.length} seleccionadas</strong>
                   <span>{selectedVisibleCount} visibles en esta vista</span>
                 </div>
+                <button className="secondary-button" type="button" onClick={exportSelectedItems}>
+                  <Download size={16} />
+                  Exportar seleccion
+                </button>
                 <label className="bulk-status-control">
                   <span className="sr-only">Estado para seleccion</span>
                   <select

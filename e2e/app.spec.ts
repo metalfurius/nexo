@@ -415,6 +415,34 @@ test('library can update selected visible items in bulk', async ({ page }) => {
   await expect(page.locator('.item-card', { hasText: 'Vinland Saga' }).getByLabel('Pulso de Vinland Saga')).toContainText('Cooldown')
 })
 
+test('library can export the current selection as a scoped backup', async ({ page }) => {
+  await page.goto('/')
+  await page.getByLabel('Seleccionar Outer Wilds').check()
+  await page.getByLabel('Seleccionar Vinland Saga').check()
+  await expect(page.getByLabel('Seleccion de biblioteca')).toContainText('2 seleccionadas')
+
+  const downloadPromise = page.waitForEvent('download')
+  await page.getByRole('button', { name: 'Exportar seleccion' }).click()
+  const download = await downloadPromise
+  expect(download.suggestedFilename()).toMatch(/^nexo-selection-\d{4}-\d{2}-\d{2}\.json$/)
+  const downloadPath = await download.path()
+  expect(downloadPath).toBeTruthy()
+  const payload = JSON.parse(await readFile(downloadPath!, 'utf8')) as { items: Array<{ title: string }>; settings?: unknown }
+  expect(payload.items.map((item) => item.title).sort()).toEqual(['Outer Wilds', 'Vinland Saga'])
+  expect(payload.settings).toBeTruthy()
+  await expect(page.getByText('2 entradas seleccionadas exportadas')).toBeVisible()
+  await expect(page.getByTestId('session-activity')).toContainText('Seleccion exportada')
+
+  await page.getByRole('button', { name: 'Busqueda rapida' }).click()
+  const quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  await quickSearch.getByLabel('Buscar en Nexo').fill('exportar seleccion')
+  await expect(quickSearch.getByRole('button', { name: 'Ejecutar Exportar seleccion JSON' })).toHaveAttribute('aria-current', 'true')
+  const paletteDownloadPromise = page.waitForEvent('download')
+  await quickSearch.getByRole('button', { name: 'Ejecutar Exportar seleccion JSON' }).click()
+  const paletteDownload = await paletteDownloadPromise
+  expect(paletteDownload.suggestedFilename()).toMatch(/^nexo-selection-\d{4}-\d{2}-\d{2}\.json$/)
+})
+
 test('library can delete the current selection with confirmation and undo it', async ({ page }) => {
   await page.goto('/')
   await page.getByLabel('Seleccionar Outer Wilds').check()
