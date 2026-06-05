@@ -951,6 +951,26 @@ test('quick search rolls dice through the pending-change guard', async ({ page }
   await expect(page.getByTestId('recommendation-result')).toContainText('Decision')
 })
 
+test('quick search reviews dice instead of rolling when no candidates exist', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await page.getByLabel('Medio').selectOption('manhwa')
+  await expect(page.getByTestId('dice-readiness')).toContainText('Sin tirada posible')
+
+  await page.keyboard.press('Control+K')
+  const quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  await quickSearch.getByLabel('Buscar en Nexo').fill('tirar')
+  const reviewDiceAction = quickSearch.getByRole('button', { name: 'Ejecutar Revisar dado' })
+  await expect(reviewDiceAction).toHaveAttribute('aria-current', 'true')
+  await expect(reviewDiceAction).toContainText('Sin candidatas con los filtros actuales')
+  await reviewDiceAction.click()
+
+  await expect(quickSearch).not.toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Elige el siguiente hilo' })).toBeVisible()
+  await expect(page.getByTestId('dice-readiness')).toContainText('Sin tirada posible')
+  await expect(page.getByTestId('recommendation-result')).toHaveCount(0)
+})
+
 test('quick search can save pending dice preferences', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Dado', exact: true }).click()

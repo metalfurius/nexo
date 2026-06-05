@@ -450,6 +450,10 @@ interface DiceRollRequest {
   requestId: number
 }
 
+interface DiceRollSummary {
+  candidateCount: number
+}
+
 interface DicePreferencesSaveRequest {
   requestId: number
 }
@@ -544,6 +548,7 @@ interface QuickSearchCommand {
   meta: string
   run: () => void
   searchText: string
+  searchPriority?: number
   title: string
   tone: 'command' | 'create' | 'section'
 }
@@ -879,6 +884,7 @@ function App() {
   const [libraryVisibleSelectionSummary, setLibraryVisibleSelectionSummary] = useState<
     LibraryVisibleSelectionSummary | undefined
   >()
+  const [diceRollSummary, setDiceRollSummary] = useState<DiceRollSummary | undefined>()
   const [quickSearchOpen, setQuickSearchOpen] = useState(false)
   const [themeMenuOpen, setThemeMenuOpen] = useState(false)
   const [serviceWorkerUpdateReady, setServiceWorkerUpdateReady] = useState(false)
@@ -924,6 +930,18 @@ function App() {
     activeTab === 'library' && libraryVisibleSelectionSummary
       ? libraryVisibleSelectionSummary
       : fallbackLibraryVisibleSelectionSummary
+  const fallbackDiceRollSummary = useMemo<DiceRollSummary>(
+    () => ({
+      candidateCount: scoreCandidates(
+        library.items,
+        library.settings.recommendationPreferences ?? DEFAULT_RECOMMENDATION_PREFERENCES,
+        library.settings,
+      ).length,
+    }),
+    [library.items, library.settings],
+  )
+  const quickSearchDiceRollSummary =
+    activeTab === 'dice' && diceRollSummary ? diceRollSummary : fallbackDiceRollSummary
 
   useEffect(() => {
     if (!auth.isFirebaseConfigured) return
@@ -1315,6 +1333,11 @@ function App() {
     requestDiceRoll()
     setActiveTabState('dice')
     writeAppTabToUrl('dice', 'push')
+  }
+
+  function openDiceFromPalette() {
+    setQuickSearchOpen(false)
+    changeActiveTab('dice')
   }
 
   function openExplorerSearchFromPalette(query: string) {
@@ -2078,6 +2101,11 @@ function App() {
   const quickSearchVisibleSelectionDetail = quickSearchVisibleSelectionSummary.allVisibleItemsSelected
     ? `${quickSearchVisibleCountLabel} ${quickSearchVisibleSelectionAdjective}`
     : `${quickSearchVisibleSelectionSummary.selectedVisibleCount} de ${quickSearchVisibleCountLabel} ${quickSearchVisibleSelectionAdjective}`
+  const quickSearchHasDiceCandidates = quickSearchDiceRollSummary.candidateCount > 0
+  const quickSearchDiceCandidateLabel =
+    quickSearchDiceRollSummary.candidateCount === 1
+      ? '1 candidata disponible'
+      : `${quickSearchDiceRollSummary.candidateCount} candidatas disponibles`
   const quickSearchActivityCommands = library.activityEntries.slice(0, 4).map((entry): QuickSearchCommand => {
     const destinationLabel = activityTabLabels[getActivityDestinationTab(entry)]
 
@@ -2203,12 +2231,13 @@ function App() {
       : []),
     {
       Icon: Dice5,
-      detail: 'Tirar una recomendacion ahora',
+      detail: quickSearchHasDiceCandidates ? quickSearchDiceCandidateLabel : 'Sin candidatas con los filtros actuales',
       id: 'roll-dice',
       meta: 'Accion',
-      run: rollDiceFromAction,
-      searchText: 'tirar dado recomendar recomendacion azar decision',
-      title: 'Tirar dado',
+      run: quickSearchHasDiceCandidates ? rollDiceFromAction : openDiceFromPalette,
+      searchPriority: 12,
+      searchText: 'tirar revisar dado recomendar recomendacion azar decision filtros candidatas',
+      title: quickSearchHasDiceCandidates ? 'Tirar dado' : 'Revisar dado',
       tone: 'section',
     },
     ...(activeTab === 'dice' && tabsWithUnsavedChanges.dice
@@ -2743,6 +2772,7 @@ function App() {
             onCooldownReactivateRequestHandled={clearDiceCooldownReactivateRequest}
             onSaveRequestHandled={clearDicePreferencesSaveRequest}
             onRollRequestHandled={clearDiceRollRequest}
+            onRollSummaryChange={setDiceRollSummary}
             onUnsavedChange={reportDiceUnsavedChanges}
           />
         )}
@@ -2906,6 +2936,7 @@ function QuickSearchDialog({
       .filter((result): result is ScoredQuickSearchEntry => Boolean(result))
     const scoredCommandEntries = commandEntries
       .map((entry, index): ScoredQuickSearchEntry | undefined => {
+        const commandSearchKey = normalizeKey(entry.command.searchText)
         const textKey = normalizeKey(`${entry.title} ${entry.detail} ${entry.meta} ${entry.command.searchText}`)
         const titleKey = normalizeKey(entry.title)
         if (!tokens.every((token) => textKey.includes(token))) return undefined
@@ -2917,7 +2948,9 @@ function QuickSearchDialog({
             32 +
             (titleKey === normalizedQuery ? 60 : 0) +
             (titleKey.startsWith(normalizedQuery) ? 34 : 0) +
-            (titleKey.includes(normalizedQuery) ? 18 : 0),
+            (titleKey.includes(normalizedQuery) ? 18 : 0) +
+            (tokens.every((token) => commandSearchKey.split(' ').includes(token)) ? 8 : 0) +
+            (normalizedQuery ? (entry.command.searchPriority ?? 0) : 0),
         }
       })
       .filter((result): result is ScoredQuickSearchEntry => Boolean(result))
@@ -3137,7 +3170,7 @@ function QuickSearchDialog({
                       if (entry.kind === 'item') onOpenItem(entry.item)
                       if (entry.kind === 'tab') onOpenTab(entry.tab)
                     }}
-                    onMouseEnter={() => setActiveResultIndex(index)}
+                    onPointerMove={() => setActiveResultIndex(index)}
                   >
                     <span className={`quick-search-type ${entry.tone}`} aria-hidden="true">
                       <Icon size={16} />
@@ -5744,6 +5777,7 @@ function DiceTab({
   onCooldownReactivateRequestHandled,
   onSaveRequestHandled,
   onRollRequestHandled,
+  onRollSummaryChange,
   onUnsavedChange,
 }: {
   library: LibrarySurface
@@ -5754,6 +5788,7 @@ function DiceTab({
   onCooldownReactivateRequestHandled: () => void
   onSaveRequestHandled: () => void
   onRollRequestHandled: () => void
+  onRollSummaryChange: (summary: DiceRollSummary) => void
   onUnsavedChange: (hasUnsavedChanges: boolean) => void
 }) {
   const [draftPreferences, setDraftPreferences] = useState<RecommendationPreferences | undefined>()
@@ -5806,6 +5841,10 @@ function DiceTab({
     onUnsavedChange(hasUnsavedDicePreferences)
     return () => onUnsavedChange(false)
   }, [hasUnsavedDicePreferences, onUnsavedChange])
+
+  useEffect(() => {
+    onRollSummaryChange({ candidateCount: scoredCandidates.length })
+  }, [onRollSummaryChange, scoredCandidates.length])
 
   const diceRecoveryActions: DiceRecoveryAction[] = [
     ...(cooldownRecoveryItems.length
