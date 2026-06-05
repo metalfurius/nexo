@@ -589,6 +589,27 @@ test('quick search toggles visible library selection through the pending-change 
   await expect(page.getByRole('status').filter({ hasText: '7 visibles seleccionadas' })).toBeVisible()
 })
 
+test('quick search clears the persistent library selection', async ({ page }) => {
+  await page.goto('/')
+  await page.getByLabel('Seleccionar Outer Wilds').check()
+  await page.getByLabel('Seleccionar Vinland Saga').check()
+  await expect(page.getByLabel('Seleccion de biblioteca')).toContainText('2 seleccionadas')
+
+  await page.getByRole('button', { name: 'Busqueda rapida' }).click()
+  const quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  await quickSearch.getByLabel('Buscar en Nexo').fill('limpiar seleccion')
+  const clearSelectionAction = quickSearch.getByRole('button', {
+    name: 'Ejecutar Limpiar seleccion de Biblioteca',
+    exact: true,
+  })
+  await expect(clearSelectionAction).toHaveAttribute('aria-current', 'true')
+  await expect(clearSelectionAction).toContainText('2 seleccionadas')
+  await clearSelectionAction.click()
+
+  await expect(page.getByLabel('Seleccion de biblioteca')).not.toContainText('seleccionadas')
+  await expect(page.getByTestId('session-activity')).toContainText('Seleccion limpiada')
+})
+
 test('quick search applies a status to the current library selection', async ({ page }) => {
   await page.goto('/')
   await page.getByLabel('Seleccionar Outer Wilds').check()

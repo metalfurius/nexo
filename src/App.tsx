@@ -1625,6 +1625,20 @@ function App() {
     writeAppTabToUrl('library', 'push')
   }
 
+  function clearLibrarySelectionFromPalette() {
+    if (!selectedLibraryCount) return
+
+    const clearedCount = selectedLibraryCount
+    setQuickSearchOpen(false)
+    setSelectedLibraryItemIds([])
+    recordVisibleActivity({
+      detail: clearedCount === 1 ? '1 entrada' : `${clearedCount} entradas`,
+      label: 'Seleccion limpiada',
+      tab: 'library',
+      tone: 'info',
+    })
+  }
+
   function applyLibrarySelectedStatusFromPalette(status: ItemStatus) {
     setQuickSearchOpen(false)
     if (activeTab === 'library') {
@@ -2344,6 +2358,20 @@ function App() {
       title: 'Seleccionar visibles de Biblioteca',
       tone: 'command',
     },
+    ...(selectedLibraryCount
+      ? [
+          {
+            Icon: X,
+            detail: quickSearchSelectionLabel,
+            id: 'library-clear-selection',
+            meta: 'Biblioteca',
+            run: clearLibrarySelectionFromPalette,
+            searchText: 'biblioteca limpiar seleccion quitar seleccionadas vaciar seleccion masiva lote',
+            title: 'Limpiar seleccion de Biblioteca',
+            tone: 'command' as const,
+          },
+        ]
+      : []),
     ...ITEM_STATUSES.map((status): QuickSearchCommand => ({
       Icon: status === 'completed' ? Check : status === 'in_progress' ? Play : status === 'paused' ? Pause : status === 'dropped' ? Trash2 : Library,
       detail: quickSearchSelectionDetail,
