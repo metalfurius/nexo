@@ -3137,6 +3137,8 @@ interface LibraryPriorityUndo {
   changes: Array<{ id: string; previousPriority: number; title: string }>
 }
 
+type DeletedLibraryUndoKind = 'all' | 'selection'
+
 interface ActiveLibraryReviewSession {
   detail: string
   id: LibrarySmartView
@@ -3233,6 +3235,7 @@ function LibraryTab({
   const [deleteTarget, setDeleteTarget] = useState<ListItem | undefined>()
   const [deletedItemUndo, setDeletedItemUndo] = useState<ListItem | undefined>()
   const [deletedLibraryUndo, setDeletedLibraryUndo] = useState<ListItem[]>([])
+  const [deletedLibraryUndoKind, setDeletedLibraryUndoKind] = useState<DeletedLibraryUndoKind | undefined>()
   const [statusUndo, setStatusUndo] = useState<LibraryStatusUndo | undefined>()
   const [cooldownUndo, setCooldownUndo] = useState<LibraryCooldownUndo | undefined>()
   const [priorityUndo, setPriorityUndo] = useState<LibraryPriorityUndo | undefined>()
@@ -3242,6 +3245,8 @@ function LibraryTab({
   const [importStatus, setImportStatus] = useState<string | undefined>()
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
+  const [selectedDeleteDialogOpen, setSelectedDeleteDialogOpen] = useState(false)
+  const [selectedDeleteConfirmText, setSelectedDeleteConfirmText] = useState('')
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([])
   const [bulkStatus, setBulkStatus] = useState<ItemStatus>('completed')
   const [bulkPriorityLevel, setBulkPriorityLevel] = useState<LibraryPriorityLevel>('high')
@@ -3452,6 +3457,7 @@ function LibraryTab({
     setLibraryImportUndo(undefined)
     await library.deleteAllItems()
     setDeletedLibraryUndo(deletedItems)
+    setDeletedLibraryUndoKind('all')
     setSelectedItemIds([])
     setDeleteDialogOpen(false)
     setDeleteConfirmText('')
@@ -3459,6 +3465,41 @@ function LibraryTab({
     onActivity({
       detail: `${deletedItems.length} entradas eliminadas`,
       label: 'Biblioteca borrada',
+      tab: 'library',
+      tone: 'success',
+    })
+  }
+
+  async function deleteSelectedItems() {
+    const deletedItems = selectedItems.map((item) => ({ ...item }))
+    if (!deletedItems.length) {
+      setSelectedDeleteDialogOpen(false)
+      setSelectedDeleteConfirmText('')
+      setImportStatus('No hay entradas seleccionadas')
+      return
+    }
+
+    setImportStatus(`Borrando ${deletedItems.length} seleccionadas...`)
+    setDeletedItemUndo(undefined)
+    setDeletedLibraryUndo([])
+    setDeletedLibraryUndoKind(undefined)
+    setStatusUndo(undefined)
+    setCooldownUndo(undefined)
+    setPriorityUndo(undefined)
+    setPendingLibraryImport(undefined)
+    setLibraryImportUndo(undefined)
+    for (const item of deletedItems) {
+      await library.deleteItem(item.id)
+    }
+    setDeletedLibraryUndo(deletedItems)
+    setDeletedLibraryUndoKind('selection')
+    setSelectedItemIds([])
+    setSelectedDeleteDialogOpen(false)
+    setSelectedDeleteConfirmText('')
+    setImportStatus(`${deletedItems.length} entradas borradas de la seleccion`)
+    onActivity({
+      detail: `${deletedItems.length} entradas eliminadas`,
+      label: 'Seleccion borrada',
       tab: 'library',
       tone: 'success',
     })
@@ -3522,11 +3563,12 @@ function LibraryTab({
       setImportStatus(`${deletedLibraryUndo.length} entradas recuperadas en Biblioteca`)
       onActivity({
         detail: `${deletedLibraryUndo.length} entradas restauradas`,
-        label: 'Biblioteca recuperada',
+        label: deletedLibraryUndoKind === 'selection' ? 'Seleccion recuperada' : 'Biblioteca recuperada',
         tab: 'library',
         tone: 'success',
       })
       setDeletedLibraryUndo([])
+      setDeletedLibraryUndoKind(undefined)
       setPendingLibraryImport(undefined)
       setLibraryImportUndo(undefined)
       setCooldownUndo(undefined)
@@ -4738,6 +4780,17 @@ function LibraryTab({
                   <X size={16} />
                   Limpiar
                 </button>
+                <button
+                  className="danger-button"
+                  type="button"
+                  onClick={() => {
+                    setSelectedDeleteConfirmText('')
+                    setSelectedDeleteDialogOpen(true)
+                  }}
+                >
+                  <Trash2 size={16} />
+                  Borrar seleccion
+                </button>
               </>
             )}
           </div>
@@ -4806,7 +4859,7 @@ function LibraryTab({
             {deletedLibraryUndo.length > 0 && (
               <button className="secondary-button" type="button" onClick={() => void undoDeleteEntireLibrary()}>
                 <RotateCcw size={16} />
-                Deshacer borrado total
+                {deletedLibraryUndoKind === 'selection' ? 'Deshacer seleccion' : 'Deshacer borrado total'}
               </button>
             )}
             {statusUndo && (
@@ -4967,6 +5020,57 @@ function LibraryTab({
               <button className="danger-button" type="submit">
                 <Trash2 size={16} />
                 Borrar entrada
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {selectedDeleteDialogOpen && (
+        <div className="modal-backdrop" role="presentation">
+          <form
+            aria-labelledby="delete-selected-title"
+            aria-modal="true"
+            className="confirm-dialog"
+            role="dialog"
+            onSubmit={(event) => {
+              event.preventDefault()
+              if (selectedDeleteConfirmText === 'BORRAR') void deleteSelectedItems()
+            }}
+          >
+            <div>
+              <h2 id="delete-selected-title">Borrar seleccion</h2>
+              <p>
+                Esto elimina {selectedItems.length} entradas privadas seleccionadas. Podras deshacerlo justo despues.
+              </p>
+            </div>
+            <label>
+              Confirmacion
+              <input
+                autoFocus
+                value={selectedDeleteConfirmText}
+                onChange={(event) => setSelectedDeleteConfirmText(event.target.value)}
+                placeholder="BORRAR"
+              />
+            </label>
+            <div className="action-row end">
+              <button
+                className="ghost-button"
+                type="button"
+                onClick={() => {
+                  setSelectedDeleteDialogOpen(false)
+                  setSelectedDeleteConfirmText('')
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                className="danger-button"
+                disabled={selectedDeleteConfirmText !== 'BORRAR' || selectedItems.length === 0}
+                type="submit"
+              >
+                <Trash2 size={16} />
+                Borrar seleccion
               </button>
             </div>
           </form>

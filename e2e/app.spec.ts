@@ -415,6 +415,32 @@ test('library can update selected visible items in bulk', async ({ page }) => {
   await expect(page.locator('.item-card', { hasText: 'Vinland Saga' }).getByLabel('Pulso de Vinland Saga')).toContainText('Cooldown')
 })
 
+test('library can delete the current selection with confirmation and undo it', async ({ page }) => {
+  await page.goto('/')
+  await page.getByLabel('Seleccionar Outer Wilds').check()
+  await page.getByLabel('Seleccionar Vinland Saga').check()
+  await expect(page.getByLabel('Seleccion de biblioteca')).toContainText('2 seleccionadas')
+
+  await page.getByRole('button', { name: 'Borrar seleccion' }).click()
+  const deleteSelectionDialog = page.getByRole('dialog', { name: 'Borrar seleccion' })
+  await expect(deleteSelectionDialog).toContainText('2 entradas privadas seleccionadas')
+  await expect(deleteSelectionDialog.getByRole('button', { name: 'Borrar seleccion' })).toBeDisabled()
+
+  await deleteSelectionDialog.getByLabel('Confirmacion').fill('BORRAR')
+  await deleteSelectionDialog.getByRole('button', { name: 'Borrar seleccion' }).click()
+
+  await expect(page.getByText('2 entradas borradas de la seleccion')).toBeVisible()
+  await expect(page.getByTestId('session-activity')).toContainText('Seleccion borrada')
+  await expect(page.locator('.item-card', { hasText: 'Outer Wilds' })).toHaveCount(0)
+  await expect(page.locator('.item-card', { hasText: 'Vinland Saga' })).toHaveCount(0)
+
+  await page.getByLabel('Accion reciente de biblioteca').getByRole('button', { name: 'Deshacer seleccion' }).click()
+  await expect(page.getByText('2 entradas recuperadas en Biblioteca')).toBeVisible()
+  await expect(page.getByTestId('session-activity')).toContainText('Seleccion recuperada')
+  await expect(page.locator('.item-card', { hasText: 'Outer Wilds' })).toHaveCount(1)
+  await expect(page.locator('.item-card', { hasText: 'Vinland Saga' })).toHaveCount(1)
+})
+
 test('quick search toggles visible library selection through the pending-change guard', async ({ page }) => {
   await page.goto('/')
   await page.getByLabel('Filtrar por tipo').selectOption('game')
