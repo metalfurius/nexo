@@ -202,6 +202,7 @@ const libraryViewLabels: Record<LibraryViewMode, string> = {
 }
 
 type LibraryPriorityLevel = 'low' | 'normal' | 'high'
+type LibrarySelectionSignalAction = 'add' | 'remove'
 type LibrarySelectionSignalKind = 'genre' | 'mood' | 'tag'
 
 const libraryPriorityOptions: Array<{
@@ -418,6 +419,7 @@ interface LibrarySelectedPriorityRequest {
 }
 
 interface LibrarySelectedSignalsRequest {
+  action: LibrarySelectionSignalAction
   kind: LibrarySelectionSignalKind
   requestId: number
   values: string[]
@@ -505,7 +507,7 @@ type PendingNavigation = {
   librarySelectedExport?: boolean
   librarySelectedPriority?: LibraryPriorityLevel
   librarySelectedStatus?: ItemStatus
-  librarySelectedSignals?: { kind: LibrarySelectionSignalKind; values: string[] }
+  librarySelectedSignals?: { action: LibrarySelectionSignalAction; kind: LibrarySelectionSignalKind; values: string[] }
   librarySortMode?: LibrarySortMode
   libraryStatusFilter?: ItemStatus
   librarySmartView?: LibrarySmartView
@@ -1180,11 +1182,16 @@ function App() {
     setLibrarySelectedPriorityRequest((current) => ({ level, requestId: (current?.requestId ?? 0) + 1 }))
   }
 
-  function requestLibrarySelectedSignals(kind: LibrarySelectionSignalKind, values: string[]) {
+  function requestLibrarySelectedSignals(action: LibrarySelectionSignalAction, kind: LibrarySelectionSignalKind, values: string[]) {
     const nextValues = uniqueNormalizedValues(values)
     if (!nextValues.length) return
 
-    setLibrarySelectedSignalsRequest((current) => ({ kind, requestId: (current?.requestId ?? 0) + 1, values: nextValues }))
+    setLibrarySelectedSignalsRequest((current) => ({
+      action,
+      kind,
+      requestId: (current?.requestId ?? 0) + 1,
+      values: nextValues,
+    }))
   }
 
   function requestDiceRoll() {
@@ -1673,21 +1680,21 @@ function App() {
     writeAppTabToUrl('library', 'push')
   }
 
-  function applyLibrarySelectedSignalsFromPalette(kind: LibrarySelectionSignalKind, values: string[]) {
+  function applyLibrarySelectedSignalsFromPalette(action: LibrarySelectionSignalAction, kind: LibrarySelectionSignalKind, values: string[]) {
     setQuickSearchOpen(false)
     if (activeTab === 'library') {
       setActivityFocus(undefined)
-      requestLibrarySelectedSignals(kind, values)
+      requestLibrarySelectedSignals(action, kind, values)
       writeAppTabToUrl('library', 'push')
       return
     }
     if (tabsWithUnsavedChanges[activeTab]) {
-      setPendingNavigation({ librarySelectedSignals: { kind, values }, source: 'app', tab: 'library' })
+      setPendingNavigation({ librarySelectedSignals: { action, kind, values }, source: 'app', tab: 'library' })
       return
     }
 
     setActivityFocus(undefined)
-    requestLibrarySelectedSignals(kind, values)
+    requestLibrarySelectedSignals(action, kind, values)
     setActiveTabState('library')
     writeAppTabToUrl('library', 'push')
   }
@@ -1893,7 +1900,11 @@ function App() {
       requestLibrarySelectedStatus(librarySelectedStatus)
     }
     if (librarySelectedSignals) {
-      requestLibrarySelectedSignals(librarySelectedSignals.kind, librarySelectedSignals.values)
+      requestLibrarySelectedSignals(
+        librarySelectedSignals.action,
+        librarySelectedSignals.kind,
+        librarySelectedSignals.values,
+      )
     }
     if (librarySortMode) {
       requestLibrarySortMode(librarySortMode)
@@ -2332,9 +2343,19 @@ function App() {
         : `${option.count} ${option.count === 1 ? 'entrada' : 'entradas'}`,
       id: `library-selected-${option.kind}-${slugify(option.label)}`,
       meta: 'Biblioteca',
-      run: () => applyLibrarySelectedSignalsFromPalette(option.kind, [option.label]),
+      run: () => applyLibrarySelectedSignalsFromPalette('add', option.kind, [option.label]),
       searchText: `biblioteca seleccion seleccionadas ${librarySelectionSignalLabels[option.kind].singular} ${librarySelectionSignalLabels[option.kind].plural} tags etiqueta senal masivo aplicar ${option.label}`,
       title: `Seleccion: ${librarySelectionSignalLabels[option.kind].title} ${option.label}`,
+      tone: 'command',
+    })),
+    ...quickSearchSelectionSignalOptionsList.map((option): QuickSearchCommand => ({
+      Icon: X,
+      detail: `Quitar ${librarySelectionSignalLabels[option.kind].singular} de la seleccion actual`,
+      id: `library-selected-remove-${option.kind}-${slugify(option.label)}`,
+      meta: 'Biblioteca',
+      run: () => applyLibrarySelectedSignalsFromPalette('remove', option.kind, [option.label]),
+      searchText: `biblioteca seleccion seleccionadas quitar eliminar retirar ${librarySelectionSignalLabels[option.kind].singular} ${librarySelectionSignalLabels[option.kind].plural} tags etiqueta senal masivo ${option.label}`,
+      title: `Seleccion: quitar ${librarySelectionSignalLabels[option.kind].title} ${option.label}`,
       tone: 'command',
     })),
     {
@@ -4085,11 +4106,16 @@ function LibraryTab({
       if (handledSelectedSignalsRequestId.current === selectedSignalsRequest.requestId) return
 
       handledSelectedSignalsRequestId.current = selectedSignalsRequest.requestId
+      if (selectedSignalsRequest.action === 'remove') {
+        void removeSelectedItemsSignals(selectedSignalsRequest.kind, selectedSignalsRequest.values)
+        return
+      }
+
       void addSelectedItemsSignals(selectedSignalsRequest.kind, selectedSignalsRequest.values)
     }, 0)
 
     return () => window.clearTimeout(timeoutId)
-  }, [addSelectedItemsSignals, selectedSignalsRequest])
+  }, [addSelectedItemsSignals, removeSelectedItemsSignals, selectedSignalsRequest])
 
   function toggleLibraryItemSelection(itemId: string) {
     setSelectedItemIds((current) =>

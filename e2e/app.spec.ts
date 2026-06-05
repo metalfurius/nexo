@@ -726,8 +726,16 @@ test('quick search adds known taxonomy signals to the current library selection'
   await expect(page.getByText('1 entradas etiquetadas con sci-fi')).toBeVisible()
   await page.getByLabel('Buscar en biblioteca').fill('Vinland Saga')
   await expect(page.locator('.item-card', { hasText: 'Vinland Saga' })).toContainText('sci-fi')
-  await page.getByLabel('Accion reciente de biblioteca').getByRole('button', { name: 'Deshacer tags' }).click()
-  await expect(page.getByText('1 tags recuperados')).toBeVisible()
+
+  await page.getByLabel('Seleccionar Vinland Saga').check()
+  await page.getByRole('button', { name: 'Busqueda rapida' }).click()
+  const removeQuickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  await removeQuickSearch.getByLabel('Buscar en Nexo').fill('seleccion quitar tag sci-fi')
+  const removeTagSelectionAction = removeQuickSearch.getByRole('button', { name: 'Ejecutar Seleccion: quitar tag sci-fi', exact: true })
+  await expect(removeTagSelectionAction).toHaveAttribute('aria-current', 'true')
+  await removeTagSelectionAction.click()
+
+  await expect(page.getByText('1 entradas actualizadas sin sci-fi')).toBeVisible()
   await expect(page.locator('.item-card', { hasText: 'Vinland Saga' })).not.toContainText('sci-fi')
 
   await page.getByLabel('Buscar en biblioteca').fill('')
