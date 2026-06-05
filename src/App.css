@@ -1246,6 +1246,10 @@
   line-height: 1.1;
 }
 
+.library-selection-count.muted strong {
+  color: var(--muted);
+}
+
 .library-selection-count span {
   color: var(--muted);
   font-size: 11px;

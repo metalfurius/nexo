@@ -356,9 +356,13 @@ test('library empty search can create a prefilled item', async ({ page }) => {
 
 test('library can update selected visible items in bulk', async ({ page }) => {
   await page.goto('/')
+  await expect(page.getByLabel('Seleccion de biblioteca')).toContainText('Seleccion rapida')
+  await expect(page.getByLabel('Seleccion de biblioteca')).toContainText('7 visibles en esta vista')
   await page.getByRole('button', { name: 'Seleccionar visibles' }).click()
   await expect(page.getByLabel('Seleccion de biblioteca')).toContainText('7 seleccionadas')
   await page.getByRole('button', { name: 'Quitar visibles' }).click()
+  await expect(page.getByLabel('Seleccion de biblioteca')).toContainText('Seleccion rapida')
+  await expect(page.getByLabel('Seleccion de biblioteca')).toContainText('7 visibles en esta vista')
   await expect(page.getByLabel('Seleccion de biblioteca')).not.toContainText('seleccionadas')
 
   await page.getByLabel('Seleccionar Outer Wilds').check()

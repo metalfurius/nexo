@@ -3546,6 +3546,11 @@ function LibraryTab({
   const visibleItemIds = useMemo(() => filteredItems.map((item) => item.id), [filteredItems])
   const selectedVisibleCount = visibleItemIds.filter((id) => selectedItemIdSet.has(id)).length
   const allVisibleItemsSelected = filteredItems.length > 0 && selectedVisibleCount === filteredItems.length
+  const selectedItemsLabel = selectedItems.length === 1 ? '1 seleccionada' : `${selectedItems.length} seleccionadas`
+  const selectedVisibleLabel =
+    selectedVisibleCount === 1 ? '1 visible en esta vista' : `${selectedVisibleCount} visibles en esta vista`
+  const filteredVisibleLabel =
+    filteredItems.length === 1 ? '1 visible en esta vista' : `${filteredItems.length} visibles en esta vista`
   const selectedDiceEligibleCount = selectedItems.filter((item) => item.status !== 'completed' && item.status !== 'dropped').length
   const selectedCooldownCount = selectedItems.filter(isItemInCooldown).length
   const bulkSignalLabels = librarySelectionSignalLabels[bulkSignalKind]
@@ -5206,12 +5211,21 @@ function LibraryTab({
               <CheckCircle2 size={16} />
               {allVisibleItemsSelected ? 'Quitar visibles' : 'Seleccionar visibles'}
             </button>
+            <div className={selectedItems.length > 0 ? 'library-selection-count' : 'library-selection-count muted'}>
+              {selectedItems.length > 0 ? (
+                <>
+                  <strong>{selectedItemsLabel}</strong>
+                  <span>{selectedVisibleLabel}</span>
+                </>
+              ) : (
+                <>
+                  <strong>Seleccion rapida</strong>
+                  <span>{filteredVisibleLabel}</span>
+                </>
+              )}
+            </div>
             {selectedItems.length > 0 && (
               <>
-                <div className="library-selection-count">
-                  <strong>{selectedItems.length === 1 ? '1 seleccionada' : `${selectedItems.length} seleccionadas`}</strong>
-                  <span>{selectedVisibleCount} visibles en esta vista</span>
-                </div>
                 <button className="secondary-button" type="button" onClick={exportSelectedItems}>
                   <Download size={16} />
                   Exportar seleccion
