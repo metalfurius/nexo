@@ -2852,3 +2852,20 @@ test('core tabs have no serious accessibility violations', async ({ page }) => {
     expect(seriousViolations, `${tab} has serious accessibility violations`).toEqual([])
   }
 })
+
+test('editors have no serious accessibility violations', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Anadir' }).first().click()
+  await expect(page.getByRole('dialog', { name: 'Entrada' })).toBeVisible()
+  let results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze()
+  let seriousViolations = results.violations.filter((violation) => ['serious', 'critical'].includes(violation.impact ?? ''))
+  expect(seriousViolations, 'private editor has serious accessibility violations').toEqual([])
+  await page.getByRole('button', { name: 'Cerrar', exact: true }).click()
+
+  await page.getByRole('button', { name: 'Curacion' }).click()
+  await page.getByRole('button', { name: 'Crear Libros' }).click()
+  await expect(page.locator('.public-item-editor')).toBeVisible()
+  results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze()
+  seriousViolations = results.violations.filter((violation) => ['serious', 'critical'].includes(violation.impact ?? ''))
+  expect(seriousViolations, 'public editor has serious accessibility violations').toEqual([])
+})

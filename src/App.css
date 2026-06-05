@@ -5928,8 +5928,9 @@ button:active:not(:disabled),
 .detail-meta span:not(.source-pill) {
   border: 1px solid var(--border);
   border-radius: 8px;
-  color: var(--muted);
+  color: var(--text);
   font-size: 12px;
+  font-weight: 800;
   line-height: 1;
   padding: 7px 10px;
 }
@@ -6255,7 +6256,7 @@ button:active:not(:disabled),
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
-  color: var(--muted);
+  color: var(--text);
   display: inline-flex;
   font-size: 12px;
   font-weight: 850;
@@ -6267,7 +6268,7 @@ button:active:not(:disabled),
 .personal-readiness-checks span.done {
   background: var(--accent-soft);
   border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
-  color: var(--accent-dark);
+  color: var(--text-strong);
 }
 
 .personal-readiness-checks span:not(.done) svg {
@@ -6638,7 +6639,7 @@ button:active:not(:disabled),
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
-  color: var(--muted);
+  color: var(--text);
   display: inline-flex;
   font-size: 12px;
   font-weight: 850;
@@ -6650,7 +6651,7 @@ button:active:not(:disabled),
 .quality-checklist span.done {
   background: var(--accent-soft);
   border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
-  color: var(--accent-dark);
+  color: var(--text-strong);
 }
 
 .quality-checklist span:not(.done) svg {
