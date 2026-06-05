@@ -2839,10 +2839,16 @@ test('settings layout keeps the status area compact', async ({ page }, testInfo)
   expect(metrics.statusConfidenceGap).toBeLessThanOrEqual(24)
 })
 
-test('launch screens have no serious accessibility violations', async ({ page }) => {
+test('core tabs have no serious accessibility violations', async ({ page }) => {
   await page.goto('/')
-  const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze()
-  const seriousViolations = results.violations.filter((violation) => ['serious', 'critical'].includes(violation.impact ?? ''))
+  const coreTabs = ['Biblioteca', 'Dado', 'Explorador', 'Ajustes', 'Curacion']
 
-  expect(seriousViolations).toEqual([])
+  for (const tab of coreTabs) {
+    await page.getByRole('button', { name: tab, exact: true }).click()
+    await expect(page.getByRole('button', { name: tab, exact: true })).toHaveAttribute('aria-current', 'page')
+    const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze()
+    const seriousViolations = results.violations.filter((violation) => ['serious', 'critical'].includes(violation.impact ?? ''))
+
+    expect(seriousViolations, `${tab} has serious accessibility violations`).toEqual([])
+  }
 })
