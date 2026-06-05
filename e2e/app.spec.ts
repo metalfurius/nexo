@@ -589,6 +589,37 @@ test('quick search toggles visible library selection through the pending-change 
   await expect(page.getByRole('status').filter({ hasText: '7 visibles seleccionadas' })).toBeVisible()
 })
 
+test('quick search hides selection-only commands until a library selection exists', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Busqueda rapida' }).click()
+  const quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+
+  await quickSearch.getByLabel('Buscar en Nexo').fill('seleccion completado')
+  await expect(quickSearch.getByRole('button', { name: 'Ejecutar Seleccion: Completado', exact: true })).toHaveCount(0)
+
+  await quickSearch.getByLabel('Buscar en Nexo').fill('exportar seleccion')
+  await expect(quickSearch.getByRole('button', { name: 'Ejecutar Exportar seleccion JSON', exact: true })).toHaveCount(0)
+
+  await page.keyboard.press('Escape')
+  await expect(quickSearch).not.toBeVisible()
+  await page.getByLabel('Seleccionar Outer Wilds').check()
+
+  await page.getByRole('button', { name: 'Busqueda rapida' }).click()
+  const quickSearchWithSelection = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  await quickSearchWithSelection.getByLabel('Buscar en Nexo').fill('seleccion completado')
+  const selectedStatusAction = quickSearchWithSelection.getByRole('button', {
+    name: 'Ejecutar Seleccion: Completado',
+    exact: true,
+  })
+  await expect(selectedStatusAction).toHaveAttribute('aria-current', 'true')
+  await expect(selectedStatusAction).toContainText('1 seleccionada')
+
+  await quickSearchWithSelection.getByLabel('Buscar en Nexo').fill('exportar seleccion')
+  await expect(quickSearchWithSelection.getByRole('button', { name: 'Ejecutar Exportar seleccion JSON', exact: true })).toContainText(
+    '1 seleccionada',
+  )
+})
+
 test('quick search clears the persistent library selection', async ({ page }) => {
   await page.goto('/')
   await page.getByLabel('Seleccionar Outer Wilds').check()
