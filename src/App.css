@@ -7109,7 +7109,13 @@ button:active:not(:disabled),
   display: flex;
   justify-content: center;
   min-height: 100vh;
+  min-height: 100dvh;
   padding: 24px;
+  padding:
+    max(24px, env(safe-area-inset-top))
+    max(24px, env(safe-area-inset-right))
+    max(24px, env(safe-area-inset-bottom))
+    max(24px, env(safe-area-inset-left));
 }
 
 .auth-shell section {
@@ -7125,6 +7131,10 @@ button:active:not(:disabled),
 }
 
 .modal-backdrop {
+  --modal-safe-bottom: max(18px, env(safe-area-inset-bottom));
+  --modal-safe-left: max(18px, env(safe-area-inset-left));
+  --modal-safe-right: max(18px, env(safe-area-inset-right));
+  --modal-safe-top: max(18px, env(safe-area-inset-top));
   align-items: center;
   animation: fade-in var(--motion-fast) ease both;
   backdrop-filter: blur(10px) saturate(0.78);
@@ -7132,7 +7142,7 @@ button:active:not(:disabled),
   display: flex;
   inset: 0;
   justify-content: center;
-  padding: 18px;
+  padding: var(--modal-safe-top) var(--modal-safe-right) var(--modal-safe-bottom) var(--modal-safe-left);
   position: fixed;
   -webkit-backdrop-filter: blur(10px) saturate(0.78);
   z-index: 20;
@@ -7146,7 +7156,7 @@ button:active:not(:disabled),
   display: grid;
   gap: 14px;
   max-height: calc(100vh - 36px);
-  max-height: calc(100dvh - 36px);
+  max-height: calc(100dvh - var(--modal-safe-top) - var(--modal-safe-bottom));
   overflow: auto;
   padding: 18px;
   box-shadow: 0 28px 90px rgba(0, 0, 0, 0.38);

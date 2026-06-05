@@ -2352,10 +2352,21 @@ test('library cards fit the mobile PWA viewport', async ({ page }, testInfo) => 
   await page.locator('.item-main').filter({ hasText: 'Outer Wilds' }).click()
   await expect(page.getByRole('dialog', { name: 'Entrada' })).toBeVisible()
   const dialogMetrics = await page.getByRole('dialog', { name: 'Entrada' }).evaluate((dialog) => {
+    const backdrop = dialog.closest('.modal-backdrop') as HTMLElement | null
     const rect = dialog.getBoundingClientRect()
+    const backdropStyle = backdrop ? window.getComputedStyle(backdrop) : undefined
+    const dialogStyle = window.getComputedStyle(dialog)
     return {
       bottom: rect.bottom,
       documentScrollWidth: document.documentElement.scrollWidth,
+      maxHeight: dialogStyle.maxHeight,
+      paddingBottom: backdropStyle ? Number.parseFloat(backdropStyle.paddingBottom) : 0,
+      paddingLeft: backdropStyle ? Number.parseFloat(backdropStyle.paddingLeft) : 0,
+      paddingRight: backdropStyle ? Number.parseFloat(backdropStyle.paddingRight) : 0,
+      paddingTop: backdropStyle ? Number.parseFloat(backdropStyle.paddingTop) : 0,
+      left: rect.left,
+      right: rect.right,
+      top: rect.top,
       viewportHeight: document.documentElement.clientHeight,
       viewportWidth: document.documentElement.clientWidth,
       width: rect.width,
@@ -2363,7 +2374,15 @@ test('library cards fit the mobile PWA viewport', async ({ page }, testInfo) => 
   })
   expect(dialogMetrics.documentScrollWidth).toBeLessThanOrEqual(dialogMetrics.viewportWidth + 1)
   expect(dialogMetrics.width).toBeLessThanOrEqual(dialogMetrics.viewportWidth)
-  expect(dialogMetrics.bottom).toBeLessThanOrEqual(dialogMetrics.viewportHeight + 1)
+  expect(dialogMetrics.paddingTop).toBeGreaterThanOrEqual(18)
+  expect(dialogMetrics.paddingRight).toBeGreaterThanOrEqual(18)
+  expect(dialogMetrics.paddingBottom).toBeGreaterThanOrEqual(18)
+  expect(dialogMetrics.paddingLeft).toBeGreaterThanOrEqual(18)
+  expect(dialogMetrics.maxHeight).not.toBe('none')
+  expect(dialogMetrics.top).toBeGreaterThanOrEqual(dialogMetrics.paddingTop - 1)
+  expect(dialogMetrics.left).toBeGreaterThanOrEqual(dialogMetrics.paddingLeft - 1)
+  expect(dialogMetrics.right).toBeLessThanOrEqual(dialogMetrics.viewportWidth - dialogMetrics.paddingRight + 1)
+  expect(dialogMetrics.bottom).toBeLessThanOrEqual(dialogMetrics.viewportHeight - dialogMetrics.paddingBottom + 1)
 })
 
 test('launch screens have no serious accessibility violations', async ({ page }) => {
