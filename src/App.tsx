@@ -22,6 +22,7 @@ import {
   Eye,
   Film,
   Gamepad2,
+  HelpCircle,
   LayoutGrid,
   Library,
   List,
@@ -188,6 +189,7 @@ import {
   type PublicCatalogSeedSummary,
 } from './lib/publicCatalogSeed'
 import { recommendItem, scoreCandidates } from './lib/recommendations'
+import { externalSourceCredits } from './services/externalSearch'
 import { applyServiceWorkerUpdate, SERVICE_WORKER_UPDATE_READY_EVENT } from './services/serviceWorker'
 import {
   mergeListText,
@@ -211,6 +213,16 @@ const libraryViewLabels: Record<LibraryViewMode, string> = {
   cards: 'Tarjetas',
   list: 'Lista',
 }
+
+const libraryCatalogSearchTypes: Array<{ id: ExplorerSearchType; label: string }> = [
+  { id: 'any', label: 'Todo' },
+  { id: 'watch', label: 'Ver' },
+  { id: 'game', label: 'Juegos' },
+  { id: 'book', label: 'Libros' },
+  { id: 'anime', label: 'Anime' },
+  { id: 'manga', label: 'Manga' },
+  { id: 'manhwa', label: 'Manhwa' },
+]
 
 type LibraryPriorityLevel = 'low' | 'normal' | 'high'
 type LibrarySelectionSignalAction = 'add' | 'remove'
@@ -3685,6 +3697,13 @@ function LibraryTab({
   const [bulkSignalKind, setBulkSignalKind] = useState<LibrarySelectionSignalKind>('tag')
   const [bulkSignalText, setBulkSignalText] = useState('')
   const [activeReviewSession, setActiveReviewSession] = useState<ActiveLibraryReviewSession | undefined>()
+  const [catalogQuery, setCatalogQuery] = useState('')
+  const [catalogType, setCatalogType] = useState<ExplorerSearchType>('any')
+  const [catalogCandidates, setCatalogCandidates] = useState<DiscoveryCandidate[]>([])
+  const [catalogLoading, setCatalogLoading] = useState(false)
+  const [catalogStatus, setCatalogStatus] = useState<string | undefined>()
+  const [sourceCreditsOpen, setSourceCreditsOpen] = useState(false)
+  const [libraryAdvancedOpen, setLibraryAdvancedOpen] = useState(() => window.localStorage.getItem('nexo-library-advanced') === 'true')
   const handledPrimaryActionRequestId = useRef<number | undefined>(undefined)
   const viewMode = library.settings.libraryViewMode
   const trimmedQuery = query.trim()
@@ -3734,6 +3753,7 @@ function LibraryTab({
   const selectedCooldownCount = selectedItems.filter(isItemInCooldown).length
   const bulkSignalLabels = librarySelectionSignalLabels[bulkSignalKind]
   const bulkSignalOption = librarySelectionSignalOptions.find((option) => option.id === bulkSignalKind) ?? librarySelectionSignalOptions[0]
+  const isLibraryAdvancedOpen = Boolean(libraryAdvancedOpen || hasActiveLibraryControls || selectedItems.length > 0 || activeReviewSession)
 
   useEffect(() => {
     onVisibleSelectionSummaryChange({
@@ -3767,26 +3787,42 @@ function LibraryTab({
   const missingActivitySearchQuery = activityFocusItemId ? getSearchQueryFromItemId(activityFocusItemId) : ''
   const editorItem = editingItem ?? focusedActivityItem
 
-  if (draftRequest && handledDraftRequestId !== draftRequest.id) {
-    setHandledDraftRequestId(draftRequest.id)
-    setEditingItem(draftRequest)
-    setQuery(draftRequest.title)
-    setTypeFilter('all')
-    setStatusFilter('all')
-    setSmartView('all')
-    setSortMode('focus')
-  }
+  useEffect(() => {
+    if (!draftRequest || handledDraftRequestId === draftRequest.id) return
 
-  if (smartViewRequest && handledSmartViewRequestId !== smartViewRequest.requestId) {
-    setHandledSmartViewRequestId(smartViewRequest.requestId)
-    setQuery('')
-    setTypeFilter('all')
-    setStatusFilter('all')
-    setSmartView(smartViewRequest.id)
-    setSortMode('focus')
-    setSelectedItemIds([])
-    setActiveReviewSession(undefined)
-  }
+    const timeoutId = window.setTimeout(() => {
+      if (handledDraftRequestId === draftRequest.id) return
+
+      setHandledDraftRequestId(draftRequest.id)
+      setEditingItem(draftRequest)
+      setQuery(draftRequest.title)
+      setTypeFilter('all')
+      setStatusFilter('all')
+      setSmartView('all')
+      setSortMode('focus')
+    }, 0)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [draftRequest, handledDraftRequestId])
+
+  useEffect(() => {
+    if (!smartViewRequest || handledSmartViewRequestId === smartViewRequest.requestId) return
+
+    const timeoutId = window.setTimeout(() => {
+      if (handledSmartViewRequestId === smartViewRequest.requestId) return
+
+      setHandledSmartViewRequestId(smartViewRequest.requestId)
+      setQuery('')
+      setTypeFilter('all')
+      setStatusFilter('all')
+      setSmartView(smartViewRequest.id)
+      setSortMode('focus')
+      setSelectedItemIds([])
+      setActiveReviewSession(undefined)
+    }, 0)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [handledSmartViewRequestId, setSelectedItemIds, smartViewRequest])
 
   useLayoutEffect(() => {
     if (!importRequest || handledImportRequestId.current === importRequest.requestId) return
@@ -4698,6 +4734,71 @@ function LibraryTab({
     }
   }
 
+  async function searchCatalogFromLibrary() {
+    const cleanedQuery = catalogQuery.trim()
+    setCatalogStatus(undefined)
+    if (cleanedQuery.length < 2) {
+      setCatalogStatus('Escribe al menos 2 caracteres para buscar obras.')
+      setCatalogCandidates([])
+      return
+    }
+
+    setCatalogLoading(true)
+    try {
+      const [publicItems, externalCandidates] = await Promise.all([
+        library.searchPublicCatalog(cleanedQuery, catalogType),
+        library.searchExternal(cleanedQuery, catalogType),
+      ])
+      const candidates = uniqueDiscoveryCandidates([
+        ...publicItems.map(library.publicItemToDiscovery),
+        ...externalCandidates.map(library.externalCandidateToDiscovery),
+      ])
+      setCatalogCandidates(candidates)
+      setCatalogStatus(
+        candidates.length
+          ? `${candidates.length} resultado${candidates.length === 1 ? '' : 's'} listo${candidates.length === 1 ? '' : 's'} para guardar.`
+          : 'Sin resultados. Puedes crear una ficha manual si quieres conservar esa idea.',
+      )
+      if (candidates.length) {
+        onActivity({
+          detail: `${candidates.length} resultados para "${cleanedQuery}"`,
+          label: 'Busqueda de obra',
+          tab: 'library',
+          tone: 'success',
+        })
+      }
+    } catch (reason) {
+      setCatalogStatus(reason instanceof Error ? reason.message : 'No se pudo completar la busqueda.')
+      setCatalogCandidates([])
+    } finally {
+      setCatalogLoading(false)
+    }
+  }
+
+  async function saveCatalogCandidateFromLibrary(candidate: DiscoveryCandidate) {
+    setCatalogStatus(`Guardando ${candidate.title}...`)
+    try {
+      await library.queueDiscoveryCandidates([candidate])
+      const item = await library.saveDiscoveryToLibrary(candidate)
+      setCatalogCandidates((current) =>
+        current.map((entry) =>
+          entry.id === candidate.id ? { ...entry, savedItemId: item.id, status: 'saved', updatedAt: nowIso() } : entry,
+        ),
+      )
+      setImportStatus(`${item.title} guardado en Biblioteca`)
+      setCatalogStatus(`${item.title} guardado. Puedes seguir buscando o abrirlo en tu lista.`)
+      onActivity({
+        detail: item.title,
+        label: 'Obra guardada',
+        tab: 'library',
+        target: { kind: 'item', id: item.id },
+        tone: 'success',
+      })
+    } catch (reason) {
+      setCatalogStatus(reason instanceof Error ? reason.message : 'No se pudo guardar la obra.')
+    }
+  }
+
   function exportLibrary() {
     downloadLibraryBackup(library.items, library.settings, 'nexo-export')
     setImportStatus('Backup JSON descargado')
@@ -5105,6 +5206,93 @@ function LibraryTab({
             </div>
           </div>
         </div>
+
+        <section className="library-search-hero" aria-label="Buscar obras para guardar" data-testid="library-catalog-search">
+          <div className="library-search-copy">
+            <span className="eyebrow">Buscar y guardar</span>
+            <h3>Empieza por el titulo, no por un formulario</h3>
+            <p>Busca en catalogos gratuitos, revisa portada y generos, y guarda la obra en un toque.</p>
+          </div>
+          <form
+            className="library-catalog-form"
+            onSubmit={(event) => {
+              event.preventDefault()
+              void searchCatalogFromLibrary()
+            }}
+          >
+            <label className="search-field library-catalog-query">
+              <Search size={18} />
+              <input
+                aria-label="Buscar obra para guardar"
+                value={catalogQuery}
+                onChange={(event) => setCatalogQuery(event.target.value)}
+                placeholder="Dune, Hollow Knight, Frieren, Berserk..."
+              />
+            </label>
+            <select
+              aria-label="Tipo de obra para buscar"
+              value={catalogType}
+              onChange={(event) => setCatalogType(event.target.value as ExplorerSearchType)}
+            >
+              {libraryCatalogSearchTypes.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <button className="primary-button" disabled={catalogLoading} type="submit">
+              <Search size={18} />
+              {catalogLoading ? 'Buscando' : 'Buscar obra'}
+            </button>
+            <button className="secondary-button source-credit-trigger" type="button" onClick={() => setSourceCreditsOpen(true)}>
+              <HelpCircle size={17} />
+              Fuentes
+            </button>
+          </form>
+
+          {catalogStatus && <FeedbackMessage tone={feedbackToneFromText(catalogStatus)}>{catalogStatus}</FeedbackMessage>}
+          {catalogCandidates.length > 0 && (
+            <div className="library-catalog-results" aria-label="Resultados para guardar">
+              {catalogCandidates.slice(0, 8).map((candidate) => {
+                const savedItem = getSavedLibraryItemForCandidate(candidate, library.items)
+                return (
+                  <LibraryCatalogCandidateCard
+                    candidate={candidate}
+                    isSaved={Boolean(savedItem)}
+                    key={candidate.id}
+                    onSave={() => void saveCatalogCandidateFromLibrary(candidate)}
+                  />
+                )
+              })}
+            </div>
+          )}
+          {!catalogCandidates.length && catalogStatus?.startsWith('Sin resultados') && (
+            <div className="library-catalog-empty-action">
+              <button className="secondary-button" type="button" onClick={() => openLibraryEditor({ ...blankItem(), title: catalogQuery.trim() })}>
+                <Plus size={16} />
+                Crear manual
+              </button>
+            </div>
+          )}
+        </section>
+
+        <details
+          className="library-advanced-panel"
+          open={isLibraryAdvancedOpen}
+          onToggle={(event) => {
+            const nextOpen = event.currentTarget.open
+            setLibraryAdvancedOpen(nextOpen)
+            window.localStorage.setItem('nexo-library-advanced', String(nextOpen))
+          }}
+        >
+          <summary>
+            <span>
+              <strong>Avanzado</strong>
+              <small>Filtros, repaso guiado, import/export y acciones masivas</small>
+            </span>
+            <em>{isLibraryAdvancedOpen ? 'Abierto' : 'Oculto'}</em>
+          </summary>
+          <div className="library-advanced-content">
 
         <LaunchGuideCard
           guide={launchGuide}
@@ -5531,6 +5719,8 @@ function LibraryTab({
             )}
           </div>
         )}
+          </div>
+        </details>
 
         {library.loading && <FeedbackMessage tone="loading">Cargando biblioteca...</FeedbackMessage>}
         {library.error && <FeedbackMessage tone="danger">{library.error}</FeedbackMessage>}
@@ -5748,6 +5938,8 @@ function LibraryTab({
           onSave={(item) => void saveLibraryEditorItem(item)}
         />
       )}
+
+      {sourceCreditsOpen && <SourceCreditsDialog onClose={() => setSourceCreditsOpen(false)} />}
 
       {deleteTarget && (
         <div className="modal-backdrop" role="presentation">
@@ -10045,6 +10237,69 @@ function setLibrarySelectionSignals(item: ListItem, kind: LibrarySelectionSignal
   return { ...item, tags: values }
 }
 
+function uniqueDiscoveryCandidates(candidates: DiscoveryCandidate[]) {
+  const byId = new Map<string, DiscoveryCandidate>()
+  for (const candidate of candidates) {
+    byId.set(candidate.id, candidate)
+  }
+  return [...byId.values()]
+}
+
+function getSavedLibraryItemForCandidate(candidate: DiscoveryCandidate, items: ListItem[]) {
+  const candidateTitleKey = normalizeKey(candidate.title)
+  return items.find((item) => {
+    if (candidate.publicItemId && item.publicItemId === candidate.publicItemId) return true
+    if (matchesCandidateExternalRef(candidate, item)) return true
+    return item.type === candidate.type && normalizeKey(item.title) === candidateTitleKey
+  })
+}
+
+function matchesCandidateExternalRef(candidate: DiscoveryCandidate, item: ListItem) {
+  if (!item.externalRefs) return false
+  if (candidate.source === 'tmdb') return Boolean(candidate.externalRefs.tmdbId && item.externalRefs.tmdbId === candidate.externalRefs.tmdbId)
+  if (candidate.source === 'rawg') return Boolean(candidate.externalRefs.rawgId && item.externalRefs.rawgId === candidate.externalRefs.rawgId)
+  if (candidate.source === 'openLibrary') {
+    return Boolean(candidate.externalRefs.openLibraryKey && item.externalRefs.openLibraryKey === candidate.externalRefs.openLibraryKey)
+  }
+  if (candidate.source === 'anilist') return Boolean(candidate.externalRefs.anilistId && item.externalRefs.anilistId === candidate.externalRefs.anilistId)
+  if (candidate.source === 'wikidata') return Boolean(candidate.externalRefs.wikidataId && item.externalRefs.wikidataId === candidate.externalRefs.wikidataId)
+  return false
+}
+
+function LibraryCatalogCandidateCard({
+  candidate,
+  isSaved,
+  onSave,
+}: {
+  candidate: DiscoveryCandidate
+  isSaved: boolean
+  onSave: () => void
+}) {
+  return (
+    <article className={isSaved ? 'library-catalog-card saved' : 'library-catalog-card'}>
+      <CoverArt title={candidate.title} type={candidate.type} posterUrl={candidate.posterUrl} />
+      <div className="library-catalog-card-body">
+        <div className="candidate-meta">
+          <span className="source-pill">{sourceLabels[candidate.source]}</span>
+          <span>{typeLabels[candidate.type]}</span>
+          {candidate.releaseYear && <span>{candidate.releaseYear}</span>}
+        </div>
+        <h4>{candidate.title}</h4>
+        <p>{candidate.overview || `${typeLabels[candidate.type]} encontrado en ${sourceLabels[candidate.source]}.`}</p>
+        <div className="tag-row library-catalog-tags">
+          {candidate.genres.slice(0, 3).map((genre) => (
+            <span key={genre}>{genre}</span>
+          ))}
+        </div>
+      </div>
+      <button className={isSaved ? 'secondary-button' : 'primary-button'} disabled={isSaved} type="button" onClick={onSave}>
+        {isSaved ? <Check size={16} /> : <Plus size={16} />}
+        {isSaved ? 'Guardado' : 'Guardar'}
+      </button>
+    </article>
+  )
+}
+
 function downloadJsonFile(payload: unknown, filename: string) {
   const blob = new Blob([`${JSON.stringify(payload, null, 2)}\n`], { type: 'application/json' })
   const href = URL.createObjectURL(blob)
@@ -10428,6 +10683,46 @@ function CandidateDialog({
             </div>
           )}
         </div>
+      </section>
+    </div>
+  )
+}
+
+function SourceCreditsDialog({ onClose }: { onClose: () => void }) {
+  useRestoreFocusOnUnmount()
+
+  return (
+    <div className="modal-backdrop" role="presentation">
+      <section
+        className="source-credits-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="source-credits-title"
+        onKeyDown={(event) => handleDialogKeyDown(event, onClose)}
+      >
+        <button className="icon-button dialog-close" type="button" autoFocus onClick={onClose} title="Cerrar">
+          <X size={18} />
+        </button>
+        <div>
+          <span className="eyebrow">Fuentes externas</span>
+          <h2 id="source-credits-title">Catalogos usados por Nexo</h2>
+          <p>
+            Nexo busca bajo demanda y guarda solo copias privadas elegidas por ti. Los datos siguen perteneciendo a sus
+            fuentes originales.
+          </p>
+        </div>
+        <div className="source-credit-list">
+          {externalSourceCredits.map((source) => (
+            <a href={source.url} key={source.id} rel="noreferrer" target="_blank">
+              <strong>{source.label}</strong>
+              <span>{source.detail}</span>
+              {source.requiresKey && <small>Clave privada en proxy</small>}
+            </a>
+          ))}
+        </div>
+        <p className="source-credit-note">
+          This product uses the TMDB API but is not endorsed or certified by TMDB.
+        </p>
       </section>
     </div>
   )

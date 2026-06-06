@@ -27,6 +27,7 @@ import {
 } from '../lib/catalog'
 import { slugify, uniqueValues } from '../lib/strings'
 import { isFirebaseConfigured } from '../services/firebaseConfig'
+import { searchExternalSources } from '../services/externalSearch'
 import type { LibraryRepository } from '../services/libraryRepository'
 
 interface SignedInUserProfile {
@@ -279,7 +280,8 @@ export function useLibrary(user?: SignedInUserProfile | null) {
 
   async function searchExternal(query: string, type: string): Promise<ExternalCandidate[]> {
     if (repository) return repository.searchExternal(query, type)
-    return demoExternalCandidates(query, type)
+    const candidates = await searchExternalSources(query, type)
+    return candidates.length ? candidates : demoExternalCandidates(query, type)
   }
 
   async function searchPublicCatalog(query: string, type?: string): Promise<PublicCatalogItem[]> {

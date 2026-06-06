@@ -19,6 +19,7 @@ seed/*.json
 !seed/public-catalog.seed.json
 .firebaserc
 *.local
+workers/**/.dev.vars
 
 # Editor directories and files
 .vscode/*

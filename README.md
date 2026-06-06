@@ -36,7 +36,33 @@ Nexo's default production path is Spark-compatible: Auth, Firestore and GitHub P
 
 Bootstrap the first admin manually from Firebase Console or Admin SDK by setting `users/{uid}.role` to `admin`. After that, admins can manage roles by editing user profile documents, while `admin` and `moderator` users can curate `publicItems`.
 
-Firebase Functions are optional for a future Blaze-backed upgrade if server-side API keys are needed for providers like TMDB or RAWG. The Spark-compatible explorer uses the public Nexo catalog plus browser-callable providers such as Open Library, AniList and Wikidata.
+Firebase Functions are optional for a future Blaze-backed upgrade. The low-cost production path uses the public Nexo catalog plus browser-callable providers, and routes secret-backed providers through a tiny Cloudflare Worker:
+
+- Open Library, AniList and Wikidata work without keys.
+- TMDB improves movies/series through the Worker secret `TMDB_READ_TOKEN`.
+- RAWG improves games through the Worker secret `RAWG_API_KEY`.
+- The frontend only receives `VITE_CATALOG_PROXY_URL`, which is safe to expose.
+
+The app keeps provider credits in the `Fuentes` dialog and only stores user-selected private copies.
+
+## Catalog Proxy
+
+The Worker lives in `workers/catalog-proxy` and is deployed separately from GitHub Pages:
+
+```sh
+npx wrangler login
+npm run worker:secret:tmdb
+npm run worker:secret:rawg
+npm run worker:deploy
+```
+
+Then add `VITE_CATALOG_PROXY_URL` as a GitHub Actions variable, for example:
+
+```txt
+https://nexo-catalog-proxy.<your-subdomain>.workers.dev
+```
+
+Do not store TMDB or RAWG keys as Vite variables; anything prefixed with `VITE_` is bundled for the browser.
 
 ## Public Catalog Seed
 

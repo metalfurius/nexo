@@ -1,0 +1,13 @@
+{
+  "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
+  "name": "nexo-catalog-proxy",
+  "main": "src/index.js",
+  "compatibility_date": "2026-06-06",
+  "workers_dev": true,
+  "observability": {
+    "enabled": true
+  },
+  "vars": {
+    "ALLOWED_ORIGINS": "https://nexo.codeoverdose.es,http://localhost:5173,http://127.0.0.1:5173"
+  }
+}

@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import AxeBuilder from '@axe-core/playwright'
-import { expect, test, type Locator } from '@playwright/test'
+import { expect, test, type Locator, type Page } from '@playwright/test'
 
 async function expectFocusWithin(scope: Locator) {
   const hasFocusWithin = await scope.evaluate((element) => element.contains(document.activeElement))
@@ -21,8 +21,86 @@ async function expectDialogAnimationsSettled(dialog: Locator) {
   })
 }
 
-test('library and weighted dice work in demo mode', async ({ page }) => {
+async function openLibraryAdvanced(page: Page) {
+  const advancedPanel = page.locator('details.library-advanced-panel')
+  await expect(advancedPanel).toBeVisible()
+  const isOpen = await advancedPanel.evaluate((element) => (element as HTMLDetailsElement).open)
+  if (!isOpen) {
+    await advancedPanel.locator('summary').click()
+  }
+}
+
+async function mockOpenLibraryOdisea(page: Page) {
+  await page.route('https://openlibrary.org/search.json**', async (route) => {
+    await route.fulfill({
+      contentType: 'application/json',
+      json: {
+        docs: [
+          {
+            author_name: [],
+            cover_i: 531509,
+            first_publish_year: 1996,
+            key: '/works/OL166894W',
+            subject: ['Clasico', 'Aventura'],
+            title: 'Odisea',
+          },
+        ],
+      },
+    })
+  })
+}
+
+async function openApp(page: Page) {
+  await mockOpenLibraryOdisea(page)
   await page.goto('/')
+  await openLibraryAdvanced(page)
+}
+
+test('library starts with a focused search-first surface', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.getByTestId('library-catalog-search')).toBeVisible()
+  await expect(page.getByLabel('Buscar obra para guardar')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Buscar obra' })).toBeVisible()
+  await expect(page.locator('details.library-advanced-panel')).not.toHaveAttribute('open', '')
+  await expect(page.getByTestId('library-grid')).toContainText('Outer Wilds')
+})
+
+test('library can search a free catalog source and save directly', async ({ page }) => {
+  await page.route('https://openlibrary.org/search.json**', async (route) => {
+    await route.fulfill({
+      contentType: 'application/json',
+      json: {
+        docs: [
+          {
+            author_name: ['Frank Herbert'],
+            cover_i: 12345,
+            first_publish_year: 1965,
+            key: '/works/OL893415W',
+            subject: ['Science fiction', 'Desert planets', 'Politics'],
+            title: 'Dune',
+          },
+        ],
+      },
+    })
+  })
+
+  await page.goto('/')
+  await page.getByLabel('Buscar obra para guardar').fill('Dune')
+  await page.getByLabel('Tipo de obra para buscar').selectOption('book')
+  await page.getByRole('button', { name: 'Buscar obra' }).click()
+  await expect(page.getByLabel('Resultados para guardar')).toContainText('Dune - Frank Herbert')
+  await expect(page.getByLabel('Resultados para guardar')).toContainText('Open Library')
+  await page.getByRole('button', { name: 'Guardar' }).click()
+  await expect(page.getByRole('status').filter({ hasText: 'Dune - Frank Herbert guardado en Biblioteca' })).toBeVisible()
+  await expect(page.getByTestId('library-grid')).toContainText('Dune - Frank Herbert')
+  await page.getByRole('button', { name: 'Fuentes' }).click()
+  await expect(page.getByRole('dialog', { name: 'Catalogos usados por Nexo' })).toContainText('TMDB')
+  await expect(page.getByRole('dialog', { name: 'Catalogos usados por Nexo' })).toContainText('RAWG')
+  await expect(page.getByRole('dialog', { name: 'Catalogos usados por Nexo' })).toContainText('Open Library')
+})
+
+test('library and weighted dice work in demo mode', async ({ page }) => {
+  await openApp(page)
   await expect(page.getByRole('heading', { name: 'Biblioteca privada' })).toBeVisible()
   await expect(page.getByTestId('shell-pulse')).toContainText('Biblioteca')
   await expect(page.getByTestId('shell-pulse')).toContainText('Dado')
@@ -277,7 +355,7 @@ test('library and weighted dice work in demo mode', async ({ page }) => {
 })
 
 test('dice closed decisions can roll another recommendation', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
   await page.getByTestId('roll-button').click()
   await expect(page.getByTestId('recommendation-result')).toContainText('Decision')
@@ -290,7 +368,7 @@ test('dice closed decisions can roll another recommendation', async ({ page }) =
 })
 
 test('library dice review queue rolls a recommendation', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   const diceQueue = page.getByTestId('library-review-queue').locator('.library-review-card', { hasText: 'Probar dado' })
 
   await expect(diceQueue).toContainText('Candidatas vivas')
@@ -302,7 +380,7 @@ test('library dice review queue rolls a recommendation', async ({ page }) => {
 })
 
 test('library review session keeps guided queues actionable', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByTestId('library-review-queue').getByRole('button', { name: 'Completar ficha' }).click()
   await expect(page.getByTestId('library-review-session')).toContainText('Repaso activo')
   await expect(page.getByTestId('library-review-session')).toContainText('Dar contexto')
@@ -322,7 +400,7 @@ test('library review session keeps guided queues actionable', async ({ page }) =
 })
 
 test('library review session celebrates completed queues', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByRole('button', { name: 'Borrar todo' }).click()
   await page.getByLabel('Confirmacion').fill('BORRAR')
   await page.getByRole('button', { name: 'Borrar todo' }).last().click()
@@ -350,7 +428,7 @@ test('library review session celebrates completed queues', async ({ page }) => {
 })
 
 test('mobile layout keeps the core controls reachable', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await expect(page.getByTestId('library-overview')).toBeVisible()
   await expect(page.getByLabel('Buscar en biblioteca')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Explorador', exact: true })).toBeVisible()
@@ -359,7 +437,7 @@ test('mobile layout keeps the core controls reachable', async ({ page }) => {
 })
 
 test('library empty search can create a prefilled item', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByLabel('Buscar en biblioteca').fill('Manual sombra')
   await expect(page.getByRole('heading', { name: 'Sin resultados' })).toBeVisible()
   await page.getByRole('button', { name: 'Crear entrada Manual sombra' }).click()
@@ -374,7 +452,7 @@ test('library empty search can create a prefilled item', async ({ page }) => {
 })
 
 test('library can update selected visible items in bulk', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await expect(page.getByLabel('Seleccion de biblioteca')).toContainText('Seleccion rapida')
   await expect(page.getByLabel('Seleccion de biblioteca')).toContainText('7 visibles en esta vista')
   await page.getByRole('button', { name: 'Seleccionar visibles' }).click()
@@ -500,7 +578,7 @@ test('library can update selected visible items in bulk', async ({ page }) => {
 })
 
 test('library can export the current selection without private settings', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   const fullDownloadPromise = page.waitForEvent('download')
   await page.getByLabel('Herramientas de biblioteca').getByRole('button', { name: 'Exportar' }).click()
   const fullDownload = await fullDownloadPromise
@@ -535,7 +613,7 @@ test('library can export the current selection without private settings', async 
 })
 
 test('library can delete the current selection with confirmation and undo it', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByLabel('Seleccionar Outer Wilds').check()
   await page.getByLabel('Seleccionar Vinland Saga').check()
   await expect(page.getByLabel('Seleccion de biblioteca')).toContainText('2 seleccionadas')
@@ -561,7 +639,7 @@ test('library can delete the current selection with confirmation and undo it', a
 })
 
 test('quick search toggles visible library selection through the pending-change guard', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByLabel('Filtrar por tipo').selectOption('game')
   await expect(page.getByText('Tipo: Juegos')).toBeVisible()
 
@@ -614,7 +692,7 @@ test('quick search toggles visible library selection through the pending-change 
 })
 
 test('quick search hides selection-only commands until a library selection exists', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByRole('button', { name: 'Busqueda rapida' }).click()
   const quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
 
@@ -645,7 +723,7 @@ test('quick search hides selection-only commands until a library selection exist
 })
 
 test('quick search clears the persistent library selection', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByLabel('Seleccionar Outer Wilds').check()
   await page.getByLabel('Seleccionar Vinland Saga').check()
   await expect(page.getByLabel('Seleccion de biblioteca')).toContainText('2 seleccionadas')
@@ -666,7 +744,7 @@ test('quick search clears the persistent library selection', async ({ page }) =>
 })
 
 test('quick search applies a status to the current library selection', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByLabel('Seleccionar Outer Wilds').check()
   await page.getByLabel('Seleccionar Vinland Saga').check()
   await expect(page.getByLabel('Seleccion de biblioteca')).toContainText('2 seleccionadas')
@@ -714,7 +792,7 @@ test('quick search applies a status to the current library selection', async ({ 
 })
 
 test('quick search updates dice cooldowns for the current library selection', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByLabel('Seleccionar Outer Wilds').check()
   await page.getByLabel('Seleccionar Vinland Saga').check()
   await expect(page.getByLabel('Seleccion de biblioteca')).toContainText('2 seleccionadas')
@@ -760,7 +838,7 @@ test('quick search updates dice cooldowns for the current library selection', as
 })
 
 test('quick search updates focus for the current library selection', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByLabel('Seleccionar Outer Wilds').check()
   await page.getByLabel('Seleccionar Vinland Saga').check()
   await expect(page.getByLabel('Seleccion de biblioteca')).toContainText('2 seleccionadas')
@@ -806,7 +884,7 @@ test('quick search updates focus for the current library selection', async ({ pa
 })
 
 test('quick search adds known taxonomy signals to the current library selection', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByLabel('Seleccionar Outer Wilds').check()
   await page.getByLabel('Seleccionar Vinland Saga').check()
   await expect(page.getByLabel('Seleccion de biblioteca')).toContainText('2 seleccionadas')
@@ -873,7 +951,7 @@ test('quick search adds known taxonomy signals to the current library selection'
 })
 
 test('quick search opens library items through the pending-change guard', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Elige el siguiente hilo' })).toBeVisible()
   await page.getByLabel('Energia').selectOption('high')
@@ -893,7 +971,7 @@ test('quick search opens library items through the pending-change guard', async 
 })
 
 test('quick search opens the active result from the keyboard', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await expect(page.getByRole('heading', { name: 'Biblioteca privada' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Busqueda rapida' })).toHaveAttribute(
     'aria-keyshortcuts',
@@ -911,7 +989,7 @@ test('quick search opens the active result from the keyboard', async ({ page }) 
 })
 
 test('quick search keyboard shortcuts avoid normal text entry', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await expect(page.getByRole('heading', { name: 'Biblioteca privada' })).toBeVisible()
 
   const quickSearchButton = page.getByRole('button', { name: 'Busqueda rapida' })
@@ -940,7 +1018,7 @@ test('quick search keyboard shortcuts avoid normal text entry', async ({ page })
 })
 
 test('dialogs support escape without losing unsaved edits', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await expect(page.getByRole('heading', { name: 'Biblioteca privada' })).toBeVisible()
 
   const addButton = page.getByRole('button', { name: 'Anadir' }).first()
@@ -994,7 +1072,7 @@ test('dialogs support escape without losing unsaved edits', async ({ page }) => 
 })
 
 test('quick search runs command actions', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByRole('button', { name: 'Busqueda rapida' }).click()
   let quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
   await expect(quickSearch.getByRole('button', { name: 'Ejecutar Anadir entrada' })).toBeVisible()
@@ -1023,7 +1101,7 @@ test('quick search runs command actions', async ({ page }) => {
 })
 
 test('quick search rolls dice through the pending-change guard', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByRole('button', { name: 'Ajustes', exact: true }).click()
   await page.getByLabel('Tipo por defecto').selectOption('book')
   await expect(page.getByText('Cambios pendientes')).toBeVisible()
@@ -1040,7 +1118,7 @@ test('quick search rolls dice through the pending-change guard', async ({ page }
 })
 
 test('quick search reviews dice instead of rolling when no candidates exist', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
   await page.getByLabel('Medio').selectOption('manhwa')
   await expect(page.getByTestId('dice-readiness')).toContainText('Sin tirada posible')
@@ -1060,7 +1138,7 @@ test('quick search reviews dice instead of rolling when no candidates exist', as
 })
 
 test('quick search can save pending dice preferences', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
   await page.getByLabel('Energia').selectOption('high')
   await expect(page.getByText('Cambios pendientes')).toBeVisible()
@@ -1080,7 +1158,7 @@ test('quick search can save pending dice preferences', async ({ page }) => {
 })
 
 test('quick search can reactivate dice cooldowns through the pending-change guard', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByRole('button', { name: 'Mas acciones Outer Wilds' }).click()
   await page.getByRole('menuitem', { name: 'Enfriar dado Outer Wilds' }).click()
   await expect(page.getByText('Outer Wilds enfriado para el dado')).toBeVisible()
@@ -1107,7 +1185,7 @@ test('quick search can reactivate dice cooldowns through the pending-change guar
 })
 
 test('quick search applies theme commands', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByRole('button', { name: 'Busqueda rapida' }).click()
   let quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
   await quickSearch.getByLabel('Buscar en Nexo').fill('rosa')
@@ -1147,7 +1225,7 @@ test('quick search applies theme commands', async ({ page }) => {
 })
 
 test('global theme menu stays in sync with settings', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByRole('button', { name: 'Ajustes', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Guardado', exact: true })).toBeDisabled()
 
@@ -1169,7 +1247,7 @@ test('global theme menu stays in sync with settings', async ({ page }) => {
 })
 
 test('quick search can save pending settings', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByRole('button', { name: 'Ajustes', exact: true }).click()
   await page.getByRole('button', { name: 'Tema Rosa', exact: true }).click()
   await expect(page.getByText('Cambios pendientes')).toBeVisible()
@@ -1189,7 +1267,7 @@ test('quick search can save pending settings', async ({ page }) => {
 })
 
 test('quick search can start a backup import through the pending-change guard', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
   await page.getByLabel('Energia').selectOption('high')
   await expect(page.getByText('Cambios pendientes')).toBeVisible()
@@ -1241,7 +1319,7 @@ test('quick search can start a backup import through the pending-change guard', 
 })
 
 test('quick search opens library smart views through the pending-change guard', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
   await page.getByLabel('Energia').selectOption('high')
   await expect(page.getByText('Cambios pendientes')).toBeVisible()
@@ -1262,7 +1340,7 @@ test('quick search opens library smart views through the pending-change guard', 
 })
 
 test('quick search switches library layout through the pending-change guard', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
   await page.getByLabel('Energia').selectOption('high')
   await expect(page.getByText('Cambios pendientes')).toBeVisible()
@@ -1296,7 +1374,7 @@ test('quick search switches library layout through the pending-change guard', as
 })
 
 test('quick search changes library sort through the pending-change guard', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
   await page.getByLabel('Energia').selectOption('high')
   await expect(page.getByText('Cambios pendientes')).toBeVisible()
@@ -1321,7 +1399,7 @@ test('quick search changes library sort through the pending-change guard', async
 })
 
 test('quick search applies library filters through the pending-change guard', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
   await page.getByLabel('Energia').selectOption('high')
   await expect(page.getByText('Cambios pendientes')).toBeVisible()
@@ -1364,7 +1442,7 @@ test('quick search applies library filters through the pending-change guard', as
 })
 
 test('quick search resets the library view through the pending-change guard', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByLabel('Filtrar por tipo').selectOption('game')
   await page.getByLabel('Ordenar biblioteca').selectOption('title')
   await expect(page.getByText('Tipo: Juegos')).toBeVisible()
@@ -1395,7 +1473,7 @@ test('quick search resets the library view through the pending-change guard', as
 })
 
 test('quick search starts guided library review through the pending-change guard', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
   await page.getByLabel('Energia').selectOption('high')
   await expect(page.getByText('Cambios pendientes')).toBeVisible()
@@ -1418,7 +1496,7 @@ test('quick search starts guided library review through the pending-change guard
 })
 
 test('quick search can start a specific guided review queue', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
   await page.getByLabel('Energia').selectOption('high')
   await expect(page.getByText('Cambios pendientes')).toBeVisible()
@@ -1440,7 +1518,7 @@ test('quick search can start a specific guided review queue', async ({ page }) =
 })
 
 test('quick search applies the next library action through the pending-change guard', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
   await page.getByLabel('Energia').selectOption('high')
   await expect(page.getByText('Cambios pendientes')).toBeVisible()
@@ -1465,7 +1543,7 @@ test('quick search applies the next library action through the pending-change gu
 })
 
 test('quick search opens sections through the pending-change guard', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Elige el siguiente hilo' })).toBeVisible()
   await page.getByLabel('Energia').selectOption('high')
@@ -1485,7 +1563,7 @@ test('quick search opens sections through the pending-change guard', async ({ pa
 })
 
 test('quick search can start an explorer search through the pending-change guard', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
   await page.getByLabel('Energia').selectOption('high')
   await expect(page.getByText('Cambios pendientes')).toBeVisible()
@@ -1509,7 +1587,7 @@ test('quick search can start an explorer search through the pending-change guard
 })
 
 test('quick search can add an explorer surprise card through the pending-change guard', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
   await page.getByLabel('Energia').selectOption('high')
   await expect(page.getByText('Cambios pendientes')).toBeVisible()
@@ -1531,7 +1609,7 @@ test('quick search can add an explorer surprise card through the pending-change 
 })
 
 test('quick search can reopen explorer candidates through the pending-change guard', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByRole('button', { name: 'Explorador', exact: true }).click()
   await page.getByLabel('Tipo de busqueda en explorador').selectOption('book')
   await page.getByLabel('Buscar en explorador').fill('Odisea')
@@ -1561,7 +1639,7 @@ test('quick search can reopen explorer candidates through the pending-change gua
 })
 
 test('quick search can open the next explorer candidate through the pending-change guard', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByRole('button', { name: 'Explorador', exact: true }).click()
   await page.getByLabel('Tipo de busqueda en explorador').selectOption('book')
   await page.getByLabel('Buscar en explorador').fill('Odisea')
@@ -1589,7 +1667,7 @@ test('quick search can open the next explorer candidate through the pending-chan
 })
 
 test('quick search can save the next explorer candidate through the pending-change guard', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByRole('button', { name: 'Explorador', exact: true }).click()
   await page.getByLabel('Tipo de busqueda en explorador').selectOption('book')
   await page.getByLabel('Buscar en explorador').fill('Odisea')
@@ -1621,7 +1699,7 @@ test('quick search can save the next explorer candidate through the pending-chan
 })
 
 test('quick search can save a filtered explorer view through the pending-change guard', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByRole('button', { name: 'Explorador', exact: true }).click()
   await page.getByLabel('Tipo de busqueda en explorador').selectOption('book')
   await page.getByLabel('Buscar en explorador').fill('Odisea')
@@ -1654,7 +1732,7 @@ test('quick search can save a filtered explorer view through the pending-change 
 })
 
 test('quick search can dismiss the next explorer candidate through the pending-change guard', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByRole('button', { name: 'Explorador', exact: true }).click()
   await page.getByLabel('Tipo de busqueda en explorador').selectOption('book')
   await page.getByLabel('Buscar en explorador').fill('Odisea')
@@ -1685,7 +1763,7 @@ test('quick search can dismiss the next explorer candidate through the pending-c
 })
 
 test('quick search can dismiss a filtered explorer view through the pending-change guard', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByRole('button', { name: 'Explorador', exact: true }).click()
   await page.getByLabel('Tipo de busqueda en explorador').selectOption('book')
   await page.getByLabel('Buscar en explorador').fill('Odisea')
@@ -1719,7 +1797,7 @@ test('quick search can dismiss a filtered explorer view through the pending-chan
 })
 
 test('quick search can create a prefilled item through the pending-change guard', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Elige el siguiente hilo' })).toBeVisible()
   await page.getByLabel('Energia').selectOption('high')
@@ -1743,7 +1821,7 @@ test('quick search can create a prefilled item through the pending-change guard'
 })
 
 test('activity entries navigate through the pending-change guard', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByRole('button', { name: 'Anadir' }).click()
   const editor = page.getByRole('dialog', { name: 'Entrada' })
   await editor.getByLabel('Titulo').fill('Actividad navegable')
@@ -1767,7 +1845,7 @@ test('activity entries navigate through the pending-change guard', async ({ page
 })
 
 test('quick search resumes recent activity through the pending-change guard', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByRole('button', { name: 'Anadir' }).click()
   const editor = page.getByRole('dialog', { name: 'Entrada' })
   await editor.getByLabel('Titulo').fill('Actividad paleta')
@@ -1793,7 +1871,7 @@ test('quick search resumes recent activity through the pending-change guard', as
 })
 
 test('quick search can clear and restore recent activity', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByRole('button', { name: 'Anadir' }).click()
   const editor = page.getByRole('dialog', { name: 'Entrada' })
   await editor.getByLabel('Titulo').fill('Actividad limpiable')
@@ -1823,7 +1901,7 @@ test('quick search can clear and restore recent activity', async ({ page }) => {
 })
 
 test('quick search can apply taste suggestions through the pending-change guard', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
   await page.getByLabel('Energia').selectOption('high')
   await expect(page.getByText('Cambios pendientes')).toBeVisible()
@@ -1847,7 +1925,7 @@ test('quick search can apply taste suggestions through the pending-change guard'
 })
 
 test('quick search can repair private taxonomy through the pending-change guard', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByRole('button', { name: 'Ajustes', exact: true }).click()
   await page.getByLabel('Importar backup JSON').setInputFiles({
     name: 'nexo-quick-taxonomy-repair.json',
@@ -1924,7 +2002,7 @@ test('missing item deep links can recover through library search', async ({ page
 })
 
 test('dice item activity opens the linked library editor', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
   await page.getByTestId('roll-button').click()
   await expect(page.getByTestId('recommendation-result')).toBeVisible()
@@ -1945,7 +2023,7 @@ test('dice item activity opens the linked library editor', async ({ page }) => {
 })
 
 test('pwa metadata is present', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
 
   await expect(page.locator('link[rel="manifest"]')).toHaveAttribute('href', '/manifest.webmanifest')
   await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#0f1214')
@@ -2033,7 +2111,7 @@ test('pwa metadata is present', async ({ page }) => {
 })
 
 test('browser history asks before leaving pending dice preferences', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
   await expect(page).toHaveURL(/tab=dice/)
   await page.getByRole('button', { name: 'Explorador', exact: true }).click()
@@ -2051,7 +2129,7 @@ test('browser history asks before leaving pending dice preferences', async ({ pa
 })
 
 test('settings show pending changes before saving preferences', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByRole('button', { name: 'Ajustes', exact: true }).click()
 
   await expect(page.getByRole('button', { name: 'Guardado', exact: true })).toBeDisabled()
@@ -2174,7 +2252,7 @@ test('settings show pending changes before saving preferences', async ({ page })
 })
 
 test('settings can repair private taxonomy from the maintenance plan', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByRole('button', { name: 'Ajustes', exact: true }).click()
   await page.getByLabel('Importar backup JSON').setInputFiles({
     name: 'nexo-taxonomy-repair.json',
@@ -2221,7 +2299,7 @@ test('settings can repair private taxonomy from the maintenance plan', async ({ 
 })
 
 test('settings can undo a private backup import with settings', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByRole('button', { name: 'Ajustes', exact: true }).click()
   await page.getByLabel('Importar backup JSON').setInputFiles({
     name: 'nexo-settings-rollback.json',
@@ -2270,7 +2348,7 @@ test('settings can undo a private backup import with settings', async ({ page })
 })
 
 test('library quick import previews a backup before applying it', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByLabel('Importar biblioteca desde JSON').setInputFiles({
     name: 'nexo-library-preview.json',
     mimeType: 'application/json',
@@ -2320,7 +2398,7 @@ test('library quick import previews a backup before applying it', async ({ page 
 })
 
 test('settings can import backup entries without applying included settings', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByRole('button', { name: 'Ajustes', exact: true }).click()
   await expect(page.getByTestId('settings-confidence')).toContainText('Oscuro')
   await page.getByLabel('Importar backup JSON').setInputFiles({
@@ -2371,7 +2449,7 @@ test('settings can import backup entries without applying included settings', as
 })
 
 test('explorer searches public catalog and saves to private library', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByRole('button', { name: 'Explorador', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Encuentra la proxima entrada' })).toBeVisible()
   await expect(page.getByLabel('Resumen del explorador')).toContainText('Cola')
@@ -2445,7 +2523,7 @@ test('explorer searches public catalog and saves to private library', async ({ p
 })
 
 test('explorer can clean a filtered queued view', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByRole('button', { name: 'Explorador', exact: true }).click()
   await page.getByLabel('Tipo de busqueda en explorador').selectOption('book')
   await page.getByLabel('Buscar en explorador').fill('Odisea')
@@ -2475,7 +2553,7 @@ test('explorer can clean a filtered queued view', async ({ page }) => {
 })
 
 test('explorer can save a filtered queued view in bulk and undo it', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByRole('button', { name: 'Explorador', exact: true }).click()
   await page.getByLabel('Tipo de busqueda en explorador').selectOption('book')
   await page.getByLabel('Buscar en explorador').fill('Odisea')
@@ -2502,7 +2580,7 @@ test('explorer can save a filtered queued view in bulk and undo it', async ({ pa
 })
 
 test('library editor explains private copies from the Nexo catalog', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByRole('button', { name: 'Explorador', exact: true }).click()
   await page.getByLabel('Tipo de busqueda en explorador').selectOption('book')
   await page.getByLabel('Buscar en explorador').fill('Odisea')
@@ -2524,7 +2602,7 @@ test('library editor explains private copies from the Nexo catalog', async ({ pa
 })
 
 test('moderator curation can create a public catalog item in demo mode', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByRole('button', { name: 'Curacion' }).click()
   await expect(page.getByRole('heading', { name: 'Curacion' })).toBeVisible()
   await expect(page.getByTestId('catalog-diagnostics')).toContainText('Diagnostico')
@@ -2667,7 +2745,7 @@ test('moderator curation can create a public catalog item in demo mode', async (
 })
 
 test('moderator can undo a public catalog seed import', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByRole('button', { name: 'Curacion' }).click()
 
   await page.getByLabel('Importar lote de catalogo JSON').setInputFiles({
@@ -2714,7 +2792,7 @@ test('moderator can undo a public catalog seed import', async ({ page }) => {
 })
 
 test('moderator can turn an explorer candidate into a public catalog item', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByRole('button', { name: 'Explorador', exact: true }).click()
   await page.getByLabel('Buscar en explorador').fill('V Rising')
   await page.getByRole('button', { name: 'Buscar' }).click()
@@ -2738,7 +2816,7 @@ test('moderator can turn an explorer candidate into a public catalog item', asyn
 })
 
 test('delete all requires explicit confirmation', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await expect(page.getByTestId('library-grid')).toContainText('Outer Wilds')
   await page.getByRole('button', { name: 'Mas acciones Mass Effect Legendary Edition' }).click()
   await page.getByRole('menuitem', { name: 'Borrar Mass Effect Legendary Edition' }).click()
@@ -2769,7 +2847,7 @@ test('library cards stay legible at 1920x1080', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'chromium', 'desktop geometry check')
 
   await page.setViewportSize({ width: 1920, height: 1080 })
-  await page.goto('/')
+  await openApp(page)
   await expect(page.getByRole('heading', { name: 'Biblioteca privada' })).toBeVisible()
   await expect(page.getByTestId('library-grid')).toBeVisible()
 
@@ -2819,7 +2897,7 @@ test('library cards fit the mobile PWA viewport', async ({ page }, testInfo) => 
   test.skip(testInfo.project.name !== 'mobile', 'mobile geometry check')
 
   await page.setViewportSize({ width: 390, height: 844 })
-  await page.goto('/')
+  await openApp(page)
   await expect(page.getByRole('heading', { name: 'Biblioteca privada' })).toBeVisible()
   await expect(page.getByTestId('library-grid')).toBeVisible()
 
@@ -2902,7 +2980,7 @@ test('settings layout keeps the status area compact', async ({ page }, testInfo)
     await page.setViewportSize({ width: 390, height: 844 })
   }
 
-  await page.goto('/')
+  await openApp(page)
   await page.getByRole('button', { name: 'Ajustes', exact: true }).click()
   await expect(page.getByTestId('settings-confidence')).toBeVisible()
 
@@ -2930,7 +3008,7 @@ test('settings layout keeps the status area compact', async ({ page }, testInfo)
 })
 
 test('core tabs have no serious accessibility violations', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   const coreTabs = ['Biblioteca', 'Dado', 'Explorador', 'Ajustes', 'Curacion']
 
   for (const tab of coreTabs) {
@@ -2944,7 +3022,7 @@ test('core tabs have no serious accessibility violations', async ({ page }) => {
 })
 
 test('editors have no serious accessibility violations', async ({ page }) => {
-  await page.goto('/')
+  await openApp(page)
   await page.getByRole('button', { name: 'Anadir' }).first().click()
   await expectDialogAnimationsSettled(page.getByRole('dialog', { name: 'Entrada' }))
   let results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze()

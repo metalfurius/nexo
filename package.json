@@ -24,7 +24,11 @@
     "test:rules": "tsx scripts/runFirestoreRulesTests.ts",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "worker:deploy": "npx --yes wrangler deploy --config workers/catalog-proxy/wrangler.jsonc",
+    "worker:dev": "npx --yes wrangler dev --config workers/catalog-proxy/wrangler.jsonc",
+    "worker:secret:rawg": "npx --yes wrangler secret put RAWG_API_KEY --config workers/catalog-proxy/wrangler.jsonc",
+    "worker:secret:tmdb": "npx --yes wrangler secret put TMDB_READ_TOKEN --config workers/catalog-proxy/wrangler.jsonc"
   },
   "dependencies": {
     "firebase": "^12.14.0",
