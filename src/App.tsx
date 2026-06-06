@@ -2671,10 +2671,13 @@ function App() {
     <main className="app-shell">
       <header className="topbar">
         <div className="topbar-main">
-          <div>
-            <span className="eyebrow">Nexo 1.0 beta</span>
-            <h1>{shellTitle}</h1>
-            <p className="topbar-subtitle">{activeNavItem.description}</p>
+          <div className="brand-lockup">
+            <NexoMark />
+            <div className="brand-copy">
+              <span className="eyebrow">Nexo / mapa privado</span>
+              <h1>{shellTitle}</h1>
+              <p className="topbar-subtitle">{activeNavItem.description}</p>
+            </div>
           </div>
           <ShellPulse library={library} isFirebaseConfigured={auth.isFirebaseConfigured} />
         </div>
@@ -3433,6 +3436,17 @@ function getActivityIcon(tone: FeedbackTone) {
   if (tone === 'loading') return LoaderCircle
   if (tone === 'success') return CheckCircle2
   return Info
+}
+
+function NexoMark({ compact = false }: { compact?: boolean }) {
+  return (
+    <span className={compact ? 'nexo-mark compact' : 'nexo-mark'} aria-hidden="true">
+      <span className="nexo-mark-letter">N</span>
+      <span className="nexo-mark-node one" />
+      <span className="nexo-mark-node two" />
+      <span className="nexo-mark-node three" />
+    </span>
+  )
 }
 
 function ShellPulse({
@@ -7587,7 +7601,7 @@ function ExplorerTab({
   }, [clearExplorerRecentActions, dismissVisibleQueueForFilter, onVisibleDismissRequestHandled, visibleDismissRequest])
 
   return (
-    <section className="content-grid">
+    <section className={totalDiscoveryCount > 0 ? 'content-grid' : 'content-grid explorer-focus-grid'}>
       <section className="workspace-panel wide">
         <div className="explorer-command">
           <div className="explorer-command-heading">
@@ -7637,7 +7651,7 @@ function ExplorerTab({
             </button>
           </form>
 
-          <div className="explorer-command-summary" aria-label="Resumen del explorador">
+          <div className={totalDiscoveryCount > 0 ? 'explorer-command-summary' : 'explorer-command-summary sr-only'} aria-label="Resumen del explorador">
             <span>
               <strong>{discoveryCounts.queued}</strong>
               Cola
@@ -7693,97 +7707,101 @@ function ExplorerTab({
           </div>
         )}
 
-        <div className="explorer-control-deck">
-          <div className="explorer-status-strip" role="tablist" aria-label="Estado de descubrimiento">
-            {(['queued', 'saved', 'dismissed'] as const).map((status) => (
-              <button
-                aria-selected={view === status}
-                className={view === status ? 'stat-chip active' : 'stat-chip'}
-                data-status={status}
-                key={status}
-                role="tab"
-                type="button"
-                onClick={() => changeExplorerView(status)}
-              >
-                <span>{discoveryStatusLabels[status]}</span>
-                <strong>{discoveryCounts[status]}</strong>
-              </button>
-            ))}
-          </div>
+        {totalDiscoveryCount > 0 && (
+          <>
+            <div className="explorer-control-deck">
+              <div className="explorer-status-strip" role="tablist" aria-label="Estado de descubrimiento">
+                {(['queued', 'saved', 'dismissed'] as const).map((status) => (
+                  <button
+                    aria-selected={view === status}
+                    className={view === status ? 'stat-chip active' : 'stat-chip'}
+                    data-status={status}
+                    key={status}
+                    role="tab"
+                    type="button"
+                    onClick={() => changeExplorerView(status)}
+                  >
+                    <span>{discoveryStatusLabels[status]}</span>
+                    <strong>{discoveryCounts[status]}</strong>
+                  </button>
+                ))}
+              </div>
 
-          <div className="explorer-source-strip" role="group" aria-label="Filtrar descubrimientos por origen">
-            {explorerSourceFilters.map((filter) => (
-              <button
-                aria-pressed={sourceFilter === filter.id}
-                className={sourceFilter === filter.id ? 'source-filter-chip active' : 'source-filter-chip'}
-                key={filter.id}
-                type="button"
-                onClick={() => changeExplorerSourceFilter(filter.id)}
-              >
-                <span>{filter.label}</span>
-                <small>{filter.detail}</small>
-                <strong>{sourceCounts[filter.id]}</strong>
-              </button>
-            ))}
-          </div>
-        </div>
+              <div className="explorer-source-strip" role="group" aria-label="Filtrar descubrimientos por origen">
+                {explorerSourceFilters.map((filter) => (
+                  <button
+                    aria-pressed={sourceFilter === filter.id}
+                    className={sourceFilter === filter.id ? 'source-filter-chip active' : 'source-filter-chip'}
+                    key={filter.id}
+                    type="button"
+                    onClick={() => changeExplorerSourceFilter(filter.id)}
+                  >
+                    <span>{filter.label}</span>
+                    <small>{filter.detail}</small>
+                    <strong>{sourceCounts[filter.id]}</strong>
+                  </button>
+                ))}
+              </div>
+            </div>
 
-        <section className="explorer-decision-panel" aria-label="Estado de decision del explorador" data-testid="explorer-decision-panel">
-          <div className="explorer-decision-main">
-            <div>
-              <span className="eyebrow">Bandeja activa</span>
-              <strong>{decisionSummaryTitle}</strong>
-              <p>{decisionSummaryDetail}</p>
-            </div>
-            <div className="explorer-progress-badge">
-              <strong>{decisionProgressPercent}%</strong>
-              <span>historial decidido</span>
-            </div>
-          </div>
-          <div
-            aria-label={`Progreso de decision ${decisionProgressPercent}%`}
-            className="explorer-decision-meter"
-            role="meter"
-            aria-valuemax={100}
-            aria-valuemin={0}
-            aria-valuenow={decisionProgressPercent}
-          >
-            <span style={{ width: `${decisionProgressPercent}%` }} />
-          </div>
-          <div className="explorer-decision-facts">
-            <span>
-              <strong>{spotlightCandidate?.title ?? 'Sin siguiente'}</strong>
-              Siguiente
-            </span>
-            <span>
-              <strong>{dominantSourceLabel}</strong>
-              Origen fuerte
-            </span>
-            <span>
-              <strong>{activeSourceLabel}</strong>
-              Filtro
-            </span>
-          </div>
-          <div className="explorer-decision-actions">
-            {sourceFilter !== 'all' && (
-              <button className="secondary-button" type="button" onClick={() => changeExplorerSourceFilter('all')}>
-                Ver todos los origenes
-              </button>
-            )}
-            {canSaveVisibleQueue && (
-              <button className="secondary-button" type="button" onClick={() => void saveVisibleQueue()}>
-                <Plus size={16} />
-                Guardar vista
-              </button>
-            )}
-            {canDismissVisibleQueue && (
-              <button className="ghost-button danger-ghost" type="button" onClick={() => void dismissVisibleQueue()}>
-                <X size={16} />
-                Descartar vista
-              </button>
-            )}
-          </div>
-        </section>
+            <section className="explorer-decision-panel" aria-label="Estado de decision del explorador" data-testid="explorer-decision-panel">
+              <div className="explorer-decision-main">
+                <div>
+                  <span className="eyebrow">Bandeja activa</span>
+                  <strong>{decisionSummaryTitle}</strong>
+                  <p>{decisionSummaryDetail}</p>
+                </div>
+                <div className="explorer-progress-badge">
+                  <strong>{decisionProgressPercent}%</strong>
+                  <span>historial decidido</span>
+                </div>
+              </div>
+              <div
+                aria-label={`Progreso de decision ${decisionProgressPercent}%`}
+                className="explorer-decision-meter"
+                role="meter"
+                aria-valuemax={100}
+                aria-valuemin={0}
+                aria-valuenow={decisionProgressPercent}
+              >
+                <span style={{ width: `${decisionProgressPercent}%` }} />
+              </div>
+              <div className="explorer-decision-facts">
+                <span>
+                  <strong>{spotlightCandidate?.title ?? 'Sin siguiente'}</strong>
+                  Siguiente
+                </span>
+                <span>
+                  <strong>{dominantSourceLabel}</strong>
+                  Origen fuerte
+                </span>
+                <span>
+                  <strong>{activeSourceLabel}</strong>
+                  Filtro
+                </span>
+              </div>
+              <div className="explorer-decision-actions">
+                {sourceFilter !== 'all' && (
+                  <button className="secondary-button" type="button" onClick={() => changeExplorerSourceFilter('all')}>
+                    Ver todos los origenes
+                  </button>
+                )}
+                {canSaveVisibleQueue && (
+                  <button className="secondary-button" type="button" onClick={() => void saveVisibleQueue()}>
+                    <Plus size={16} />
+                    Guardar vista
+                  </button>
+                )}
+                {canDismissVisibleQueue && (
+                  <button className="ghost-button danger-ghost" type="button" onClick={() => void dismissVisibleQueue()}>
+                    <X size={16} />
+                    Descartar vista
+                  </button>
+                )}
+              </div>
+            </section>
+          </>
+        )}
 
         {completedExplorerQueue && (
           <section
@@ -7907,11 +7925,13 @@ function ExplorerTab({
         )}
       </section>
 
-      <aside className="insight-rail">
-        <MetricCard label="Nexo en cola" value={queuedNexoCount} />
-        <MetricCard label="APIs en cola" value={queuedExternalCount} />
-        <MetricCard label="Ideas" value={queuedPromptCount} />
-      </aside>
+      {totalDiscoveryCount > 0 && (
+        <aside className="insight-rail">
+          <MetricCard label="Nexo en cola" value={queuedNexoCount} />
+          <MetricCard label="APIs en cola" value={queuedExternalCount} />
+          <MetricCard label="Ideas" value={queuedPromptCount} />
+        </aside>
+      )}
 
       {selected && (
         <CandidateDialog
@@ -11980,7 +12000,7 @@ function ShellState({ action, detail, title }: { title: string; detail?: string;
   return (
     <main className="auth-shell">
       <section>
-        <Library size={32} />
+        <NexoMark />
         <h1>{title}</h1>
         {detail && <p>{detail}</p>}
         {action}

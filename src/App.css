@@ -1,26 +1,65 @@
 .app-shell {
   background:
-    linear-gradient(180deg, color-mix(in srgb, var(--surface-muted) 70%, transparent), transparent 320px),
-    linear-gradient(90deg, color-mix(in srgb, var(--accent-soft) 34%, transparent), transparent 34%),
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-muted) 76%, transparent), transparent 340px),
+    linear-gradient(118deg, color-mix(in srgb, var(--accent-soft) 32%, transparent), transparent 42%),
     var(--surface);
   color: var(--text);
   display: grid;
   grid-template-columns: 244px minmax(0, 1fr);
   grid-template-rows: auto 1fr;
+  isolation: isolate;
   min-height: 100vh;
   min-height: 100dvh;
+  overflow-x: hidden;
+  position: relative;
+}
+
+.app-shell::before {
+  background:
+    linear-gradient(112deg, transparent 0 48%, color-mix(in srgb, var(--accent) 12%, transparent) 48.2% 48.8%, transparent 49%),
+    linear-gradient(90deg, color-mix(in srgb, var(--accent-dark) 8%, transparent) 1px, transparent 1px);
+  background-size: 460px 270px, 128px 128px;
+  content: '';
+  inset: 0;
+  mask-image: linear-gradient(180deg, #000 0 28%, transparent 72%);
+  opacity: 0.28;
+  pointer-events: none;
+  position: fixed;
+  z-index: 0;
+}
+
+.app-shell > * {
+  position: relative;
+  z-index: 1;
 }
 
 .topbar {
   align-items: center;
-  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--surface-raised) 78%, transparent), color-mix(in srgb, var(--surface) 86%, transparent)),
+    color-mix(in srgb, var(--surface) 88%, transparent);
   border-bottom: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
   display: flex;
   gap: 24px;
   grid-column: 1 / -1;
   justify-content: space-between;
   min-height: 84px;
+  overflow: hidden;
   padding: 16px 28px;
+  position: relative;
+}
+
+.topbar::after {
+  background:
+    linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent-dark) 36%, transparent), transparent),
+    linear-gradient(90deg, color-mix(in srgb, var(--accent-warm) 46%, transparent), transparent 72%);
+  bottom: 0;
+  content: '';
+  height: 2px;
+  left: 244px;
+  pointer-events: none;
+  position: absolute;
+  right: 28px;
 }
 
 .topbar-main {
@@ -31,9 +70,86 @@
   min-width: 0;
 }
 
-.topbar-main > div:first-child {
+.brand-lockup {
+  align-items: center;
+  display: flex;
   flex: 0 0 auto;
+  gap: 13px;
   min-width: 236px;
+}
+
+.brand-copy {
+  min-width: 0;
+}
+
+.nexo-mark {
+  align-items: center;
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--accent-soft) 72%, var(--surface-muted)), color-mix(in srgb, var(--surface-raised) 86%, transparent)),
+    var(--surface-raised);
+  border: 1px solid color-mix(in srgb, var(--accent) 42%, var(--border));
+  border-radius: 8px;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--text-strong) 5%, transparent),
+    0 14px 32px color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--text-strong);
+  display: inline-flex;
+  flex: 0 0 auto;
+  height: 46px;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+  width: 46px;
+}
+
+.nexo-mark::after {
+  background:
+    linear-gradient(58deg, transparent calc(50% - 1.5px), var(--accent-dark) calc(50% - 1.5px) calc(50% + 1.5px), transparent calc(50% + 1.5px)),
+    linear-gradient(90deg, var(--accent) 0 100%) left 11px / 100% 2px no-repeat,
+    linear-gradient(90deg, var(--accent-warm) 0 100%) left calc(100% - 11px) / 100% 2px no-repeat;
+  content: '';
+  inset: 8px 9px;
+  opacity: 0.8;
+  position: absolute;
+}
+
+.nexo-mark.compact {
+  height: 38px;
+  width: 38px;
+}
+
+.nexo-mark-letter {
+  font-size: 25px;
+  font-weight: 950;
+  line-height: 1;
+  opacity: 0.82;
+  position: relative;
+  z-index: 1;
+}
+
+.nexo-mark-node {
+  background: var(--text-strong);
+  border: 1px solid color-mix(in srgb, var(--surface) 54%, transparent);
+  border-radius: 3px;
+  height: 6px;
+  position: absolute;
+  width: 6px;
+  z-index: 2;
+}
+
+.nexo-mark-node.one {
+  left: 8px;
+  top: 10px;
+}
+
+.nexo-mark-node.two {
+  right: 8px;
+  top: 10px;
+}
+
+.nexo-mark-node.three {
+  bottom: 10px;
+  right: 8px;
 }
 
 .topbar h1,
@@ -56,11 +172,23 @@
   gap: 6px;
   max-width: 740px;
   min-width: 0;
+  position: relative;
+}
+
+.topbar-pulse::before {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 24%, transparent), color-mix(in srgb, var(--accent-warm) 22%, transparent));
+  content: '';
+  height: 1px;
+  left: 8px;
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 .pulse-chip {
   align-items: center;
-  background: color-mix(in srgb, var(--surface-muted) 68%, transparent);
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
   border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
   border-radius: 8px;
   color: var(--muted);
@@ -69,6 +197,8 @@
   min-height: 28px;
   min-width: 0;
   padding: 5px 9px;
+  position: relative;
+  z-index: 1;
 }
 
 .pulse-chip svg {
@@ -378,7 +508,19 @@
   grid-column: 1;
   grid-row: 2;
   padding: 18px 16px;
+  position: relative;
   scrollbar-width: none;
+}
+
+.tabbar::before {
+  background: linear-gradient(180deg, var(--accent), color-mix(in srgb, var(--accent-warm) 70%, transparent), transparent);
+  content: '';
+  left: 0;
+  opacity: 0.72;
+  position: absolute;
+  top: 22px;
+  bottom: 22px;
+  width: 2px;
 }
 
 .tabbar::-webkit-scrollbar {
@@ -408,7 +550,9 @@
   gap: 10px;
   grid-template-columns: 22px minmax(0, 1fr);
   min-height: 54px;
+  overflow: hidden;
   padding: 10px 12px;
+  position: relative;
   text-align: left;
   transition:
     background var(--motion-fast) ease,
@@ -416,6 +560,22 @@
     color var(--motion-fast) ease,
     transform var(--motion-fast) var(--motion-ease);
   width: 100%;
+}
+
+.tab-button::after {
+  background: linear-gradient(90deg, var(--accent), transparent);
+  bottom: 0;
+  content: '';
+  height: 2px;
+  left: 12px;
+  opacity: 0;
+  position: absolute;
+  transform: scaleX(0.24);
+  transform-origin: left;
+  transition:
+    opacity var(--motion-fast) ease,
+    transform var(--motion-fast) var(--motion-ease);
+  width: 64px;
 }
 
 .tab-button svg {
@@ -429,6 +589,12 @@
   border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
   box-shadow: inset 3px 0 0 var(--accent);
   color: var(--text-strong);
+}
+
+.tab-button.active::after,
+.tab-button:hover::after {
+  opacity: 1;
+  transform: scaleX(1);
 }
 
 .tab-button:hover:not(.active) {
@@ -919,6 +1085,10 @@
   grid-template-columns: minmax(0, 1fr);
 }
 
+.explorer-focus-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .dice-layout {
   grid-template-columns: minmax(320px, 0.9fr) minmax(340px, 1.1fr);
 }
@@ -970,6 +1140,7 @@
 .workspace-panel {
   min-width: 0;
   padding: 20px;
+  position: relative;
 }
 
 .library-content-grid .workspace-panel {
@@ -1000,6 +1171,18 @@
   display: grid;
   gap: 8px;
   padding: 16px;
+  position: relative;
+}
+
+.metric-card::before {
+  background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent-warm) 72%, transparent));
+  border-radius: 999px;
+  content: '';
+  height: 2px;
+  left: 16px;
+  position: absolute;
+  right: 16px;
+  top: 0;
 }
 
 .metric-card span,
@@ -1311,14 +1494,36 @@
 
 .library-search-hero {
   background:
-    linear-gradient(135deg, color-mix(in srgb, var(--accent-soft) 42%, transparent), transparent 58%),
+    linear-gradient(126deg, color-mix(in srgb, var(--accent-soft) 46%, transparent), transparent 62%),
+    linear-gradient(90deg, color-mix(in srgb, var(--surface) 78%, transparent), transparent),
     color-mix(in srgb, var(--surface-raised) 88%, transparent);
   border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border));
   border-radius: 8px;
   display: grid;
   gap: 14px;
   margin: 0 0 14px;
+  overflow: hidden;
   padding: 16px;
+  position: relative;
+}
+
+.library-search-hero::before {
+  background:
+    linear-gradient(62deg, transparent calc(50% - 1px), color-mix(in srgb, var(--accent-dark) 48%, transparent) calc(50% - 1px) calc(50% + 1px), transparent calc(50% + 1px)),
+    linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 18%, transparent), transparent);
+  content: '';
+  height: 92px;
+  opacity: 0.46;
+  pointer-events: none;
+  position: absolute;
+  right: 18px;
+  top: -18px;
+  width: min(36%, 360px);
+}
+
+.library-search-hero > * {
+  position: relative;
+  z-index: 1;
 }
 
 .library-search-copy {
@@ -1356,7 +1561,9 @@
 
 .library-catalog-card {
   align-items: stretch;
-  background: var(--surface);
+  background:
+    linear-gradient(110deg, color-mix(in srgb, var(--surface) 92%, transparent), color-mix(in srgb, var(--surface-muted) 78%, transparent)),
+    var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
   display: grid;
@@ -1364,6 +1571,7 @@
   grid-template-columns: 72px minmax(0, 1fr);
   min-width: 0;
   padding: 10px;
+  position: relative;
 }
 
 .library-catalog-card.saved {
@@ -2071,7 +2279,9 @@
   display: grid;
   gap: 10px;
   margin: 0 0 16px;
+  overflow: hidden;
   padding: 12px;
+  position: relative;
 }
 
 .focus-shelf-heading {
@@ -2224,14 +2434,40 @@
 
 .explorer-command {
   background:
-    linear-gradient(135deg, color-mix(in srgb, var(--accent-soft) 42%, transparent), transparent 62%),
+    linear-gradient(128deg, color-mix(in srgb, var(--accent-soft) 44%, transparent), transparent 64%),
+    linear-gradient(90deg, color-mix(in srgb, var(--surface) 72%, transparent), transparent),
     color-mix(in srgb, var(--surface-raised) 86%, transparent);
   border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border));
   border-radius: 8px;
   display: grid;
   gap: 14px;
   margin: 0 0 14px;
+  overflow: hidden;
   padding: 16px;
+  position: relative;
+}
+
+.explorer-command::before,
+.explorer-decision-panel::before,
+.library-focus-shelf::before {
+  background:
+    linear-gradient(55deg, transparent calc(50% - 1px), color-mix(in srgb, var(--accent-dark) 38%, transparent) calc(50% - 1px) calc(50% + 1px), transparent calc(50% + 1px)),
+    linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent-warm) 16%, transparent), transparent);
+  content: '';
+  height: 76px;
+  opacity: 0.5;
+  pointer-events: none;
+  position: absolute;
+  right: 16px;
+  top: -18px;
+  width: min(34%, 320px);
+}
+
+.explorer-command > *,
+.explorer-decision-panel > *,
+.library-focus-shelf > * {
+  position: relative;
+  z-index: 1;
 }
 
 .explorer-command-heading {
@@ -4065,7 +4301,9 @@ label {
   display: grid;
   gap: 11px;
   margin: 0 0 14px;
+  overflow: hidden;
   padding: 12px;
+  position: relative;
 }
 
 .explorer-decision-main {
@@ -4278,7 +4516,8 @@ label {
 .candidate-spotlight {
   animation: reveal-result var(--motion-slow) var(--motion-ease) both;
   background:
-    linear-gradient(135deg, color-mix(in srgb, var(--accent-soft) 42%, transparent), transparent 68%),
+    linear-gradient(126deg, color-mix(in srgb, var(--accent-soft) 42%, transparent), transparent 68%),
+    linear-gradient(90deg, color-mix(in srgb, var(--surface) 58%, transparent), transparent),
     color-mix(in srgb, var(--surface-raised) 80%, transparent);
   border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border));
   border-radius: 8px;
@@ -4286,7 +4525,28 @@ label {
   gap: 14px;
   grid-template-columns: minmax(118px, 160px) minmax(0, 1fr) minmax(160px, 210px);
   margin: 0 0 14px;
+  overflow: hidden;
   padding: 12px;
+  position: relative;
+}
+
+.candidate-spotlight::before {
+  background:
+    linear-gradient(56deg, transparent calc(50% - 1px), color-mix(in srgb, var(--accent-dark) 38%, transparent) calc(50% - 1px) calc(50% + 1px), transparent calc(50% + 1px)),
+    linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 16%, transparent), transparent);
+  content: '';
+  height: 92px;
+  opacity: 0.52;
+  pointer-events: none;
+  position: absolute;
+  right: 18px;
+  top: -22px;
+  width: min(34%, 340px);
+}
+
+.candidate-spotlight > * {
+  position: relative;
+  z-index: 1;
 }
 
 .candidate-spotlight-media {
@@ -4486,12 +4746,27 @@ label {
 
 .item-card {
   background:
-    linear-gradient(145deg, color-mix(in srgb, var(--surface-raised) 94%, transparent), color-mix(in srgb, var(--surface-muted) 78%, transparent)),
+    linear-gradient(145deg, color-mix(in srgb, var(--surface-raised) 96%, transparent), color-mix(in srgb, var(--surface-muted) 82%, transparent)),
     var(--surface-raised);
   border-color: color-mix(in srgb, var(--border) 72%, transparent);
   grid-template-rows: minmax(0, 1fr) auto;
   overflow: visible;
   position: relative;
+}
+
+.item-card::after {
+  background:
+    linear-gradient(58deg, transparent calc(50% - 1px), color-mix(in srgb, var(--accent-dark) 34%, transparent) calc(50% - 1px) calc(50% + 1px), transparent calc(50% + 1px)),
+    linear-gradient(90deg, color-mix(in srgb, var(--accent) 30%, transparent), transparent);
+  content: '';
+  height: 44px;
+  opacity: 0.44;
+  pointer-events: none;
+  position: absolute;
+  right: 14px;
+  top: 12px;
+  width: 82px;
+  z-index: 0;
 }
 
 .item-card::before {
@@ -4616,10 +4891,12 @@ label {
   grid-template-columns: minmax(112px, 134px) minmax(0, 1fr);
   min-height: 206px;
   padding: 14px 14px 12px;
+  position: relative;
   text-align: left;
   transition:
     background var(--motion-fast) ease,
     color var(--motion-fast) ease;
+  z-index: 1;
 }
 
 .item-main:hover {
@@ -4677,6 +4954,20 @@ label {
   width: 100%;
 }
 
+.cover-art::after {
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--accent) 72%, transparent), transparent),
+    linear-gradient(58deg, transparent calc(50% - 1px), color-mix(in srgb, var(--accent-dark) 62%, transparent) calc(50% - 1px) calc(50% + 1px), transparent calc(50% + 1px));
+  bottom: 9px;
+  content: '';
+  height: 18px;
+  left: 9px;
+  opacity: 0.48;
+  pointer-events: none;
+  position: absolute;
+  right: 9px;
+}
+
 .cover-art img {
   height: 100%;
   object-fit: cover;
@@ -4690,6 +4981,12 @@ label {
   position: absolute;
   right: 12px;
   top: 6px;
+  z-index: 1;
+}
+
+.cover-art svg {
+  position: relative;
+  z-index: 1;
 }
 
 .cover-art.game {
@@ -5018,12 +5315,33 @@ button:active:not(:disabled),
 .dice-hero {
   align-items: center;
   background:
-    radial-gradient(circle at 84% 32%, color-mix(in srgb, var(--accent-warm-soft) 88%, transparent), transparent 28%),
-    linear-gradient(135deg, color-mix(in srgb, var(--surface-raised) 82%, var(--accent-soft)), color-mix(in srgb, var(--surface-raised) 94%, transparent)),
+    linear-gradient(126deg, color-mix(in srgb, var(--surface-raised) 82%, var(--accent-soft)), color-mix(in srgb, var(--surface-raised) 94%, transparent)),
+    linear-gradient(90deg, color-mix(in srgb, var(--accent-warm-soft) 34%, transparent), transparent 68%),
     var(--surface-raised);
   border-color: color-mix(in srgb, var(--accent) 20%, var(--border));
   display: flex;
   justify-content: space-between;
+  overflow: hidden;
+  position: relative;
+}
+
+.dice-hero::after {
+  background:
+    linear-gradient(56deg, transparent calc(50% - 1px), color-mix(in srgb, var(--accent-dark) 42%, transparent) calc(50% - 1px) calc(50% + 1px), transparent calc(50% + 1px)),
+    linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent-warm) 18%, transparent), transparent);
+  content: '';
+  height: 118px;
+  opacity: 0.56;
+  pointer-events: none;
+  position: absolute;
+  right: 22px;
+  top: -26px;
+  width: min(38%, 360px);
+}
+
+.dice-hero > * {
+  position: relative;
+  z-index: 1;
 }
 
 .dice-hero h2 {
@@ -7502,7 +7820,9 @@ button:active:not(:disabled),
 
 .auth-shell {
   align-items: center;
-  background: var(--surface);
+  background:
+    linear-gradient(128deg, color-mix(in srgb, var(--accent-soft) 28%, transparent), transparent 52%),
+    var(--surface);
   display: flex;
   justify-content: center;
   min-height: 100vh;
@@ -7521,6 +7841,10 @@ button:active:not(:disabled),
   max-width: 420px;
   padding: 24px;
   text-align: center;
+}
+
+.auth-shell .nexo-mark {
+  margin: 0 auto;
 }
 
 .auth-shell svg {
@@ -7830,7 +8154,7 @@ textarea:focus-visible {
     width: 100%;
   }
 
-  .topbar-main > div:first-child {
+  .brand-lockup {
     min-width: 0;
   }
 
@@ -7863,21 +8187,25 @@ textarea:focus-visible {
   }
 
   .topbar-pulse {
-    display: flex;
+    display: grid;
     flex-wrap: nowrap;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     max-width: none;
-    overflow-x: auto;
+    overflow: visible;
     padding-bottom: 2px;
-    scrollbar-width: none;
     width: 100%;
   }
 
-  .topbar-pulse::-webkit-scrollbar {
-    display: none;
+  .pulse-chip {
+    flex: 1 1 auto;
+    gap: 5px;
+    justify-content: center;
+    padding: 5px 7px;
+    width: 100%;
   }
 
-  .pulse-chip {
-    flex: 0 0 auto;
+  .pulse-chip span {
+    display: none;
   }
 
   .topbar-pulse .pulse-chip:nth-child(4) {
