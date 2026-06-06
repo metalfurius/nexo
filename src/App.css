@@ -1,6 +1,7 @@
 .app-shell {
   background:
-    linear-gradient(180deg, color-mix(in srgb, var(--surface-muted) 80%, transparent), transparent 260px),
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-muted) 70%, transparent), transparent 320px),
+    linear-gradient(90deg, color-mix(in srgb, var(--accent-soft) 34%, transparent), transparent 34%),
     var(--surface);
   color: var(--text);
   display: grid;
@@ -12,29 +13,35 @@
 
 .topbar {
   align-items: center;
-  background: color-mix(in srgb, var(--surface-raised) 88%, transparent);
-  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
   display: flex;
-  gap: 18px;
+  gap: 24px;
   grid-column: 1 / -1;
   justify-content: space-between;
-  min-height: 92px;
-  padding: 18px 28px;
+  min-height: 84px;
+  padding: 16px 28px;
 }
 
 .topbar-main {
-  display: grid;
+  align-items: center;
+  display: flex;
   flex: 1;
-  gap: 12px;
+  gap: 22px;
   min-width: 0;
+}
+
+.topbar-main > div:first-child {
+  flex: 0 0 auto;
+  min-width: 236px;
 }
 
 .topbar h1,
 .auth-shell h1 {
   color: var(--text-strong);
-  font-size: 30px;
+  font-size: 28px;
   line-height: 1.08;
-  margin: 4px 0 0;
+  margin: 3px 0 0;
 }
 
 .topbar-subtitle {
@@ -47,21 +54,21 @@
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  max-width: 680px;
+  max-width: 740px;
   min-width: 0;
 }
 
 .pulse-chip {
   align-items: center;
-  background: color-mix(in srgb, var(--surface-muted) 84%, transparent);
-  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-muted) 68%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
   border-radius: 8px;
   color: var(--muted);
   display: inline-flex;
   gap: 7px;
-  min-height: 30px;
+  min-height: 28px;
   min-width: 0;
-  padding: 5px 8px;
+  padding: 5px 9px;
 }
 
 .pulse-chip svg {
@@ -363,14 +370,14 @@
 
 .tabbar {
   align-self: stretch;
-  background: color-mix(in srgb, var(--surface) 86%, var(--surface-raised));
-  border-right: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 84%, transparent);
+  border-right: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   grid-column: 1;
   grid-row: 2;
-  padding: 18px;
+  padding: 18px 16px;
   scrollbar-width: none;
 }
 
@@ -393,13 +400,14 @@
 
 .tab-button {
   align-items: center;
-  background: transparent;
+  background: color-mix(in srgb, var(--surface) 58%, transparent);
+  border-color: transparent;
   cursor: pointer;
   display: grid;
   font: inherit;
   gap: 10px;
   grid-template-columns: 22px minmax(0, 1fr);
-  min-height: 58px;
+  min-height: 54px;
   padding: 10px 12px;
   text-align: left;
   transition:
@@ -415,14 +423,17 @@
 }
 
 .tab-button.active {
-  background: var(--surface-raised);
-  border-color: color-mix(in srgb, var(--accent) 48%, var(--border));
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--accent-soft) 92%, transparent), transparent 92%),
+    color-mix(in srgb, var(--surface-raised) 86%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
   box-shadow: inset 3px 0 0 var(--accent);
   color: var(--text-strong);
 }
 
 .tab-button:hover:not(.active) {
-  background: var(--surface-muted);
+  background: color-mix(in srgb, var(--surface-muted) 82%, transparent);
+  border-color: color-mix(in srgb, var(--border) 74%, transparent);
   color: var(--text);
   transform: translateX(2px);
 }
@@ -470,7 +481,9 @@
   animation: tab-enter var(--motion-slow) var(--motion-ease);
   grid-column: 2;
   grid-row: 2;
+  margin: 0 auto;
   padding: 24px;
+  width: min(100%, 1720px);
 }
 
 .session-activity-panel {
@@ -949,7 +962,7 @@
 .auth-shell section,
 .empty-state {
   background: var(--surface-raised);
-  border: 1px solid var(--border);
+  border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
   border-radius: 8px;
   box-shadow: var(--shadow);
 }
@@ -959,9 +972,20 @@
   padding: 20px;
 }
 
+.library-content-grid .workspace-panel {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+}
+
 .workspace-panel.wide {
   min-height: calc(100vh - 140px);
   min-height: calc(100dvh - 140px);
+}
+
+.library-content-grid .workspace-panel.wide {
+  min-height: auto;
 }
 
 .insight-rail {
@@ -1261,6 +1285,16 @@
   margin: 0;
 }
 
+.library-content-grid .panel-heading {
+  margin-bottom: 18px;
+  padding: 0 2px;
+}
+
+.library-content-grid .panel-heading h2 {
+  font-size: 28px;
+  line-height: 1.05;
+}
+
 .toolbar,
 .explorer-search,
 .controls-grid,
@@ -1276,13 +1310,14 @@
 
 .library-search-hero {
   background:
-    var(--surface-muted);
-  border: 1px solid var(--border);
+    linear-gradient(135deg, color-mix(in srgb, var(--accent-soft) 42%, transparent), transparent 58%),
+    color-mix(in srgb, var(--surface-raised) 88%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border));
   border-radius: 8px;
   display: grid;
-  gap: 12px;
-  margin: 0 0 16px;
-  padding: 12px;
+  gap: 14px;
+  margin: 0 0 14px;
+  padding: 16px;
 }
 
 .library-search-copy {
@@ -1293,7 +1328,7 @@
 
 .library-search-copy h3 {
   color: var(--text-strong);
-  font-size: 16px;
+  font-size: 18px;
   line-height: 1.15;
   margin: 0;
 }
@@ -1301,7 +1336,7 @@
 .library-catalog-form {
   display: grid;
   gap: 10px;
-  grid-template-columns: minmax(240px, 1fr) 140px auto auto;
+  grid-template-columns: minmax(260px, 1fr) 138px auto auto;
 }
 
 .library-catalog-query {
@@ -1388,21 +1423,21 @@
 }
 
 .library-advanced-panel {
-  border: 1px solid var(--border);
+  border: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
   border-radius: 8px;
-  margin: 0 0 16px;
+  margin: 0 0 14px;
   overflow: hidden;
 }
 
 .library-advanced-panel > summary {
   align-items: center;
-  background: color-mix(in srgb, var(--surface-muted) 86%, transparent);
+  background: color-mix(in srgb, var(--surface-muted) 58%, transparent);
   cursor: pointer;
   display: flex;
   gap: 12px;
   justify-content: space-between;
   list-style: none;
-  min-height: 54px;
+  min-height: 48px;
   padding: 10px 12px;
 }
 
@@ -1429,8 +1464,8 @@
 }
 
 .library-advanced-panel > summary em {
-  background: var(--surface);
-  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
   border-radius: 999px;
   color: var(--muted);
   font-size: 11px;
@@ -1445,7 +1480,7 @@
 }
 
 .library-advanced-content {
-  background: color-mix(in srgb, var(--surface) 78%, transparent);
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
   display: grid;
   gap: 12px;
   padding: 12px;
@@ -2029,11 +2064,11 @@
 }
 
 .library-focus-shelf {
-  background: linear-gradient(135deg, color-mix(in srgb, var(--surface-muted) 86%, transparent), var(--surface));
-  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-raised) 62%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
   border-radius: 8px;
   display: grid;
-  gap: 12px;
+  gap: 10px;
   margin: 0 0 16px;
   padding: 12px;
 }
@@ -2047,7 +2082,7 @@
 
 .focus-shelf-heading h3 {
   color: var(--text-strong);
-  font-size: 15px;
+  font-size: 14px;
   margin: 0;
 }
 
@@ -2058,7 +2093,7 @@
 }
 
 .focus-shelf-heading > span {
-  border: 1px solid var(--border);
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
   border-radius: 8px;
   color: var(--muted);
   flex: 0 0 auto;
@@ -2070,15 +2105,17 @@
 .focus-shelf-grid {
   display: grid;
   gap: 8px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .focus-item {
-  background: var(--surface);
-  border: 1px solid var(--border);
+  align-items: center;
+  background: color-mix(in srgb, var(--surface) 74%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
   border-radius: 8px;
   display: grid;
   gap: 8px;
+  grid-template-columns: minmax(0, 1fr) minmax(148px, 220px);
   min-width: 0;
   padding: 8px;
 }
@@ -3815,12 +3852,12 @@ input,
 select,
 textarea,
 .search-field {
-  background: var(--surface);
-  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
   border-radius: 8px;
   color: var(--text);
   font: inherit;
-  min-height: 42px;
+  min-height: 44px;
 }
 
 input,
@@ -4388,11 +4425,11 @@ label {
 .item-grid,
 .candidate-grid {
   display: grid;
-  gap: 14px;
+  gap: 16px;
 }
 
 .item-grid {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
 }
 
 .item-grid.list-view {
@@ -4441,6 +4478,10 @@ label {
 }
 
 .item-card {
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--surface-raised) 94%, transparent), color-mix(in srgb, var(--surface-muted) 78%, transparent)),
+    var(--surface-raised);
+  border-color: color-mix(in srgb, var(--border) 72%, transparent);
   grid-template-rows: minmax(0, 1fr) auto;
   overflow: visible;
   position: relative;
@@ -4457,7 +4498,7 @@ label {
   transition:
     box-shadow var(--motion) ease,
     width var(--motion) var(--motion-ease);
-  width: 4px;
+  width: 3px;
   z-index: 1;
 }
 
@@ -4499,7 +4540,7 @@ label {
 .discovery-card:hover,
 .catalog-card:hover {
   border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
-  box-shadow: 0 18px 36px color-mix(in srgb, var(--accent) 12%, transparent);
+  box-shadow: 0 20px 38px color-mix(in srgb, var(--accent) 10%, transparent);
   transform: translateY(-2px);
 }
 
@@ -4564,10 +4605,10 @@ label {
   color: inherit;
   cursor: pointer;
   display: grid;
-  gap: 14px;
-  grid-template-columns: minmax(104px, 128px) minmax(0, 1fr);
-  min-height: 190px;
-  padding: 14px;
+  gap: 16px;
+  grid-template-columns: minmax(112px, 134px) minmax(0, 1fr);
+  min-height: 206px;
+  padding: 14px 14px 12px;
   text-align: left;
   transition:
     background var(--motion-fast) ease,
@@ -4575,7 +4616,7 @@ label {
 }
 
 .item-main:hover {
-  background: color-mix(in srgb, var(--accent-soft) 30%, transparent);
+  background: color-mix(in srgb, var(--accent-soft) 22%, transparent);
 }
 
 .item-main:focus-visible {
@@ -4586,6 +4627,7 @@ label {
 .item-card:not(.list-card) .cover-art {
   aspect-ratio: 3 / 4;
   border-radius: 8px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text-strong) 6%, transparent);
   min-height: 0;
 }
 
@@ -4676,7 +4718,7 @@ label {
 .item-identity {
   align-items: start;
   display: grid;
-  gap: 10px;
+  gap: 9px;
   grid-template-columns: minmax(0, 1fr);
 }
 
@@ -4694,14 +4736,14 @@ label {
 }
 
 .item-status {
-  border: 1px solid var(--border);
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
   border-radius: 999px;
   color: var(--muted);
   font-size: 11px;
   font-weight: 850;
   justify-self: start;
   line-height: 1;
-  padding: 6px 8px;
+  padding: 6px 9px;
   white-space: nowrap;
 }
 
@@ -4738,8 +4780,8 @@ label {
 }
 
 .card-actions {
-  background: color-mix(in srgb, var(--surface-muted) 66%, transparent);
-  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 34%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--border) 68%, transparent);
   display: grid;
   gap: 6px;
   grid-template-columns: minmax(118px, 1fr) 40px;
@@ -4790,14 +4832,14 @@ label {
 
 .card-actions button {
   aspect-ratio: auto;
-  background: var(--surface);
+  background: color-mix(in srgb, var(--surface-muted) 78%, transparent);
   padding: 0;
   min-height: 40px;
   width: 100%;
 }
 
 .card-actions .card-primary-action {
-  background: var(--accent-soft);
+  background: color-mix(in srgb, var(--accent-soft) 74%, transparent);
   border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
   color: var(--accent-dark);
   font-size: 13px;
@@ -4874,8 +4916,8 @@ label {
 }
 
 .primary-button {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 92%, #fff 8%), var(--accent));
+  border-color: color-mix(in srgb, var(--accent) 92%, var(--text-strong));
   color: #fff;
   font-weight: 850;
   padding: 0 14px;
@@ -4883,7 +4925,7 @@ label {
 
 .secondary-button,
 .small-button {
-  background: var(--surface-muted);
+  background: color-mix(in srgb, var(--surface-muted) 78%, transparent);
   color: var(--text);
   font-weight: 760;
   padding: 0 12px;
@@ -7694,7 +7736,7 @@ textarea:focus-visible {
   }
 
   .tabbar {
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
     border-right: 0;
     flex-direction: row;
     overflow-x: auto;
@@ -7710,6 +7752,7 @@ textarea:focus-visible {
     grid-template-columns: 18px auto;
     min-height: 42px;
     min-width: max-content;
+    width: auto;
   }
 
   .tab-label small {
@@ -7765,10 +7808,26 @@ textarea:focus-visible {
   .topbar {
     align-items: flex-start;
     flex-direction: column;
+    gap: 10px;
   }
 
   .topbar-main {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
     width: 100%;
+  }
+
+  .topbar-main > div:first-child {
+    min-width: 0;
+  }
+
+  .topbar h1 {
+    font-size: 25px;
+  }
+
+  .topbar-subtitle {
+    display: none;
   }
 
   .topbar-actions {
@@ -7792,9 +7851,25 @@ textarea:focus-visible {
   }
 
   .topbar-pulse {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    display: flex;
+    flex-wrap: nowrap;
     max-width: none;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: none;
     width: 100%;
+  }
+
+  .topbar-pulse::-webkit-scrollbar {
+    display: none;
+  }
+
+  .pulse-chip {
+    flex: 0 0 auto;
+  }
+
+  .topbar-pulse .pulse-chip:nth-child(4) {
+    display: none;
   }
 
   .session-activity-heading {
@@ -7877,6 +7952,32 @@ textarea:focus-visible {
   .library-review-session {
     align-items: stretch;
     grid-template-columns: 1fr;
+  }
+
+  .focus-item {
+    grid-template-columns: 1fr;
+    min-width: 260px;
+  }
+
+  .focus-item-action {
+    width: 100%;
+  }
+
+  .focus-shelf-grid {
+    display: flex;
+    grid-template-columns: none;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+  }
+
+  .focus-shelf-grid::-webkit-scrollbar {
+    display: none;
+  }
+
+  .focus-item {
+    scroll-snap-align: start;
   }
 
   .library-review-session-progress {
