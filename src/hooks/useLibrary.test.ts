@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ActivityEntry, DiscoveryCandidate } from '../domain/types'
+import type { ActivityEntry, DiscoveryCandidate, ListItem } from '../domain/types'
 import { useLibrary } from './useLibrary'
 
 const repositoryMock = vi.hoisted(() => ({
@@ -301,6 +301,105 @@ describe('useLibrary', () => {
       }),
     )
     expect(repositoryMock.saveDiscoveryCandidate).toHaveBeenCalledTimes(1)
+  })
+
+  it('can save discovery results from Biblioteca without writing externalCandidates', async () => {
+    const user = {
+      uid: 'user-1',
+      email: null,
+      displayName: null,
+    }
+    const { result } = renderHook(() => useLibrary(user))
+
+    await waitFor(() => expect(repositoryMock.subscribeItems).toHaveBeenCalled())
+
+    await act(async () => {
+      await result.current.saveDiscoveryToLibrary(candidate, { persistDiscoveryCandidate: false })
+    })
+
+    expect(repositoryMock.saveItem).toHaveBeenCalledWith(
+      expect.objectContaining({
+        source: 'public',
+        title: 'Odisea',
+      }),
+    )
+    expect(repositoryMock.markDiscoveryCandidateSaved).not.toHaveBeenCalled()
+    expect(repositoryMock.saveDiscoveryCandidate).not.toHaveBeenCalled()
+  })
+
+  it('preserves locked external metadata when saving personal progress', async () => {
+    const externalItem: ListItem = {
+      id: 'anime-frieren-anilist-154587',
+      title: 'Frieren: Tras finalizar el viaje',
+      type: 'anime',
+      status: 'wishlist',
+      rating: undefined,
+      progress: undefined,
+      durationMaxHours: 12,
+      genres: ['Animacion', 'Aventura'],
+      tags: ['anime', 'anilist', 'Animacion'],
+      moodTags: [],
+      weights: { priority: 1, surprise: 0.35, challenge: 0.5 },
+      notes: 'Metadatos desde AniList.',
+      source: 'external',
+      externalRefs: { anilistId: '154587', sourceUrl: 'https://anilist.co/anime/154587' },
+      posterUrl: 'https://img.anili.st/media/154587.jpg',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    }
+    repositoryMock.subscribeItems.mockImplementation((onItems: (items: unknown[]) => void) => {
+      onItems([externalItem])
+      return vi.fn()
+    })
+    const user = {
+      uid: 'user-1',
+      email: null,
+      displayName: null,
+    }
+    const { result } = renderHook(() => useLibrary(user))
+
+    await waitFor(() => expect(result.current.items).toHaveLength(1))
+
+    await act(async () => {
+      await result.current.saveItem({
+        ...externalItem,
+        title: 'Titulo cambiado',
+        type: 'book',
+        status: 'in_progress',
+        rating: 9.2,
+        progress: 'Ep 6',
+        genres: ['Sobrescrito'],
+        tags: ['manual'],
+        moodTags: ['calido'],
+        weights: { priority: 2, surprise: 1, challenge: 1 },
+        notes: 'Me esta gustando.',
+        posterUrl: 'https://example.com/changed.jpg',
+        externalRefs: { sourceUrl: 'https://example.com/changed' },
+      })
+    })
+
+    expect(repositoryMock.saveItem).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: externalItem.id,
+        title: externalItem.title,
+        type: externalItem.type,
+        source: 'external',
+        status: 'in_progress',
+        rating: 9.2,
+        progress: 'Ep 6',
+        genres: externalItem.genres,
+        tags: externalItem.tags,
+        moodTags: ['calido'],
+        notes: 'Me esta gustando.',
+        posterUrl: externalItem.posterUrl,
+        externalRefs: externalItem.externalRefs,
+        weights: {
+          priority: 2,
+          surprise: externalItem.weights.surprise,
+          challenge: externalItem.weights.challenge,
+        },
+      }),
+    )
   })
 
   it('restores dismissed discovery candidates back to the queue', async () => {

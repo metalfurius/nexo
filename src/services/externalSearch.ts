@@ -51,18 +51,20 @@ export async function searchExternalSources(searchQuery: string, type: string): 
   const query = searchQuery.trim()
   if (query.length < 2) return []
 
+  const proxyCandidates = await searchCatalogProxy(query, type)
+  if (proxyCandidates) return uniqueExternalCandidates(proxyCandidates).slice(0, 24)
+
   const groups = await Promise.allSettled(getSearchTasks(query, type))
   return uniqueExternalCandidates(groups.flatMap((group) => (group.status === 'fulfilled' ? group.value : []))).slice(0, 24)
 }
 
 function getSearchTasks(query: string, type: string): Array<Promise<ExternalCandidate[]>> {
   if (type === 'book') return [searchOpenLibrary(query)]
-  if (type === 'game') return [searchCatalogProxy(query, type), searchWikidataGames(query)]
+  if (type === 'game') return [searchWikidataGames(query)]
   if (type === 'anime' || type === 'manga' || type === 'manhwa') return [searchAniList(query, type)]
-  if (type === 'watch') return [searchCatalogProxy(query, type)]
+  if (type === 'watch') return [searchAniList(query, 'anime'), searchAniList(query, 'manga')]
   if (type === 'any') {
     return [
-      searchCatalogProxy(query, type),
       searchOpenLibrary(query),
       searchAniList(query, 'anime'),
       searchAniList(query, 'manga'),
@@ -72,9 +74,9 @@ function getSearchTasks(query: string, type: string): Array<Promise<ExternalCand
   return []
 }
 
-async function searchCatalogProxy(query: string, type: string): Promise<ExternalCandidate[]> {
+async function searchCatalogProxy(query: string, type: string): Promise<ExternalCandidate[] | undefined> {
   const proxyUrl = String(import.meta.env.VITE_CATALOG_PROXY_URL ?? '').trim()
-  if (!proxyUrl) return []
+  if (!proxyUrl) return undefined
 
   const baseUrl = proxyUrl.endsWith('/') ? proxyUrl : `${proxyUrl}/`
   const url = new URL('search', baseUrl)
@@ -226,7 +228,7 @@ function uniqueExternalCandidates(candidates: ExternalCandidate[]) {
 function normalizeProxyCandidate(value: unknown): ExternalCandidate[] {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return []
   const candidate = value as Partial<ExternalCandidate>
-  const source = candidate.source === 'tmdb' || candidate.source === 'rawg' ? candidate.source : undefined
+  const source = normalizeProxySource(candidate.source)
   const title = optionalString(candidate.title)
   const sourceId = optionalString(candidate.sourceId)
   if (!source || !title || !sourceId) return []
@@ -252,8 +254,25 @@ function normalizeProxyCandidate(value: unknown): ExternalCandidate[] {
 }
 
 function normalizeProxyType(type: unknown): ExternalCandidate['type'] {
-  if (type === 'game' || type === 'movie' || type === 'series') return type
+  if (
+    type === 'game' ||
+    type === 'book' ||
+    type === 'movie' ||
+    type === 'series' ||
+    type === 'anime' ||
+    type === 'manga' ||
+    type === 'manhwa' ||
+    type === 'comic' ||
+    type === 'other'
+  ) {
+    return type
+  }
   return 'other'
+}
+
+function normalizeProxySource(source: unknown): ExternalCandidate['source'] | undefined {
+  if (source === 'tmdb' || source === 'rawg' || source === 'openLibrary' || source === 'anilist' || source === 'wikidata') return source
+  return undefined
 }
 
 function optionalString(value: unknown) {

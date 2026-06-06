@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
+  type ExternalRefs,
   type ActivityEntry,
   DEFAULT_RECOMMENDATION_PREFERENCES,
   DEFAULT_SETTINGS,
@@ -66,6 +67,9 @@ const demoUserProfiles: UserProfile[] = [
 
 type ActivityDraft = Omit<ActivityEntry, 'createdAt' | 'id'>
 const activityEntryLimit = 25
+interface SaveDiscoveryOptions {
+  persistDiscoveryCandidate?: boolean
+}
 
 export function useLibrary(user?: SignedInUserProfile | null) {
   const userId = user?.uid
@@ -178,11 +182,13 @@ export function useLibrary(user?: SignedInUserProfile | null) {
   }, [repository, userId, userRole])
 
   async function saveItem(item: ListItem) {
+    const existingItem = items.find((currentItem) => currentItem.id === item.id)
+    const protectedItem = preserveLockedCatalogFields(item, existingItem)
     const normalized = {
-      ...item,
-      tags: uniqueValues(item.tags),
-      genres: uniqueValues(item.genres),
-      moodTags: uniqueValues(item.moodTags),
+      ...protectedItem,
+      tags: uniqueValues(protectedItem.tags),
+      genres: uniqueValues(protectedItem.genres),
+      moodTags: uniqueValues(protectedItem.moodTags),
       updatedAt: nowIso(),
     }
     if (repository) {
@@ -371,7 +377,8 @@ export function useLibrary(user?: SignedInUserProfile | null) {
     }
   }
 
-  async function saveDiscoveryToLibrary(candidate: DiscoveryCandidate) {
+  async function saveDiscoveryToLibrary(candidate: DiscoveryCandidate, options: SaveDiscoveryOptions = {}) {
+    const { persistDiscoveryCandidate = true } = options
     const item = discoveryToListItem(candidate)
     await saveItem(item)
     const savedAt = nowIso()
@@ -380,7 +387,7 @@ export function useLibrary(user?: SignedInUserProfile | null) {
         entry.id === candidate.id ? { ...entry, status: 'saved', savedItemId: item.id, updatedAt: savedAt } : entry,
       ),
     )
-    if (repository) {
+    if (repository && persistDiscoveryCandidate) {
       try {
         await repository.markDiscoveryCandidateSaved(candidate.id, item.id)
       } catch (reason) {
@@ -454,7 +461,7 @@ export function useLibrary(user?: SignedInUserProfile | null) {
       try {
         await repository.saveActivityEntry(activityEntry)
       } catch (reason) {
-        setError(reason instanceof Error ? reason.message : 'No se pudo guardar la actividad reciente.')
+        console.warn(reason instanceof Error ? reason.message : 'No se pudo guardar la actividad reciente.')
       }
     }
   }
@@ -540,6 +547,35 @@ export function useLibrary(user?: SignedInUserProfile | null) {
     publicItemToDiscovery,
     externalCandidateToDiscovery,
   }
+}
+
+function preserveLockedCatalogFields(incoming: ListItem, existing?: ListItem): ListItem {
+  if (!existing || (existing.source !== 'external' && existing.source !== 'public')) return incoming
+
+  return {
+    ...incoming,
+    createdAt: existing.createdAt,
+    externalRefs: cloneExternalRefs(existing.externalRefs),
+    genres: existing.genres,
+    id: existing.id,
+    importNotes: existing.importNotes,
+    posterUrl: existing.posterUrl,
+    publicItemId: existing.publicItemId,
+    publicSnapshot: existing.publicSnapshot,
+    rawText: existing.rawText,
+    source: existing.source,
+    tags: existing.tags,
+    title: existing.title,
+    type: existing.type,
+    weights: {
+      ...existing.weights,
+      priority: incoming.weights.priority,
+    },
+  }
+}
+
+function cloneExternalRefs(refs?: ExternalRefs): ExternalRefs | undefined {
+  return refs ? { ...refs } : refs
 }
 
 function limitActivityEntries(entries: ActivityEntry[]) {

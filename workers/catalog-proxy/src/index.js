@@ -33,6 +33,10 @@ const DEFAULT_ALLOWED_ORIGINS = [
   'http://localhost:5173',
   'http://127.0.0.1:5173',
 ]
+const CACHE_LANGUAGE = 'es-ES'
+const PROVIDER_VERSION = '2026-06-06-v2'
+const POSITIVE_TTL_SECONDS = 86_400
+const EMPTY_TTL_SECONDS = 900
 
 export default {
   async fetch(request, env) {
@@ -52,32 +56,65 @@ export default {
     }
 
     const query = url.searchParams.get('q')?.trim() ?? ''
-    const type = url.searchParams.get('type')?.trim() ?? 'any'
+    const type = normalizeSearchType(url.searchParams.get('type')?.trim() ?? 'any')
     if (query.length < 2) {
-      return json({ results: [] }, corsHeaders)
+      return json({ results: [] }, corsHeaders, 200, { 'x-nexo-cache': 'bypass' })
     }
 
-    const results = await searchProtectedProviders(query, type, env)
-    return json({ results: uniqueCandidates(results).slice(0, 16) }, corsHeaders, 200, {
-      'cache-control': 'public, max-age=300',
+    const cache = caches.default
+    const cacheRequest = createCacheRequest(request, query, type)
+    const cachedResponse = await cache.match(cacheRequest)
+    if (cachedResponse) {
+      const cachedPayload = await cachedResponse.json()
+      return json(cachedPayload, corsHeaders, 200, {
+        'cache-control': cachedResponse.headers.get('cache-control') ?? `public, max-age=${POSITIVE_TTL_SECONDS}`,
+        'x-nexo-cache': 'hit',
+      })
+    }
+
+    const results = uniqueCandidates(await searchProviders(query, type, env)).slice(0, 24)
+    const payload = { results }
+    const ttl = results.length ? POSITIVE_TTL_SECONDS : EMPTY_TTL_SECONDS
+    await cache.put(
+      cacheRequest,
+      new Response(JSON.stringify(payload), {
+        headers: {
+          'cache-control': `public, max-age=${ttl}`,
+          'content-type': 'application/json; charset=utf-8',
+        },
+      }),
+    )
+    return json(payload, corsHeaders, 200, {
+      'cache-control': `public, max-age=${ttl}`,
+      'x-nexo-cache': 'miss',
     })
   },
 }
 
-async function searchProtectedProviders(query, type, env) {
+async function searchProviders(query, type, env) {
   const tasks = []
   if (type === 'watch' || type === 'movie' || type === 'series' || type === 'any') {
-    tasks.push(searchTmdb(query, env))
+    tasks.push(searchTmdb(query, env, type))
+  }
+  if (type === 'watch' || type === 'anime' || type === 'any') {
+    tasks.push(searchAniList(query, 'anime'))
+  }
+  if (type === 'watch' || type === 'manga' || type === 'manhwa' || type === 'any') {
+    tasks.push(searchAniList(query, type === 'anime' ? 'anime' : 'manga', type))
+  }
+  if (type === 'book' || type === 'any') {
+    tasks.push(searchOpenLibrary(query))
   }
   if (type === 'game' || type === 'any') {
     tasks.push(searchRawg(query, env))
+    tasks.push(searchWikidataGames(query))
   }
 
   const groups = await Promise.allSettled(tasks)
   return groups.flatMap((group) => (group.status === 'fulfilled' ? group.value : []))
 }
 
-async function searchTmdb(query, env) {
+async function searchTmdb(query, env, requestedType = 'watch') {
   const token = env.TMDB_READ_TOKEN || env.TMDB_TOKEN
   if (!token) return []
 
@@ -96,7 +133,11 @@ async function searchTmdb(query, env) {
 
   const payload = await response.json()
   return (payload.results ?? [])
-    .filter((entry) => entry.media_type === 'movie' || entry.media_type === 'tv')
+    .filter((entry) => {
+      if (requestedType === 'movie') return entry.media_type === 'movie'
+      if (requestedType === 'series') return entry.media_type === 'tv'
+      return entry.media_type === 'movie' || entry.media_type === 'tv'
+    })
     .map((entry) => {
       const mediaType = entry.media_type === 'tv' ? 'series' : 'movie'
       const date = entry.release_date || entry.first_air_date || ''
@@ -156,6 +197,138 @@ async function searchRawg(query, env) {
   }))
 }
 
+async function searchOpenLibrary(query) {
+  const url = new URL('https://openlibrary.org/search.json')
+  url.searchParams.set('q', query)
+  url.searchParams.set('limit', '8')
+  url.searchParams.set('fields', 'key,title,author_name,first_publish_year,cover_i,subject')
+
+  const response = await fetch(url, {
+    headers: {
+      accept: 'application/json',
+      'user-agent': 'Nexo/1.0 (https://nexo.codeoverdose.es)',
+    },
+  })
+  if (!response.ok) return []
+
+  const payload = await response.json()
+  return (payload.docs ?? []).map((entry) => {
+    const authors = Array.isArray(entry.author_name) ? entry.author_name.map(String).slice(0, 2) : []
+    const title = [String(entry.title || 'Sin titulo'), authors.join(', ')].filter(Boolean).join(' - ')
+    const key = String(entry.key || '')
+    return {
+      id: `open-library-${key.replace(/\//g, '-')}`,
+      title,
+      type: 'book',
+      source: 'openLibrary',
+      sourceId: key,
+      posterUrl: entry.cover_i ? `https://covers.openlibrary.org/b/id/${entry.cover_i}-M.jpg` : undefined,
+      releaseYear: typeof entry.first_publish_year === 'number' ? entry.first_publish_year : undefined,
+      genres: Array.isArray(entry.subject) ? entry.subject.map(String).slice(0, 5) : [],
+      externalRefs: {
+        openLibraryKey: key,
+        sourceUrl: `https://openlibrary.org${key}`,
+      },
+      createdAt: new Date().toISOString(),
+    }
+  })
+}
+
+async function searchAniList(query, requestedType, requestedFilter = requestedType) {
+  const graphql = {
+    query: `
+      query SearchMedia($search: String, $type: MediaType) {
+        Page(page: 1, perPage: 8) {
+          media(search: $search, type: $type) {
+            id
+            title { romaji english native }
+            description(asHtml: false)
+            format
+            genres
+            startDate { year }
+            coverImage { medium }
+          }
+        }
+      }
+    `,
+    variables: {
+      search: query,
+      type: requestedType === 'anime' ? 'ANIME' : 'MANGA',
+    },
+  }
+
+  const response = await fetch('https://graphql.anilist.co', {
+    method: 'POST',
+    headers: { accept: 'application/json', 'content-type': 'application/json' },
+    body: JSON.stringify(graphql),
+  })
+  if (!response.ok) return []
+
+  const payload = await response.json()
+  return (payload.data?.Page?.media ?? [])
+    .map((entry) => {
+      const format = String(entry.format || '').toLowerCase()
+      const inferredType = requestedType === 'anime' ? 'anime' : format.includes('manhwa') ? 'manhwa' : 'manga'
+      return { entry, inferredType }
+    })
+    .filter(({ inferredType }) => requestedFilter !== 'manhwa' || inferredType === 'manhwa')
+    .map(({ entry, inferredType }) => {
+      const title = entry.title || {}
+      return {
+        id: `anilist-${entry.id}`,
+        title: title.english || title.romaji || title.native || 'Sin titulo',
+        type: inferredType,
+        source: 'anilist',
+        sourceId: String(entry.id),
+        overview: optionalString(entry.description),
+        posterUrl: optionalString(entry.coverImage?.medium),
+        releaseYear: typeof entry.startDate?.year === 'number' ? entry.startDate.year : undefined,
+        genres: Array.isArray(entry.genres) ? entry.genres.map(String) : [],
+        externalRefs: {
+          anilistId: String(entry.id),
+          sourceUrl: `https://anilist.co/${inferredType === 'anime' ? 'anime' : 'manga'}/${entry.id}`,
+        },
+        createdAt: new Date().toISOString(),
+      }
+    })
+}
+
+async function searchWikidataGames(query) {
+  const url = new URL('https://www.wikidata.org/w/api.php')
+  url.searchParams.set('action', 'wbsearchentities')
+  url.searchParams.set('search', query)
+  url.searchParams.set('language', 'en')
+  url.searchParams.set('format', 'json')
+  url.searchParams.set('origin', '*')
+  url.searchParams.set('limit', '8')
+
+  const response = await fetch(url)
+  if (!response.ok) return []
+
+  const payload = await response.json()
+  return (payload.search ?? [])
+    .filter((entry) => /video game|videogame/i.test(String(entry.description || '')))
+    .map((entry) => {
+      const id = String(entry.id)
+      const description = optionalString(entry.description)
+      return {
+        id: `wikidata-${id}`,
+        title: String(entry.label || 'Sin titulo'),
+        type: 'game',
+        source: 'wikidata',
+        sourceId: id,
+        overview: description,
+        releaseYear: parseFirstYear(description),
+        genres: ['video game'],
+        externalRefs: {
+          wikidataId: id,
+          sourceUrl: `https://www.wikidata.org/wiki/${id}`,
+        },
+        createdAt: new Date().toISOString(),
+      }
+    })
+}
+
 function getCorsHeaders(request, env) {
   const origin = request.headers.get('origin') ?? ''
   const allowedOrigins = (env.ALLOWED_ORIGINS || DEFAULT_ALLOWED_ORIGINS.join(','))
@@ -170,6 +343,28 @@ function getCorsHeaders(request, env) {
     'access-control-allow-origin': allowedOrigin,
     vary: 'Origin',
   }
+}
+
+function createCacheRequest(request, query, type) {
+  const normalizedQuery = normalizeCacheKeyPart(query)
+  return new Request(
+    `https://nexo-catalog-cache.local/search?v=${PROVIDER_VERSION}&language=${CACHE_LANGUAGE}&type=${type}&q=${encodeURIComponent(normalizedQuery)}`,
+    request,
+  )
+}
+
+function normalizeCacheKeyPart(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function normalizeSearchType(value) {
+  const allowed = ['any', 'watch', 'game', 'book', 'movie', 'series', 'anime', 'manga', 'manhwa']
+  return allowed.includes(value) ? value : 'any'
 }
 
 function json(payload, corsHeaders, status = 200, headers = {}) {
@@ -198,6 +393,11 @@ function optionalString(value) {
 
 function parseYear(value) {
   const match = String(value || '').match(/^(19|20)\d{2}/)
+  return match ? Number(match[0]) : undefined
+}
+
+function parseFirstYear(value) {
+  const match = String(value || '').match(/\b(19|20)\d{2}\b/)
   return match ? Number(match[0]) : undefined
 }
 

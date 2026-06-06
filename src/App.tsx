@@ -26,6 +26,7 @@ import {
   LayoutGrid,
   Library,
   List,
+  LockKeyhole,
   LogIn,
   LogOut,
   MoreHorizontal,
@@ -152,11 +153,8 @@ import {
 } from './lib/libraryInsights'
 import {
   formatDateLabel,
-  getItemPulse,
-  getItemSignals,
   getItemSubtitle,
   getPersonalEditorReadiness,
-  getVisibleItemChips,
   isItemInCooldown,
   itemSourceLabels,
   itemStatusLabels as statusLabels,
@@ -3514,7 +3512,7 @@ interface LibrarySurface {
   queueDiscoveryCandidates: (candidates: DiscoveryCandidate[]) => Promise<number>
   dismissDiscoveryCandidate: (candidateId: string) => Promise<void>
   restoreDiscoveryCandidate: (candidateId: string) => Promise<void>
-  saveDiscoveryToLibrary: (candidate: DiscoveryCandidate) => Promise<ListItem>
+  saveDiscoveryToLibrary: (candidate: DiscoveryCandidate, options?: { persistDiscoveryCandidate?: boolean }) => Promise<ListItem>
   upsertPublicItem: (item: Partial<PublicCatalogItem> & Pick<PublicCatalogItem, 'title' | 'type'>) => Promise<PublicCatalogItem>
   replacePublicItem: (item: PublicCatalogItem) => Promise<PublicCatalogItem>
   archivePublicItem: (id: string) => Promise<void>
@@ -4778,8 +4776,7 @@ function LibraryTab({
   async function saveCatalogCandidateFromLibrary(candidate: DiscoveryCandidate) {
     setCatalogStatus(`Guardando ${candidate.title}...`)
     try {
-      await library.queueDiscoveryCandidates([candidate])
-      const item = await library.saveDiscoveryToLibrary(candidate)
+      const item = await library.saveDiscoveryToLibrary(candidate, { persistDiscoveryCandidate: false })
       setCatalogCandidates((current) =>
         current.map((entry) =>
           entry.id === candidate.id ? { ...entry, savedItemId: item.id, status: 'saved', updatedAt: nowIso() } : entry,
@@ -5142,7 +5139,7 @@ function LibraryTab({
   }, [library.items, onActivityFocusHandled, onNavigate, onReviewRequestHandled, onRollDice, reviewQueues, reviewRequest])
 
   return (
-    <section className="content-grid">
+    <section className="content-grid library-content-grid">
       <section className="workspace-panel wide" aria-label="Biblioteca">
         <div className="panel-heading">
           <div>
@@ -5154,64 +5151,13 @@ function LibraryTab({
               <Plus size={18} />
               Anadir
             </button>
-            <div className="view-switch" role="group" aria-label="Vista de biblioteca">
-              <button
-                aria-pressed={viewMode === 'cards'}
-                className={viewMode === 'cards' ? 'segment-option active' : 'segment-option'}
-                type="button"
-                onClick={() => void changeViewMode('cards')}
-              >
-                <LayoutGrid size={16} />
-                <span>Tarjetas</span>
-              </button>
-              <button
-                aria-pressed={viewMode === 'list'}
-                className={viewMode === 'list' ? 'segment-option active' : 'segment-option'}
-                type="button"
-                onClick={() => void changeViewMode('list')}
-              >
-                <List size={16} />
-                <span>Lista</span>
-              </button>
-            </div>
-            <div className="utility-actions" aria-label="Herramientas de biblioteca">
-              <label className="icon-button file-button" title="Importar">
-                <Upload size={18} />
-                <span className="sr-only">Importar</span>
-                <input
-                  accept="application/json,.json"
-                  aria-label="Importar biblioteca desde JSON"
-                  ref={libraryImportInputRef}
-                  type="file"
-                  onChange={(event) => {
-                    void prepareLibraryImportFile(event.target.files?.[0])
-                    event.target.value = ''
-                  }}
-                />
-              </label>
-              <button className="icon-button" type="button" onClick={exportLibrary} title="Exportar">
-                <Archive size={18} />
-                <span className="sr-only">Exportar</span>
-              </button>
-              <button
-                className="icon-button danger-icon"
-                disabled={library.items.length === 0}
-                type="button"
-                onClick={() => setDeleteDialogOpen(true)}
-                title="Borrar todo"
-              >
-                <Trash2 size={18} />
-                <span className="sr-only">Borrar todo</span>
-              </button>
-            </div>
           </div>
         </div>
 
         <section className="library-search-hero" aria-label="Buscar obras para guardar" data-testid="library-catalog-search">
           <div className="library-search-copy">
-            <span className="eyebrow">Buscar y guardar</span>
-            <h3>Empieza por el titulo, no por un formulario</h3>
-            <p>Busca en catalogos gratuitos, revisa portada y generos, y guarda la obra en un toque.</p>
+            <span className="eyebrow">Buscar</span>
+            <h3>Encuentra una obra y guardala</h3>
           </div>
           <form
             className="library-catalog-form"
@@ -5287,12 +5233,62 @@ function LibraryTab({
         >
           <summary>
             <span>
-              <strong>Avanzado</strong>
-              <small>Filtros, repaso guiado, import/export y acciones masivas</small>
+              <strong>Herramientas</strong>
+              <small>Filtros, import/export y acciones masivas</small>
             </span>
             <em>{isLibraryAdvancedOpen ? 'Abierto' : 'Oculto'}</em>
           </summary>
           <div className="library-advanced-content">
+            <div className="utility-actions library-tool-actions" aria-label="Herramientas de biblioteca">
+              <div className="view-switch" role="group" aria-label="Vista de biblioteca">
+                <button
+                  aria-pressed={viewMode === 'cards'}
+                  className={viewMode === 'cards' ? 'segment-option active' : 'segment-option'}
+                  type="button"
+                  onClick={() => void changeViewMode('cards')}
+                >
+                  <LayoutGrid size={16} />
+                  <span>Tarjetas</span>
+                </button>
+                <button
+                  aria-pressed={viewMode === 'list'}
+                  className={viewMode === 'list' ? 'segment-option active' : 'segment-option'}
+                  type="button"
+                  onClick={() => void changeViewMode('list')}
+                >
+                  <List size={16} />
+                  <span>Lista</span>
+                </button>
+              </div>
+              <label className="icon-button file-button" title="Importar">
+                <Upload size={18} />
+                <span className="sr-only">Importar</span>
+                <input
+                  accept="application/json,.json"
+                  aria-label="Importar biblioteca desde JSON"
+                  ref={libraryImportInputRef}
+                  type="file"
+                  onChange={(event) => {
+                    void prepareLibraryImportFile(event.target.files?.[0])
+                    event.target.value = ''
+                  }}
+                />
+              </label>
+              <button className="icon-button" type="button" onClick={exportLibrary} title="Exportar">
+                <Archive size={18} />
+                <span className="sr-only">Exportar</span>
+              </button>
+              <button
+                className="icon-button danger-icon"
+                disabled={library.items.length === 0}
+                type="button"
+                onClick={() => setDeleteDialogOpen(true)}
+                title="Borrar todo"
+              >
+                <Trash2 size={18} />
+                <span className="sr-only">Borrar todo</span>
+              </button>
+            </div>
 
         <LaunchGuideCard
           guide={launchGuide}
@@ -5874,6 +5870,7 @@ function LibraryTab({
                 key={item.id}
                 layout={viewMode}
                 isSelected={selectedItemIdSet.has(item.id)}
+                showSelectionControl={isLibraryAdvancedOpen || selectedItemIdSet.has(item.id)}
                 onToggleSelected={() => toggleLibraryItemSelection(item.id)}
                 onEdit={() => openLibraryEditor(item)}
                 onCopyLink={() => void copyLibraryItemLink(item)}
@@ -5924,12 +5921,6 @@ function LibraryTab({
           />
         )}
       </section>
-
-      <aside className="insight-rail">
-        <MetricCard label="Pendientes" value={stats.find((stat) => stat.status === 'wishlist')?.count ?? 0} />
-        <MetricCard label="En progreso" value={stats.find((stat) => stat.status === 'in_progress')?.count ?? 0} />
-        <MetricCard label="Explorador" value={library.discoveryCandidates.filter((candidate) => candidate.status === 'queued').length} />
-      </aside>
 
       {editorItem && (
         <ItemEditor
@@ -10320,6 +10311,7 @@ function ItemCard({
   onReactivate,
   onSnooze,
   onStatus,
+  showSelectionControl,
   onToggleSelected,
 }: {
   isSelected: boolean
@@ -10331,11 +10323,11 @@ function ItemCard({
   onReactivate: () => void
   onSnooze: () => void
   onStatus: (status: ItemStatus) => void
+  showSelectionControl: boolean
   onToggleSelected: () => void
 }) {
   const primaryAction = getPrimaryItemAction(item.status)
   const secondaryAction = getSecondaryItemAction(item.status)
-  const visibleChips = getVisibleItemChips(item)
   const canControlDiceCooldown = item.status !== 'completed' && item.status !== 'dropped'
   const cardClassName = [layout === 'list' ? 'item-card list-card' : 'item-card', isSelected ? 'selected' : undefined]
     .filter(Boolean)
@@ -10362,29 +10354,20 @@ function ItemCard({
 
   return (
     <article className={cardClassName} data-status={item.status}>
-      <label className="item-select-control" title="Seleccionar">
-        <input
-          aria-label={`Seleccionar ${item.title}`}
-          checked={isSelected}
-          type="checkbox"
-          onChange={onToggleSelected}
-        />
-      </label>
+      {showSelectionControl && (
+        <label className="item-select-control" title="Seleccionar">
+          <input
+            aria-label={`Seleccionar ${item.title}`}
+            checked={isSelected}
+            type="checkbox"
+            onChange={onToggleSelected}
+          />
+        </label>
+      )}
       <button className="item-main" type="button" onClick={onEdit}>
         <CoverArt title={item.title} type={item.type} posterUrl={item.posterUrl} />
         <div className="item-body">
           <ItemIdentity item={item} />
-          <ItemSignalStrip item={item} />
-          <ItemPulsePanel item={item} />
-          {visibleChips.length ? (
-            <div className="tag-row item-tag-row">
-              {visibleChips.map((chip) => (
-                <span key={chip}>{chip}</span>
-              ))}
-            </div>
-          ) : (
-            <p className="item-empty-meta">Sin etiquetas todavia</p>
-          )}
         </div>
       </button>
       <div className="card-actions">
@@ -10417,51 +10400,6 @@ function ItemCard({
         />
       </div>
     </article>
-  )
-}
-
-function ItemPulsePanel({ item }: { item: ListItem }) {
-  const pulse = getItemPulse(item)
-
-  return (
-    <div className="item-pulse-panel" aria-label={`Pulso de ${item.title}`}>
-      <div className="item-pulse-summary">
-        <span>{pulse.label}</span>
-        <strong>{pulse.value}</strong>
-      </div>
-      <div className="item-pulse-meters">
-        {pulse.metrics.map((metric) => (
-          <div className="item-pulse-meter" key={metric.label}>
-            <span>{metric.label}</span>
-            <div
-              className="item-pulse-track"
-              role="meter"
-              aria-label="Medidor de tarjeta"
-              aria-valuemax={100}
-              aria-valuemin={0}
-              aria-valuenow={metric.value}
-              aria-valuetext={`${metric.label} ${metric.value}%`}
-            >
-              <span style={{ width: `${metric.value}%` }} />
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function ItemSignalStrip({ item }: { item: ListItem }) {
-  const signals = getItemSignals(item)
-
-  return (
-    <div className="item-signal-strip" aria-label={`Senales rapidas de ${item.title}`}>
-      {signals.map((signal) => (
-        <span className={signal.tone === 'strong' ? 'strong' : undefined} key={signal.label}>
-          {signal.label}
-        </span>
-      ))}
-    </div>
   )
 }
 
@@ -10785,6 +10723,7 @@ function ItemEditor({
   const taxonomyTemplates = catalogTaxonomyTemplates[draft.type].slice(0, 3)
   const starterTemplates = catalogTaxonomyTemplates[draft.type].slice(0, 4)
   const canCopyItemLink = !item.id.startsWith('manual-')
+  const isMetadataLocked = item.source === 'external' || item.source === 'public'
   const readiness = getPersonalEditorReadiness({
     ...draft,
     genres: selectedGenres,
@@ -10906,109 +10845,20 @@ function ItemEditor({
           </div>
         </div>
 
-        <section className="personal-readiness-panel" aria-label="Preparacion de entrada" data-testid="personal-readiness">
-          <div className="personal-readiness-main">
-            <div>
-              <span className="eyebrow">Preparacion</span>
-              <strong>{readiness.title}</strong>
-              <p>{readiness.detail}</p>
-            </div>
-            <div className="personal-readiness-score">
-              <strong>{readiness.score}/4</strong>
-              <span>lista para Dado</span>
-            </div>
-          </div>
-          <div
-            aria-label={`Preparacion de entrada ${readiness.percent}%`}
-            className="personal-readiness-meter"
-            role="meter"
-            aria-valuemax={100}
-            aria-valuemin={0}
-            aria-valuenow={readiness.percent}
-          >
-            <span style={{ width: `${readiness.percent}%` }} />
-          </div>
-          <div className="personal-readiness-checks" aria-label="Checklist de preparacion">
-            {readiness.checks.map((check) => (
-              <span className={check.done ? 'done' : undefined} key={check.label}>
-                {check.done ? <Check size={13} /> : <X size={13} />}
-                {check.label}
-              </span>
-            ))}
-          </div>
-        </section>
-
-        <section className="personal-template-panel" aria-label="Inicio rapido de entrada">
-          <div className="personal-template-heading">
-            <div>
-              <span className="eyebrow">Inicio rapido</span>
-              <strong>Parte de una receta</strong>
-              <p>Elige medio y aplica una base de generos, tags y tono antes de ajustar detalles.</p>
-            </div>
-            <label>
-              Medio
-              <select
-                aria-label="Medio de inicio rapido"
-                value={draft.type}
-                onChange={(event) => update('type', event.target.value as ItemType)}
-              >
-                {ITEM_TYPES.map((type) => (
-                  <option key={type} value={type}>
-                    {typeLabels[type]}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-          <div className="personal-template-grid">
-            {starterTemplates.map((template) => (
-              <button
-                aria-label={`Aplicar plantilla ${template.label} para ${typeLabels[draft.type]}`}
-                className="personal-template-card"
-                key={template.label}
-                type="button"
-                onClick={() => applyDraftTaxonomyTemplate(template)}
-              >
-                <span>
-                  <Sparkles size={15} />
-                  <strong>{template.label}</strong>
-                </span>
-                <small>{template.detail}</small>
-                <div>
-                  {template.genres.slice(0, 2).map((genre) => (
-                    <em key={genre}>{genre}</em>
-                  ))}
-                  {template.moodTags.slice(0, 1).map((mood) => (
-                    <em key={mood}>{mood}</em>
-                  ))}
-                </div>
-              </button>
-            ))}
-          </div>
-        </section>
-
-        <OriginSummary item={draft} />
+        {isMetadataLocked && <LockedMetadataSummary item={draft} />}
 
         <section className="editor-section">
-          <h3>Identidad</h3>
-          <label>
-            Titulo
-            <input autoFocus required value={draft.title} onChange={(event) => update('title', event.target.value)} />
-          </label>
+          <h3>{isMetadataLocked ? 'Tu progreso' : 'Basico'}</h3>
+          {!isMetadataLocked && (
+            <label>
+              Titulo
+              <input autoFocus required value={draft.title} onChange={(event) => update('title', event.target.value)} />
+            </label>
+          )}
           <div className="form-grid">
             <label>
-              Tipo
-              <select value={draft.type} onChange={(event) => update('type', event.target.value as ItemType)}>
-                {ITEM_TYPES.map((type) => (
-                  <option key={type} value={type}>
-                    {typeLabels[type]}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
               Estado
-              <select value={draft.status} onChange={(event) => update('status', event.target.value as ItemStatus)}>
+              <select autoFocus={isMetadataLocked} value={draft.status} onChange={(event) => update('status', event.target.value as ItemStatus)}>
                 {ITEM_STATUSES.map((status) => (
                   <option key={status} value={status}>
                     {statusLabels[status]}
@@ -11043,110 +10893,180 @@ function ItemEditor({
               Progreso
               <input value={draft.progress ?? ''} onChange={(event) => update('progress', event.target.value || undefined)} />
             </label>
-            <label>
-              Poster o portada
-              <input value={draft.posterUrl ?? ''} onChange={(event) => update('posterUrl', event.target.value || undefined)} />
-            </label>
           </div>
+          <label>
+            Notas
+            <textarea value={draft.notes ?? ''} onChange={(event) => update('notes', event.target.value)} />
+          </label>
         </section>
 
-        <section className="editor-section">
-          <div className="editor-section-heading">
-            <div>
-              <h3>Taxonomia</h3>
-              <p>{selectedGenres.length + selectedTags.length + selectedMoodTags.length} senales para busqueda y dado</p>
-            </div>
-          </div>
-          <label>
-            Generos
-            <input value={draft.genresText} onChange={(event) => update('genresText', event.target.value)} />
-          </label>
-          <label>
-            Tags
-            <input value={draft.tagsText} onChange={(event) => update('tagsText', event.target.value)} />
-          </label>
-          <label>
-            Mood tags
-            <input value={draft.moodText} onChange={(event) => update('moodText', event.target.value)} />
-          </label>
-          <div className="taxonomy-assistant">
-            <div className="taxonomy-template-list compact" aria-label={`Plantillas personales para ${typeLabels[draft.type]}`}>
-              {taxonomyTemplates.map((template) => (
-                <button className="taxonomy-template-button" key={template.label} type="button" onClick={() => applyDraftTaxonomyTemplate(template)}>
-                  <span>
-                    <Sparkles size={15} />
-                    <strong>{template.label}</strong>
-                  </span>
-                  <small>{template.detail}</small>
-                </button>
-              ))}
-            </div>
-            <div className="personal-taxonomy-grid">
-              <PresetChipGroup
-                label="Generos"
-                values={genrePresets}
-                selectedKeys={selectedGenreKeys}
-                onToggle={(value) => toggleDraftTextPreset('genresText', value)}
-              />
-              <PresetChipGroup
-                label="Tags"
-                values={tagPresets}
-                selectedKeys={selectedTagKeys}
-                onToggle={(value) => toggleDraftTextPreset('tagsText', value)}
-              />
+        <details className="editor-advanced-panel">
+          <summary>
+            <span>
+              <strong>Avanzado</strong>
+              <small>{isMetadataLocked ? 'Tono y prioridad personal' : 'Metadatos, taxonomia y dado'}</small>
+            </span>
+          </summary>
+          <div className="editor-advanced-content">
+            {!isMetadataLocked && (
+              <>
+                <section className="personal-readiness-panel" aria-label="Preparacion de entrada" data-testid="personal-readiness">
+                  <div className="personal-readiness-main">
+                    <div>
+                      <span className="eyebrow">Preparacion</span>
+                      <strong>{readiness.title}</strong>
+                      <p>{readiness.detail}</p>
+                    </div>
+                    <div className="personal-readiness-score">
+                      <strong>{readiness.score}/4</strong>
+                      <span>lista para Dado</span>
+                    </div>
+                  </div>
+                  <div
+                    aria-label={`Preparacion de entrada ${readiness.percent}%`}
+                    className="personal-readiness-meter"
+                    role="meter"
+                    aria-valuemax={100}
+                    aria-valuemin={0}
+                    aria-valuenow={readiness.percent}
+                  >
+                    <span style={{ width: `${readiness.percent}%` }} />
+                  </div>
+                </section>
+
+                <section className="personal-template-panel" aria-label="Inicio rapido de entrada">
+                  <div className="personal-template-heading">
+                    <div>
+                      <span className="eyebrow">Inicio rapido</span>
+                      <strong>Parte de una receta</strong>
+                    </div>
+                    <label>
+                      Medio
+                      <select
+                        aria-label="Medio de inicio rapido"
+                        value={draft.type}
+                        onChange={(event) => update('type', event.target.value as ItemType)}
+                      >
+                        {ITEM_TYPES.map((type) => (
+                          <option key={type} value={type}>
+                            {typeLabels[type]}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                  <div className="personal-template-grid">
+                    {starterTemplates.map((template) => (
+                      <button
+                        aria-label={`Aplicar plantilla ${template.label} para ${typeLabels[draft.type]}`}
+                        className="personal-template-card"
+                        key={template.label}
+                        type="button"
+                        onClick={() => applyDraftTaxonomyTemplate(template)}
+                      >
+                        <span>
+                          <Sparkles size={15} />
+                          <strong>{template.label}</strong>
+                        </span>
+                        <small>{template.detail}</small>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+
+                <section className="editor-section">
+                  <h3>Metadatos</h3>
+                  <div className="form-grid">
+                    <label>
+                      Tipo
+                      <select value={draft.type} onChange={(event) => update('type', event.target.value as ItemType)}>
+                        {ITEM_TYPES.map((type) => (
+                          <option key={type} value={type}>
+                            {typeLabels[type]}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      Poster o portada
+                      <input value={draft.posterUrl ?? ''} onChange={(event) => update('posterUrl', event.target.value || undefined)} />
+                    </label>
+                  </div>
+                </section>
+
+                <section className="editor-section">
+                  <div className="editor-section-heading">
+                    <div>
+                      <h3>Taxonomia</h3>
+                      <p>{selectedGenres.length + selectedTags.length + selectedMoodTags.length} senales</p>
+                    </div>
+                  </div>
+                  <label>
+                    Generos
+                    <input value={draft.genresText} onChange={(event) => update('genresText', event.target.value)} />
+                  </label>
+                  <label>
+                    Tags
+                    <input value={draft.tagsText} onChange={(event) => update('tagsText', event.target.value)} />
+                  </label>
+                  <div className="taxonomy-assistant">
+                    <div className="taxonomy-template-list compact" aria-label={`Plantillas personales para ${typeLabels[draft.type]}`}>
+                      {taxonomyTemplates.map((template) => (
+                        <button className="taxonomy-template-button" key={template.label} type="button" onClick={() => applyDraftTaxonomyTemplate(template)}>
+                          <span>
+                            <Sparkles size={15} />
+                            <strong>{template.label}</strong>
+                          </span>
+                          <small>{template.detail}</small>
+                        </button>
+                      ))}
+                    </div>
+                    <div className="personal-taxonomy-grid">
+                      <PresetChipGroup
+                        label="Generos"
+                        values={genrePresets}
+                        selectedKeys={selectedGenreKeys}
+                        onToggle={(value) => toggleDraftTextPreset('genresText', value)}
+                      />
+                      <PresetChipGroup
+                        label="Tags"
+                        values={tagPresets}
+                        selectedKeys={selectedTagKeys}
+                        onToggle={(value) => toggleDraftTextPreset('tagsText', value)}
+                      />
+                    </div>
+                  </div>
+                </section>
+              </>
+            )}
+            <section className="editor-section">
+              <h3>Personal</h3>
+              <div className="form-grid">
+                <label>
+                  Prioridad
+                  <input
+                    min="0"
+                    step="0.05"
+                    type="number"
+                    value={draft.weights.priority}
+                    onChange={(event) => update('weights', { ...draft.weights, priority: Number(event.target.value) || 0 })}
+                  />
+                </label>
+              </div>
+            </section>
+            <section className="editor-section">
+              <h3>Tono</h3>
               <PresetChipGroup
                 label="Tono"
                 values={moodPresets}
                 selectedKeys={selectedMoodKeys}
                 onToggle={(value) => toggleDraftTextPreset('moodText', value)}
               />
-            </div>
+            </section>
+            <OriginSummary item={draft} />
           </div>
-        </section>
+        </details>
 
-        <section className="editor-section">
-          <h3>Dado</h3>
-          <div className="form-grid">
-            <label>
-              Prioridad
-              <input
-                min="0"
-                step="0.05"
-                type="number"
-                value={draft.weights.priority}
-                onChange={(event) => update('weights', { ...draft.weights, priority: Number(event.target.value) || 0 })}
-              />
-            </label>
-            <label>
-              Sorpresa
-              <input
-                min="0"
-                step="0.05"
-                type="number"
-                value={draft.weights.surprise}
-                onChange={(event) => update('weights', { ...draft.weights, surprise: Number(event.target.value) || 0 })}
-              />
-            </label>
-            <label>
-              Reto
-              <input
-                min="0"
-                step="0.05"
-                type="number"
-                value={draft.weights.challenge}
-                onChange={(event) => update('weights', { ...draft.weights, challenge: Number(event.target.value) || 0 })}
-              />
-            </label>
-          </div>
-        </section>
-
-        <section className="editor-section">
-          <h3>Notas</h3>
-          <label>
-            Notas
-            <textarea value={draft.notes ?? ''} onChange={(event) => update('notes', event.target.value)} />
-          </label>
-        </section>
         <div className="action-row end">
           <button className="ghost-button" type="button" onClick={requestClose}>
             Cancelar
@@ -11925,6 +11845,56 @@ function PresetChipGroup({
         })}
       </div>
     </div>
+  )
+}
+
+function LockedMetadataSummary({ item }: { item: ListItem }) {
+  const externalRefs = getExternalRefEntries(item.externalRefs)
+  const lockedGenres = item.genres.slice(0, 4)
+  const lockedTags = item.tags.filter((tag) => tag !== item.type).slice(0, 4)
+  const releaseYear = item.publicSnapshot?.releaseYear
+
+  return (
+    <section className="locked-metadata-panel" aria-label="Metadatos protegidos">
+      <div className="locked-metadata-heading">
+        <span>
+          <LockKeyhole size={16} />
+        </span>
+        <div>
+          <h3>Metadatos protegidos</h3>
+          <p>Titulo, tipo, portada, generos y referencias vienen de la fuente. Aqui solo cambias tu progreso.</p>
+        </div>
+      </div>
+      <div className="locked-metadata-facts">
+        <span>
+          <strong>Fuente</strong>
+          {itemSourceLabels[item.source]}
+        </span>
+        <span>
+          <strong>Tipo</strong>
+          {typeLabels[item.type]}
+        </span>
+        {releaseYear && (
+          <span>
+            <strong>Ano</strong>
+            {releaseYear}
+          </span>
+        )}
+        {externalRefs.length > 0 && (
+          <span>
+            <strong>Refs</strong>
+            {externalRefs.length}
+          </span>
+        )}
+      </div>
+      {(lockedGenres.length > 0 || lockedTags.length > 0) && (
+        <div className="tag-row locked-metadata-tags">
+          {uniqueValues([...lockedGenres, ...lockedTags]).slice(0, 6).map((signal) => (
+            <span key={signal}>{signal}</span>
+          ))}
+        </div>
+      )}
+    </section>
   )
 }
 

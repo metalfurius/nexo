@@ -31,6 +31,35 @@ async function openLibraryAdvanced(page: Page) {
 }
 
 async function mockOpenLibraryOdisea(page: Page) {
+  const odiseaResult = {
+    id: 'open-library--works-OL166894W',
+    title: 'Odisea',
+    type: 'book',
+    source: 'openLibrary',
+    sourceId: '/works/OL166894W',
+    posterUrl: 'https://covers.openlibrary.org/b/id/531509-M.jpg',
+    releaseYear: 1996,
+    genres: ['Clasico', 'Aventura'],
+    externalRefs: {
+      openLibraryKey: '/works/OL166894W',
+      sourceUrl: 'https://openlibrary.org/works/OL166894W',
+    },
+    createdAt: '2026-06-06T10:00:00.000Z',
+  }
+
+  await page.route('**/search**', async (route) => {
+    const url = new URL(route.request().url())
+    if (url.pathname === '/search' && url.searchParams.get('q')?.toLowerCase() === 'odisea') {
+      await route.fulfill({
+        contentType: 'application/json',
+        headers: { 'x-nexo-cache': 'hit' },
+        json: { results: [odiseaResult] },
+      })
+      return
+    }
+    await route.fallback()
+  })
+
   await page.route('https://openlibrary.org/search.json**', async (route) => {
     await route.fulfill({
       contentType: 'application/json',
@@ -48,12 +77,115 @@ async function mockOpenLibraryOdisea(page: Page) {
       },
     })
   })
+
+  await page.route('https://graphql.anilist.co', async (route) => {
+    const body = route.request().postDataJSON() as { variables?: { search?: string } } | undefined
+    if (body?.variables?.search?.toLowerCase() !== 'odisea') {
+      await route.fallback()
+      return
+    }
+    await route.fulfill({
+      contentType: 'application/json',
+      json: {
+        data: {
+          Page: {
+            media: [
+              {
+                id: 166894,
+                title: {
+                  english: 'Odisea',
+                  romaji: 'Odisea',
+                  native: 'Odisea',
+                },
+                description: 'Resultado controlado para pruebas de explorador.',
+                format: 'TV',
+                genres: ['Aventura'],
+                startDate: { year: 1996 },
+                coverImage: { medium: odiseaResult.posterUrl },
+              },
+            ],
+          },
+        },
+      },
+    })
+  })
+}
+
+async function mockFrierenCatalog(page: Page) {
+  const frierenResult = {
+    id: 'anilist-154587',
+    title: 'Frieren: Tras finalizar el viaje',
+    type: 'anime',
+    source: 'anilist',
+    sourceId: '154587',
+    overview: 'La elfa Frieren empieza un viaje tranquilo despues de derrotar al Rey Demonio.',
+    posterUrl: 'https://img.anili.st/media/154587.jpg',
+    releaseYear: 2023,
+    genres: ['Animacion', 'Aventura', 'Drama'],
+    externalRefs: {
+      anilistId: '154587',
+      sourceUrl: 'https://anilist.co/anime/154587',
+    },
+    createdAt: '2026-06-06T10:00:00.000Z',
+  }
+
+  await page.route('**/search**', async (route) => {
+    const url = new URL(route.request().url())
+    if (url.pathname === '/search' && url.searchParams.get('q')?.toLowerCase() === 'frieren') {
+      await route.fulfill({
+        contentType: 'application/json',
+        headers: { 'x-nexo-cache': 'hit' },
+        json: { results: [frierenResult] },
+      })
+      return
+    }
+    await route.fallback()
+  })
+
+  await page.route('https://graphql.anilist.co', async (route) => {
+    await route.fulfill({
+      contentType: 'application/json',
+      json: {
+        data: {
+          Page: {
+            media: [
+              {
+                id: 154587,
+                title: {
+                  english: 'Frieren: Tras finalizar el viaje',
+                  romaji: 'Sousou no Frieren',
+                  native: 'Sousou no Frieren',
+                },
+                description: frierenResult.overview,
+                format: 'TV',
+                genres: frierenResult.genres,
+                startDate: { year: 2023 },
+                coverImage: { medium: frierenResult.posterUrl },
+              },
+            ],
+          },
+        },
+      },
+    })
+  })
 }
 
 async function openApp(page: Page) {
   await mockOpenLibraryOdisea(page)
   await page.goto('/')
   await openLibraryAdvanced(page)
+}
+
+async function openEditorAdvanced(editor: Locator) {
+  const advancedPanel = editor.locator('details.editor-advanced-panel')
+  await expect(advancedPanel).toBeVisible()
+  const isOpen = await advancedPanel.evaluate((element) => (element as HTMLDetailsElement).open)
+  if (!isOpen) {
+    await advancedPanel.evaluate((element) => {
+      const details = element as HTMLDetailsElement
+      details.open = true
+    })
+  }
 }
 
 test('library starts with a focused search-first surface', async ({ page }) => {
@@ -97,6 +229,45 @@ test('library can search a free catalog source and save directly', async ({ page
   await expect(page.getByRole('dialog', { name: 'Catalogos usados por Nexo' })).toContainText('TMDB')
   await expect(page.getByRole('dialog', { name: 'Catalogos usados por Nexo' })).toContainText('RAWG')
   await expect(page.getByRole('dialog', { name: 'Catalogos usados por Nexo' })).toContainText('Open Library')
+})
+
+test('library saves Frieren from external search without candidate permission noise', async ({ page }) => {
+  await mockFrierenCatalog(page)
+
+  await page.goto('/')
+  await page.getByLabel('Buscar obra para guardar').fill('Frieren')
+  await page.getByLabel('Tipo de obra para buscar').selectOption('anime')
+  await page.getByRole('button', { name: 'Buscar obra' }).click()
+
+  await expect(page.getByLabel('Resultados para guardar')).toContainText('Frieren: Tras finalizar el viaje')
+  await expect(page.getByLabel('Resultados para guardar')).toContainText('AniList')
+  await page.getByRole('button', { name: 'Guardar' }).click()
+
+  await expect(page.getByRole('status').filter({ hasText: 'Frieren: Tras finalizar el viaje guardado en Biblioteca' })).toBeVisible()
+  await expect(page.getByText(/Missing or insufficient permissions/i)).toHaveCount(0)
+  await expect(page.getByTestId('library-grid')).toContainText('Frieren: Tras finalizar el viaje')
+
+  await page.locator('.item-main').filter({ hasText: 'Frieren: Tras finalizar el viaje' }).click()
+  const editor = page.getByRole('dialog', { name: 'Entrada' })
+  await expect(editor).toContainText('Metadatos protegidos')
+  await expect(editor.getByLabel('Titulo')).toHaveCount(0)
+  await expect(editor.getByLabel('Tipo')).toHaveCount(0)
+  await expect(editor.getByLabel('Poster o portada')).toHaveCount(0)
+  await expect(editor.getByLabel('Generos', { exact: true })).toHaveCount(0)
+
+  await editor.getByLabel('Estado').selectOption('in_progress')
+  await editor.getByRole('textbox', { name: 'Progreso' }).fill('Episodio 4')
+  await editor.getByLabel('Rating').fill('9.4')
+  await editor.getByLabel('Notas').fill('Mucho mas tranquila de lo que esperaba.')
+  await editor.getByRole('button', { name: 'Guardar' }).click()
+
+  await expect(page.getByRole('status').filter({ hasText: 'Frieren: Tras finalizar el viaje guardada en Biblioteca' })).toBeVisible()
+  await page.locator('.item-main').filter({ hasText: 'Frieren: Tras finalizar el viaje' }).click()
+  const savedEditor = page.getByRole('dialog', { name: 'Entrada' })
+  await expect(savedEditor.getByLabel('Estado')).toHaveValue('in_progress')
+  await expect(savedEditor.getByRole('textbox', { name: 'Progreso' })).toHaveValue('Episodio 4')
+  await expect(savedEditor.getByLabel('Rating')).toHaveValue('9.4')
+  await expect(savedEditor.getByLabel('Notas')).toHaveValue('Mucho mas tranquila de lo que esperaba.')
 })
 
 test('library and weighted dice work in demo mode', async ({ page }) => {
@@ -162,23 +333,27 @@ test('library and weighted dice work in demo mode', async ({ page }) => {
   await expect(page.getByTestId('library-focus-shelf')).toBeVisible()
   await expect(page.getByTestId('library-grid')).toContainText('Outer Wilds')
   const outerWildsCard = page.locator('.item-card').filter({ hasText: 'Outer Wilds' })
-  await expect(outerWildsCard.getByLabel('Pulso de Outer Wilds')).toContainText('Dado')
-  await expect(outerWildsCard.getByLabel('Pulso de Outer Wilds')).toContainText('Foco')
-  await expect(outerWildsCard.getByLabel('Pulso de Outer Wilds')).toContainText('Sorpresa')
-  await expect(outerWildsCard.getByLabel('Senales rapidas de Outer Wilds')).toContainText('Importacion')
-  await expect(outerWildsCard.getByLabel('Senales rapidas de Outer Wilds')).toContainText('12-20h')
+  await expect(outerWildsCard).toContainText('Juegos / 12-20h')
+  await expect(outerWildsCard).toContainText('Pendiente')
+  await expect(outerWildsCard.locator('.item-signal-strip, .tag-row')).toHaveCount(0)
+  await expect(outerWildsCard).not.toContainText('Importacion')
   await page.getByRole('button', { name: 'Anadir' }).first().click()
   const quickEditor = page.getByRole('dialog', { name: 'Entrada' })
+  await quickEditor.getByLabel('Titulo').fill('Manual de prueba')
+  await openEditorAdvanced(quickEditor)
   await expect(quickEditor.getByTestId('personal-readiness')).toContainText('Preparacion')
   await expect(quickEditor.getByTestId('personal-readiness')).toContainText('Ficha por afinar')
-  await quickEditor.getByLabel('Titulo').fill('Manual de prueba')
   await expect(quickEditor.getByLabel('Inicio rapido de entrada')).toContainText('Parte de una receta')
   await quickEditor.getByLabel('Medio de inicio rapido').selectOption('book')
   await expect(quickEditor.getByLabel('Tipo')).toHaveValue('book')
-  await quickEditor.getByRole('button', { name: 'Aplicar plantilla Ideas grandes para Libros' }).click()
+  await quickEditor.getByRole('button', { name: 'Aplicar plantilla Ideas grandes para Libros' }).evaluate((button) => {
+    const templateButton = button as HTMLButtonElement
+    templateButton.click()
+  })
   await expect(quickEditor.getByLabel('Generos', { exact: true })).toHaveValue('Ciencia ficcion, Distopia, Filosofia')
   await expect(quickEditor.getByLabel('Tags', { exact: true })).toHaveValue('introspectivo, politico, premiado')
-  await expect(quickEditor.getByLabel('Mood tags')).toHaveValue('denso, raro')
+  await expect(quickEditor.getByRole('button', { name: 'denso', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await expect(quickEditor.getByRole('button', { name: 'raro', exact: true })).toHaveAttribute('aria-pressed', 'true')
   await quickEditor.getByLabel('Notas').fill('Entrada manual con contexto inicial.')
   await expect(quickEditor.getByTestId('personal-readiness')).toContainText('Ficha lista')
   await quickEditor.getByRole('button', { name: 'Guardar' }).click()
@@ -196,10 +371,12 @@ test('library and weighted dice work in demo mode', async ({ page }) => {
   await expect(page.getByTestId('session-activity')).toContainText('Manual de prueba')
   await expect(page.getByTestId('library-grid')).toContainText('Manual de prueba')
   await page.locator('.item-main').filter({ hasText: 'Outer Wilds' }).click()
-  await expect(page.getByRole('dialog', { name: 'Entrada' })).toBeVisible()
+  const outerWildsEditor = page.getByRole('dialog', { name: 'Entrada' })
+  await expect(outerWildsEditor).toBeVisible()
+  await openEditorAdvanced(outerWildsEditor)
   await expect(page.getByTestId('personal-readiness')).toContainText('Preparacion')
   await expect(page.getByLabel('Prioridad')).toBeVisible()
-  await expect(page.getByLabel('Sorpresa')).toBeVisible()
+  await expect(page.getByLabel('Sorpresa')).toHaveCount(0)
   await page.getByRole('textbox', { name: 'Progreso' }).fill('Cambio temporal sin guardar.')
   await page.getByRole('button', { name: 'Cerrar', exact: true }).click()
   await expect(page.getByLabel('Cambios sin guardar')).toContainText('Guarda la ficha')
@@ -328,7 +505,6 @@ test('library and weighted dice work in demo mode', async ({ page }) => {
   await expect(page.getByRole('menuitem', { name: 'Enfriar dado Outer Wilds' })).toBeVisible()
   await page.getByRole('menuitem', { name: 'Enfriar dado Outer Wilds' }).click()
   await expect(page.getByText('Outer Wilds enfriado para el dado')).toBeVisible()
-  await expect(outerWildsCard.getByLabel('Pulso de Outer Wilds')).toContainText('Cooldown')
   await page.getByRole('button', { name: 'Mas acciones Outer Wilds' }).click()
   await expect(page.getByRole('menuitem', { name: 'Reactivar dado Outer Wilds' })).toBeVisible()
 
@@ -351,7 +527,7 @@ test('library and weighted dice work in demo mode', async ({ page }) => {
   await page.getByRole('button', { name: 'Biblioteca', exact: true }).click()
   await expect(page.getByLabel('Salida con cambios pendientes')).toContainText('Cambios pendientes en Dado')
   await page.getByLabel('Salida con cambios pendientes').getByRole('button', { name: 'Descartar cambios' }).click()
-  await expect(outerWildsCard.getByLabel('Pulso de Outer Wilds')).toContainText('Continuar')
+  await expect(outerWildsCard).toContainText('En progreso')
 })
 
 test('dice closed decisions can roll another recommendation', async ({ page }) => {
@@ -409,6 +585,7 @@ test('library review session celebrates completed queues', async ({ page }) => {
   await page.getByRole('button', { name: 'Anadir' }).first().click()
   const draftEditor = page.getByRole('dialog', { name: 'Entrada' })
   await draftEditor.getByLabel('Titulo').fill('Repaso Final')
+  await openEditorAdvanced(draftEditor)
   await draftEditor.getByLabel('Generos', { exact: true }).fill('Drama')
   await draftEditor.getByRole('button', { name: 'Guardar' }).click()
   await expect(page.getByText('Repaso Final guardada en Biblioteca')).toBeVisible()
@@ -545,8 +722,6 @@ test('library can update selected visible items in bulk', async ({ page }) => {
   await selectionBar.getByLabel('Foco para seleccion').selectOption('high')
   await selectionBar.getByRole('button', { name: 'Aplicar foco' }).click()
   await expect(page.getByText('2 entradas ahora tienen Foco alto')).toBeVisible()
-  await expect(page.locator('.item-card', { hasText: 'Outer Wilds' })).toContainText('Alta prioridad')
-  await expect(page.locator('.item-card', { hasText: 'Vinland Saga' })).toContainText('Alta prioridad')
   await page.getByLabel('Accion reciente de biblioteca').getByRole('button', { name: 'Deshacer foco' }).click()
   await expect(page.getByText('2 focos recuperados')).toBeVisible()
   await expect(page.locator('.item-card', { hasText: 'Outer Wilds' })).not.toContainText('Alta prioridad')
@@ -556,12 +731,8 @@ test('library can update selected visible items in bulk', async ({ page }) => {
   await page.getByLabel('Seleccionar Vinland Saga').check()
   await selectionBar.getByRole('button', { name: 'Enfriar dado' }).click()
   await expect(page.getByText('2 entradas enfriadas para el dado')).toBeVisible()
-  await expect(page.locator('.item-card', { hasText: 'Outer Wilds' }).getByLabel('Pulso de Outer Wilds')).toContainText('Cooldown')
-  await expect(page.locator('.item-card', { hasText: 'Vinland Saga' }).getByLabel('Pulso de Vinland Saga')).toContainText('Cooldown')
   await page.getByLabel('Accion reciente de biblioteca').getByRole('button', { name: 'Deshacer dado' }).click()
   await expect(page.getByText('Dado deshecho: 2 reactivadas')).toBeVisible()
-  await expect(page.locator('.item-card', { hasText: 'Outer Wilds' }).getByLabel('Pulso de Outer Wilds')).toContainText('Disponible')
-  await expect(page.locator('.item-card', { hasText: 'Vinland Saga' }).getByLabel('Pulso de Vinland Saga')).toContainText('Disponible')
 
   await page.getByLabel('Seleccionar Outer Wilds').check()
   await page.getByLabel('Seleccionar Vinland Saga').check()
@@ -573,8 +744,6 @@ test('library can update selected visible items in bulk', async ({ page }) => {
   await expect(page.getByText('2 entradas reactivadas para el dado')).toBeVisible()
   await page.getByLabel('Accion reciente de biblioteca').getByRole('button', { name: 'Deshacer dado' }).click()
   await expect(page.getByText('Dado deshecho: 2 cooldowns recuperados')).toBeVisible()
-  await expect(page.locator('.item-card', { hasText: 'Outer Wilds' }).getByLabel('Pulso de Outer Wilds')).toContainText('Cooldown')
-  await expect(page.locator('.item-card', { hasText: 'Vinland Saga' }).getByLabel('Pulso de Vinland Saga')).toContainText('Cooldown')
 })
 
 test('library can export the current selection without private settings', async ({ page }) => {
@@ -809,8 +978,6 @@ test('quick search updates dice cooldowns for the current library selection', as
   await snoozeSelectionAction.click()
 
   await expect(page.getByText('2 entradas enfriadas para el dado')).toBeVisible()
-  await expect(page.locator('.item-card', { hasText: 'Outer Wilds' }).getByLabel('Pulso de Outer Wilds')).toContainText('Cooldown')
-  await expect(page.locator('.item-card', { hasText: 'Vinland Saga' }).getByLabel('Pulso de Vinland Saga')).toContainText('Cooldown')
   await expect(page.getByTestId('session-activity')).toContainText('Seleccion enfriada')
 
   await page.getByLabel('Seleccionar Outer Wilds').check()
@@ -827,14 +994,10 @@ test('quick search updates dice cooldowns for the current library selection', as
   await reactivateSelectionAction.click()
 
   await expect(page.getByText('2 entradas reactivadas para el dado')).toBeVisible()
-  await expect(page.locator('.item-card', { hasText: 'Outer Wilds' }).getByLabel('Pulso de Outer Wilds')).toContainText('Disponible')
-  await expect(page.locator('.item-card', { hasText: 'Vinland Saga' }).getByLabel('Pulso de Vinland Saga')).toContainText('Disponible')
   await expect(page.getByTestId('session-activity')).toContainText('Seleccion reactivada')
 
   await page.getByLabel('Accion reciente de biblioteca').getByRole('button', { name: 'Deshacer dado' }).click()
   await expect(page.getByText('Dado deshecho: 2 cooldowns recuperados')).toBeVisible()
-  await expect(page.locator('.item-card', { hasText: 'Outer Wilds' }).getByLabel('Pulso de Outer Wilds')).toContainText('Cooldown')
-  await expect(page.locator('.item-card', { hasText: 'Vinland Saga' }).getByLabel('Pulso de Vinland Saga')).toContainText('Cooldown')
 })
 
 test('quick search updates focus for the current library selection', async ({ page }) => {
@@ -855,8 +1018,6 @@ test('quick search updates focus for the current library selection', async ({ pa
   await focusSelectionAction.click()
 
   await expect(page.getByText('2 entradas ahora tienen Foco alto')).toBeVisible()
-  await expect(page.locator('.item-card', { hasText: 'Outer Wilds' })).toContainText('Alta prioridad')
-  await expect(page.locator('.item-card', { hasText: 'Vinland Saga' })).toContainText('Alta prioridad')
   await expect(page.getByTestId('session-activity')).toContainText('Foco masivo actualizado')
 
   await page.getByLabel('Accion reciente de biblioteca').getByRole('button', { name: 'Deshacer foco' }).click()
@@ -897,8 +1058,8 @@ test('quick search adds known taxonomy signals to the current library selection'
   await tagSelectionAction.click()
 
   await expect(page.getByText('1 entradas etiquetadas con sci-fi')).toBeVisible()
-  await page.getByLabel('Buscar en biblioteca').fill('Vinland Saga')
-  await expect(page.locator('.item-card', { hasText: 'Vinland Saga' })).toContainText('sci-fi')
+  await page.getByLabel('Buscar en biblioteca').fill('sci-fi')
+  await expect(page.getByTestId('library-grid')).toContainText('Vinland Saga')
 
   await page.getByLabel('Seleccionar Vinland Saga').check()
   await page.getByRole('button', { name: 'Busqueda rapida' }).click()
@@ -909,7 +1070,7 @@ test('quick search adds known taxonomy signals to the current library selection'
   await removeTagSelectionAction.click()
 
   await expect(page.getByText('1 entradas actualizadas sin sci-fi')).toBeVisible()
-  await expect(page.locator('.item-card', { hasText: 'Vinland Saga' })).not.toContainText('sci-fi')
+  await expect(page.locator('.item-card', { hasText: 'Vinland Saga' })).toHaveCount(0)
 
   await page.getByLabel('Buscar en biblioteca').fill('')
   await page.getByLabel('Seleccionar Outer Wilds').check()
@@ -924,11 +1085,11 @@ test('quick search adds known taxonomy signals to the current library selection'
   await genreSelectionAction.click()
 
   await expect(page.getByText('1 entradas actualizadas con misterio')).toBeVisible()
-  await page.getByLabel('Buscar en biblioteca').fill('Vinland Saga')
-  await expect(page.locator('.item-card', { hasText: 'Vinland Saga' })).toContainText('misterio')
+  await page.getByLabel('Buscar en biblioteca').fill('misterio')
+  await expect(page.getByTestId('library-grid')).toContainText('Vinland Saga')
   await page.getByLabel('Accion reciente de biblioteca').getByRole('button', { name: 'Deshacer generos' }).click()
   await expect(page.getByText('1 generos recuperados')).toBeVisible()
-  await expect(page.locator('.item-card', { hasText: 'Vinland Saga' })).not.toContainText('misterio')
+  await expect(page.locator('.item-card', { hasText: 'Vinland Saga' })).toHaveCount(0)
 
   await page.getByLabel('Buscar en biblioteca').fill('')
   await page.getByLabel('Seleccionar Outer Wilds').check()
@@ -943,11 +1104,11 @@ test('quick search adds known taxonomy signals to the current library selection'
   await moodSelectionAction.click()
 
   await expect(page.getByText('2 entradas actualizadas con intenso')).toBeVisible()
-  await page.getByLabel('Buscar en biblioteca').fill('Vinland Saga')
-  await expect(page.locator('.item-card', { hasText: 'Vinland Saga' })).toContainText('intenso')
+  await page.getByLabel('Buscar en biblioteca').fill('intenso')
+  await expect(page.getByTestId('library-grid')).toContainText('Vinland Saga')
   await page.getByLabel('Accion reciente de biblioteca').getByRole('button', { name: 'Deshacer mood tags' }).click()
   await expect(page.getByText('2 mood tags recuperados')).toBeVisible()
-  await expect(page.locator('.item-card', { hasText: 'Vinland Saga' })).not.toContainText('intenso')
+  await expect(page.locator('.item-card', { hasText: 'Vinland Saga' })).toHaveCount(0)
 })
 
 test('quick search opens library items through the pending-change guard', async ({ page }) => {
@@ -2500,7 +2661,8 @@ test('explorer searches public catalog and saves to private library', async ({ p
   await expect(page.getByRole('button', { name: 'Afinar ficha guardada Odisea' })).toBeVisible()
   await page.getByRole('button', { name: 'Afinar ficha guardada Odisea' }).click()
   const savedEditor = page.getByRole('dialog', { name: 'Entrada' })
-  await expect(savedEditor.getByLabel('Titulo')).toHaveValue('Odisea')
+  await expect(savedEditor).toContainText('Metadatos protegidos')
+  await expect(savedEditor.getByLabel('Titulo')).toHaveCount(0)
   await savedEditor.getByLabel('Notas').fill('Afinada desde Explorador.')
   await savedEditor.getByRole('button', { name: 'Guardar' }).click()
   await expect(page.getByText('Odisea afinada en Biblioteca.')).toBeVisible()
