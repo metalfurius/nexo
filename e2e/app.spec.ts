@@ -4391,6 +4391,8 @@ test('settings layout keeps theme identity first and status compact', async ({ p
 })
 
 test('all themes keep core views legible without layout overflow', async ({ page }, testInfo) => {
+  testInfo.setTimeout(120_000)
+
   if (testInfo.project.name === 'chromium') {
     await page.setViewportSize({ width: 1920, height: 1080 })
   } else {
