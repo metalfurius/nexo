@@ -198,7 +198,11 @@ function normalizeSettings(value: unknown): UserSettings {
     theme: readThemeMode(settings.theme),
     recommendationPreferences,
     explorerDefaultType: readExplorerDefaultType(settings.explorerDefaultType),
-    libraryViewMode: settings.libraryViewMode === 'list' ? 'list' : DEFAULT_SETTINGS.libraryViewMode,
+    libraryViewMode:
+      settings.libraryViewMode === 'mosaic' || settings.libraryViewMode === 'cards' || settings.libraryViewMode === 'list'
+        ? settings.libraryViewMode
+        : DEFAULT_SETTINGS.libraryViewMode,
+    libraryCardsPerRow: readLibraryCardsPerRow(settings.libraryCardsPerRow),
   }
 }
 
@@ -206,6 +210,10 @@ function readThemeMode(value: unknown) {
   return typeof value === 'string' && THEME_MODES.includes(value as (typeof THEME_MODES)[number])
     ? (value as (typeof THEME_MODES)[number])
     : DEFAULT_SETTINGS.theme
+}
+
+function readLibraryCardsPerRow(value: unknown) {
+  return value === 4 || value === 5 || value === 6 ? value : DEFAULT_SETTINGS.libraryCardsPerRow
 }
 
 function normalizeRecommendationPreferences(value: unknown): RecommendationPreferences {

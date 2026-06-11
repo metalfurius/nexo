@@ -9,6 +9,9 @@ export interface ExternalSourceCredit {
   url: string
 }
 
+export type ExternalDiscoverType = 'any' | 'movie' | 'series' | 'animeManga' | 'game' | 'book'
+export type ExternalDiscoverDuration = 'any' | 'short' | 'medium' | 'long'
+
 export const externalSourceCredits: ExternalSourceCredit[] = [
   {
     detail: 'Peliculas, series, posters y fechas a traves del proxy privado de catalogo.',
@@ -58,10 +61,28 @@ export async function searchExternalSources(searchQuery: string, type: string): 
   return uniqueExternalCandidates(groups.flatMap((group) => (group.status === 'fulfilled' ? group.value : []))).slice(0, 24)
 }
 
+export async function discoverExternalCandidate(
+  type: ExternalDiscoverType,
+  duration: ExternalDiscoverDuration,
+): Promise<ExternalCandidate | undefined> {
+  const seed = createDiscoverySeed()
+  const proxyCandidate = await discoverFromCatalogProxy(type, duration, seed)
+  if (proxyCandidate) return proxyCandidate
+
+  const queries = getDiscoverQueries(type, duration, seed).slice(0, 3)
+  const searchType = discoverTypeToSearchType(type)
+  const groups = await Promise.allSettled(queries.map((query) => searchExternalSources(query, searchType)))
+  const candidates = uniqueExternalCandidates(groups.flatMap((group) => (group.status === 'fulfilled' ? group.value : []))).filter(
+    hasPoster,
+  )
+  return pickSeeded(candidates, seed)
+}
+
 function getSearchTasks(query: string, type: string): Array<Promise<ExternalCandidate[]>> {
   if (type === 'book') return [searchOpenLibrary(query)]
   if (type === 'game') return [searchWikidataGames(query)]
   if (type === 'anime' || type === 'manga' || type === 'manhwa') return [searchAniList(query, type)]
+  if (type === 'animeManga') return [searchAniList(query, 'anime'), searchAniList(query, 'manga')]
   if (type === 'watch') return [searchAniList(query, 'anime'), searchAniList(query, 'manga')]
   if (type === 'any') {
     return [
@@ -72,6 +93,27 @@ function getSearchTasks(query: string, type: string): Array<Promise<ExternalCand
     ]
   }
   return []
+}
+
+async function discoverFromCatalogProxy(
+  type: ExternalDiscoverType,
+  duration: ExternalDiscoverDuration,
+  seed: string,
+): Promise<ExternalCandidate | undefined> {
+  const proxyUrl = String(import.meta.env.VITE_CATALOG_PROXY_URL ?? '').trim()
+  if (!proxyUrl) return undefined
+
+  const baseUrl = proxyUrl.endsWith('/') ? proxyUrl : `${proxyUrl}/`
+  const url = new URL('discover', baseUrl)
+  url.searchParams.set('type', type)
+  url.searchParams.set('duration', duration)
+  url.searchParams.set('seed', seed)
+
+  const response = await fetch(url, { headers: { accept: 'application/json' } })
+  if (!response.ok) return undefined
+
+  const payload = (await response.json()) as { result?: unknown }
+  return normalizeProxyCandidate(payload.result).find(hasPoster)
 }
 
 async function searchCatalogProxy(query: string, type: string): Promise<ExternalCandidate[] | undefined> {
@@ -89,6 +131,58 @@ async function searchCatalogProxy(query: string, type: string): Promise<External
   const payload = (await response.json()) as { results?: unknown }
   if (!Array.isArray(payload.results)) return []
   return payload.results.flatMap(normalizeProxyCandidate)
+}
+
+function getDiscoverQueries(type: ExternalDiscoverType, duration: ExternalDiscoverDuration, seed: string) {
+  const typedSeeds = DISCOVER_QUERY_SEEDS[type] ?? DISCOVER_QUERY_SEEDS.any
+  const durationSeeds = DISCOVER_DURATION_SEEDS[duration] ?? DISCOVER_DURATION_SEEDS.any
+  const combined = [...typedSeeds, ...durationSeeds, ...DISCOVER_QUERY_SEEDS.any]
+  const start = hashSeed(seed) % combined.length
+  return [...combined.slice(start), ...combined.slice(0, start)]
+}
+
+const DISCOVER_QUERY_SEEDS: Record<ExternalDiscoverType, string[]> = {
+  animeManga: ['frieren', 'chainsaw man', 'vinland saga', 'dungeon meshi', 'pluto', 'monster'],
+  any: ['frieren', 'hollow knight', 'dune', 'parasite', 'arrival', 'outer wilds', 'station eleven'],
+  book: ['dune', 'earthsea', 'the left hand of darkness', 'babel', 'project hail mary', 'annihilation'],
+  game: ['hollow knight', 'celeste', 'outer wilds', 'disco elysium', 'hades', 'gris'],
+  movie: ['parasite', 'arrival', 'spirited away', 'blade runner', 'perfect days', 'portrait of a lady on fire'],
+  series: ['station eleven', 'severance', 'andor', 'the bear', 'arcane', 'dark'],
+}
+
+const DISCOVER_DURATION_SEEDS: Record<ExternalDiscoverDuration, string[]> = {
+  any: [],
+  long: ['epic', 'saga', 'open world', 'long running', 'trilogy'],
+  medium: ['season', 'adventure', 'story rich', 'novel'],
+  short: ['short', 'movie', 'one shot', 'indie', 'novella'],
+}
+
+function discoverTypeToSearchType(type: ExternalDiscoverType) {
+  if (type === 'animeManga') return 'animeManga'
+  return type
+}
+
+function createDiscoverySeed() {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID()
+  return `${Date.now()}`
+}
+
+function hasPoster(candidate: ExternalCandidate) {
+  return Boolean(candidate.posterUrl?.trim())
+}
+
+function pickSeeded<T>(values: T[], seed: string) {
+  if (!values.length) return undefined
+  return values[hashSeed(seed) % values.length]
+}
+
+function hashSeed(seed: string) {
+  let hash = 2166136261
+  for (let index = 0; index < seed.length; index += 1) {
+    hash ^= seed.charCodeAt(index)
+    hash = Math.imul(hash, 16777619)
+  }
+  return Math.abs(hash)
 }
 
 async function searchOpenLibrary(query: string): Promise<ExternalCandidate[]> {

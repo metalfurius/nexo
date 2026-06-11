@@ -46,8 +46,8 @@ export const discoveryStatusLabels: Record<DiscoveryStatus, string> = {
 
 export const discoveryEmptyCopy: Record<DiscoveryStatus, { title: string; detail: string }> = {
   queued: {
-    title: 'La cola esta limpia',
-    detail: 'Busca en el catalogo Nexo, tira una carta sorpresa o guarda hallazgos externos.',
+    title: 'Busca una obra para guardar',
+    detail: 'Escribe un titulo o deja que Nexo proponga una pista visual.',
   },
   saved: {
     title: 'Aun no has guardado hallazgos',
@@ -180,8 +180,8 @@ export function getExplorerDecisionSummary({
   const detail =
     view === 'queued'
       ? sourceFilter === 'all'
-        ? 'Trabaja la cola completa o filtra por origen para limpiar ruido.'
-        : `${activeSourceLabel} activo: limpia solo esta vista sin tocar otros origenes.`
+        ? 'Revisa hallazgos uno a uno. Guardar los manda a Biblioteca; descartar limpia ruido.'
+        : `${activeSourceLabel} activo: revisa solo este origen sin tocar el resto.`
       : 'Consulta decisiones pasadas y recupera descartes si cambias de idea.'
 
   return { detail, title }
@@ -194,7 +194,7 @@ export function getCandidateDecisionBrief(candidate: DiscoveryCandidate, canCura
       detail: 'Guarda una copia en tu biblioteca. Tus notas, rating y dado no cambian el catalogo publico.',
       facts: [
         { label: 'Origen', value: discoverySourceLabels[candidate.source] },
-        { label: 'Privacidad', value: 'Copia privada' },
+        { label: 'Destino', value: 'Biblioteca' },
       ],
       title: 'Ficha curada de Nexo',
     }
@@ -206,21 +206,21 @@ export function getCandidateDecisionBrief(candidate: DiscoveryCandidate, canCura
       detail: 'Es una carta de exploracion. Guardarla crea una entrada privada para pensarla luego.',
       facts: [
         { label: 'Origen', value: discoverySourceLabels[candidate.source] },
-        { label: 'Riesgo', value: 'Sin catalogo' },
+        { label: 'Destino', value: 'Biblioteca' },
       ],
       title: 'Idea ligera',
     }
   }
 
   return {
-    action: canCurate ? 'Guardar o curar catalogo' : 'Revisar y guardar',
+    action: canCurate ? 'Guardar o pasar a catalogo' : 'Guardar en privado',
     detail: canCurate
-      ? 'Puedes guardarlo para ti o convertirlo en ficha publica si merece vivir en Nexo.'
-      : 'Guardarlo crea una entrada privada sin publicar nada en el catalogo compartido.',
+      ? 'Guardalo para ti ahora. Si merece vivir en Nexo, puedes curarlo despues.'
+      : 'Crea una entrada privada sin publicar nada en el catalogo compartido.',
     facts: [
       { label: 'Origen', value: discoverySourceLabels[candidate.source] },
-      { label: 'Catalogo', value: canCurate ? 'Curable' : 'Privado' },
+      { label: 'Destino', value: canCurate ? 'Biblioteca' : 'Privado' },
     ],
-    title: 'Resultado externo',
+    title: 'Encontrado fuera de Nexo',
   }
 }

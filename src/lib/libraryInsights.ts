@@ -77,7 +77,7 @@ export function getLibraryLaunchGuide(
       detail: `${Math.min(items.length, targetItemCount)}/${targetItemCount} entradas privadas`,
       done: items.length >= targetItemCount,
       id: 'base',
-      label: 'Base privada',
+      label: 'Estanteria base',
     },
     {
       action: firstMissingTaxonomyItem ? 'edit-taxonomy' : 'add',
@@ -91,18 +91,18 @@ export function getLibraryLaunchGuide(
     {
       action: items.length ? 'open-dice' : 'add',
       actionLabel: items.length ? 'Abrir Dado' : 'Anadir',
-      detail: diceReadyCount ? `${diceReadyCount} candidatas vivas` : 'Sin candidatas disponibles',
+      detail: diceReadyCount ? `${diceReadyCount} guardadas listas para decidir` : 'Sin guardadas disponibles',
       done: diceReadyCount > 0,
       id: 'dice',
-      label: 'Dado vivo',
+      label: 'Dado elige guardadas',
     },
     {
       action: 'open-explorer',
-      actionLabel: 'Decidir',
-      detail: queuedDiscoveryCount ? `${queuedDiscoveryCount} hallazgos por decidir` : 'Cola limpia',
+      actionLabel: 'Buscar',
+      detail: queuedDiscoveryCount ? `${queuedDiscoveryCount} hallazgos por revisar` : 'Sin busquedas pendientes',
       done: queuedDiscoveryCount === 0,
       id: 'explorer',
-      label: 'Explorador limpio',
+      label: 'Explorar encuentra nuevas',
     },
   ]
   const completed = steps.filter((step) => step.done).length
@@ -110,8 +110,8 @@ export function getLibraryLaunchGuide(
   const title = completed === steps.length ? 'Nexo preparado' : completed >= 2 ? 'Buen arranque' : 'Arranque pendiente'
   const detail =
     completed === steps.length
-      ? 'Biblioteca, dado y cola estan en buen estado.'
-      : 'Sigue estos pasos para que la app recomiende mejor.'
+      ? 'Estanteria, Dado y Explorar tienen cada uno su trabajo claro.'
+      : 'Guarda obras, decide con Dado y encuentra nuevas desde Explorar.'
 
   return {
     completed,

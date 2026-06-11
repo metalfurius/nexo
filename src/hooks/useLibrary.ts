@@ -9,6 +9,8 @@ import {
   type DiscoveryCandidate,
   type ExternalCandidate,
   type ItemStatus,
+  type LibraryCardsPerRow,
+  type LibraryViewMode,
   type ListItem,
   type PublicCatalogItem,
   type UserProfile,
@@ -626,6 +628,9 @@ function mergeCandidates(nextCandidates: DiscoveryCandidate[], currentCandidates
 }
 
 function mergeSettings(settings: Partial<UserSettings>): UserSettings {
+  const libraryViewMode = readLibraryViewMode(settings.libraryViewMode)
+  const libraryCardsPerRow = readLibraryCardsPerRow(settings.libraryCardsPerRow)
+
   return {
     ...DEFAULT_SETTINGS,
     ...settings,
@@ -633,12 +638,21 @@ function mergeSettings(settings: Partial<UserSettings>): UserSettings {
       settings.theme && THEME_MODES.includes(settings.theme as (typeof THEME_MODES)[number])
         ? settings.theme
         : DEFAULT_SETTINGS.theme,
-    libraryViewMode: settings.libraryViewMode === 'list' ? 'list' : DEFAULT_SETTINGS.libraryViewMode,
+    libraryViewMode,
+    libraryCardsPerRow,
     recommendationPreferences: {
       ...DEFAULT_RECOMMENDATION_PREFERENCES,
       ...settings.recommendationPreferences,
     },
   }
+}
+
+function readLibraryViewMode(value: unknown): LibraryViewMode {
+  return value === 'mosaic' || value === 'cards' || value === 'list' ? value : DEFAULT_SETTINGS.libraryViewMode
+}
+
+function readLibraryCardsPerRow(value: unknown): LibraryCardsPerRow {
+  return value === 4 || value === 5 || value === 6 ? value : DEFAULT_SETTINGS.libraryCardsPerRow
 }
 
 function demoExternalCandidates(query: string, type: string): ExternalCandidate[] {
