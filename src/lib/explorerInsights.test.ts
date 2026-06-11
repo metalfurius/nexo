@@ -56,8 +56,8 @@ describe('explorer insights', () => {
 
   it('keeps empty-state copy aligned with the explorer workflow', () => {
     expect(discoveryEmptyCopy.queued).toEqual({
-      title: 'La cola esta limpia',
-      detail: 'Busca en el catalogo Nexo, tira una carta sorpresa o guarda hallazgos externos.',
+      title: 'Busca una obra para guardar',
+      detail: 'Escribe un titulo o deja que Nexo proponga una pista visual.',
     })
     expect(discoveryEmptyCopy.saved.title).toBe('Aun no has guardado hallazgos')
     expect(discoveryEmptyCopy.dismissed.title).toBe('No hay descartes')
@@ -80,7 +80,7 @@ describe('explorer insights', () => {
     expect(state.feedCandidates.map((entry) => entry.id)).toEqual(['external', 'prompt'])
     expect(state.decisionProgressPercent).toBe(40)
     expect(state.decisionSummaryTitle).toBe('3 por decidir')
-    expect(state.decisionSummaryDetail).toBe('Trabaja la cola completa o filtra por origen para limpiar ruido.')
+    expect(state.decisionSummaryDetail).toBe('Revisa hallazgos uno a uno. Guardar los manda a Biblioteca; descartar limpia ruido.')
     expect(state.activeSourceLabel).toBe('Todo')
     expect(state.canDismissVisibleQueue).toBe(false)
   })
@@ -99,7 +99,7 @@ describe('explorer insights', () => {
     expect(state.spotlightCandidate?.id).toBe('tmdb')
     expect(state.activeSourceLabel).toBe('APIs')
     expect(state.decisionSummaryTitle).toBe('2 por decidir')
-    expect(state.decisionSummaryDetail).toBe('APIs activo: limpia solo esta vista sin tocar otros origenes.')
+    expect(state.decisionSummaryDetail).toBe('APIs activo: revisa solo este origen sin tocar el resto.')
     expect(state.canDismissVisibleQueue).toBe(true)
   })
 
@@ -136,18 +136,18 @@ describe('explorer insights', () => {
       title: 'Idea ligera',
     })
     expect(getCandidateDecisionBrief(candidate({ source: 'tmdb' }), false)).toMatchObject({
-      action: 'Revisar y guardar',
+      action: 'Guardar en privado',
       facts: [
         { label: 'Origen', value: 'TMDB' },
-        { label: 'Catalogo', value: 'Privado' },
+        { label: 'Destino', value: 'Privado' },
       ],
-      title: 'Resultado externo',
+      title: 'Encontrado fuera de Nexo',
     })
     expect(getCandidateDecisionBrief(candidate({ source: 'rawg' }), true)).toMatchObject({
-      action: 'Guardar o curar catalogo',
+      action: 'Guardar o pasar a catalogo',
       facts: [
         { label: 'Origen', value: 'RAWG' },
-        { label: 'Catalogo', value: 'Curable' },
+        { label: 'Destino', value: 'Biblioteca' },
       ],
     })
   })

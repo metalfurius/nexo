@@ -21,6 +21,14 @@ async function expectDialogAnimationsSettled(dialog: Locator) {
   })
 }
 
+async function expectLibraryGridAnimationsSettled(page: Page) {
+  const grid = page.getByTestId('library-grid')
+  await expect(grid).toBeVisible()
+  await grid.evaluate(async (element) => {
+    await Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished.catch(() => undefined)))
+  })
+}
+
 async function openLibraryAdvanced(page: Page) {
   const advancedPanel = page.locator('details.library-advanced-panel')
   await expect(advancedPanel).toBeVisible()
@@ -28,6 +36,213 @@ async function openLibraryAdvanced(page: Page) {
   if (!isOpen) {
     await advancedPanel.locator('summary').click()
   }
+}
+
+async function openManualEntryEditor(page: Page) {
+  await page.getByRole('button', { name: 'Busqueda rapida' }).click()
+  const quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  await expect(quickSearch).toBeVisible()
+  await quickSearch.getByLabel('Buscar en Nexo').fill('anadir entrada')
+  await quickSearch.getByRole('button', { name: 'Ejecutar Anadir entrada' }).click()
+  const editor = page.getByRole('dialog', { name: 'Entrada' })
+  await expectDialogAnimationsSettled(editor)
+  return editor
+}
+
+async function fillLibraryTextSearch(page: Page, value: string) {
+  await openLibraryAdvanced(page)
+  await page.locator('details.library-advanced-panel').getByLabel('Buscar en biblioteca').fill(value)
+}
+
+async function selectLibraryItems(page: Page, ...titles: string[]) {
+  await openLibraryAdvanced(page)
+  for (const title of titles) {
+    const checkbox = page.getByLabel(`Seleccionar ${title}`)
+    await expect(checkbox).toBeVisible()
+    await checkbox.check()
+  }
+}
+
+async function openExplorerTools(page: Page) {
+  const toolsPanel = page.locator('details.explorer-tools-panel').first()
+  await expect(toolsPanel).toBeVisible()
+  const isOpen = await toolsPanel.evaluate((element) => (element as HTMLDetailsElement).open)
+  if (!isOpen) {
+    await toolsPanel.locator(':scope > summary').click()
+  }
+}
+
+async function openExplorerFilters(page: Page) {
+  await openExplorerTools(page)
+  const filtersPanel = page.locator('details.explorer-history-panel details.explorer-tools-panel').first()
+  await expect(filtersPanel).toBeVisible()
+  const isOpen = await filtersPanel.evaluate((element) => (element as HTMLDetailsElement).open)
+  if (!isOpen) {
+    await filtersPanel.locator(':scope > summary').click()
+  }
+}
+
+async function expectLibrarySurface(page: Page) {
+  await expect(page.getByTestId('library-masthead')).toContainText('Biblioteca')
+}
+
+async function expectNoVisibleTextClipping(page: Page) {
+  const clippedElements = await page.evaluate(() => {
+    const selector = [
+      'button:not(.icon-button):not(.card-menu-trigger)',
+      'summary',
+      'h1',
+      'h2',
+      'h3',
+      'h4',
+      '.topbar-title',
+      '.topbar-subtitle',
+      '.brand-wordmark',
+      '.pulse-summary span',
+      '.pulse-summary strong',
+      '.tab-label > span:first-child',
+      '.item-identity h3',
+      '.item-status',
+      '.tag-row span',
+      '.segment-option',
+      '.primary-button',
+      '.secondary-button',
+      '.ghost-button',
+      '.small-button',
+      '.dice-button',
+      '.source-filter-chip span',
+      '.source-filter-chip small',
+      '.stat-chip',
+      '.status-chip-button',
+      '.preset-chip',
+      '.catalog-filter-chip',
+      '.library-masthead-signal span',
+      '.library-masthead-signal strong',
+      '.library-masthead-signal small',
+      '.library-search-copy h3',
+      '.cover-art-type',
+      '.cover-art-title',
+      '.tool-mode-badge',
+      '.tool-job-strip strong',
+      '.tool-job-strip em',
+      '.intent-flow span',
+      '.tool-boundary',
+      '.dice-readiness-card span',
+      '.dice-readiness-card strong',
+      '.dice-featured-copy small',
+      '.dice-featured-copy strong',
+      '.dice-featured-copy em',
+      '.dice-featured-score small',
+      '.dice-featured-score strong',
+      '.dice-pool-detail summary strong',
+      '.dice-pool-detail summary small',
+      '.dice-candidate-main > strong',
+      '.dice-candidate-main > small',
+      '.score-card span',
+      '.score-card strong',
+      '.theme-option strong',
+      '.theme-option small',
+      '.theme-option-status',
+      '.settings-drawer > summary strong',
+      '.settings-drawer > summary small',
+      '.settings-drawer > summary em',
+      '.settings-confidence-facts span',
+      '.settings-confidence-facts strong',
+      '.settings-pending-badge',
+      '.settings-confidence-rest',
+      '.candidate-status',
+      '.catalog-meta span',
+      '.catalog-quality',
+      '.detail-meta span',
+      '.candidate-save-action strong',
+      '.candidate-save-action small',
+      '.candidate-primary-action',
+      '.role-badge',
+    ].join(',')
+
+    return Array.from(document.querySelectorAll(selector)).flatMap((element) => {
+      const node = element as HTMLElement
+      const isDesktop = document.documentElement.clientWidth >= 901
+      const rect = node.getBoundingClientRect()
+      const style = window.getComputedStyle(node)
+      const text = node.textContent?.replace(/\s+/g, ' ').trim() ?? ''
+      const isVisible = rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden'
+      const overflowX = node.scrollWidth - node.clientWidth
+      const overflowY = node.scrollHeight - node.clientHeight
+      const fontSize = Number.parseFloat(style.fontSize)
+      const lineHeight = style.lineHeight === 'normal' ? fontSize * 1.2 : Number.parseFloat(style.lineHeight)
+      const lineHeightRatio = fontSize > 0 && lineHeight > 0 ? lineHeight / fontSize : 1.2
+      const isTextButton =
+        node.tagName === 'BUTTON' &&
+        text.length > 3 &&
+        !node.classList.contains('stat-chip') &&
+        !node.classList.contains('preset-chip') &&
+        !node.classList.contains('dice-expand-button')
+      const isCrampedTextButton = isTextButton && rect.height < 41.5
+      const isStrictReadableText = isDesktop && node.matches(
+        [
+          '.cover-art-type',
+          '.cover-art-title',
+          '.tool-mode-badge',
+          '.tool-job-strip strong',
+          '.tool-job-strip em',
+          '.intent-flow span',
+          '.tool-boundary',
+          '.dice-readiness-card span',
+          '.dice-readiness-card strong',
+          '.dice-featured-copy small',
+          '.dice-featured-copy strong',
+          '.dice-featured-copy em',
+          '.dice-featured-score small',
+          '.dice-featured-score strong',
+          '.score-card span',
+          '.score-card strong',
+          '.theme-option strong',
+          '.theme-option small',
+          '.theme-option-status',
+          '.settings-drawer > summary strong',
+          '.settings-confidence-facts span',
+          '.settings-confidence-facts strong',
+          '.settings-pending-badge',
+          '.settings-confidence-rest',
+          '.item-status',
+          '.candidate-status',
+          '.catalog-meta span',
+          '.detail-meta span',
+          '.role-badge',
+        ].join(','),
+      )
+      const overflowYTolerance = isStrictReadableText ? 1 : 4
+      const needsTextBreathingRoom =
+        isDesktop && node.matches(
+          'h1, h2, h3, h4, .brand-wordmark, .pulse-summary span, .pulse-summary strong, .tab-label > span:first-child, .library-masthead-signal span, .library-masthead-signal strong, .library-masthead-signal small, .library-search-copy h3, .cover-art-type, .cover-art-title, .tool-mode-badge, .tool-job-strip strong, .tool-job-strip em, .intent-flow span, .tool-boundary, .theme-option strong, .theme-option small',
+        ) && lineHeightRatio < 1.18
+
+      if (
+        !text ||
+        !isVisible ||
+        (overflowX <= 1 && overflowY <= overflowYTolerance && !isCrampedTextButton && !needsTextBreathingRoom)
+      ) {
+        return []
+      }
+
+      return [
+        {
+          className: typeof node.className === 'string' ? node.className : '',
+          crampedTextButton: isCrampedTextButton,
+          height: Math.round(rect.height * 10) / 10,
+          lineHeightRatio: Math.round(lineHeightRatio * 100) / 100,
+          overflowX: Math.round(overflowX * 10) / 10,
+          overflowY: Math.round(overflowY * 10) / 10,
+          tag: node.tagName.toLowerCase(),
+          text,
+          width: Math.round(rect.width * 10) / 10,
+        },
+      ]
+    })
+  })
+
+  expect(clippedElements).toEqual([])
 }
 
 async function mockOpenLibraryOdisea(page: Page) {
@@ -173,7 +388,6 @@ async function mockFrierenCatalog(page: Page) {
 async function openApp(page: Page) {
   await mockOpenLibraryOdisea(page)
   await page.goto('/')
-  await openLibraryAdvanced(page)
 }
 
 async function openEditorAdvanced(editor: Locator) {
@@ -188,13 +402,540 @@ async function openEditorAdvanced(editor: Locator) {
   }
 }
 
+async function openDiceTuning(page: Page) {
+  const settingsPanel = page.locator('details.dice-settings-panel')
+  if (await settingsPanel.count()) {
+    await expect(settingsPanel).toBeVisible()
+    const isSettingsOpen = await settingsPanel.evaluate((element) => (element as HTMLDetailsElement).open)
+    if (!isSettingsOpen) {
+      await page.getByLabel('Abrir modos de tirada').click()
+      const opened = await settingsPanel.evaluate((element) => (element as HTMLDetailsElement).open)
+      if (!opened) {
+        await settingsPanel.evaluate((element) => {
+          ;(element as HTMLDetailsElement).open = true
+        })
+      }
+    }
+  }
+
+  const tuningPanel = page.locator('details.dice-tuning-panel')
+  if (!(await tuningPanel.count())) return
+
+  await expect(tuningPanel).toBeVisible()
+  const isOpen = await tuningPanel.evaluate((element) => (element as HTMLDetailsElement).open)
+  if (!isOpen) {
+    await tuningPanel.locator('summary').click()
+  }
+}
+
+async function openSettingsDrawer(page: Page, testId: string) {
+  const drawer = page.getByTestId(testId)
+  await expect(drawer).toBeVisible()
+  const isOpen = await drawer.evaluate((element) => (element as HTMLDetailsElement).open)
+  if (!isOpen) {
+    await drawer.locator('summary').click()
+  }
+}
+
+async function openCurationTools(page: Page) {
+  const drawer = page.locator('details.curation-admin-drawer')
+  await expect(drawer).toBeVisible()
+  const isOpen = await drawer.evaluate((element) => (element as HTMLDetailsElement).open)
+  if (!isOpen) {
+    await drawer.locator('summary').click()
+  }
+}
+
 test('library starts with a focused search-first surface', async ({ page }) => {
   await page.goto('/')
+  await expect(page.getByTestId('library-masthead')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Biblioteca' })).toBeVisible()
+  await expect(page.getByTestId('library-masthead')).toContainText('Biblioteca')
+  await expect(page.getByTestId('library-masthead')).not.toContainText('Biblioteca personal')
+  await expect(page.getByTestId('library-masthead')).not.toContainText('Tu mapa privado')
+  await expect(page.getByTestId('library-masthead')).not.toContainText('Siguiente en tu mapa')
+  await expect(page.getByRole('button', { name: 'Anadir', exact: true })).toHaveCount(0)
   await expect(page.getByTestId('library-catalog-search')).toBeVisible()
+  await expect(page.getByTestId('library-shelf-header')).toContainText('Todas')
+  await expect(page.getByTestId('library-shelf-header')).toContainText('Guardadas')
+  await expect(page.getByRole('button', { name: 'Mosaico' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Tarjetas' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Lista', exact: true })).toHaveCount(0)
+  await expect(page.locator('.library-shelf-view-switch')).toHaveCount(0)
+  const primaryLibraryControls = page.getByTestId('library-shelf-header')
+  await expect(primaryLibraryControls.getByLabel('Filtrar por estado')).toBeVisible()
+  await expect(primaryLibraryControls.getByLabel('Filtrar por tipo')).toBeVisible()
+  await expect(primaryLibraryControls.getByLabel('Ordenar biblioteca')).toBeVisible()
+  await expect(page.getByTestId('library-focus-shelf')).toBeVisible()
+  await expect(page.getByTestId('library-spotlight')).not.toBeVisible()
   await expect(page.getByLabel('Buscar obra para guardar')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Buscar obra' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Fuentes' })).toBeVisible()
+  const sourceCreditButtonWidth = await page.locator('.source-credit-trigger').evaluate((button) => button.getBoundingClientRect().width)
+  expect(sourceCreditButtonWidth).toBeLessThanOrEqual(54)
   await expect(page.locator('details.library-advanced-panel')).not.toHaveAttribute('open', '')
+  await expect(page.locator('.stats-row')).not.toBeVisible()
+  await expect(page.locator('.library-selection-bar')).not.toBeVisible()
+  await expect(page.getByTestId('library-overview')).not.toBeVisible()
+  await expect(page.getByTestId('launch-guide')).not.toBeVisible()
+  await expect(page.getByTestId('library-review-queue')).not.toBeVisible()
   await expect(page.getByTestId('library-grid')).toContainText('Outer Wilds')
+  const introGap = await page.evaluate(() => {
+    const masthead = document.querySelector('[data-testid="library-masthead"]')?.getBoundingClientRect()
+    const search = document.querySelector('[data-testid="library-catalog-search"]')?.getBoundingClientRect()
+    if (!masthead || !search) return Number.POSITIVE_INFINITY
+    return Math.max(0, search.bottom - masthead.bottom, masthead.top - search.top)
+  })
+  expect(introGap).toBe(0)
+  const searchFieldFits = await page.getByTestId('library-catalog-search').evaluate((form) => {
+    return form.scrollWidth <= form.clientWidth + 1
+  })
+  expect(searchFieldFits).toBe(true)
+  const visibleMastheadCovers = await page.locator('.library-masthead-covers .cover-art').evaluateAll((covers) => {
+    return covers.filter((cover) => {
+      const rect = cover.getBoundingClientRect()
+      return rect.width > 0 && rect.height > 0
+    }).length
+  })
+  expect(visibleMastheadCovers).toBe(0)
+  const focusGeometry = await page.getByTestId('library-focus-shelf').locator('.focus-item').evaluateAll((items) => {
+    const firstItem = items[0]
+    const cover = firstItem?.querySelector('.cover-art')?.getBoundingClientRect()
+    const label = firstItem?.querySelector('.focus-item-main > span')?.getBoundingClientRect()
+    const shelf = document.querySelector('[data-testid="library-focus-shelf"]')?.getBoundingClientRect()
+    const shelfParent = document.querySelector('[data-testid="library-focus-shelf"]')?.parentElement?.getBoundingClientRect()
+    const grid = document.querySelector('[data-testid="library-grid"]')?.getBoundingClientRect()
+    const viewportWidth = document.documentElement.clientWidth
+    let isVisualShelf = false
+    if (cover && label) {
+      isVisualShelf = cover.height >= 50 && Math.abs(cover.top - label.top) < 36
+    }
+
+    return {
+      coverHeight: cover?.height ?? 0,
+      focusAfterGrid: Boolean(shelf && grid && shelf.top > grid.top),
+      gridTop: grid?.top ?? 0,
+      isVisualShelf,
+      shelfHeight: shelf?.height ?? 0,
+      shelfWidth: shelf?.width ?? 0,
+      shelfParentWidth: shelfParent?.width ?? 0,
+      viewportWidth,
+    }
+  })
+  if (focusGeometry.viewportWidth >= 760) {
+    expect(focusGeometry.coverHeight).toBeGreaterThanOrEqual(50)
+    expect(focusGeometry.coverHeight).toBeLessThanOrEqual(84)
+    expect(focusGeometry.focusAfterGrid).toBe(true)
+    expect(focusGeometry.isVisualShelf).toBe(true)
+    expect(focusGeometry.shelfHeight).toBeLessThanOrEqual(180)
+    expect(focusGeometry.shelfWidth).toBeGreaterThanOrEqual(Math.min(1200, focusGeometry.viewportWidth * 0.78))
+    expect(focusGeometry.gridTop).toBeLessThanOrEqual(320)
+  } else {
+    expect(focusGeometry.coverHeight).toBeGreaterThan(56)
+    expect(focusGeometry.shelfHeight).toBeLessThanOrEqual(240)
+  }
+
+  await openLibraryAdvanced(page)
+  await expect(page.getByTestId('library-overview')).toContainText('Siguiente accion')
+  await expect(page.getByTestId('launch-guide')).toContainText('Plan de arranque')
+  await expect(page.getByTestId('library-review-queue')).toContainText('Repaso guiado')
+})
+test('shell navigation keeps clear labels without responsive overflow', async ({ page }) => {
+  await page.setViewportSize({ width: 1920, height: 1080 })
+  await page.goto('/')
+  await expect(page.getByTestId('library-masthead')).toContainText('Biblioteca')
+  await expect(page.locator('.brand-wordmark')).toHaveText('Nexo')
+
+  const desktopLabels = await page.locator('.tabbar .tab-label').evaluateAll((labels) =>
+    labels.map((label) => (label as HTMLElement).innerText.trim()),
+  )
+  expect(desktopLabels).toEqual(
+    expect.arrayContaining([
+      'Estanteria',
+      'Dado',
+      'Explorar',
+      'Ajustes',
+      'Curar',
+    ]),
+  )
+  const navRawText = await page.locator('.tabbar').evaluate((tabbar) => tabbar.textContent?.replace(/\s+/g, ' ').trim() ?? '')
+  expect(navRawText).not.toContain('Guardadas')
+  expect(navRawText).not.toContain('De tus guardadas')
+  expect(navRawText).not.toContain('Fuera de tu estanteria')
+  expect(navRawText).not.toContain('Cuenta y temas')
+  const visibleNavDescriptions = await page.locator('.tabbar .tab-label small').evaluateAll((descriptions) =>
+    descriptions.filter((description) => {
+      const rect = (description as HTMLElement).getBoundingClientRect()
+      return rect.width > 0 && rect.height > 0
+    }).length,
+  )
+  expect(visibleNavDescriptions).toBe(0)
+  const desktopShellGeometry = await page.evaluate(() => {
+    const tabbar = document.querySelector('.tabbar') as HTMLElement | null
+    const topbar = document.querySelector('.topbar') as HTMLElement | null
+    const masthead = document.querySelector('[data-testid="library-masthead"]') as HTMLElement | null
+    return {
+      navWidth: tabbar?.getBoundingClientRect().width ?? 0,
+      pageHasHorizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+      mastheadTop: masthead?.getBoundingClientRect().top ?? 0,
+      topbarHeight: topbar?.getBoundingClientRect().height ?? 0,
+      visibleModePills: Array.from(document.querySelectorAll('.topbar-actions .mode-pill')).filter((pill) => {
+        const rect = (pill as HTMLElement).getBoundingClientRect()
+        return rect.width > 0 && rect.height > 0
+      }).length,
+    }
+  })
+  expect(desktopShellGeometry.navWidth).toBeLessThanOrEqual(188)
+  expect(desktopShellGeometry.topbarHeight).toBeLessThanOrEqual(64)
+  expect(desktopShellGeometry.mastheadTop).toBeLessThanOrEqual(96)
+  expect(desktopShellGeometry.visibleModePills).toBe(0)
+  expect(desktopShellGeometry.pageHasHorizontalOverflow).toBe(false)
+
+  for (const surface of ['Biblioteca', 'Dado', 'Explorador', 'Ajustes']) {
+    if (surface !== 'Biblioteca') {
+      await page.getByRole('button', { name: surface, exact: true }).click()
+    }
+    await expectNoVisibleTextClipping(page)
+  }
+  await page.getByRole('button', { name: 'Biblioteca', exact: true }).click()
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.reload()
+  await expectLibrarySurface(page)
+  await expect(page.locator('.topbar .brand-wordmark')).toBeVisible()
+  await expect(page.locator('.topbar .brand-wordmark')).toHaveText('Nexo')
+  await expect(page.locator('.topbar h1')).toBeHidden()
+
+  const mobileGeometry = await page.locator('.tabbar').evaluate((tabbar) => {
+    const labels = [...tabbar.querySelectorAll('.tab-label')].map((label) => {
+      const visibleShortLabel = window.getComputedStyle(label, '::after').content.replace(/^"|"$/g, '')
+      return visibleShortLabel || (label as HTMLElement).innerText.trim()
+    })
+    const tabbarRect = tabbar.getBoundingClientRect()
+    const tabbarStyle = window.getComputedStyle(tabbar)
+    const stageRect = document.querySelector('.tab-stage')?.getBoundingClientRect()
+    const topbarRect = document.querySelector('.topbar')?.getBoundingClientRect()
+    return {
+      labels,
+      pageHasHorizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+      stageTop: stageRect?.top ?? 0,
+      tabbarHasHorizontalOverflow: tabbar.scrollWidth > tabbar.clientWidth + 1,
+      tabbarBottomGap: Math.abs(window.innerHeight - tabbarRect.bottom),
+      tabbarPosition: tabbarStyle.position,
+      topbarHeight: topbarRect?.height ?? 0,
+    }
+  })
+  expect(mobileGeometry.labels).toEqual(expect.arrayContaining(['Inicio', 'Dado', 'Explora', 'Ajustes']))
+  expect(mobileGeometry.pageHasHorizontalOverflow).toBe(false)
+  expect(mobileGeometry.tabbarHasHorizontalOverflow).toBe(false)
+  expect(mobileGeometry.tabbarPosition).toBe('fixed')
+  expect(mobileGeometry.tabbarBottomGap).toBeLessThanOrEqual(1)
+  expect(mobileGeometry.topbarHeight).toBeLessThanOrEqual(72)
+  expect(mobileGeometry.stageTop).toBeLessThanOrEqual(76)
+  for (const surface of ['Biblioteca', 'Dado', 'Explorador', 'Ajustes']) {
+    if (surface !== 'Biblioteca') {
+      await page.getByRole('button', { name: surface, exact: true }).click()
+    }
+    await expectNoVisibleTextClipping(page)
+  }
+})
+
+test('dice and explorer state clearly different jobs', async ({ page }) => {
+  await page.setViewportSize({ width: 1920, height: 1080 })
+  await openApp(page)
+
+  await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await expect(page.locator('.topbar-subtitle')).toHaveText('De tus guardadas')
+  await expect(page.getByRole('heading', { name: 'Que sigo ahora?' })).toBeVisible()
+  await expect(page.getByTestId('dice-job')).toContainText('Guardadas')
+  await expect(page.getByTestId('dice-job')).toContainText('Tirada')
+  await expect(page.getByTestId('dice-job')).toContainText('Empiezas')
+  await expect(page.getByTestId('dice-job')).not.toContainText('Revisar')
+  const diceStepMarkers = await page.getByTestId('dice-job').locator('span').evaluateAll((steps) =>
+    steps.map((step) => window.getComputedStyle(step, '::before').content.replaceAll('"', '')),
+  )
+  expect(diceStepMarkers).toEqual(['1', '2', '3'])
+  await expect(page.locator('.dice-featured-candidate .cover-art')).toBeVisible()
+  await expect(page.getByTestId('dice-readiness')).toContainText('Candidatas guardadas')
+  await expect(page.locator('details.dice-settings-panel')).not.toHaveAttribute('open', '')
+  await expect(page.getByLabel('Presets rapidos del dado')).not.toBeVisible()
+  const desktopDiceStage = await page.evaluate(() => {
+    const hero = document.querySelector('.dice-hero') as HTMLElement | null
+    const copy = document.querySelector('.dice-hero-copy') as HTMLElement | null
+    const readiness = document.querySelector('[data-testid="dice-readiness"]') as HTMLElement | null
+    const action = document.querySelector('.dice-action-stage') as HTMLElement | null
+    const orb = document.querySelector('.dice-orb') as HTMLElement | null
+    const queue = document.querySelector('.dice-queue') as HTMLElement | null
+    const copyRect = copy?.getBoundingClientRect()
+    const readinessRect = readiness?.getBoundingClientRect()
+    const actionRect = action?.getBoundingClientRect()
+
+    return {
+      actionAfterCopy: Boolean(copyRect && actionRect && actionRect.left > copyRect.left && actionRect.right > copyRect.right),
+      actionHeight: actionRect?.height ?? 0,
+      hasHorizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+      heroHeight: hero?.getBoundingClientRect().height ?? 0,
+      orbHeight: orb?.getBoundingClientRect().height ?? 0,
+      queueTop: queue?.getBoundingClientRect().top ?? 0,
+      readinessHeight: readinessRect?.height ?? 0,
+      readinessBelowCopy: Boolean(copyRect && readinessRect && readinessRect.top > copyRect.bottom),
+    }
+  })
+  expect(desktopDiceStage.hasHorizontalOverflow).toBe(false)
+  expect(desktopDiceStage.heroHeight).toBeLessThanOrEqual(390)
+  expect(desktopDiceStage.actionAfterCopy).toBe(true)
+  expect(desktopDiceStage.readinessBelowCopy).toBe(true)
+  expect(desktopDiceStage.readinessHeight).toBeGreaterThanOrEqual(30)
+  expect(desktopDiceStage.actionHeight).toBeGreaterThanOrEqual(250)
+  expect(desktopDiceStage.orbHeight).toBeGreaterThanOrEqual(140)
+  expect(desktopDiceStage.queueTop).toBeLessThanOrEqual(96)
+  await page.getByLabel('Abrir modos de tirada').click()
+  await expect(page.getByLabel('Presets rapidos del dado')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Explorador', exact: true }).click()
+  await expect(page.locator('.topbar-subtitle')).toHaveText('Fuera de tu estanteria')
+  await expect(page.getByRole('heading', { name: 'Sorprendeme' })).toBeVisible()
+  await expect(page.getByLabel('Tipo para descubrir')).toBeVisible()
+  await expect(page.getByLabel('Duracion para descubrir')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Sorprendeme' })).toBeVisible()
+  await expect(page.locator('details.explorer-tools-panel').first()).not.toHaveAttribute('open', '')
+  await expect(page.getByLabel('Buscar en explorador')).not.toBeVisible()
+
+  const jobGeometry = await page.evaluate(() => {
+    const diceJob = document.querySelector('[data-testid="dice-job"]') as HTMLElement | null
+    const explorerCommand = document.querySelector('.explorer-command') as HTMLElement | null
+    const explorerSearch = document.querySelector('.explorer-command-search') as HTMLElement | null
+    const commandRect = explorerCommand?.getBoundingClientRect()
+    const searchRect = explorerSearch?.getBoundingClientRect()
+    return {
+      diceHidden: !diceJob || diceJob.getBoundingClientRect().width === 0,
+      searchInsideCommand: Boolean(commandRect && searchRect && searchRect.top > commandRect.top && searchRect.bottom <= commandRect.bottom + 1),
+    }
+  })
+  expect(jobGeometry.diceHidden).toBe(true)
+  expect(jobGeometry.searchInsideCommand).toBe(true)
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  await openApp(page)
+  await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Que sigo ahora?' })).toBeVisible()
+
+  const mobileDiceGeometry = await page.evaluate(() => {
+    const hero = document.querySelector('.dice-hero') as HTMLElement | null
+    const readiness = document.querySelector('[data-testid="dice-readiness"]') as HTMLElement | null
+    const queue = document.querySelector('.dice-queue') as HTMLElement | null
+    const job = document.querySelector('[data-testid="dice-job"]') as HTMLElement | null
+    const boundary = document.querySelector('.dice-boundary') as HTMLElement | null
+    const eyebrow = document.querySelector('.dice-hero .eyebrow') as HTMLElement | null
+    return {
+      boundaryVisible: Boolean(boundary && boundary.getBoundingClientRect().width > 0 && boundary.getBoundingClientRect().height > 0),
+      eyebrowVisible: Boolean(eyebrow && eyebrow.getBoundingClientRect().width > 0 && eyebrow.getBoundingClientRect().height > 0),
+      hasHorizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+      heroHeight: hero?.getBoundingClientRect().height ?? 0,
+      jobHeight: job?.getBoundingClientRect().height ?? 0,
+      queueTop: queue?.getBoundingClientRect().top ?? 0,
+      readinessHeight: readiness?.getBoundingClientRect().height ?? 0,
+      viewportHeight: document.documentElement.clientHeight,
+    }
+  })
+  expect(mobileDiceGeometry.hasHorizontalOverflow).toBe(false)
+  expect(mobileDiceGeometry.boundaryVisible).toBe(false)
+  expect(mobileDiceGeometry.eyebrowVisible).toBe(false)
+  expect(mobileDiceGeometry.heroHeight).toBeLessThanOrEqual(360)
+  expect(mobileDiceGeometry.jobHeight).toBeLessThanOrEqual(40)
+  expect(mobileDiceGeometry.readinessHeight).toBeLessThanOrEqual(130)
+  expect(mobileDiceGeometry.queueTop).toBeLessThanOrEqual(mobileDiceGeometry.viewportHeight * 0.56)
+
+  await page.getByRole('button', { name: 'Explorador', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Sorprendeme' })).toBeVisible()
+
+  const mobileExplorerGeometry = await page.evaluate(() => {
+    const command = document.querySelector('.explorer-command') as HTMLElement | null
+    const search = document.querySelector('.explorer-command-search') as HTMLElement | null
+    const commandRect = command?.getBoundingClientRect()
+    const searchRect = search?.getBoundingClientRect()
+    return {
+      commandHeight: command?.getBoundingClientRect().height ?? 0,
+      hasHorizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+      searchInsideCommand: Boolean(commandRect && searchRect && searchRect.top > commandRect.top && searchRect.bottom <= commandRect.bottom + 1),
+    }
+  })
+  expect(mobileExplorerGeometry.hasHorizontalOverflow).toBe(false)
+  expect(mobileExplorerGeometry.commandHeight).toBeLessThanOrEqual(340)
+  expect(mobileExplorerGeometry.searchInsideCommand).toBe(true)
+})
+
+test('library mosaic starts as a poster-led shelf at 1920 desktop', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'chromium', 'desktop geometry check')
+
+  await page.setViewportSize({ width: 1920, height: 1080 })
+  await page.goto('/')
+  await expectLibraryGridAnimationsSettled(page)
+
+  const geometry = await page.getByTestId('library-grid').locator('.item-card').evaluateAll((cards) => {
+    const focusShelf = document.querySelector('.library-focus-shelf')?.getBoundingClientRect()
+    const gridElement = document.querySelector('[data-testid="library-grid"]')
+    const grid = gridElement?.getBoundingClientRect()
+    const shelfHeader = document.querySelector('[data-testid="library-shelf-header"]')?.getBoundingClientRect()
+    const rects = cards.map((card) => card.getBoundingClientRect())
+    const firstTop = rects[0]?.top ?? 0
+    const firstRowCount = rects.filter((rect) => Math.abs(rect.top - firstTop) < 4).length
+    const firstCard = cards[0]
+    const firstCover = firstCard?.querySelector('.cover-art')?.getBoundingClientRect()
+    const firstBody = firstCard?.querySelector('.item-body')?.getBoundingClientRect()
+    const firstRect = rects[0]
+    const firstRowRects = rects.filter((rect) => Math.abs(rect.top - firstTop) < 4)
+    const fallbackCovers = cards
+      .map((card) => card.querySelector('.cover-art.fallback-cover'))
+      .filter((cover): cover is Element => Boolean(cover))
+    const fullyVisibleCards = rects.filter(
+      (rect) => rect.top >= 0 && rect.bottom <= document.documentElement.clientHeight,
+    ).length
+    let coverIsContained = false
+    if (firstCover && firstBody && firstRect) {
+      coverIsContained =
+        firstCover.width <= firstRect.width * 0.44 &&
+        firstCover.height <= firstRect.height * 0.82 &&
+        firstBody.width >= firstCover.width
+    }
+
+    return {
+      firstRowCount,
+      firstCardHeight: firstRect?.height ?? 0,
+      firstCoverHeight: firstCover?.height ?? 0,
+      coverIsContained,
+      fallbackCoverTitlesVisible: fallbackCovers.map((cover) => {
+        const title = cover.querySelector('.cover-art-title') as HTMLElement | null
+        const type = cover.querySelector('.cover-art-type') as HTMLElement | null
+        const titleRect = title?.getBoundingClientRect()
+        const typeRect = type?.getBoundingClientRect()
+        return Boolean(titleRect && titleRect.width > 0 && titleRect.height > 0 && typeRect && typeRect.width > 0 && typeRect.height > 0)
+      }),
+      fullyVisibleCards,
+      focusShelfHeight: focusShelf?.height ?? 0,
+      gridTop: grid?.top ?? 0,
+      hasHorizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+      isMosaic: gridElement?.classList.contains('mosaic-view') ?? false,
+      maxFirstRowHeight: Math.max(...firstRowRects.map((rect) => rect.height)),
+      minWidth: Math.min(...rects.map((rect) => rect.width)),
+      shelfHeaderHeight: shelfHeader?.height ?? 0,
+      shelfHeaderTop: shelfHeader?.top ?? 0,
+    }
+  })
+
+  expect(geometry.hasHorizontalOverflow).toBe(false)
+  expect(geometry.shelfHeaderHeight).toBeLessThanOrEqual(80)
+  expect(geometry.focusShelfHeight).toBeLessThanOrEqual(180)
+  expect(geometry.gridTop).toBeLessThanOrEqual(440)
+  expect(geometry.fullyVisibleCards).toBeGreaterThanOrEqual(6)
+  expect(geometry.isMosaic).toBe(true)
+  expect(geometry.coverIsContained).toBe(true)
+  expect(geometry.fallbackCoverTitlesVisible.length).toBeGreaterThan(0)
+  expect(geometry.fallbackCoverTitlesVisible.every((visible) => !visible)).toBe(true)
+  expect(geometry.firstCoverHeight).toBeGreaterThanOrEqual(170)
+  expect(geometry.firstCoverHeight).toBeLessThanOrEqual(240)
+  expect(geometry.firstCardHeight).toBeLessThanOrEqual(340)
+  expect(geometry.maxFirstRowHeight).toBeLessThanOrEqual(340)
+  expect(geometry.minWidth).toBeGreaterThanOrEqual(360)
+  expect(geometry.firstRowCount).toBe(4)
+  await expect(page.locator('details.library-advanced-panel')).not.toHaveAttribute('open', '')
+})
+
+test('library card density can switch between 4 5 and 6 desktop columns', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'chromium', 'desktop geometry check')
+
+  await page.setViewportSize({ width: 1920, height: 1080 })
+  await page.goto('/')
+
+  const densitySelect = page.getByTestId('library-shelf-header').getByLabel('Tarjetas por fila')
+  await expect(densitySelect).toHaveValue('4')
+
+  async function expectFirstRowCount(expected: number) {
+    await expect(page.getByTestId('library-grid')).toHaveAttribute('data-cards-per-row', String(expected))
+    await expect
+      .poll(async () =>
+        page.getByTestId('library-grid').evaluate((grid) => getComputedStyle(grid).gridTemplateColumns.split(' ').filter(Boolean).length),
+      )
+      .toBe(expected)
+    await expectLibraryGridAnimationsSettled(page)
+    const metrics = await page.getByTestId('library-grid').locator('.item-card').evaluateAll((cards) => {
+      const rects = cards.map((card) => card.getBoundingClientRect())
+      const firstTop = rects[0]?.top ?? 0
+      const firstRow = rects.filter((rect) => Math.abs(rect.top - firstTop) < 4)
+      const firstCover = cards[0]?.querySelector('.cover-art')?.getBoundingClientRect()
+      const firstCard = rects[0]
+
+      return {
+        firstRowCount: firstRow.length,
+        firstCardWidth: firstCard?.width ?? 0,
+        firstCoverWidth: firstCover?.width ?? 0,
+        scrollWidth: document.documentElement.scrollWidth,
+        viewportWidth: document.documentElement.clientWidth,
+      }
+    })
+
+    expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.viewportWidth + 1)
+    expect(metrics.firstRowCount).toBe(expected)
+    expect(metrics.firstCardWidth).toBeGreaterThanOrEqual(expected === 6 ? 240 : expected === 5 ? 280 : 360)
+    expect(metrics.firstCoverWidth).toBeLessThan(metrics.firstCardWidth * 0.48)
+  }
+
+  await expectFirstRowCount(4)
+  await densitySelect.selectOption('5')
+  await expectFirstRowCount(5)
+  await densitySelect.selectOption('6')
+  await expectFirstRowCount(6)
+})
+
+test('library remains one column without horizontal overflow on mobile', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/')
+
+  const geometry = await page.getByTestId('library-grid').locator('.item-card').evaluateAll((cards) => {
+    const focusShelf = document.querySelector('.library-focus-shelf')?.getBoundingClientRect()
+    const focusAction = document.querySelector('.library-focus-shelf .focus-item-action') as HTMLElement | null
+    const focusActionRect = focusAction?.getBoundingClientRect()
+    const grid = document.querySelector('[data-testid="library-grid"]')?.getBoundingClientRect()
+    const masthead = document.querySelector('[data-testid="library-masthead"]')?.getBoundingClientRect()
+    const searchHero = document.querySelector('[data-testid="library-catalog-search"]')?.getBoundingClientRect()
+    const searchCopy = document.querySelector('.library-search-copy')?.getBoundingClientRect()
+    const shelfHeader = document.querySelector('[data-testid="library-shelf-header"]')?.getBoundingClientRect()
+    const shelfSubtitle = document.querySelector('.library-shelf-title p')?.getBoundingClientRect()
+    const rects = cards.slice(0, 3).map((card) => card.getBoundingClientRect())
+    const lefts = rects.map((rect) => Math.round(rect.left))
+    return {
+      focusActionText: focusAction?.textContent?.trim() ?? '',
+      focusActionWidth: focusActionRect?.width ?? 0,
+      focusShelfHeight: focusShelf?.height ?? 0,
+      focusAfterGrid: Boolean(focusShelf && grid && focusShelf.top > grid.top),
+      gridTop: grid?.top ?? 0,
+      hasHorizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+      mastheadHeight: masthead?.height ?? 0,
+      maxWidth: Math.max(...rects.map((rect) => rect.width)),
+      sameColumn: lefts.every((left) => Math.abs(left - lefts[0]) <= 2),
+      searchHeroHeight: searchHero?.height ?? 0,
+      searchCopyVisible: Boolean(searchCopy && searchCopy.width > 0 && searchCopy.height > 0),
+      shelfHeaderHeight: shelfHeader?.height ?? 0,
+      shelfHeaderTop: shelfHeader?.top ?? 0,
+      shelfSubtitleVisible: Boolean(shelfSubtitle && shelfSubtitle.width > 0 && shelfSubtitle.height > 0),
+      stacked: rects.length < 2 || rects[1].top > rects[0].bottom,
+    }
+  })
+
+  expect(geometry.hasHorizontalOverflow).toBe(false)
+  expect(geometry.shelfHeaderHeight).toBeLessThanOrEqual(130)
+  expect(geometry.focusShelfHeight).toBeLessThanOrEqual(240)
+  expect(geometry.focusAfterGrid).toBe(true)
+  expect(geometry.focusActionText.length).toBeGreaterThan(2)
+  expect(geometry.focusActionWidth).toBeGreaterThanOrEqual(220)
+  expect(geometry.mastheadHeight).toBeLessThanOrEqual(160)
+  expect(geometry.searchHeroHeight).toBeLessThanOrEqual(125)
+  expect(geometry.searchCopyVisible).toBe(false)
+  expect(geometry.shelfSubtitleVisible).toBe(false)
+  expect(geometry.gridTop).toBeLessThanOrEqual(460)
+  expect(geometry.maxWidth).toBeLessThanOrEqual(390)
+  expect(geometry.sameColumn).toBe(true)
+  expect(geometry.stacked).toBe(true)
 })
 
 test('library can search a free catalog source and save directly', async ({ page }) => {
@@ -255,29 +996,51 @@ test('library saves Frieren from external search without candidate permission no
   await expect(editor.getByLabel('Poster o portada')).toHaveCount(0)
   await expect(editor.getByLabel('Generos', { exact: true })).toHaveCount(0)
 
-  await editor.getByLabel('Estado').selectOption('in_progress')
+  await editor.getByRole('button', { name: 'Cambiar estado a En progreso' }).click()
   await editor.getByRole('textbox', { name: 'Progreso' }).fill('Episodio 4')
-  await editor.getByLabel('Rating').fill('9.4')
+  await editor.getByRole('button', { name: 'Puntuar 4 estrellas (8/10)' }).click()
   await editor.getByLabel('Notas').fill('Mucho mas tranquila de lo que esperaba.')
-  await editor.getByRole('button', { name: 'Guardar' }).click()
+  await editor.getByRole('button', { name: 'Cerrar', exact: true }).click()
 
   await expect(page.getByRole('status').filter({ hasText: 'Frieren: Tras finalizar el viaje guardada en Biblioteca' })).toBeVisible()
   await page.locator('.item-main').filter({ hasText: 'Frieren: Tras finalizar el viaje' }).click()
   const savedEditor = page.getByRole('dialog', { name: 'Entrada' })
-  await expect(savedEditor.getByLabel('Estado')).toHaveValue('in_progress')
+  await expect(savedEditor.getByRole('button', { name: 'Cambiar estado a En progreso' })).toHaveAttribute('aria-pressed', 'true')
   await expect(savedEditor.getByRole('textbox', { name: 'Progreso' })).toHaveValue('Episodio 4')
-  await expect(savedEditor.getByLabel('Rating')).toHaveValue('9.4')
+  await expect(savedEditor.getByRole('group', { name: 'Rating' })).toContainText('8/10')
   await expect(savedEditor.getByLabel('Notas')).toHaveValue('Mucho mas tranquila de lo que esperaba.')
+})
+
+test('library toasts float without shifting the page', async ({ page }) => {
+  await openApp(page)
+  await expect(page.getByTestId('library-grid')).toBeVisible()
+  const gridTopBefore = await page.getByTestId('library-grid').evaluate((grid) => grid.getBoundingClientRect().top + window.scrollY)
+
+  await page.getByRole('button', { name: 'Mas acciones Outer Wilds' }).click()
+  await page.getByRole('menuitem', { name: 'Copiar enlace Outer Wilds' }).click()
+
+  const toastStack = page.getByLabel('Accion reciente de biblioteca Notificaciones')
+  await expect(toastStack).toContainText(/Enlace de Outer Wilds/)
+  const gridTopWithToast = await page.getByTestId('library-grid').evaluate((grid) => grid.getBoundingClientRect().top + window.scrollY)
+  expect(Math.abs(gridTopWithToast - gridTopBefore)).toBeLessThanOrEqual(4)
+
+  await expect(toastStack).not.toBeVisible({ timeout: 4500 })
+  const gridTopAfterToast = await page.getByTestId('library-grid').evaluate((grid) => grid.getBoundingClientRect().top + window.scrollY)
+  expect(Math.abs(gridTopAfterToast - gridTopBefore)).toBeLessThanOrEqual(4)
 })
 
 test('library and weighted dice work in demo mode', async ({ page }) => {
   await openApp(page)
-  await expect(page.getByRole('heading', { name: 'Biblioteca privada' })).toBeVisible()
+  await expect(page.getByTestId('library-masthead')).toContainText('Biblioteca')
   await expect(page.getByTestId('shell-pulse')).toContainText('Biblioteca')
   await expect(page.getByTestId('shell-pulse')).toContainText('Dado')
   await expect(page.getByTestId('shell-pulse')).toContainText('Explorador')
   await expect(page.getByTestId('shell-pulse')).toContainText('Admin')
   await expect(page.getByTestId('library-grid')).toContainText('Outer Wilds')
+  await expect(page.getByTestId('library-overview')).not.toBeVisible()
+  await expect(page.getByTestId('launch-guide')).not.toBeVisible()
+  await expect(page.getByTestId('library-review-queue')).not.toBeVisible()
+  await openLibraryAdvanced(page)
   await expect(page.getByTestId('library-overview')).toContainText('Siguiente accion')
   await expect(page.getByTestId('library-overview')).toContainText('Inception')
   await expect(page.getByTestId('library-overview')).toContainText('Explorador')
@@ -286,10 +1049,10 @@ test('library and weighted dice work in demo mode', async ({ page }) => {
   await expect(page.getByTestId('library-next-plan')).toContainText('Importacion')
   await expect(page.getByRole('button', { name: 'Afinar ficha' })).toBeVisible()
   await expect(page.getByTestId('launch-guide')).toContainText('Plan de arranque')
-  await expect(page.getByTestId('launch-guide')).toContainText('Base privada')
-  await expect(page.getByTestId('launch-guide')).toContainText('Dado vivo')
-  await expect(page.getByTestId('launch-guide')).toContainText('Explorador limpio')
-  await expect(page.getByTestId('library-focus-shelf')).toContainText('En foco')
+  await expect(page.getByTestId('launch-guide')).toContainText('Estanteria base')
+  await expect(page.getByTestId('launch-guide')).toContainText('Dado elige guardadas')
+  await expect(page.getByTestId('launch-guide')).toContainText('Explorar encuentra nuevas')
+  await expect(page.getByTestId('library-focus-shelf')).toContainText('Sugerencias')
   await expect(page.getByTestId('library-focus-shelf')).toContainText('1984 - George Orwell')
   await expect(page.getByRole('button', { name: 'Todo 7' })).toBeVisible()
   await expect(page.getByTestId('library-review-queue')).toContainText('Repaso guiado')
@@ -299,6 +1062,7 @@ test('library and weighted dice work in demo mode', async ({ page }) => {
   await expect(page.getByText('Vista de repaso: Dar contexto')).toBeVisible()
   await expect(page.getByText('Vista: Sin contexto')).toBeVisible()
   await page.getByRole('button', { name: 'Restablecer vista' }).click()
+  await openLibraryAdvanced(page)
   await expect(page.getByTestId('library-smart-views')).toContainText('Listas para dado')
   await expect(page.getByTestId('library-smart-views')).toContainText('Sin contexto')
   await expect(page.getByTestId('library-smart-views')).toContainText('En cooldown')
@@ -308,23 +1072,21 @@ test('library and weighted dice work in demo mode', async ({ page }) => {
   await expect(page.getByTestId('library-grid')).toContainText('Inception')
   await expect(page.getByTestId('library-grid')).not.toContainText('Outer Wilds')
   await page.getByRole('button', { name: 'Restablecer vista' }).click()
-  await expect(page.getByLabel('Ordenar biblioteca')).toHaveValue('focus')
-  await page.getByLabel('Ordenar biblioteca').selectOption('title')
+  await expect(page.getByTestId('library-shelf-header').getByLabel('Ordenar biblioteca')).toHaveValue('focus')
+  await page.getByTestId('library-shelf-header').getByLabel('Ordenar biblioteca').selectOption('title')
   await expect(page.getByText('Orden: Titulo')).toBeVisible()
   await expect(page.locator('[data-testid="library-grid"] .item-card').first()).toContainText('1984 - George Orwell')
   await page.getByRole('button', { name: 'Restablecer vista' }).click()
-  await expect(page.getByLabel('Ordenar biblioteca')).toHaveValue('focus')
-  await page.getByRole('button', { name: 'Lista', exact: true }).click()
-  await expect(page.getByTestId('library-grid')).toHaveClass(/list-view/)
-  await expect(page.getByRole('status').filter({ hasText: 'Vista Lista guardada' })).toBeVisible()
-  await expect(page.getByTestId('session-activity')).toContainText('Vista de biblioteca guardada')
+  await expect(page.getByTestId('library-shelf-header').getByLabel('Ordenar biblioteca')).toHaveValue('focus')
+  await expect(page.getByRole('button', { name: 'Lista', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Tarjetas' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Mosaico' })).toHaveCount(0)
+  await expect(page.getByTestId('library-grid')).toHaveClass(/mosaic-view/)
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
-  await page.getByRole('button', { name: 'Biblioteca', exact: true }).click()
-  await expect(page.getByTestId('library-grid')).toHaveClass(/list-view/)
-  await page.getByRole('button', { name: 'Tarjetas' }).click()
-  await expect(page.getByTestId('library-grid')).not.toHaveClass(/list-view/)
-  await expect(page.getByRole('status').filter({ hasText: 'Vista Tarjetas guardada' })).toBeVisible()
-  await page.getByLabel('Buscar en biblioteca').fill('zzzz no match')
+  await page.locator('.tab-button').filter({ hasText: 'Estanteria' }).click()
+  await expect(page.getByTestId('library-grid')).toHaveClass(/mosaic-view/)
+  await openLibraryAdvanced(page)
+  await page.locator('details.library-advanced-panel').getByLabel('Buscar en biblioteca').fill('zzzz no match')
   await expect(page.getByRole('heading', { name: 'Sin resultados' })).toBeVisible()
   await expect(page.getByText('0 de 7 entradas')).toBeVisible()
   await expect(page.getByTestId('library-focus-shelf')).not.toBeVisible()
@@ -337,8 +1099,7 @@ test('library and weighted dice work in demo mode', async ({ page }) => {
   await expect(outerWildsCard).toContainText('Pendiente')
   await expect(outerWildsCard.locator('.item-signal-strip, .tag-row')).toHaveCount(0)
   await expect(outerWildsCard).not.toContainText('Importacion')
-  await page.getByRole('button', { name: 'Anadir' }).first().click()
-  const quickEditor = page.getByRole('dialog', { name: 'Entrada' })
+  const quickEditor = await openManualEntryEditor(page)
   await quickEditor.getByLabel('Titulo').fill('Manual de prueba')
   await openEditorAdvanced(quickEditor)
   await expect(quickEditor.getByTestId('personal-readiness')).toContainText('Preparacion')
@@ -356,13 +1117,37 @@ test('library and weighted dice work in demo mode', async ({ page }) => {
   await expect(quickEditor.getByRole('button', { name: 'raro', exact: true })).toHaveAttribute('aria-pressed', 'true')
   await quickEditor.getByLabel('Notas').fill('Entrada manual con contexto inicial.')
   await expect(quickEditor.getByTestId('personal-readiness')).toContainText('Ficha lista')
-  await quickEditor.getByRole('button', { name: 'Guardar' }).click()
+  await quickEditor.getByRole('button', { name: 'Cerrar', exact: true }).click()
   await expect(page.getByText('Manual de prueba guardada en Biblioteca')).toBeVisible()
   await expect(page.getByTestId('session-continuity')).toContainText('Continuar sesion')
   await expect(page.getByTestId('session-continuity')).toContainText('Ficha guardada')
   await expect(page.getByTestId('session-continuity')).toContainText('Biblioteca')
   await expect(page.getByTestId('session-activity')).toContainText('Ficha guardada')
   await expect(page.getByTestId('session-activity')).toContainText('Manual de prueba')
+  const activityDockMetrics = await page.getByTestId('session-activity').evaluate((panel) => {
+    const rect = panel.getBoundingClientRect()
+    const continuity = panel.querySelector('[data-testid="session-continuity"]') as HTMLElement | null
+    const continueButton = continuity?.querySelector('button') as HTMLButtonElement | null
+
+    return {
+      buttonLabel: continueButton?.textContent?.trim() ?? '',
+      height: rect.height,
+      horizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+      position: getComputedStyle(panel).position,
+      viewportWidth: document.documentElement.clientWidth,
+      width: rect.width,
+    }
+  })
+  expect(activityDockMetrics.horizontalOverflow).toBe(false)
+  expect(activityDockMetrics.buttonLabel).toBe('Abrir')
+  if (activityDockMetrics.viewportWidth >= 760) {
+    expect(activityDockMetrics.position).toBe('static')
+    expect(activityDockMetrics.width).toBeGreaterThanOrEqual(620)
+    expect(activityDockMetrics.height).toBeLessThanOrEqual(90)
+  } else {
+    expect(activityDockMetrics.position).toBe('static')
+    expect(activityDockMetrics.height).toBeLessThanOrEqual(110)
+  }
   await page.getByTestId('session-activity').getByRole('button', { name: 'Limpiar' }).click()
   await expect(page.getByLabel('Accion reciente de actividad')).toContainText(/actividad(?:es)? limpiada/i)
   await expect(page.getByTestId('session-activity')).not.toContainText('Manual de prueba')
@@ -373,17 +1158,104 @@ test('library and weighted dice work in demo mode', async ({ page }) => {
   await page.locator('.item-main').filter({ hasText: 'Outer Wilds' }).click()
   const outerWildsEditor = page.getByRole('dialog', { name: 'Entrada' })
   await expect(outerWildsEditor).toBeVisible()
+  await expectDialogAnimationsSettled(outerWildsEditor)
+  await expect(outerWildsEditor.locator('#item-editor-title')).toHaveText('Outer Wilds')
+  const editorShellMetrics = await outerWildsEditor.evaluate((editor) => {
+    const heading = editor.querySelector('.panel-heading')?.getBoundingClientRect()
+    const headingCopy = editor.querySelector('.panel-heading > div:first-child')?.getBoundingClientRect()
+    const hero = editor.querySelector('.editor-hero')?.getBoundingClientRect()
+    const progressPanel = editor.querySelector('.editor-progress-panel')?.getBoundingClientRect()
+    const progressControls = Array.from(editor.querySelectorAll('.editor-progress-fields > *')).map((field) => field.getBoundingClientRect())
+    const statusControl = editor.querySelector('.status-control')?.getBoundingClientRect()
+    const notesField = editor.querySelector('.editor-notes-field textarea')?.getBoundingClientRect()
+    const advancedPanel = editor.querySelector('.editor-advanced-panel')?.getBoundingClientRect()
+    const statusButtons = Array.from(editor.querySelectorAll('.status-chip-button')).map((button) => {
+      const rect = button.getBoundingClientRect()
+
+      return {
+        clipped: button.scrollWidth > button.clientWidth + 2,
+        width: rect.width,
+      }
+    })
+    const actionRow = editor.querySelector(':scope > .action-row.end')?.getBoundingClientRect()
+    const actionRowElement = editor.querySelector(':scope > .action-row.end') as HTMLElement | null
+    const editorStyle = getComputedStyle(editor)
+    const backgroundColor = editorStyle.backgroundColor
+    const backgroundAlphaMatch = backgroundColor.match(/rgba?\(([^)]+)\)/)
+    const backgroundAlpha =
+      backgroundAlphaMatch && backgroundAlphaMatch[1]
+        ? Number(backgroundAlphaMatch[1].split(',').map((part) => part.trim())[3] ?? 1)
+        : 1
+    return {
+      actionTop: actionRow?.top ?? 0,
+      actionAfterAdvanced: Boolean(actionRow && advancedPanel && actionRow.top >= advancedPanel.bottom - 1),
+      actionAfterNotes: Boolean(actionRow && notesField && actionRow.top >= notesField.bottom + 8),
+      actionPosition: actionRowElement ? getComputedStyle(actionRowElement).position : '',
+      backgroundAlpha,
+      backgroundColor,
+      editorAnimationName: editorStyle.animationName,
+      editorOpacity: Number(editorStyle.opacity),
+      headingHeight: heading?.height ?? 0,
+      headingCopyVisible: Boolean(headingCopy && headingCopy.width > 0 && headingCopy.height > 0),
+      heroHeight: hero?.height ?? 0,
+      heroTop: hero?.top ?? 0,
+      headingBottom: heading?.bottom ?? 0,
+      progressControlTops: progressControls.map((field) => Math.round(field.top)),
+      progressHeadingText: editor.querySelector('.editor-progress-heading')?.textContent?.trim() ?? '',
+      progressPanelHeight: progressPanel?.height ?? 0,
+      statusButtonCount: statusButtons.length,
+      statusButtonClipped: statusButtons.some((button) => button.clipped),
+      statusButtonMinWidth: Math.min(...statusButtons.map((button) => button.width)),
+      statusControlWidth: statusControl?.width ?? 0,
+      viewportHeight: window.innerHeight,
+      viewportWidth: window.innerWidth,
+    }
+  })
+  expect(editorShellMetrics.backgroundAlpha).toBe(1)
+  expect(editorShellMetrics.backgroundColor).not.toContain('rgba')
+  expect(editorShellMetrics.editorOpacity).toBe(1)
+  expect(editorShellMetrics.headingHeight).toBeLessThanOrEqual(60)
+  expect(editorShellMetrics.headingCopyVisible).toBe(false)
+  expect(editorShellMetrics.heroHeight).toBeGreaterThan(editorShellMetrics.headingHeight)
+  expect(editorShellMetrics.heroHeight).toBeLessThanOrEqual(290)
+  expect(editorShellMetrics.heroTop - editorShellMetrics.headingBottom).toBeLessThanOrEqual(32)
+  expect(editorShellMetrics.progressHeadingText).toContain('Progreso')
+  expect(editorShellMetrics.actionTop).toBeLessThanOrEqual(editorShellMetrics.viewportHeight)
+  expect(editorShellMetrics.statusButtonCount).toBe(5)
+  expect(editorShellMetrics.statusButtonClipped).toBe(false)
+  if (editorShellMetrics.viewportWidth >= 760) {
+    expect(editorShellMetrics.progressPanelHeight).toBeLessThanOrEqual(340)
+    expect(editorShellMetrics.statusControlWidth).toBeGreaterThanOrEqual(420)
+    expect(editorShellMetrics.statusButtonMinWidth).toBeGreaterThanOrEqual(72)
+    expect(new Set(editorShellMetrics.progressControlTops).size).toBe(1)
+  } else {
+    expect(editorShellMetrics.editorAnimationName).toContain('modal-enter-solid')
+    expect(editorShellMetrics.actionPosition).toBe('static')
+    expect(editorShellMetrics.actionAfterAdvanced).toBe(true)
+    expect(editorShellMetrics.actionAfterNotes).toBe(true)
+    expect(editorShellMetrics.progressPanelHeight).toBeLessThanOrEqual(380)
+    expect(editorShellMetrics.statusButtonMinWidth).toBeGreaterThanOrEqual(54)
+    expect(new Set(editorShellMetrics.progressControlTops).size).toBe(2)
+  }
+  await expect(outerWildsEditor.locator('.editor-personal-strip')).toHaveCount(0)
   await openEditorAdvanced(outerWildsEditor)
+  await expect(outerWildsEditor.getByLabel('Titulo')).toHaveValue('Outer Wilds')
   await expect(page.getByTestId('personal-readiness')).toContainText('Preparacion')
   await expect(page.getByLabel('Prioridad')).toBeVisible()
   await expect(page.getByLabel('Sorpresa')).toHaveCount(0)
-  await page.getByRole('textbox', { name: 'Progreso' }).fill('Cambio temporal sin guardar.')
-  await page.getByRole('button', { name: 'Cerrar', exact: true }).click()
-  await expect(page.getByLabel('Cambios sin guardar')).toContainText('Guarda la ficha')
-  await page.getByRole('button', { name: 'Seguir editando' }).click()
-  await expect(page.getByRole('textbox', { name: 'Progreso' })).toHaveValue('Cambio temporal sin guardar.')
-  await page.getByRole('button', { name: 'Cerrar', exact: true }).click()
-  await page.getByRole('button', { name: 'Descartar cambios' }).click()
+  await page.getByRole('textbox', { name: 'Progreso' }).fill('Cambio temporal guardado al cerrar.')
+  await page.mouse.click(8, 8)
+  await expect(page.getByRole('dialog', { name: 'Entrada' })).not.toBeVisible()
+  await expect(page.getByRole('status').filter({ hasText: 'Outer Wilds guardada en Biblioteca' })).toBeVisible()
+  await page.locator('.item-main').filter({ hasText: 'Outer Wilds' }).click()
+  const savedOuterWildsEditor = page.getByRole('dialog', { name: 'Entrada' })
+  await expect(savedOuterWildsEditor.getByRole('textbox', { name: 'Progreso' })).toHaveValue('Cambio temporal guardado al cerrar.')
+  await expect(savedOuterWildsEditor.getByRole('button', { name: 'Eliminar entrada' })).toBeVisible()
+  await savedOuterWildsEditor.getByRole('button', { name: 'Eliminar entrada' }).click()
+  await expect(savedOuterWildsEditor.getByLabel('Confirmar borrado de entrada')).toContainText('Outer Wilds')
+  await savedOuterWildsEditor.getByRole('button', { name: 'Mantener' }).click()
+  await expect(savedOuterWildsEditor.getByLabel('Confirmar borrado de entrada')).not.toBeVisible()
+  await savedOuterWildsEditor.getByRole('button', { name: 'Cerrar', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Empezar Outer Wilds' })).toBeVisible()
   await page.getByRole('button', { name: 'Mas acciones Outer Wilds' }).click()
   await expect(page.getByRole('menu', { name: 'Acciones Outer Wilds' })).toBeVisible()
@@ -407,20 +1279,24 @@ test('library and weighted dice work in demo mode', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Completar Outer Wilds' })).toBeVisible()
 
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
-  await expect(page.getByRole('heading', { name: 'Elige el siguiente hilo' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Que sigo ahora?' })).toBeVisible()
   await expect(page.getByTestId('dice-readiness')).toContainText('Listo para tirar')
   await expect(page.getByTestId('dice-readiness')).toContainText('Candidatas')
   await expect(page.getByTestId('dice-readiness')).toContainText('Ajustes')
-  await expect(page.getByRole('heading', { name: 'En la mesa' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Candidatas guardadas' })).toBeVisible()
   await expect(page.getByTestId('dice-candidate-list')).toContainText('#1')
-  await expect(page.getByTestId('dice-candidate-list')).toContainText('Score')
+  await expect(page.getByTestId('dice-candidate-list')).toContainText('Encaje')
+  await page.getByText('Por que pueden salir').click()
   await expect(page.getByRole('button', { name: 'Ver 1 mas' })).toBeVisible()
   await page.getByRole('button', { name: 'Ver 1 mas' }).click()
   await expect(page.getByRole('button', { name: 'Ver menos candidatas' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Elegibilidad' })).toBeVisible()
   await expect(page.getByText(/pueden salir ahora/)).toBeVisible()
   await expect(page.getByText('Pausados fuera')).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Ajustes guardados' })).toBeDisabled()
+  await expect(page.locator('details.dice-settings-panel')).not.toHaveAttribute('open', '')
+  await expect(page.locator('details.dice-settings-panel > summary')).toContainText('Afinar tirada')
+  await expect(page.locator('details.dice-settings-panel > summary')).toContainText('candidatas')
+  await openDiceTuning(page)
   await page.getByLabel('Medio').selectOption('manhwa')
   await expect(page.getByTestId('dice-readiness')).toContainText('Sin tirada posible')
   await expect(page.getByTestId('dice-recovery')).toContainText('Abrir abanico')
@@ -430,19 +1306,24 @@ test('library and weighted dice work in demo mode', async ({ page }) => {
   await expect(page.getByLabel('Medio')).toHaveValue('any')
   await expect(page.getByLabel('Incluir pausados')).toBeChecked()
   await expect(page.getByTestId('dice-readiness')).toContainText('Listo para tirar')
+  await openDiceTuning(page)
   await page.getByRole('button', { name: 'Aplicar preset Noche ligera' }).click()
   await expect(page.getByLabel('Energia')).toHaveValue('low')
   await expect(page.getByLabel('Porcentaje de sorpresa')).toHaveValue('15')
   await expect(page.getByTestId('dice-readiness')).toContainText('!')
   await expect(page.getByText('Cambios pendientes')).toBeVisible()
+  await openDiceTuning(page)
   await page.getByLabel('Energia').selectOption('high')
+  await openDiceTuning(page)
   await page.getByLabel('Incluir pausados').check()
-  await expect(page.getByText('Incluye pausados')).toBeVisible()
+  await expect(page.getByTestId('dice-readiness').getByText('Incluye pausados')).toBeVisible()
   await expect(page.getByText('Cambios pendientes')).toBeVisible()
   await page.getByRole('button', { name: 'Biblioteca', exact: true }).click()
   await expect(page.getByLabel('Salida con cambios pendientes')).toContainText('Cambios pendientes en Dado')
   await page.getByLabel('Salida con cambios pendientes').getByRole('button', { name: 'Seguir editando' }).click()
-  await expect(page.getByRole('heading', { name: 'Elige el siguiente hilo' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Que sigo ahora?' })).toBeVisible()
+  await expect(page.locator('details.dice-settings-panel > summary')).toContainText('Pendiente')
+  await openDiceTuning(page)
   await expect(page.getByText('Cambios pendientes')).toBeVisible()
   await page.getByRole('button', { name: 'Guardar ajustes' }).click()
   await expect(page.getByText('Ajustes del dado guardados')).toBeVisible()
@@ -451,13 +1332,16 @@ test('library and weighted dice work in demo mode', async ({ page }) => {
   await page.getByRole('button', { name: 'Deshacer ajustes del dado' }).click()
   await expect(page.getByText('Ajustes del dado recuperados')).toBeVisible()
   await expect(page.getByTestId('session-activity')).toContainText('Preferencias recuperadas')
+  await openDiceTuning(page)
   await expect(page.getByLabel('Energia')).toHaveValue('medium')
   await expect(page.getByLabel('Porcentaje de sorpresa')).toHaveValue('30')
   await expect(page.getByLabel('Incluir pausados')).not.toBeChecked()
   await expect(page.getByRole('button', { name: 'Ajustes guardados' })).toBeDisabled()
   await page.getByTestId('roll-button').click()
   await expect(page.getByTestId('recommendation-result')).toBeVisible()
-  await expect(page.getByTestId('recommendation-result')).toContainText('Score')
+  await expect(page.getByTestId('recommendation-result')).toContainText('Encaje')
+  await expect(page.getByTestId('recommendation-result')).toContainText('Modo')
+  await expect(page.getByTestId('recommendation-result')).not.toContainText('Roll')
   await expect(page.getByTestId('recommendation-result')).toContainText('Plan de sesion')
   await expect(page.getByTestId('recommendation-result')).toContainText('Decision')
   await expect(page.getByTestId('recommendation-result')).toContainText('Por que sale')
@@ -473,14 +1357,14 @@ test('library and weighted dice work in demo mode', async ({ page }) => {
   const diceEditor = page.getByRole('dialog', { name: 'Entrada' })
   await expect(diceEditor.getByTestId('personal-readiness')).toContainText('Preparacion')
   await diceEditor.getByLabel('Notas').fill('Afinada desde el dado.')
-  await diceEditor.getByRole('button', { name: 'Guardar' }).click()
+  await diceEditor.getByRole('button', { name: 'Cerrar', exact: true }).click()
   await expect(page.getByText(/afinada desde el dado\./)).toBeVisible()
   await expect(page.getByTestId('recent-rolls')).toContainText('Ahora mismo')
   await page.getByTestId('recent-rolls').getByRole('button', { name: /Afinar tirada reciente/ }).click()
   const recentEditor = page.getByRole('dialog', { name: 'Entrada' })
   await expect(recentEditor.getByLabel('Notas')).toHaveValue('Afinada desde el dado.')
   await recentEditor.getByRole('textbox', { name: 'Progreso' }).fill('Revisada desde historial.')
-  await recentEditor.getByRole('button', { name: 'Guardar' }).click()
+  await recentEditor.getByRole('button', { name: 'Cerrar', exact: true }).click()
   await expect(page.getByText(/afinada desde el dado\./)).toBeVisible()
   await page.getByRole('button', { name: 'No hoy' }).click()
   await expect(page.getByText(/queda fuera hasta manana/)).toBeVisible()
@@ -509,7 +1393,9 @@ test('library and weighted dice work in demo mode', async ({ page }) => {
   await expect(page.getByRole('menuitem', { name: 'Reactivar dado Outer Wilds' })).toBeVisible()
 
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await openDiceTuning(page)
   await page.getByLabel('Medio').selectOption('game')
+  await openDiceTuning(page)
   await page.getByLabel('Incluir pausados').uncheck()
   await expect(page.getByTestId('dice-readiness')).toContainText('Sin tirada posible')
   await expect(page.getByTestId('dice-recovery')).toContainText('Reactivar cooldowns')
@@ -545,18 +1431,20 @@ test('dice closed decisions can roll another recommendation', async ({ page }) =
 
 test('library dice review queue rolls a recommendation', async ({ page }) => {
   await openApp(page)
+  await openLibraryAdvanced(page)
   const diceQueue = page.getByTestId('library-review-queue').locator('.library-review-card', { hasText: 'Probar dado' })
 
   await expect(diceQueue).toContainText('Candidatas vivas')
   await diceQueue.getByRole('button', { name: 'Tirar dado' }).click()
 
-  await expect(page.getByRole('heading', { name: 'Elige el siguiente hilo' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Que sigo ahora?' })).toBeVisible()
   await expect(page.getByTestId('recommendation-result')).toContainText('Decision')
   await expect(page.getByTestId('session-activity')).toContainText('Tirada registrada')
 })
 
 test('library review session keeps guided queues actionable', async ({ page }) => {
   await openApp(page)
+  await openLibraryAdvanced(page)
   await page.getByTestId('library-review-queue').getByRole('button', { name: 'Completar ficha' }).click()
   await expect(page.getByTestId('library-review-session')).toContainText('Repaso activo')
   await expect(page.getByTestId('library-review-session')).toContainText('Dar contexto')
@@ -565,6 +1453,7 @@ test('library review session keeps guided queues actionable', async ({ page }) =
   await expect(page.getByRole('dialog', { name: 'Entrada' })).toBeVisible()
   await page.getByRole('button', { name: 'Cerrar', exact: true }).click()
 
+  await openLibraryAdvanced(page)
   const reviewSession = page.getByTestId('library-review-session')
   await reviewSession.getByRole('button', { name: 'Ver cola' }).click()
   await expect(page.getByText('Vista de repaso: Dar contexto')).toBeVisible()
@@ -577,25 +1466,27 @@ test('library review session keeps guided queues actionable', async ({ page }) =
 
 test('library review session celebrates completed queues', async ({ page }) => {
   await openApp(page)
+  await openLibraryAdvanced(page)
   await page.getByRole('button', { name: 'Borrar todo' }).click()
   await page.getByLabel('Confirmacion').fill('BORRAR')
   await page.getByRole('button', { name: 'Borrar todo' }).last().click()
   await expect(page.getByText('Tu biblioteca ha sido borrada')).toBeVisible()
 
-  await page.getByRole('button', { name: 'Anadir' }).first().click()
-  const draftEditor = page.getByRole('dialog', { name: 'Entrada' })
+  const draftEditor = await openManualEntryEditor(page)
   await draftEditor.getByLabel('Titulo').fill('Repaso Final')
   await openEditorAdvanced(draftEditor)
   await draftEditor.getByLabel('Generos', { exact: true }).fill('Drama')
-  await draftEditor.getByRole('button', { name: 'Guardar' }).click()
+  await draftEditor.getByRole('button', { name: 'Cerrar', exact: true }).click()
   await expect(page.getByText('Repaso Final guardada en Biblioteca')).toBeVisible()
 
+  await openLibraryAdvanced(page)
   await page.getByTestId('library-review-queue').getByRole('button', { name: 'Completar ficha' }).click()
   const reviewEditor = page.getByRole('dialog', { name: 'Entrada' })
-  await expect(reviewEditor.getByLabel('Titulo')).toHaveValue('Repaso Final')
+  await expect(reviewEditor.locator('#item-editor-title')).toHaveText('Repaso Final')
   await reviewEditor.getByLabel('Notas').fill('Contexto suficiente para cerrar este repaso.')
-  await reviewEditor.getByRole('button', { name: 'Guardar' }).click()
+  await reviewEditor.getByRole('button', { name: 'Cerrar', exact: true }).click()
 
+  await openLibraryAdvanced(page)
   const completedReview = page.getByTestId('library-review-complete')
   await expect(completedReview).toContainText('Repaso completado')
   await expect(completedReview).toContainText('Dar contexto')
@@ -606,8 +1497,8 @@ test('library review session celebrates completed queues', async ({ page }) => {
 
 test('mobile layout keeps the core controls reachable', async ({ page }) => {
   await openApp(page)
-  await expect(page.getByTestId('library-overview')).toBeVisible()
-  await expect(page.getByLabel('Buscar en biblioteca')).toBeVisible()
+  await expect(page.getByTestId('library-overview')).not.toBeVisible()
+  await expect(page.getByLabel('Buscar obra para guardar')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Explorador', exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Tirar dado ponderado' })).toBeVisible()
@@ -615,14 +1506,14 @@ test('mobile layout keeps the core controls reachable', async ({ page }) => {
 
 test('library empty search can create a prefilled item', async ({ page }) => {
   await openApp(page)
-  await page.getByLabel('Buscar en biblioteca').fill('Manual sombra')
+  await fillLibraryTextSearch(page, 'Manual sombra')
   await expect(page.getByRole('heading', { name: 'Sin resultados' })).toBeVisible()
   await page.getByRole('button', { name: 'Crear entrada Manual sombra' }).click()
 
   const searchDraftEditor = page.getByRole('dialog', { name: 'Entrada' })
   await expect(searchDraftEditor.getByLabel('Titulo')).toHaveValue('Manual sombra')
   await searchDraftEditor.getByLabel('Notas').fill('Creada desde una busqueda vacia.')
-  await searchDraftEditor.getByRole('button', { name: 'Guardar' }).click()
+  await searchDraftEditor.getByRole('button', { name: 'Cerrar', exact: true }).click()
 
   await expect(page.getByText('Manual sombra guardada en Biblioteca')).toBeVisible()
   await expect(page.getByTestId('library-grid')).toContainText('Manual sombra')
@@ -630,6 +1521,7 @@ test('library empty search can create a prefilled item', async ({ page }) => {
 
 test('library can update selected visible items in bulk', async ({ page }) => {
   await openApp(page)
+  await openLibraryAdvanced(page)
   await expect(page.getByLabel('Seleccion de biblioteca')).toContainText('Seleccion rapida')
   await expect(page.getByLabel('Seleccion de biblioteca')).toContainText('7 visibles en esta vista')
   await page.getByRole('button', { name: 'Seleccionar visibles' }).click()
@@ -639,24 +1531,23 @@ test('library can update selected visible items in bulk', async ({ page }) => {
   await expect(page.getByLabel('Seleccion de biblioteca')).toContainText('7 visibles en esta vista')
   await expect(page.getByLabel('Seleccion de biblioteca')).not.toContainText('seleccionadas')
 
-  await page.getByLabel('Seleccionar Outer Wilds').check()
-  await page.getByLabel('Seleccionar Vinland Saga').check()
+  await selectLibraryItems(page, 'Outer Wilds', 'Vinland Saga')
 
   const selectionBar = page.getByLabel('Seleccion de biblioteca')
   await expect(selectionBar).toContainText('2 seleccionadas')
-  await page.getByLabel('Buscar en biblioteca').fill('zzzz no match')
+  await fillLibraryTextSearch(page, 'zzzz no match')
   await expect(page.getByRole('heading', { name: 'Sin resultados' })).toBeVisible()
   await expect(selectionBar).toContainText('2 seleccionadas')
   await expect(selectionBar.getByRole('button', { name: 'Seleccionar visibles' })).toBeDisabled()
-  await page.getByLabel('Buscar en biblioteca').fill('')
+  await fillLibraryTextSearch(page, '')
   await selectionBar.getByLabel('Tags para seleccion').fill('lote qa')
   await selectionBar.getByRole('button', { name: 'Añadir tags' }).click()
   await expect(page.getByText('2 entradas etiquetadas con lote qa')).toBeVisible()
   await expect(page.getByTestId('session-activity')).toContainText('Tags masivos actualizados')
-  await page.getByLabel('Buscar en biblioteca').fill('lote qa')
+  await fillLibraryTextSearch(page, 'lote qa')
   await expect(page.getByTestId('library-grid')).toContainText('Outer Wilds')
   await expect(page.getByTestId('library-grid')).toContainText('Vinland Saga')
-  await selectionBar.getByRole('button', { name: 'Seleccionar visibles' }).click()
+  await page.getByRole('button', { name: 'Seleccionar visibles' }).click()
   await selectionBar.getByLabel('Tags para seleccion').fill('lote qa')
   await selectionBar.getByRole('button', { name: 'Quitar tags' }).click()
   await expect(page.getByText('2 entradas actualizadas sin lote qa')).toBeVisible()
@@ -665,45 +1556,43 @@ test('library can update selected visible items in bulk', async ({ page }) => {
   await expect(page.getByText('2 tags recuperados')).toBeVisible()
   await expect(page.getByTestId('library-grid')).toContainText('Outer Wilds')
   await expect(page.getByTestId('library-grid')).toContainText('Vinland Saga')
-  await selectionBar.getByRole('button', { name: 'Seleccionar visibles' }).click()
+  await openLibraryAdvanced(page)
+  await page.getByRole('button', { name: 'Seleccionar visibles' }).click()
   await selectionBar.getByLabel('Tags para seleccion').fill('lote qa')
   await selectionBar.getByRole('button', { name: 'Quitar tags' }).click()
   await expect(page.getByText('2 entradas actualizadas sin lote qa')).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Sin resultados' })).toBeVisible()
-  await page.getByLabel('Buscar en biblioteca').fill('')
+  await fillLibraryTextSearch(page, '')
 
-  await page.getByLabel('Seleccionar Outer Wilds').check()
-  await page.getByLabel('Seleccionar Vinland Saga').check()
+  await selectLibraryItems(page, 'Outer Wilds', 'Vinland Saga')
   await expect(selectionBar).toContainText('2 seleccionadas')
   await selectionBar.getByLabel('Tipo de senal para seleccion').selectOption('genre')
   await selectionBar.getByLabel('Generos para seleccion').fill('manual genero')
   await selectionBar.getByRole('button', { name: 'Añadir generos' }).click()
   await expect(page.getByText('2 entradas actualizadas con manual genero')).toBeVisible()
-  await page.getByLabel('Buscar en biblioteca').fill('manual genero')
+  await fillLibraryTextSearch(page, 'manual genero')
   await expect(page.getByTestId('library-grid')).toContainText('Outer Wilds')
   await expect(page.getByTestId('library-grid')).toContainText('Vinland Saga')
   await page.getByLabel('Accion reciente de biblioteca').getByRole('button', { name: 'Deshacer generos' }).click()
   await expect(page.getByText('2 generos recuperados')).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Sin resultados' })).toBeVisible()
-  await page.getByLabel('Buscar en biblioteca').fill('')
+  await fillLibraryTextSearch(page, '')
 
-  await page.getByLabel('Seleccionar Outer Wilds').check()
-  await page.getByLabel('Seleccionar Vinland Saga').check()
+  await selectLibraryItems(page, 'Outer Wilds', 'Vinland Saga')
   await expect(selectionBar).toContainText('2 seleccionadas')
   await selectionBar.getByLabel('Tipo de senal para seleccion').selectOption('mood')
   await selectionBar.getByLabel('Mood tags para seleccion').fill('manual mood')
   await selectionBar.getByRole('button', { name: 'Añadir mood tags' }).click()
   await expect(page.getByText('2 entradas actualizadas con manual mood')).toBeVisible()
-  await page.getByLabel('Buscar en biblioteca').fill('manual mood')
+  await fillLibraryTextSearch(page, 'manual mood')
   await expect(page.getByTestId('library-grid')).toContainText('Outer Wilds')
   await expect(page.getByTestId('library-grid')).toContainText('Vinland Saga')
   await page.getByLabel('Accion reciente de biblioteca').getByRole('button', { name: 'Deshacer mood tags' }).click()
   await expect(page.getByText('2 mood tags recuperados')).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Sin resultados' })).toBeVisible()
-  await page.getByLabel('Buscar en biblioteca').fill('')
+  await fillLibraryTextSearch(page, '')
 
-  await page.getByLabel('Seleccionar Outer Wilds').check()
-  await page.getByLabel('Seleccionar Vinland Saga').check()
+  await selectLibraryItems(page, 'Outer Wilds', 'Vinland Saga')
   await expect(selectionBar).toContainText('2 seleccionadas')
   await selectionBar.getByLabel('Estado para seleccion').selectOption('completed')
   await selectionBar.getByRole('button', { name: 'Aplicar estado' }).click()
@@ -717,8 +1606,7 @@ test('library can update selected visible items in bulk', async ({ page }) => {
   await expect(page.locator('.item-card', { hasText: 'Outer Wilds' })).toContainText('Pendiente')
   await expect(page.locator('.item-card', { hasText: 'Vinland Saga' })).toContainText('Pendiente')
 
-  await page.getByLabel('Seleccionar Outer Wilds').check()
-  await page.getByLabel('Seleccionar Vinland Saga').check()
+  await selectLibraryItems(page, 'Outer Wilds', 'Vinland Saga')
   await selectionBar.getByLabel('Foco para seleccion').selectOption('high')
   await selectionBar.getByRole('button', { name: 'Aplicar foco' }).click()
   await expect(page.getByText('2 entradas ahora tienen Foco alto')).toBeVisible()
@@ -727,19 +1615,16 @@ test('library can update selected visible items in bulk', async ({ page }) => {
   await expect(page.locator('.item-card', { hasText: 'Outer Wilds' })).not.toContainText('Alta prioridad')
   await expect(page.locator('.item-card', { hasText: 'Vinland Saga' })).not.toContainText('Alta prioridad')
 
-  await page.getByLabel('Seleccionar Outer Wilds').check()
-  await page.getByLabel('Seleccionar Vinland Saga').check()
+  await selectLibraryItems(page, 'Outer Wilds', 'Vinland Saga')
   await selectionBar.getByRole('button', { name: 'Enfriar dado' }).click()
   await expect(page.getByText('2 entradas enfriadas para el dado')).toBeVisible()
   await page.getByLabel('Accion reciente de biblioteca').getByRole('button', { name: 'Deshacer dado' }).click()
   await expect(page.getByText('Dado deshecho: 2 reactivadas')).toBeVisible()
 
-  await page.getByLabel('Seleccionar Outer Wilds').check()
-  await page.getByLabel('Seleccionar Vinland Saga').check()
+  await selectLibraryItems(page, 'Outer Wilds', 'Vinland Saga')
   await selectionBar.getByRole('button', { name: 'Enfriar dado' }).click()
   await expect(page.getByText('2 entradas enfriadas para el dado')).toBeVisible()
-  await page.getByLabel('Seleccionar Outer Wilds').check()
-  await page.getByLabel('Seleccionar Vinland Saga').check()
+  await selectLibraryItems(page, 'Outer Wilds', 'Vinland Saga')
   await selectionBar.getByRole('button', { name: 'Reactivar dado' }).click()
   await expect(page.getByText('2 entradas reactivadas para el dado')).toBeVisible()
   await page.getByLabel('Accion reciente de biblioteca').getByRole('button', { name: 'Deshacer dado' }).click()
@@ -748,6 +1633,7 @@ test('library can update selected visible items in bulk', async ({ page }) => {
 
 test('library can export the current selection without private settings', async ({ page }) => {
   await openApp(page)
+  await openLibraryAdvanced(page)
   const fullDownloadPromise = page.waitForEvent('download')
   await page.getByLabel('Herramientas de biblioteca').getByRole('button', { name: 'Exportar' }).click()
   const fullDownload = await fullDownloadPromise
@@ -755,8 +1641,7 @@ test('library can export the current selection without private settings', async 
   await expect(page.getByRole('status').filter({ hasText: 'Backup JSON descargado' })).toBeVisible()
   await expect(page.getByTestId('session-activity')).toContainText('Backup privado exportado')
 
-  await page.getByLabel('Seleccionar Outer Wilds').check()
-  await page.getByLabel('Seleccionar Vinland Saga').check()
+  await selectLibraryItems(page, 'Outer Wilds', 'Vinland Saga')
   await expect(page.getByLabel('Seleccion de biblioteca')).toContainText('2 seleccionadas')
 
   const downloadPromise = page.waitForEvent('download')
@@ -783,8 +1668,7 @@ test('library can export the current selection without private settings', async 
 
 test('library can delete the current selection with confirmation and undo it', async ({ page }) => {
   await openApp(page)
-  await page.getByLabel('Seleccionar Outer Wilds').check()
-  await page.getByLabel('Seleccionar Vinland Saga').check()
+  await selectLibraryItems(page, 'Outer Wilds', 'Vinland Saga')
   await expect(page.getByLabel('Seleccion de biblioteca')).toContainText('2 seleccionadas')
 
   await page.getByRole('button', { name: 'Borrar seleccion' }).click()
@@ -809,7 +1693,7 @@ test('library can delete the current selection with confirmation and undo it', a
 
 test('quick search toggles visible library selection through the pending-change guard', async ({ page }) => {
   await openApp(page)
-  await page.getByLabel('Filtrar por tipo').selectOption('game')
+  await page.getByTestId('library-shelf-header').getByLabel('Filtrar por tipo').selectOption('game')
   await expect(page.getByText('Tipo: Juegos')).toBeVisible()
 
   await page.getByRole('button', { name: 'Busqueda rapida' }).click()
@@ -842,6 +1726,7 @@ test('quick search toggles visible library selection through the pending-change 
   await expect(page.getByRole('status').filter({ hasText: '3 visibles quitadas de la seleccion' })).toBeVisible()
 
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await openDiceTuning(page)
   await page.getByLabel('Energia').selectOption('high')
   await expect(page.getByText('Cambios pendientes')).toBeVisible()
 
@@ -855,7 +1740,7 @@ test('quick search toggles visible library selection through the pending-change 
   await expect(page.getByLabel('Salida con cambios pendientes')).toContainText('Cambios pendientes en Dado')
   await page.getByLabel('Salida con cambios pendientes').getByRole('button', { name: 'Descartar cambios' }).click()
 
-  await expect(page.getByRole('heading', { name: 'Biblioteca privada' })).toBeVisible()
+  await expectLibrarySurface(page)
   await expect(page.getByLabel('Seleccion de biblioteca')).toContainText('7 seleccionadas')
   await expect(page.getByRole('status').filter({ hasText: '7 visibles seleccionadas' })).toBeVisible()
 })
@@ -873,7 +1758,7 @@ test('quick search hides selection-only commands until a library selection exist
 
   await page.keyboard.press('Escape')
   await expect(quickSearch).not.toBeVisible()
-  await page.getByLabel('Seleccionar Outer Wilds').check()
+  await selectLibraryItems(page, 'Outer Wilds')
 
   await page.getByRole('button', { name: 'Busqueda rapida' }).click()
   const quickSearchWithSelection = page.getByRole('dialog', { name: 'Abrir en Nexo' })
@@ -893,8 +1778,7 @@ test('quick search hides selection-only commands until a library selection exist
 
 test('quick search clears the persistent library selection', async ({ page }) => {
   await openApp(page)
-  await page.getByLabel('Seleccionar Outer Wilds').check()
-  await page.getByLabel('Seleccionar Vinland Saga').check()
+  await selectLibraryItems(page, 'Outer Wilds', 'Vinland Saga')
   await expect(page.getByLabel('Seleccion de biblioteca')).toContainText('2 seleccionadas')
 
   await page.getByRole('button', { name: 'Busqueda rapida' }).click()
@@ -914,8 +1798,7 @@ test('quick search clears the persistent library selection', async ({ page }) =>
 
 test('quick search applies a status to the current library selection', async ({ page }) => {
   await openApp(page)
-  await page.getByLabel('Seleccionar Outer Wilds').check()
-  await page.getByLabel('Seleccionar Vinland Saga').check()
+  await selectLibraryItems(page, 'Outer Wilds', 'Vinland Saga')
   await expect(page.getByLabel('Seleccion de biblioteca')).toContainText('2 seleccionadas')
 
   await page.getByRole('button', { name: 'Busqueda rapida' }).click()
@@ -938,10 +1821,11 @@ test('quick search applies a status to the current library selection', async ({ 
   await expect(page.getByText('2 estados recuperados')).toBeVisible()
   await expect(page.locator('.item-card', { hasText: 'Outer Wilds' })).toContainText('Pendiente')
   await expect(page.locator('.item-card', { hasText: 'Vinland Saga' })).toContainText('Pendiente')
-  await page.getByLabel('Seleccionar Inception').check()
+  await selectLibraryItems(page, 'Inception')
   await expect(page.getByLabel('Seleccion de biblioteca')).toContainText('1 seleccionada')
 
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await openDiceTuning(page)
   await page.getByLabel('Energia').selectOption('high')
   await expect(page.getByText('Cambios pendientes')).toBeVisible()
 
@@ -955,15 +1839,14 @@ test('quick search applies a status to the current library selection', async ({ 
   await expect(page.getByLabel('Salida con cambios pendientes')).toContainText('Cambios pendientes en Dado')
   await page.getByLabel('Salida con cambios pendientes').getByRole('button', { name: 'Descartar cambios' }).click()
 
-  await expect(page.getByRole('heading', { name: 'Biblioteca privada' })).toBeVisible()
+  await expectLibrarySurface(page)
   await expect(page.getByText('1 entrada ahora es Pendiente')).toBeVisible()
   await expect(page.locator('.item-card', { hasText: 'Inception' })).toContainText('Pendiente')
 })
 
 test('quick search updates dice cooldowns for the current library selection', async ({ page }) => {
   await openApp(page)
-  await page.getByLabel('Seleccionar Outer Wilds').check()
-  await page.getByLabel('Seleccionar Vinland Saga').check()
+  await selectLibraryItems(page, 'Outer Wilds', 'Vinland Saga')
   await expect(page.getByLabel('Seleccion de biblioteca')).toContainText('2 seleccionadas')
 
   await page.getByRole('button', { name: 'Busqueda rapida' }).click()
@@ -980,8 +1863,7 @@ test('quick search updates dice cooldowns for the current library selection', as
   await expect(page.getByText('2 entradas enfriadas para el dado')).toBeVisible()
   await expect(page.getByTestId('session-activity')).toContainText('Seleccion enfriada')
 
-  await page.getByLabel('Seleccionar Outer Wilds').check()
-  await page.getByLabel('Seleccionar Vinland Saga').check()
+  await selectLibraryItems(page, 'Outer Wilds', 'Vinland Saga')
   await page.getByRole('button', { name: 'Busqueda rapida' }).click()
   quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
   await quickSearch.getByLabel('Buscar en Nexo').fill('reactivar seleccion')
@@ -1002,8 +1884,7 @@ test('quick search updates dice cooldowns for the current library selection', as
 
 test('quick search updates focus for the current library selection', async ({ page }) => {
   await openApp(page)
-  await page.getByLabel('Seleccionar Outer Wilds').check()
-  await page.getByLabel('Seleccionar Vinland Saga').check()
+  await selectLibraryItems(page, 'Outer Wilds', 'Vinland Saga')
   await expect(page.getByLabel('Seleccion de biblioteca')).toContainText('2 seleccionadas')
 
   await page.getByRole('button', { name: 'Busqueda rapida' }).click()
@@ -1025,8 +1906,9 @@ test('quick search updates focus for the current library selection', async ({ pa
   await expect(page.locator('.item-card', { hasText: 'Outer Wilds' })).not.toContainText('Alta prioridad')
   await expect(page.locator('.item-card', { hasText: 'Vinland Saga' })).not.toContainText('Alta prioridad')
 
-  await page.getByLabel('Seleccionar Outer Wilds').check()
+  await selectLibraryItems(page, 'Outer Wilds')
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await openDiceTuning(page)
   await page.getByLabel('Energia').selectOption('high')
   await expect(page.getByText('Cambios pendientes')).toBeVisible()
 
@@ -1040,14 +1922,13 @@ test('quick search updates focus for the current library selection', async ({ pa
   await expect(page.getByLabel('Salida con cambios pendientes')).toContainText('Cambios pendientes en Dado')
   await page.getByLabel('Salida con cambios pendientes').getByRole('button', { name: 'Descartar cambios' }).click()
 
-  await expect(page.getByRole('heading', { name: 'Biblioteca privada' })).toBeVisible()
+  await expectLibrarySurface(page)
   await expect(page.getByText('1 entrada ahora tiene Foco bajo')).toBeVisible()
 })
 
 test('quick search adds known taxonomy signals to the current library selection', async ({ page }) => {
   await openApp(page)
-  await page.getByLabel('Seleccionar Outer Wilds').check()
-  await page.getByLabel('Seleccionar Vinland Saga').check()
+  await selectLibraryItems(page, 'Outer Wilds', 'Vinland Saga')
   await expect(page.getByLabel('Seleccion de biblioteca')).toContainText('2 seleccionadas')
 
   await page.getByRole('button', { name: 'Busqueda rapida' }).click()
@@ -1058,10 +1939,10 @@ test('quick search adds known taxonomy signals to the current library selection'
   await tagSelectionAction.click()
 
   await expect(page.getByText('1 entradas etiquetadas con sci-fi')).toBeVisible()
-  await page.getByLabel('Buscar en biblioteca').fill('sci-fi')
+  await fillLibraryTextSearch(page, 'sci-fi')
   await expect(page.getByTestId('library-grid')).toContainText('Vinland Saga')
 
-  await page.getByLabel('Seleccionar Vinland Saga').check()
+  await selectLibraryItems(page, 'Vinland Saga')
   await page.getByRole('button', { name: 'Busqueda rapida' }).click()
   const removeQuickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
   await removeQuickSearch.getByLabel('Buscar en Nexo').fill('seleccion quitar tag sci-fi')
@@ -1072,9 +1953,8 @@ test('quick search adds known taxonomy signals to the current library selection'
   await expect(page.getByText('1 entradas actualizadas sin sci-fi')).toBeVisible()
   await expect(page.locator('.item-card', { hasText: 'Vinland Saga' })).toHaveCount(0)
 
-  await page.getByLabel('Buscar en biblioteca').fill('')
-  await page.getByLabel('Seleccionar Outer Wilds').check()
-  await page.getByLabel('Seleccionar Vinland Saga').check()
+  await fillLibraryTextSearch(page, '')
+  await selectLibraryItems(page, 'Outer Wilds', 'Vinland Saga')
   await expect(page.getByLabel('Seleccion de biblioteca')).toContainText('2 seleccionadas')
 
   await page.getByRole('button', { name: 'Busqueda rapida' }).click()
@@ -1085,15 +1965,14 @@ test('quick search adds known taxonomy signals to the current library selection'
   await genreSelectionAction.click()
 
   await expect(page.getByText('1 entradas actualizadas con misterio')).toBeVisible()
-  await page.getByLabel('Buscar en biblioteca').fill('misterio')
+  await fillLibraryTextSearch(page, 'misterio')
   await expect(page.getByTestId('library-grid')).toContainText('Vinland Saga')
   await page.getByLabel('Accion reciente de biblioteca').getByRole('button', { name: 'Deshacer generos' }).click()
   await expect(page.getByText('1 generos recuperados')).toBeVisible()
   await expect(page.locator('.item-card', { hasText: 'Vinland Saga' })).toHaveCount(0)
 
-  await page.getByLabel('Buscar en biblioteca').fill('')
-  await page.getByLabel('Seleccionar Outer Wilds').check()
-  await page.getByLabel('Seleccionar Vinland Saga').check()
+  await fillLibraryTextSearch(page, '')
+  await selectLibraryItems(page, 'Outer Wilds', 'Vinland Saga')
   await expect(page.getByLabel('Seleccion de biblioteca')).toContainText('2 seleccionadas')
 
   await page.getByRole('button', { name: 'Busqueda rapida' }).click()
@@ -1104,7 +1983,7 @@ test('quick search adds known taxonomy signals to the current library selection'
   await moodSelectionAction.click()
 
   await expect(page.getByText('2 entradas actualizadas con intenso')).toBeVisible()
-  await page.getByLabel('Buscar en biblioteca').fill('intenso')
+  await fillLibraryTextSearch(page, 'intenso')
   await expect(page.getByTestId('library-grid')).toContainText('Vinland Saga')
   await page.getByLabel('Accion reciente de biblioteca').getByRole('button', { name: 'Deshacer mood tags' }).click()
   await expect(page.getByText('2 mood tags recuperados')).toBeVisible()
@@ -1114,7 +1993,8 @@ test('quick search adds known taxonomy signals to the current library selection'
 test('quick search opens library items through the pending-change guard', async ({ page }) => {
   await openApp(page)
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
-  await expect(page.getByRole('heading', { name: 'Elige el siguiente hilo' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Que sigo ahora?' })).toBeVisible()
+  await openDiceTuning(page)
   await page.getByLabel('Energia').selectOption('high')
   await expect(page.getByText('Cambios pendientes')).toBeVisible()
 
@@ -1128,12 +2008,12 @@ test('quick search opens library items through the pending-change guard', async 
   await expect(page).toHaveURL(/tab=dice/)
   await page.getByLabel('Salida con cambios pendientes').getByRole('button', { name: 'Descartar cambios' }).click()
   await expect(page).toHaveURL(/item=game-outer-wilds/)
-  await expect(page.getByRole('dialog', { name: 'Entrada' }).getByLabel('Titulo')).toHaveValue('Outer Wilds')
+  await expect(page.getByRole('dialog', { name: 'Entrada' }).locator('#item-editor-title')).toHaveText('Outer Wilds')
 })
 
 test('quick search opens the active result from the keyboard', async ({ page }) => {
   await openApp(page)
-  await expect(page.getByRole('heading', { name: 'Biblioteca privada' })).toBeVisible()
+  await expectLibrarySurface(page)
   await expect(page.getByRole('button', { name: 'Busqueda rapida' })).toHaveAttribute(
     'aria-keyshortcuts',
     '/ Control+K Meta+K',
@@ -1146,12 +2026,12 @@ test('quick search opens the active result from the keyboard', async ({ page }) 
   await expect(quickSearch.getByRole('button', { name: 'Abrir Outer Wilds' })).toHaveAttribute('aria-current', 'true')
   await searchInput.press('Enter')
   await expect(page).toHaveURL(/item=game-outer-wilds/)
-  await expect(page.getByRole('dialog', { name: 'Entrada' }).getByLabel('Titulo')).toHaveValue('Outer Wilds')
+  await expect(page.getByRole('dialog', { name: 'Entrada' }).locator('#item-editor-title')).toHaveText('Outer Wilds')
 })
 
 test('quick search keyboard shortcuts avoid normal text entry', async ({ page }) => {
   await openApp(page)
-  await expect(page.getByRole('heading', { name: 'Biblioteca privada' })).toBeVisible()
+  await expectLibrarySurface(page)
 
   const quickSearchButton = page.getByRole('button', { name: 'Busqueda rapida' })
   await quickSearchButton.click()
@@ -1162,7 +2042,7 @@ test('quick search keyboard shortcuts avoid normal text entry', async ({ page })
   await expect(page.getByRole('dialog', { name: 'Abrir en Nexo' })).not.toBeVisible()
   await expect(quickSearchButton).toBeFocused()
 
-  const librarySearch = page.getByLabel('Buscar en biblioteca')
+  const librarySearch = page.getByLabel('Buscar obra para guardar')
   await librarySearch.fill('/')
   await expect(librarySearch).toHaveValue('/')
   await expect(page.getByRole('dialog', { name: 'Abrir en Nexo' })).not.toBeVisible()
@@ -1180,33 +2060,24 @@ test('quick search keyboard shortcuts avoid normal text entry', async ({ page })
 
 test('dialogs support escape without losing unsaved edits', async ({ page }) => {
   await openApp(page)
-  await expect(page.getByRole('heading', { name: 'Biblioteca privada' })).toBeVisible()
+  await expectLibrarySurface(page)
 
-  const addButton = page.getByRole('button', { name: 'Anadir' }).first()
-  await addButton.click()
-  let privateEditor = page.getByRole('dialog', { name: 'Entrada' })
+  let privateEditor = await openManualEntryEditor(page)
   await expect(privateEditor).toBeVisible()
   await expect(privateEditor.getByLabel('Titulo')).toBeFocused()
   await page.keyboard.press('Escape')
   await expect(page.getByRole('dialog', { name: 'Entrada' })).not.toBeVisible()
-  await expect(addButton).toBeFocused()
 
-  await addButton.click()
-  privateEditor = page.getByRole('dialog', { name: 'Entrada' })
+  privateEditor = await openManualEntryEditor(page)
   await expect(privateEditor.getByLabel('Titulo')).toBeFocused()
   await privateEditor.getByLabel('Titulo').fill('Borrador con Escape')
-  await privateEditor.getByRole('button', { name: 'Guardar', exact: true }).focus()
+  await privateEditor.getByRole('button', { name: 'Cerrar', exact: true }).focus()
   await page.keyboard.press('Tab')
   await expectFocusWithin(privateEditor)
   await page.keyboard.press('Escape')
-  await expect(privateEditor).toBeVisible()
-  await expect(page.getByLabel('Cambios sin guardar')).toContainText('Guarda la ficha')
-  await page.getByRole('button', { name: 'Seguir editando' }).click()
-  await expect(privateEditor.getByLabel('Titulo')).toHaveValue('Borrador con Escape')
-  await privateEditor.getByRole('button', { name: 'Cerrar', exact: true }).click()
-  await page.getByRole('button', { name: 'Descartar cambios' }).click()
   await expect(page.getByRole('dialog', { name: 'Entrada' })).not.toBeVisible()
-  await expect(addButton).toBeFocused()
+  await expect(page.getByText('Borrador con Escape guardada en Biblioteca')).toBeVisible()
+  await expect(page.getByTestId('library-grid')).toContainText('Borrador con Escape')
 
   await page.getByRole('button', { name: 'Mas acciones Outer Wilds' }).click()
   await page.getByRole('menuitem', { name: 'Borrar Outer Wilds' }).click()
@@ -1216,6 +2087,7 @@ test('dialogs support escape without losing unsaved edits', async ({ page }) => 
   await expect(page.getByTestId('library-grid')).toContainText('Outer Wilds')
 
   await page.getByRole('button', { name: 'Curacion' }).click()
+  await openCurationTools(page)
   const createBooksButton = page.getByRole('button', { name: 'Crear Libros' })
   await createBooksButton.click()
   const publicEditor = page.locator('.public-item-editor')
@@ -1229,7 +2101,8 @@ test('dialogs support escape without losing unsaved edits', async ({ page }) => 
   await expect(page.getByLabel('Cambios sin guardar')).toContainText('Guarda la ficha')
   await page.getByRole('button', { name: 'Descartar cambios' }).click()
   await expect(publicEditor).not.toBeVisible()
-  await expect(createBooksButton).toBeFocused()
+  await expect(page.getByRole('button', { name: 'Curacion' })).toBeVisible()
+  await expect(page.getByText('Herramientas de catalogo')).toBeVisible()
 })
 
 test('quick search runs command actions', async ({ page }) => {
@@ -1247,7 +2120,7 @@ test('quick search runs command actions', async ({ page }) => {
   await quickSearch.getByLabel('Buscar en Nexo').fill('tirar')
   await expect(quickSearch.getByRole('button', { name: 'Ejecutar Tirar dado' })).toHaveAttribute('aria-current', 'true')
   await quickSearch.getByRole('button', { name: 'Ejecutar Tirar dado' }).click()
-  await expect(page.getByRole('heading', { name: 'Elige el siguiente hilo' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Que sigo ahora?' })).toBeVisible()
   await expect(page.getByTestId('recommendation-result')).toContainText('Decision')
   await expect(page.getByTestId('session-activity')).toContainText('Tirada registrada')
 
@@ -1274,13 +2147,14 @@ test('quick search rolls dice through the pending-change guard', async ({ page }
 
   await expect(page.getByLabel('Salida con cambios pendientes')).toContainText('Cambios pendientes en Ajustes')
   await page.getByLabel('Salida con cambios pendientes').getByRole('button', { name: 'Descartar cambios' }).click()
-  await expect(page.getByRole('heading', { name: 'Elige el siguiente hilo' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Que sigo ahora?' })).toBeVisible()
   await expect(page.getByTestId('recommendation-result')).toContainText('Decision')
 })
 
 test('quick search reviews dice instead of rolling when no candidates exist', async ({ page }) => {
   await openApp(page)
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await openDiceTuning(page)
   await page.getByLabel('Medio').selectOption('manhwa')
   await expect(page.getByTestId('dice-readiness')).toContainText('Sin tirada posible')
 
@@ -1293,7 +2167,7 @@ test('quick search reviews dice instead of rolling when no candidates exist', as
   await reviewDiceAction.click()
 
   await expect(quickSearch).not.toBeVisible()
-  await expect(page.getByRole('heading', { name: 'Elige el siguiente hilo' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Que sigo ahora?' })).toBeVisible()
   await expect(page.getByTestId('dice-readiness')).toContainText('Sin tirada posible')
   await expect(page.getByTestId('recommendation-result')).toHaveCount(0)
 })
@@ -1301,6 +2175,7 @@ test('quick search reviews dice instead of rolling when no candidates exist', as
 test('quick search can save pending dice preferences', async ({ page }) => {
   await openApp(page)
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await openDiceTuning(page)
   await page.getByLabel('Energia').selectOption('high')
   await expect(page.getByText('Cambios pendientes')).toBeVisible()
 
@@ -1313,7 +2188,8 @@ test('quick search can save pending dice preferences', async ({ page }) => {
   await saveDiceAction.click()
 
   await expect(page.getByRole('status').filter({ hasText: 'Ajustes del dado guardados' })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Ajustes guardados' })).toBeDisabled()
+  await expect(page.locator('details.dice-settings-panel')).not.toHaveAttribute('open', '')
+  await expect(page.locator('details.dice-settings-panel > summary')).toContainText('Afinar tirada')
   await expect(page.getByTestId('session-activity')).toContainText('Preferencias guardadas')
   await expect(page.getByRole('button', { name: 'Deshacer ajustes del dado' })).toBeVisible()
 })
@@ -1355,7 +2231,9 @@ test('quick search applies theme commands', async ({ page }) => {
 
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'rose')
   await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#fff5f8')
-  await expect(page.getByRole('button', { name: 'Elegir tema. Actual Rosa', exact: true })).toBeVisible()
+  await expect(page.locator('.topbar-actions').getByRole('button', { name: /Elegir tema/ })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Ajustes', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Tema Rosa', exact: true })).toHaveClass(/active/)
 
   await page.getByRole('button', { name: 'Busqueda rapida' }).click()
   quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
@@ -1385,25 +2263,26 @@ test('quick search applies theme commands', async ({ page }) => {
   await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#f5fbf7')
 })
 
-test('global theme menu stays in sync with settings', async ({ page }) => {
+test('settings theme controls stay in sync without a topbar theme menu', async ({ page }) => {
   await openApp(page)
+  await expect(page.locator('.topbar-actions').getByRole('button', { name: /Elegir tema/ })).toHaveCount(0)
   await page.getByRole('button', { name: 'Ajustes', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Guardado', exact: true })).toBeDisabled()
 
-  await page.getByRole('button', { name: 'Elegir tema. Actual Oscuro', exact: true }).click()
-  const themeMenu = page.getByRole('menu', { name: 'Temas de Nexo' })
-  await themeMenu.getByRole('menuitemradio', { name: 'Usar tema Rosa' }).click()
+  await page.getByRole('button', { name: 'Tema Rosa', exact: true }).click()
 
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'rose')
-  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#fff5f8')
   const roseThemeButton = page.getByRole('button', { name: 'Tema Rosa', exact: true })
   await expect(roseThemeButton).toHaveClass(/active/)
   await expect(roseThemeButton.locator('.theme-option-status')).toContainText('Actual')
+  await expect(page.getByText('Cambios pendientes')).toBeVisible()
+  await page.getByRole('button', { name: 'Guardar cambios' }).click()
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'rose')
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#fff5f8')
   await expect(page.getByRole('button', { name: 'Guardado', exact: true })).toBeDisabled()
   await expect(page.getByLabel('Salida con cambios pendientes')).not.toBeVisible()
 
   await page.getByRole('button', { name: 'Biblioteca', exact: true }).click()
-  await expect(page.getByRole('heading', { name: 'Biblioteca privada' })).toBeVisible()
+  await expectLibrarySurface(page)
   await expect(page.getByLabel('Salida con cambios pendientes')).not.toBeVisible()
 })
 
@@ -1430,6 +2309,7 @@ test('quick search can save pending settings', async ({ page }) => {
 test('quick search can start a backup import through the pending-change guard', async ({ page }) => {
   await openApp(page)
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await openDiceTuning(page)
   await page.getByLabel('Energia').selectOption('high')
   await expect(page.getByText('Cambios pendientes')).toBeVisible()
 
@@ -1469,7 +2349,7 @@ test('quick search can start a backup import through the pending-change guard', 
     ),
   })
 
-  await expect(page.getByRole('heading', { name: 'Biblioteca privada' })).toBeVisible()
+  await expectLibrarySurface(page)
   await expect(page).not.toHaveURL(/tab=dice/)
   await expect(page.getByText('Backup preparado: 1 nueva / 0 actualizadas')).toBeVisible()
   await expect(page.getByLabel('Backup preparado en biblioteca')).toContainText('nexo-palette-import.json')
@@ -1482,6 +2362,7 @@ test('quick search can start a backup import through the pending-change guard', 
 test('quick search opens library smart views through the pending-change guard', async ({ page }) => {
   await openApp(page)
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await openDiceTuning(page)
   await page.getByLabel('Energia').selectOption('high')
   await expect(page.getByText('Cambios pendientes')).toBeVisible()
 
@@ -1500,43 +2381,31 @@ test('quick search opens library smart views through the pending-change guard', 
   await expect(page.getByTestId('library-grid')).not.toContainText('Outer Wilds')
 })
 
-test('quick search switches library layout through the pending-change guard', async ({ page }) => {
+test('quick search keeps library on the single mosaic layout', async ({ page }) => {
   await openApp(page)
-  await page.getByRole('button', { name: 'Dado', exact: true }).click()
-  await page.getByLabel('Energia').selectOption('high')
-  await expect(page.getByText('Cambios pendientes')).toBeVisible()
-
   await page.getByRole('button', { name: 'Busqueda rapida' }).click()
-  let quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
-  await quickSearch.getByLabel('Buscar en Nexo').fill('vista lista')
-  const listLayoutAction = quickSearch.getByRole('button', { name: 'Ejecutar Vista Lista', exact: true })
-  await expect(listLayoutAction).toHaveAttribute('aria-current', 'true')
-  await expect(listLayoutAction).toContainText('Guardar como vista de biblioteca')
-  await listLayoutAction.click()
+  const quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  const searchInput = quickSearch.getByLabel('Buscar en Nexo')
 
-  await expect(page.getByLabel('Salida con cambios pendientes')).toContainText('Cambios pendientes en Dado')
-  await expect(page).toHaveURL(/tab=dice/)
-  await page.getByLabel('Salida con cambios pendientes').getByRole('button', { name: 'Descartar cambios' }).click()
+  for (const query of ['vista lista', 'vista tarjetas', 'vista mosaico']) {
+    await searchInput.fill(query)
+    await expect(quickSearch.getByRole('button', { name: 'Ejecutar Vista Lista', exact: true })).toHaveCount(0)
+    await expect(quickSearch.getByRole('button', { name: 'Ejecutar Vista Tarjetas', exact: true })).toHaveCount(0)
+    await expect(quickSearch.getByRole('button', { name: 'Ejecutar Vista Mosaico', exact: true })).toHaveCount(0)
+  }
 
-  await expect(page.getByRole('heading', { name: 'Biblioteca privada' })).toBeVisible()
-  await expect(page.getByTestId('library-grid')).toHaveClass(/list-view/)
-  await expect(page.getByRole('status').filter({ hasText: 'Vista Lista guardada' })).toBeVisible()
-  await expect(page.getByTestId('session-activity')).toContainText('Vista de biblioteca guardada')
-
-  await page.getByRole('button', { name: 'Busqueda rapida' }).click()
-  quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
-  await quickSearch.getByLabel('Buscar en Nexo').fill('vista tarjetas')
-  const cardsLayoutAction = quickSearch.getByRole('button', { name: 'Ejecutar Vista Tarjetas', exact: true })
-  await expect(cardsLayoutAction).toHaveAttribute('aria-current', 'true')
-  await cardsLayoutAction.click()
-
-  await expect(page.getByTestId('library-grid')).not.toHaveClass(/list-view/)
-  await expect(page.getByRole('status').filter({ hasText: 'Vista Tarjetas guardada' })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expectLibrarySurface(page)
+  await expect(page.getByRole('button', { name: 'Lista', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Tarjetas' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Mosaico' })).toHaveCount(0)
+  await expect(page.getByTestId('library-grid')).toHaveClass(/mosaic-view/)
 })
 
 test('quick search changes library sort through the pending-change guard', async ({ page }) => {
   await openApp(page)
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await openDiceTuning(page)
   await page.getByLabel('Energia').selectOption('high')
   await expect(page.getByText('Cambios pendientes')).toBeVisible()
 
@@ -1551,8 +2420,8 @@ test('quick search changes library sort through the pending-change guard', async
   await expect(page.getByLabel('Salida con cambios pendientes')).toContainText('Cambios pendientes en Dado')
   await page.getByLabel('Salida con cambios pendientes').getByRole('button', { name: 'Descartar cambios' }).click()
 
-  await expect(page.getByRole('heading', { name: 'Biblioteca privada' })).toBeVisible()
-  await expect(page.getByLabel('Ordenar biblioteca')).toHaveValue('title')
+  await expectLibrarySurface(page)
+  await expect(page.getByTestId('library-shelf-header').getByLabel('Ordenar biblioteca')).toHaveValue('title')
   await expect(page.getByText('Orden: Titulo')).toBeVisible()
   await expect(page.locator('[data-testid="library-grid"] .item-card').first()).toContainText('1984 - George Orwell')
   await expect(page.getByRole('status').filter({ hasText: 'Orden Titulo aplicado' })).toBeVisible()
@@ -1562,6 +2431,7 @@ test('quick search changes library sort through the pending-change guard', async
 test('quick search applies library filters through the pending-change guard', async ({ page }) => {
   await openApp(page)
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await openDiceTuning(page)
   await page.getByLabel('Energia').selectOption('high')
   await expect(page.getByText('Cambios pendientes')).toBeVisible()
 
@@ -1576,7 +2446,7 @@ test('quick search applies library filters through the pending-change guard', as
   await expect(page.getByLabel('Salida con cambios pendientes')).toContainText('Cambios pendientes en Dado')
   await page.getByLabel('Salida con cambios pendientes').getByRole('button', { name: 'Descartar cambios' }).click()
 
-  await expect(page.getByRole('heading', { name: 'Biblioteca privada' })).toBeVisible()
+  await expectLibrarySurface(page)
   await expect(page.getByText('Estado: Pendiente')).toBeVisible()
   await expect(page.getByTestId('library-grid')).toContainText('Outer Wilds')
   await expect(page.getByTestId('library-grid')).not.toContainText('Inception')
@@ -1594,7 +2464,7 @@ test('quick search applies library filters through the pending-change guard', as
   await expect(gamesTypeAction).toContainText('3 entradas')
   await gamesTypeAction.click()
 
-  await expect(page.getByLabel('Filtrar por tipo')).toHaveValue('game')
+  await expect(page.getByTestId('library-shelf-header').getByLabel('Filtrar por tipo')).toHaveValue('game')
   await expect(page.getByText('Tipo: Juegos')).toBeVisible()
   await expect(page.getByTestId('library-grid')).toContainText('Outer Wilds')
   await expect(page.getByTestId('library-grid')).not.toContainText('Inception')
@@ -1604,12 +2474,13 @@ test('quick search applies library filters through the pending-change guard', as
 
 test('quick search resets the library view through the pending-change guard', async ({ page }) => {
   await openApp(page)
-  await page.getByLabel('Filtrar por tipo').selectOption('game')
-  await page.getByLabel('Ordenar biblioteca').selectOption('title')
+  await page.getByTestId('library-shelf-header').getByLabel('Filtrar por tipo').selectOption('game')
+  await page.getByTestId('library-shelf-header').getByLabel('Ordenar biblioteca').selectOption('title')
   await expect(page.getByText('Tipo: Juegos')).toBeVisible()
   await expect(page.getByText('Orden: Titulo')).toBeVisible()
 
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await openDiceTuning(page)
   await page.getByLabel('Energia').selectOption('high')
   await expect(page.getByText('Cambios pendientes')).toBeVisible()
 
@@ -1624,9 +2495,9 @@ test('quick search resets the library view through the pending-change guard', as
   await expect(page.getByLabel('Salida con cambios pendientes')).toContainText('Cambios pendientes en Dado')
   await page.getByLabel('Salida con cambios pendientes').getByRole('button', { name: 'Descartar cambios' }).click()
 
-  await expect(page.getByRole('heading', { name: 'Biblioteca privada' })).toBeVisible()
-  await expect(page.getByLabel('Filtrar por tipo')).toHaveValue('all')
-  await expect(page.getByLabel('Ordenar biblioteca')).toHaveValue('focus')
+  await expectLibrarySurface(page)
+  await expect(page.getByTestId('library-shelf-header').getByLabel('Filtrar por tipo')).toHaveValue('all')
+  await expect(page.getByTestId('library-shelf-header').getByLabel('Ordenar biblioteca')).toHaveValue('focus')
   await expect(page.getByText('Tipo: Juegos')).not.toBeVisible()
   await expect(page.getByText('Orden: Titulo')).not.toBeVisible()
   await expect(page.getByRole('status').filter({ hasText: 'Vista de Biblioteca restablecida' })).toBeVisible()
@@ -1636,6 +2507,7 @@ test('quick search resets the library view through the pending-change guard', as
 test('quick search starts guided library review through the pending-change guard', async ({ page }) => {
   await openApp(page)
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await openDiceTuning(page)
   await page.getByLabel('Energia').selectOption('high')
   await expect(page.getByText('Cambios pendientes')).toBeVisible()
 
@@ -1653,12 +2525,13 @@ test('quick search starts guided library review through the pending-change guard
 
   await expect(page.getByTestId('library-review-session')).toContainText('Repaso activo')
   await expect(page.getByTestId('library-review-session')).toContainText('Dar contexto')
-  await expect(page.getByRole('dialog', { name: 'Entrada' }).getByLabel('Titulo')).toHaveValue('Inception')
+  await expect(page.getByRole('dialog', { name: 'Entrada' }).locator('#item-editor-title')).toHaveText('Inception')
 })
 
 test('quick search can start a specific guided review queue', async ({ page }) => {
   await openApp(page)
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await openDiceTuning(page)
   await page.getByLabel('Energia').selectOption('high')
   await expect(page.getByText('Cambios pendientes')).toBeVisible()
 
@@ -1673,7 +2546,7 @@ test('quick search can start a specific guided review queue', async ({ page }) =
   await expect(page.getByLabel('Salida con cambios pendientes')).toContainText('Cambios pendientes en Dado')
   await page.getByLabel('Salida con cambios pendientes').getByRole('button', { name: 'Descartar cambios' }).click()
 
-  await expect(page.getByRole('heading', { name: 'Elige el siguiente hilo' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Que sigo ahora?' })).toBeVisible()
   await expect(page.getByTestId('recommendation-result')).toContainText('Decision')
   await expect(page.getByTestId('session-activity')).toContainText('Tirada registrada')
 })
@@ -1681,6 +2554,7 @@ test('quick search can start a specific guided review queue', async ({ page }) =
 test('quick search applies the next library action through the pending-change guard', async ({ page }) => {
   await openApp(page)
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await openDiceTuning(page)
   await page.getByLabel('Energia').selectOption('high')
   await expect(page.getByText('Cambios pendientes')).toBeVisible()
 
@@ -1706,7 +2580,8 @@ test('quick search applies the next library action through the pending-change gu
 test('quick search opens sections through the pending-change guard', async ({ page }) => {
   await openApp(page)
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
-  await expect(page.getByRole('heading', { name: 'Elige el siguiente hilo' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Que sigo ahora?' })).toBeVisible()
+  await openDiceTuning(page)
   await page.getByLabel('Energia').selectOption('high')
   await expect(page.getByText('Cambios pendientes')).toBeVisible()
 
@@ -1720,12 +2595,13 @@ test('quick search opens sections through the pending-change guard', async ({ pa
   await expect(page).toHaveURL(/tab=dice/)
   await page.getByLabel('Salida con cambios pendientes').getByRole('button', { name: 'Descartar cambios' }).click()
   await expect(page).toHaveURL(/tab=explorer/)
-  await expect(page.getByRole('heading', { name: 'Encuentra la proxima entrada' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Sorprendeme' })).toBeVisible()
 })
 
 test('quick search can start an explorer search through the pending-change guard', async ({ page }) => {
   await openApp(page)
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await openDiceTuning(page)
   await page.getByLabel('Energia').selectOption('high')
   await expect(page.getByText('Cambios pendientes')).toBeVisible()
 
@@ -1741,43 +2617,50 @@ test('quick search can start an explorer search through the pending-change guard
   await page.getByLabel('Salida con cambios pendientes').getByRole('button', { name: 'Descartar cambios' }).click()
 
   await expect(page).toHaveURL(/tab=explorer/)
-  await expect(page.getByRole('heading', { name: 'Encuentra la proxima entrada' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Sorprendeme' })).toBeVisible()
+  await openExplorerTools(page)
   await expect(page.getByLabel('Buscar en explorador')).toHaveValue('Odisea')
   await expect(page.getByTestId('session-activity')).toContainText('Busqueda en cola')
   await expect(page.getByTestId('explorer-decision-panel')).toContainText('Odisea')
 })
 
-test('quick search can add an explorer surprise card through the pending-change guard', async ({ page }) => {
+test('quick search can add an explorer hint card through the pending-change guard', async ({ page }) => {
   await openApp(page)
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await openDiceTuning(page)
   await page.getByLabel('Energia').selectOption('high')
   await expect(page.getByText('Cambios pendientes')).toBeVisible()
 
   await page.getByRole('button', { name: 'Busqueda rapida' }).click()
   const quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
-  await quickSearch.getByLabel('Buscar en Nexo').fill('carta sorpresa')
-  await expect(quickSearch.getByRole('button', { name: 'Ejecutar Carta sorpresa' })).toHaveAttribute('aria-current', 'true')
-  await quickSearch.getByRole('button', { name: 'Ejecutar Carta sorpresa' }).click()
+  await quickSearch.getByLabel('Buscar en Nexo').fill('recomendar estanteria')
+  const recommendationAction = quickSearch.getByRole('button', { name: 'Ejecutar Recomendar desde mi estanteria' })
+  await expect(recommendationAction).toHaveAttribute('aria-current', 'true')
+  await recommendationAction.click()
 
   await expect(page.getByLabel('Salida con cambios pendientes')).toContainText('Cambios pendientes en Dado')
   await page.getByLabel('Salida con cambios pendientes').getByRole('button', { name: 'Descartar cambios' }).click()
 
   await expect(page).toHaveURL(/tab=explorer/)
-  await expect(page.getByRole('heading', { name: 'Encuentra la proxima entrada' })).toBeVisible()
-  await expect(page.getByText('Carta de exploracion anadida.')).toBeVisible()
-  await expect(page.getByTestId('session-activity')).toContainText('Carta sorpresa anadida')
-  await expect(page.getByRole('button', { name: /Ideas/ })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Sorprendeme' })).toBeVisible()
+  await openExplorerTools(page)
+  await expect(page.getByLabel('Buscar en explorador')).toHaveValue('Outer Wilds')
+  await expect(page.getByRole('status').filter({ hasText: 'hallazgos enviados a la cola' })).toBeVisible()
+  await expect(page.getByTestId('session-activity')).toContainText('Busqueda en cola')
+  await expect(page.getByTestId('explorer-decision-panel')).toContainText('Outer Wilds')
 })
 
 test('quick search can reopen explorer candidates through the pending-change guard', async ({ page }) => {
   await openApp(page)
   await page.getByRole('button', { name: 'Explorador', exact: true }).click()
+  await openExplorerTools(page)
   await page.getByLabel('Tipo de busqueda en explorador').selectOption('book')
   await page.getByLabel('Buscar en explorador').fill('Odisea')
   await page.getByRole('button', { name: 'Buscar' }).click()
   await expect(page.getByTestId('session-activity')).toContainText('Busqueda en cola')
 
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await openDiceTuning(page)
   await page.getByLabel('Energia').selectOption('high')
   await expect(page.getByText('Cambios pendientes')).toBeVisible()
 
@@ -1794,7 +2677,7 @@ test('quick search can reopen explorer candidates through the pending-change gua
   await page.getByLabel('Salida con cambios pendientes').getByRole('button', { name: 'Descartar cambios' }).click()
 
   await expect(page).toHaveURL(/tab=explorer/)
-  await expect(page.getByRole('heading', { name: 'Encuentra la proxima entrada' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Sorprendeme' })).toBeVisible()
   await expect(page.getByRole('dialog', { name: 'Odisea' })).toContainText('En cola')
   await expect(page.getByRole('dialog', { name: 'Odisea' })).toContainText('Guardar en Biblioteca')
 })
@@ -1802,12 +2685,14 @@ test('quick search can reopen explorer candidates through the pending-change gua
 test('quick search can open the next explorer candidate through the pending-change guard', async ({ page }) => {
   await openApp(page)
   await page.getByRole('button', { name: 'Explorador', exact: true }).click()
+  await openExplorerTools(page)
   await page.getByLabel('Tipo de busqueda en explorador').selectOption('book')
   await page.getByLabel('Buscar en explorador').fill('Odisea')
   await page.getByRole('button', { name: 'Buscar' }).click()
   await expect(page.getByTestId('session-activity')).toContainText('Busqueda en cola')
 
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await openDiceTuning(page)
   await page.getByLabel('Energia').selectOption('high')
   await expect(page.getByText('Cambios pendientes')).toBeVisible()
 
@@ -1830,12 +2715,14 @@ test('quick search can open the next explorer candidate through the pending-chan
 test('quick search can save the next explorer candidate through the pending-change guard', async ({ page }) => {
   await openApp(page)
   await page.getByRole('button', { name: 'Explorador', exact: true }).click()
+  await openExplorerTools(page)
   await page.getByLabel('Tipo de busqueda en explorador').selectOption('book')
   await page.getByLabel('Buscar en explorador').fill('Odisea')
   await page.getByRole('button', { name: 'Buscar' }).click()
   await expect(page.getByTestId('session-activity')).toContainText('Busqueda en cola')
 
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await openDiceTuning(page)
   await page.getByLabel('Energia').selectOption('high')
   await expect(page.getByText('Cambios pendientes')).toBeVisible()
 
@@ -1853,6 +2740,7 @@ test('quick search can save the next explorer candidate through the pending-chan
   await expect(page).toHaveURL(/tab=explorer/)
   await expect(page.getByText('Odisea guardado en Biblioteca.')).toBeVisible()
   await expect(page.getByTestId('session-activity')).toContainText('Hallazgo guardado')
+  await openExplorerTools(page)
   await expect(page.getByRole('button', { name: 'Afinar ficha guardada Odisea' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Deshacer guardado' })).toBeVisible()
   await page.getByRole('button', { name: 'Biblioteca', exact: true }).click()
@@ -1862,6 +2750,7 @@ test('quick search can save the next explorer candidate through the pending-chan
 test('quick search can save a filtered explorer view through the pending-change guard', async ({ page }) => {
   await openApp(page)
   await page.getByRole('button', { name: 'Explorador', exact: true }).click()
+  await openExplorerTools(page)
   await page.getByLabel('Tipo de busqueda en explorador').selectOption('book')
   await page.getByLabel('Buscar en explorador').fill('Odisea')
   await page.getByRole('button', { name: 'Buscar' }).click()
@@ -1869,6 +2758,7 @@ test('quick search can save a filtered explorer view through the pending-change 
   await expect(page.getByTestId('explorer-decision-panel')).toContainText('Odisea')
 
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await openDiceTuning(page)
   await page.getByLabel('Energia').selectOption('high')
   await expect(page.getByText('Cambios pendientes')).toBeVisible()
 
@@ -1895,12 +2785,14 @@ test('quick search can save a filtered explorer view through the pending-change 
 test('quick search can dismiss the next explorer candidate through the pending-change guard', async ({ page }) => {
   await openApp(page)
   await page.getByRole('button', { name: 'Explorador', exact: true }).click()
+  await openExplorerTools(page)
   await page.getByLabel('Tipo de busqueda en explorador').selectOption('book')
   await page.getByLabel('Buscar en explorador').fill('Odisea')
   await page.getByRole('button', { name: 'Buscar' }).click()
   await expect(page.getByTestId('session-activity')).toContainText('Busqueda en cola')
 
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await openDiceTuning(page)
   await page.getByLabel('Energia').selectOption('high')
   await expect(page.getByText('Cambios pendientes')).toBeVisible()
 
@@ -1926,6 +2818,7 @@ test('quick search can dismiss the next explorer candidate through the pending-c
 test('quick search can dismiss a filtered explorer view through the pending-change guard', async ({ page }) => {
   await openApp(page)
   await page.getByRole('button', { name: 'Explorador', exact: true }).click()
+  await openExplorerTools(page)
   await page.getByLabel('Tipo de busqueda en explorador').selectOption('book')
   await page.getByLabel('Buscar en explorador').fill('Odisea')
   await page.getByRole('button', { name: 'Buscar' }).click()
@@ -1933,6 +2826,7 @@ test('quick search can dismiss a filtered explorer view through the pending-chan
   await expect(page.getByTestId('explorer-decision-panel')).toContainText('Odisea')
 
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await openDiceTuning(page)
   await page.getByLabel('Energia').selectOption('high')
   await expect(page.getByText('Cambios pendientes')).toBeVisible()
 
@@ -1960,7 +2854,8 @@ test('quick search can dismiss a filtered explorer view through the pending-chan
 test('quick search can create a prefilled item through the pending-change guard', async ({ page }) => {
   await openApp(page)
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
-  await expect(page.getByRole('heading', { name: 'Elige el siguiente hilo' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Que sigo ahora?' })).toBeVisible()
+  await openDiceTuning(page)
   await page.getByLabel('Energia').selectOption('high')
   await expect(page.getByText('Cambios pendientes')).toBeVisible()
 
@@ -1977,43 +2872,43 @@ test('quick search can create a prefilled item through the pending-change guard'
   const createdEditor = page.getByRole('dialog', { name: 'Entrada' })
   await expect(createdEditor.getByLabel('Titulo')).toHaveValue('Manual global')
   await createdEditor.getByLabel('Notas').fill('Creada desde busqueda rapida global.')
-  await createdEditor.getByRole('button', { name: 'Guardar' }).click()
+  await createdEditor.getByRole('button', { name: 'Cerrar', exact: true }).click()
   await expect(page.getByText('Manual global guardada en Biblioteca')).toBeVisible()
 })
 
 test('activity entries navigate through the pending-change guard', async ({ page }) => {
   await openApp(page)
-  await page.getByRole('button', { name: 'Anadir' }).click()
-  const editor = page.getByRole('dialog', { name: 'Entrada' })
+  const editor = await openManualEntryEditor(page)
   await editor.getByLabel('Titulo').fill('Actividad navegable')
-  await editor.getByRole('button', { name: 'Guardar' }).click()
+  await editor.getByRole('button', { name: 'Cerrar', exact: true }).click()
   await expect(page.getByTestId('session-activity')).toContainText('Ficha guardada')
 
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
-  await expect(page.getByRole('heading', { name: 'Elige el siguiente hilo' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Que sigo ahora?' })).toBeVisible()
+  await openDiceTuning(page)
   await page.getByLabel('Energia').selectOption('high')
   await expect(page.getByText('Cambios pendientes')).toBeVisible()
 
   await page.getByTestId('session-continuity').getByRole('button', { name: 'Continuar desde Ficha guardada en Biblioteca' }).click()
   await expect(page.getByLabel('Salida con cambios pendientes')).toContainText('Cambios pendientes en Dado')
-  await expect(page.getByRole('heading', { name: 'Elige el siguiente hilo' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Que sigo ahora?' })).toBeVisible()
 
   await page.getByLabel('Salida con cambios pendientes').getByRole('button', { name: 'Descartar cambios' }).click()
-  await expect(page.getByRole('heading', { name: 'Biblioteca privada' })).toBeVisible()
+  await expectLibrarySurface(page)
   await expect(page).toHaveURL(/item=movie-actividad-navegable/)
   const focusedEditor = page.getByRole('dialog', { name: 'Entrada' })
-  await expect(focusedEditor.getByLabel('Titulo')).toHaveValue('Actividad navegable')
+  await expect(focusedEditor.locator('#item-editor-title')).toHaveText('Actividad navegable')
 })
 
 test('quick search resumes recent activity through the pending-change guard', async ({ page }) => {
   await openApp(page)
-  await page.getByRole('button', { name: 'Anadir' }).click()
-  const editor = page.getByRole('dialog', { name: 'Entrada' })
+  const editor = await openManualEntryEditor(page)
   await editor.getByLabel('Titulo').fill('Actividad paleta')
-  await editor.getByRole('button', { name: 'Guardar' }).click()
+  await editor.getByRole('button', { name: 'Cerrar', exact: true }).click()
   await expect(page.getByTestId('session-activity')).toContainText('Ficha guardada')
 
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await openDiceTuning(page)
   await page.getByLabel('Energia').selectOption('high')
   await expect(page.getByText('Cambios pendientes')).toBeVisible()
 
@@ -2028,15 +2923,14 @@ test('quick search resumes recent activity through the pending-change guard', as
   await expect(page.getByLabel('Salida con cambios pendientes')).toContainText('Cambios pendientes en Dado')
   await page.getByLabel('Salida con cambios pendientes').getByRole('button', { name: 'Descartar cambios' }).click()
   await expect(page).toHaveURL(/item=movie-actividad-paleta/)
-  await expect(page.getByRole('dialog', { name: 'Entrada' }).getByLabel('Titulo')).toHaveValue('Actividad paleta')
+  await expect(page.getByRole('dialog', { name: 'Entrada' }).locator('#item-editor-title')).toHaveText('Actividad paleta')
 })
 
 test('quick search can clear and restore recent activity', async ({ page }) => {
   await openApp(page)
-  await page.getByRole('button', { name: 'Anadir' }).click()
-  const editor = page.getByRole('dialog', { name: 'Entrada' })
+  const editor = await openManualEntryEditor(page)
   await editor.getByLabel('Titulo').fill('Actividad limpiable')
-  await editor.getByRole('button', { name: 'Guardar' }).click()
+  await editor.getByRole('button', { name: 'Cerrar', exact: true }).click()
   await expect(page.getByTestId('session-activity')).toContainText('Ficha guardada')
   await expect(page.getByTestId('session-activity')).toContainText('Actividad limpiable')
 
@@ -2064,6 +2958,7 @@ test('quick search can clear and restore recent activity', async ({ page }) => {
 test('quick search can apply taste suggestions through the pending-change guard', async ({ page }) => {
   await openApp(page)
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await openDiceTuning(page)
   await page.getByLabel('Energia').selectOption('high')
   await expect(page.getByText('Cambios pendientes')).toBeVisible()
 
@@ -2080,6 +2975,7 @@ test('quick search can apply taste suggestions through the pending-change guard'
 
   await expect(page).toHaveURL(/tab=settings/)
   await expect(page.getByRole('status').filter({ hasText: /sugerencias anadidas/ })).toBeVisible()
+  await page.locator('.settings-taste-panel summary').click()
   await expect(page.getByLabel('Generos favoritos')).toHaveValue('sci-fi')
   await expect(page.getByLabel('Tags favoritos')).toHaveValue('pelicula, sci-fi')
   await expect(page.getByText('Cambios pendientes')).toBeVisible()
@@ -2088,6 +2984,7 @@ test('quick search can apply taste suggestions through the pending-change guard'
 test('quick search can repair private taxonomy through the pending-change guard', async ({ page }) => {
   await openApp(page)
   await page.getByRole('button', { name: 'Ajustes', exact: true }).click()
+  await openSettingsDrawer(page, 'settings-private-data-drawer')
   await page.getByLabel('Importar backup JSON').setInputFiles({
     name: 'nexo-quick-taxonomy-repair.json',
     mimeType: 'application/json',
@@ -2116,6 +3013,7 @@ test('quick search can repair private taxonomy through the pending-change guard'
   await expect(page.getByTestId('private-action-plan')).toContainText('Completar taxonomia')
 
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await openDiceTuning(page)
   await page.getByLabel('Energia').selectOption('high')
   await expect(page.getByText('Cambios pendientes')).toBeVisible()
 
@@ -2132,6 +3030,7 @@ test('quick search can repair private taxonomy through the pending-change guard'
 
   await expect(page).toHaveURL(/tab=settings/)
   await expect(page.getByRole('status').filter({ hasText: 'Taxonomia privada completada en 1 ficha' })).toBeVisible()
+  await openSettingsDrawer(page, 'settings-private-data-drawer')
   await expect(page.getByTestId('private-data-health')).toContainText('8/8')
   await expect(page.getByRole('button', { name: 'Deshacer taxonomia' })).toBeVisible()
   await expect(page.getByTestId('session-activity')).toContainText('Taxonomia privada completada')
@@ -2140,7 +3039,7 @@ test('quick search can repair private taxonomy through the pending-change guard'
 test('library item deep links open and close the focused editor', async ({ page }) => {
   await page.goto('/?item=game-outer-wilds')
   const editor = page.getByRole('dialog', { name: 'Entrada' })
-  await expect(editor.getByLabel('Titulo')).toHaveValue('Outer Wilds')
+  await expect(editor.locator('#item-editor-title')).toHaveText('Outer Wilds')
   await expect(page).toHaveURL(/item=game-outer-wilds/)
   await editor.getByRole('button', { name: 'Copiar enlace a Outer Wilds' }).click()
   await expect(editor.getByLabel('Enlace de ficha')).toHaveValue(/item=game-outer-wilds/)
@@ -2150,7 +3049,7 @@ test('library item deep links open and close the focused editor', async ({ page 
   await expect(page).not.toHaveURL(/item=game-outer-wilds/)
 
   await page.goBack()
-  await expect(page.getByRole('dialog', { name: 'Entrada' }).getByLabel('Titulo')).toHaveValue('Outer Wilds')
+  await expect(page.getByRole('dialog', { name: 'Entrada' }).locator('#item-editor-title')).toHaveText('Outer Wilds')
 })
 
 test('missing item deep links can recover through library search', async ({ page }) => {
@@ -2170,9 +3069,9 @@ test('dice item activity opens the linked library editor', async ({ page }) => {
   await page.getByRole('button', { name: 'Afinar ficha recomendada' }).click()
 
   const diceEditor = page.getByRole('dialog', { name: 'Entrada' })
-  const recommendedTitle = await diceEditor.getByLabel('Titulo').inputValue()
+  const recommendedTitle = (await diceEditor.locator('#item-editor-title').textContent()) ?? ''
   await diceEditor.getByRole('textbox', { name: 'Progreso' }).fill('Vuelta desde actividad del dado.')
-  await diceEditor.getByRole('button', { name: 'Guardar' }).click()
+  await diceEditor.getByRole('button', { name: 'Cerrar', exact: true }).click()
   await expect(page.getByTestId('session-activity')).toContainText('Ficha afinada')
 
   await page
@@ -2180,7 +3079,7 @@ test('dice item activity opens the linked library editor', async ({ page }) => {
     .getByRole('button', { name: 'Abrir Ficha afinada en Biblioteca' })
     .click()
   await expect(page).toHaveURL(/item=/)
-  await expect(page.getByRole('dialog', { name: 'Entrada' }).getByLabel('Titulo')).toHaveValue(recommendedTitle)
+  await expect(page.getByRole('dialog', { name: 'Entrada' }).locator('#item-editor-title')).toHaveText(recommendedTitle)
 })
 
 test('pwa metadata is present', async ({ page }) => {
@@ -2232,11 +3131,12 @@ test('pwa metadata is present', async ({ page }) => {
   })
   await expect(page.getByRole('status', { name: 'Sin conexion', exact: true })).not.toBeVisible()
 
-  await page.getByRole('button', { name: 'Elegir tema. Actual Oscuro', exact: true }).click()
-  const themeMenu = page.getByRole('menu', { name: 'Temas de Nexo' })
-  await expect(themeMenu).toBeVisible()
-  await expect(themeMenu.getByRole('menuitemradio')).toHaveCount(7)
-  const themeMenuBox = await themeMenu.evaluate((element) => {
+  await expect(page.locator('.topbar-actions').getByRole('button', { name: /Elegir tema/ })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Ajustes', exact: true }).click()
+  const themeStage = page.getByTestId('settings-theme-stage')
+  await expect(themeStage).toBeVisible()
+  await expect(themeStage.locator('.theme-option')).toHaveCount(7)
+  const themeStageBox = await themeStage.evaluate((element) => {
     const rect = element.getBoundingClientRect()
     return {
       left: rect.left,
@@ -2245,30 +3145,29 @@ test('pwa metadata is present', async ({ page }) => {
       viewportWidth: window.innerWidth,
     }
   })
-  expect(themeMenuBox.left).toBeGreaterThanOrEqual(-1)
-  expect(themeMenuBox.right).toBeLessThanOrEqual(themeMenuBox.viewportWidth + 1)
-  expect(themeMenuBox.top).toBeGreaterThanOrEqual(-1)
-  await expect(themeMenu.getByRole('menuitemradio', { name: 'Usar tema Oscuro' })).toHaveAttribute('aria-checked', 'true')
-  await themeMenu.getByRole('menuitemradio', { name: 'Usar tema Claro' }).click()
+  expect(themeStageBox.left).toBeGreaterThanOrEqual(-1)
+  expect(themeStageBox.right).toBeLessThanOrEqual(themeStageBox.viewportWidth + 1)
+  expect(themeStageBox.top).toBeGreaterThanOrEqual(-1)
+  await themeStage.getByRole('button', { name: 'Tema Claro' }).click()
+  await page.getByRole('button', { name: 'Guardar cambios' }).click()
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
   await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#f8faf9')
-  await page.getByRole('button', { name: 'Elegir tema. Actual Claro', exact: true }).click()
-  await page.getByRole('menuitemradio', { name: 'Usar tema Rosa' }).click()
+  await themeStage.getByRole('button', { name: 'Tema Rosa' }).click()
+  await page.getByRole('button', { name: 'Guardar cambios' }).click()
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'rose')
   await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#fff5f8')
-  await expect(page.getByRole('button', { name: 'Elegir tema. Actual Rosa', exact: true })).toBeVisible()
-  await page.getByRole('button', { name: 'Elegir tema. Actual Rosa', exact: true }).click()
-  await page.getByRole('menuitemradio', { name: 'Usar tema Aurora' }).click()
+  await themeStage.getByRole('button', { name: 'Tema Aurora' }).click()
+  await page.getByRole('button', { name: 'Guardar cambios' }).click()
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'aurora')
   await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#101113')
 
   await page.goto('/?tab=dice')
-  await expect(page.getByRole('heading', { name: 'Elige el siguiente hilo' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Que sigo ahora?' })).toBeVisible()
   await page.getByRole('button', { name: 'Explorador', exact: true }).click()
   await expect(page).toHaveURL(/tab=explorer/)
   await page.goBack()
   await expect(page).toHaveURL(/tab=dice/)
-  await expect(page.getByRole('heading', { name: 'Elige el siguiente hilo' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Que sigo ahora?' })).toBeVisible()
 })
 
 test('browser history asks before leaving pending dice preferences', async ({ page }) => {
@@ -2279,13 +3178,14 @@ test('browser history asks before leaving pending dice preferences', async ({ pa
   await expect(page).toHaveURL(/tab=explorer/)
   await page.goBack()
   await expect(page).toHaveURL(/tab=dice/)
+  await openDiceTuning(page)
   await page.getByLabel('Energia').selectOption('high')
   await expect(page.getByText('Cambios pendientes')).toBeVisible()
   await page.goBack()
   await expect(page.getByLabel('Salida con cambios pendientes')).toContainText('Cambios pendientes en Dado')
   await expect(page).toHaveURL(/tab=dice/)
   await page.getByLabel('Salida con cambios pendientes').getByRole('button', { name: 'Descartar cambios' }).click()
-  await expect(page.getByRole('heading', { name: 'Biblioteca privada' })).toBeVisible()
+  await expectLibrarySurface(page)
   await expect(page).not.toHaveURL(/tab=dice/)
 })
 
@@ -2294,6 +3194,14 @@ test('settings show pending changes before saving preferences', async ({ page })
   await page.getByRole('button', { name: 'Ajustes', exact: true }).click()
 
   await expect(page.getByRole('button', { name: 'Guardado', exact: true })).toBeDisabled()
+  await expect(page.getByTestId('settings-roles-drawer')).toBeVisible()
+  await expect(page.getByTestId('settings-private-data-drawer')).toBeVisible()
+  await expect(page.getByTestId('settings-beta-drawer')).toBeVisible()
+  await expect(page.getByTestId('settings-roles-drawer')).not.toHaveAttribute('open', '')
+  await expect(page.getByTestId('settings-private-data-drawer')).not.toHaveAttribute('open', '')
+  await expect(page.getByRole('heading', { name: 'Roles' })).not.toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Datos privados' })).not.toBeVisible()
+  await openSettingsDrawer(page, 'settings-roles-drawer')
   await expect(page.getByRole('heading', { name: 'Roles' })).toBeVisible()
   await expect(page.getByLabel('Resumen de roles')).toContainText('Admin')
   await expect(page.getByLabel('Permisos de roles')).toContainText('Cambiar roles')
@@ -2301,6 +3209,7 @@ test('settings show pending changes before saving preferences', async ({ page })
   await expect(page.getByTestId('settings-confidence')).toContainText('Cuenta lista')
   await expect(page.getByTestId('settings-confidence')).toContainText('Admin')
   await expect(page.getByTestId('settings-confidence')).toContainText('Entradas')
+  await openSettingsDrawer(page, 'settings-private-data-drawer')
   await expect(page.getByRole('heading', { name: 'Datos privados' })).toBeVisible()
   await expect(page.getByLabel('Estado de datos privados')).toContainText('7')
   await expect(page.getByTestId('private-data-health')).toContainText('Salud de datos')
@@ -2311,6 +3220,7 @@ test('settings show pending changes before saving preferences', async ({ page })
   await expect(page.getByTestId('private-action-plan')).toContainText('Tirar dado')
   await expect(page.getByTestId('private-action-plan')).toContainText('Explorar catalogo')
   await expect(page.getByTestId('private-action-plan')).toContainText('Backup JSON')
+  await page.locator('.settings-taste-panel summary').click()
   await expect(page.getByTestId('taste-suggestions')).toContainText('Sugerencias de gusto')
   await expect(page.getByTestId('taste-suggestions')).toContainText('sci-fi')
   await page.getByLabel('Senales bloqueadas').fill('sci-fi')
@@ -2325,10 +3235,12 @@ test('settings show pending changes before saving preferences', async ({ page })
   await page.getByRole('button', { name: 'Guardar cambios' }).click()
   await expect(page.getByRole('status').filter({ hasText: 'Ajustes guardados' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Guardado', exact: true })).toBeDisabled()
+  await openSettingsDrawer(page, 'settings-private-data-drawer')
   await page.getByTestId('private-action-plan').getByRole('button', { name: /Tirar dado/ }).click()
   await expect(page).toHaveURL(/tab=dice/)
   await expect(page.getByTestId('recommendation-result')).toContainText('Decision')
   await page.getByRole('button', { name: 'Ajustes', exact: true }).click()
+  await openSettingsDrawer(page, 'settings-private-data-drawer')
   const downloadPromise = page.waitForEvent('download')
   await page.getByRole('button', { name: 'Exportar backup JSON' }).click()
   const download = await downloadPromise
@@ -2368,23 +3280,24 @@ test('settings show pending changes before saving preferences', async ({ page })
   await page.getByRole('button', { name: 'Biblioteca', exact: true }).click()
   await expect(page.getByTestId('library-grid')).toContainText('Backup Probe')
   await page.getByRole('button', { name: 'Ajustes', exact: true }).click()
+  await openSettingsDrawer(page, 'settings-roles-drawer')
   await expect(page.getByLabel('Rol de Usuario demo')).toHaveValue('user')
   await page.getByLabel('Rol de Usuario demo').selectOption('admin')
   await expect(page.getByLabel('Cambio de rol preparado')).toContainText('Usuario demo')
   await expect(page.getByLabel('Cambio de rol preparado')).toContainText('Usuario -> Admin')
   await page.getByRole('button', { name: 'Cancelar' }).click()
-  await expect(page.getByText('Cambio de rol cancelado')).toBeVisible()
+  await expect(page.getByLabel('Cambio de rol preparado')).not.toBeVisible()
   await expect(page.getByLabel('Rol de Usuario demo')).toHaveValue('user')
+  await openSettingsDrawer(page, 'settings-roles-drawer')
   await page.getByLabel('Rol de Usuario demo').selectOption('moderator')
   await expect(page.getByLabel('Cambio de rol preparado')).toContainText('Usuario -> Moderador')
   await page.getByRole('button', { name: 'Aplicar rol' }).click()
-  await expect(page.getByText('Usuario demo ahora es Moderador')).toBeVisible()
   await expect(page.getByTestId('session-activity')).toContainText('Rol actualizado')
+  await openSettingsDrawer(page, 'settings-roles-drawer')
   await expect(page.getByRole('button', { name: 'Deshacer rol' })).toBeVisible()
   await page.getByRole('button', { name: 'Deshacer rol' }).click()
-  await expect(page.getByText('Rol de Usuario demo recuperado como Usuario')).toBeVisible()
-  await expect(page.getByLabel('Rol de Usuario demo')).toHaveValue('user')
   await expect(page.getByTestId('session-activity')).toContainText('Rol recuperado')
+  await expect(page.getByLabel('Rol de Usuario demo')).toHaveValue('user')
   await page.getByRole('button', { name: 'Tema Rosa', exact: true }).click()
   await expect(page.getByTestId('settings-confidence')).toContainText('Ajustes pendientes')
   await expect(page.getByTestId('settings-confidence')).toContainText('Rosa')
@@ -2395,7 +3308,7 @@ test('settings show pending changes before saving preferences', async ({ page })
   await expect(page.getByTestId('settings-confidence')).toContainText('Ajustes pendientes')
   await page.getByRole('button', { name: 'Biblioteca', exact: true }).click()
   await page.getByLabel('Salida con cambios pendientes').getByRole('button', { name: 'Descartar cambios' }).click()
-  await expect(page.getByRole('heading', { name: 'Biblioteca privada' })).toBeVisible()
+  await expectLibrarySurface(page)
   await page.getByRole('button', { name: 'Ajustes', exact: true }).click()
   await expect(page.getByTestId('settings-confidence')).toContainText('Oscuro')
   await page.getByRole('button', { name: 'Tema Rosa', exact: true }).click()
@@ -2415,6 +3328,7 @@ test('settings show pending changes before saving preferences', async ({ page })
 test('settings can repair private taxonomy from the maintenance plan', async ({ page }) => {
   await openApp(page)
   await page.getByRole('button', { name: 'Ajustes', exact: true }).click()
+  await openSettingsDrawer(page, 'settings-private-data-drawer')
   await page.getByLabel('Importar backup JSON').setInputFiles({
     name: 'nexo-taxonomy-repair.json',
     mimeType: 'application/json',
@@ -2443,6 +3357,7 @@ test('settings can repair private taxonomy from the maintenance plan', async ({ 
   await expect(page.getByText('Backup preparado: 1 nueva / 0 actualizadas')).toBeVisible()
   await page.getByRole('button', { name: 'Aplicar backup' }).click()
   await expect(page.getByText('Importadas 1 entradas desde backup')).toBeVisible()
+  await openSettingsDrawer(page, 'settings-private-data-drawer')
   await expect(page.getByTestId('private-data-health')).toContainText('7/8')
   await expect(page.getByTestId('private-data-health')).toContainText('1 sin generos/tags')
   await expect(page.getByTestId('private-action-plan')).toContainText('Completar taxonomia')
@@ -2462,6 +3377,7 @@ test('settings can repair private taxonomy from the maintenance plan', async ({ 
 test('settings can undo a private backup import with settings', async ({ page }) => {
   await openApp(page)
   await page.getByRole('button', { name: 'Ajustes', exact: true }).click()
+  await openSettingsDrawer(page, 'settings-private-data-drawer')
   await page.getByLabel('Importar backup JSON').setInputFiles({
     name: 'nexo-settings-rollback.json',
     mimeType: 'application/json',
@@ -2562,6 +3478,7 @@ test('settings can import backup entries without applying included settings', as
   await openApp(page)
   await page.getByRole('button', { name: 'Ajustes', exact: true }).click()
   await expect(page.getByTestId('settings-confidence')).toContainText('Oscuro')
+  await openSettingsDrawer(page, 'settings-private-data-drawer')
   await page.getByLabel('Importar backup JSON').setInputFiles({
     name: 'nexo-settings-skip.json',
     mimeType: 'application/json',
@@ -2612,18 +3529,23 @@ test('settings can import backup entries without applying included settings', as
 test('explorer searches public catalog and saves to private library', async ({ page }) => {
   await openApp(page)
   await page.getByRole('button', { name: 'Explorador', exact: true }).click()
-  await expect(page.getByRole('heading', { name: 'Encuentra la proxima entrada' })).toBeVisible()
-  await expect(page.getByLabel('Resumen del explorador')).toContainText('Cola')
+  await expect(page.getByRole('heading', { name: 'Sorprendeme' })).toBeVisible()
+  await expect(page.getByLabel('Tipo para descubrir')).toBeVisible()
+  await expect(page.getByLabel('Duracion para descubrir')).toBeVisible()
+  await expect(page.getByLabel('Buscar en explorador')).not.toBeVisible()
+  await openExplorerTools(page)
   await page.getByLabel('Tipo de busqueda en explorador').selectOption('game')
   await page.getByRole('button', { name: 'Ajustes' }).click()
   await expect(page.getByLabel('Tipo por defecto')).toHaveValue('game')
   await page.getByRole('button', { name: 'Explorador', exact: true }).click()
+  await openExplorerTools(page)
   await expect(page.getByLabel('Tipo de busqueda en explorador')).toHaveValue('game')
   await page.getByLabel('Buscar en explorador').fill('Odisea')
   await page.getByRole('button', { name: 'Buscar' }).click()
   await expect(page.getByTestId('session-activity')).toContainText('Busqueda en cola')
 
-  await expect(page.getByTestId('explorer-decision-panel')).toContainText('Bandeja activa')
+  await openExplorerFilters(page)
+  await expect(page.getByTestId('explorer-decision-panel')).toContainText('Explorar')
   await expect(page.getByTestId('explorer-decision-panel')).toContainText('Odisea')
   await expect(page.getByRole('button', { name: /APIs/ })).toBeVisible()
   await page.getByRole('button', { name: /APIs/ }).click()
@@ -2634,20 +3556,23 @@ test('explorer searches public catalog and saves to private library', async ({ p
   await page.getByRole('button', { name: 'Ver todos los origenes' }).click()
   const odiseaSpotlight = page.getByTestId('candidate-spotlight')
   await expect(odiseaSpotlight).toContainText('Odisea')
-  await expect(odiseaSpotlight).toContainText('Que hacer ahora')
-  await expect(odiseaSpotlight).toContainText('Resultado externo')
-  await expect(odiseaSpotlight).toContainText('Guardar o curar catalogo')
+  await expect(odiseaSpotlight).toContainText('Resultado listo')
+  await expect(odiseaSpotlight).toContainText('Encontrado fuera de Nexo')
+  await expect(odiseaSpotlight).toContainText('Guardar o pasar a catalogo')
   await expect(odiseaSpotlight.getByLabel('Decidir Odisea')).toContainText('Guardar')
   await odiseaSpotlight.getByRole('button', { name: 'Descartar Odisea' }).click()
+  await openExplorerFilters(page)
   await page.getByRole('tab', { name: /Descartados 1/ }).click()
   await expect(page.getByText('Apartado de tus pendientes')).toBeVisible()
   await page.getByRole('button', { name: 'Recuperar Odisea' }).click()
+  await openExplorerFilters(page)
   await expect(page.getByRole('tab', { name: /En cola 1/ })).toBeVisible()
   await page.getByTestId('candidate-spotlight').getByRole('button', { name: 'Abrir ficha Odisea' }).click()
   await expect(page.getByRole('dialog', { name: 'Odisea' })).toContainText('En cola')
   await page.getByRole('button', { name: 'Guardar en Biblioteca' }).click()
   await expect(page.getByRole('dialog', { name: 'Odisea' })).not.toBeVisible()
   await expect(page.getByTestId('session-activity')).toContainText('Hallazgo guardado')
+  await openExplorerTools(page)
   await expect(page.getByRole('button', { name: 'Afinar ficha guardada Odisea' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Deshacer guardado' })).toBeVisible()
   await page.getByRole('button', { name: 'Deshacer guardado' }).click()
@@ -2656,23 +3581,27 @@ test('explorer searches public catalog and saves to private library', async ({ p
   await page.getByRole('button', { name: 'Biblioteca', exact: true }).click()
   await expect(page.getByTestId('library-grid')).not.toContainText('Odisea')
   await page.getByRole('button', { name: 'Explorador', exact: true }).click()
+  await openExplorerFilters(page)
   await expect(page.getByRole('tab', { name: /En cola 1/ })).toBeVisible()
   await page.getByTestId('candidate-spotlight').getByRole('button', { name: 'Guardar Odisea' }).click()
+  await openExplorerTools(page)
   await expect(page.getByRole('button', { name: 'Afinar ficha guardada Odisea' })).toBeVisible()
   await page.getByRole('button', { name: 'Afinar ficha guardada Odisea' }).click()
   const savedEditor = page.getByRole('dialog', { name: 'Entrada' })
   await expect(savedEditor).toContainText('Metadatos protegidos')
   await expect(savedEditor.getByLabel('Titulo')).toHaveCount(0)
   await savedEditor.getByLabel('Notas').fill('Afinada desde Explorador.')
-  await savedEditor.getByRole('button', { name: 'Guardar' }).click()
+  await savedEditor.getByRole('button', { name: 'Cerrar', exact: true }).click()
   await expect(page.getByText('Odisea afinada en Biblioteca.')).toBeVisible()
   await expect(page.getByTestId('session-activity')).toContainText('Ficha afinada')
+  await openExplorerFilters(page)
   await page.getByRole('tab', { name: /Guardados 1/ }).click()
   await expect(page.getByText('Ya esta en tu biblioteca')).toBeVisible()
   await expect(page.getByText('Odisea').first()).toBeVisible()
   await page.getByLabel('Buscar en explorador').fill('Odisea')
   await page.getByRole('button', { name: 'Buscar' }).click()
   await expect(page.getByText('No hay hallazgos nuevos para esa busqueda.')).toBeVisible()
+  await openExplorerFilters(page)
   await expect(page.getByRole('tab', { name: /En cola 0/ })).toBeVisible()
   await expect(page.getByRole('tab', { name: /Guardados 1/ })).toBeVisible()
   await page.getByRole('button', { name: 'Biblioteca', exact: true }).click()
@@ -2687,10 +3616,12 @@ test('explorer searches public catalog and saves to private library', async ({ p
 test('explorer can clean a filtered queued view', async ({ page }) => {
   await openApp(page)
   await page.getByRole('button', { name: 'Explorador', exact: true }).click()
+  await openExplorerTools(page)
   await page.getByLabel('Tipo de busqueda en explorador').selectOption('book')
   await page.getByLabel('Buscar en explorador').fill('Odisea')
   await page.getByRole('button', { name: 'Buscar' }).click()
 
+  await openExplorerFilters(page)
   await page.getByRole('button', { name: /APIs/ }).click()
   await expect(page.getByTestId('explorer-decision-panel')).toContainText('APIs activo')
   await expect(page.getByTestId('explorer-decision-panel')).toContainText('Descartar vista')
@@ -2705,8 +3636,10 @@ test('explorer can clean a filtered queued view', async ({ page }) => {
   await page.getByRole('button', { name: 'Deshacer descarte' }).click()
   await expect(page.getByText('Odisea recuperado a la cola.')).toBeVisible()
   await expect(page.getByTestId('candidate-spotlight')).toContainText('Odisea')
+  await openExplorerFilters(page)
   await page.getByRole('button', { name: 'Descartar vista' }).click()
   await expect(page.getByText('Odisea descartado de la vista APIs.')).toBeVisible()
+  await openExplorerFilters(page)
   await page.getByRole('button', { name: 'Ver todos los origenes' }).click()
   await expect(page.getByTestId('candidate-spotlight')).toContainText('Nexo')
   await expect(page.getByTestId('candidate-spotlight')).toContainText('Odisea')
@@ -2717,10 +3650,12 @@ test('explorer can clean a filtered queued view', async ({ page }) => {
 test('explorer can save a filtered queued view in bulk and undo it', async ({ page }) => {
   await openApp(page)
   await page.getByRole('button', { name: 'Explorador', exact: true }).click()
+  await openExplorerTools(page)
   await page.getByLabel('Tipo de busqueda en explorador').selectOption('book')
   await page.getByLabel('Buscar en explorador').fill('Odisea')
   await page.getByRole('button', { name: 'Buscar' }).click()
 
+  await openExplorerFilters(page)
   await page.getByRole('button', { name: /APIs/ }).click()
   await expect(page.getByTestId('explorer-decision-panel')).toContainText('APIs activo')
   await expect(page.getByTestId('explorer-decision-panel')).toContainText('Guardar vista')
@@ -2730,12 +3665,15 @@ test('explorer can save a filtered queued view in bulk and undo it', async ({ pa
   await expect(page.getByTestId('explorer-completion')).toContainText('Bandeja resuelta')
   await expect(page.getByTestId('explorer-completion')).toContainText('APIs limpio')
   await page.getByTestId('explorer-completion').getByRole('button', { name: 'Ver guardados' }).click()
+  await openExplorerTools(page)
   await expect(page.getByRole('button', { name: 'Afinar ficha guardada Odisea' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Deshacer guardado de vista' })).toBeVisible()
+  await openExplorerFilters(page)
   await expect(page.getByRole('tab', { name: /Guardados 1/ })).toHaveAttribute('aria-selected', 'true')
 
   await page.getByRole('button', { name: 'Deshacer guardado de vista' }).click()
   await expect(page.getByText('Odisea recuperado a la cola y eliminado de Biblioteca.')).toBeVisible()
+  await openExplorerFilters(page)
   await expect(page.getByRole('tab', { name: /En cola 2/ })).toBeVisible()
   await page.getByRole('button', { name: 'Biblioteca', exact: true }).click()
   await expect(page.getByTestId('library-grid')).not.toContainText('Odisea')
@@ -2744,6 +3682,7 @@ test('explorer can save a filtered queued view in bulk and undo it', async ({ pa
 test('library editor explains private copies from the Nexo catalog', async ({ page }) => {
   await openApp(page)
   await page.getByRole('button', { name: 'Explorador', exact: true }).click()
+  await openExplorerTools(page)
   await page.getByLabel('Tipo de busqueda en explorador').selectOption('book')
   await page.getByLabel('Buscar en explorador').fill('Odisea')
   await page.getByRole('button', { name: 'Buscar' }).click()
@@ -2766,7 +3705,9 @@ test('library editor explains private copies from the Nexo catalog', async ({ pa
 test('moderator curation can create a public catalog item in demo mode', async ({ page }) => {
   await openApp(page)
   await page.getByRole('button', { name: 'Curacion' }).click()
-  await expect(page.getByRole('heading', { name: 'Curacion' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Catalogo Nexo' })).toBeVisible()
+  await expect(page.getByTestId('catalog-diagnostics')).not.toBeVisible()
+  await openCurationTools(page)
   await expect(page.getByTestId('catalog-diagnostics')).toContainText('Diagnostico')
   await expect(page.getByTestId('catalog-diagnostics')).toContainText('Portada')
   await expect(page.getByTestId('catalog-diagnostics')).toContainText('Descripcion')
@@ -2777,10 +3718,29 @@ test('moderator curation can create a public catalog item in demo mode', async (
   await expect(page.getByTestId('catalog-diagnostics')).not.toContainText('Viendo sin portada')
   await expect(page.getByRole('heading', { name: 'Revision prioritaria' })).toBeVisible()
   await expect(page.getByLabel('Revision prioritaria del catalogo')).toContainText('Sin portada')
+  const reviewQueueGeometry = await page.getByLabel('Revision prioritaria del catalogo').locator('.catalog-review-item').first().evaluate((card) => {
+    const rect = card.getBoundingClientRect()
+    const cover = card.querySelector('.cover-art')?.getBoundingClientRect()
+
+    return {
+      coverHeight: cover?.height ?? 0,
+      coverWidth: cover?.width ?? 0,
+      height: rect.height,
+      horizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+      viewportWidth: document.documentElement.clientWidth,
+    }
+  })
+  expect(reviewQueueGeometry.horizontalOverflow).toBe(false)
+  if (reviewQueueGeometry.viewportWidth < 760) {
+    expect(reviewQueueGeometry.height).toBeLessThanOrEqual(170)
+    expect(reviewQueueGeometry.coverWidth).toBeLessThanOrEqual(72)
+    expect(reviewQueueGeometry.coverHeight).toBeLessThanOrEqual(90)
+  }
   await page.getByRole('button', { name: 'Revisar Arrival' }).click()
   await expect(page.locator('.public-item-editor').getByLabel('Titulo')).toHaveValue('Arrival')
   await page.getByRole('button', { name: 'Cerrar', exact: true }).click()
 
+  await page.getByText('Herramientas de catalogo').click()
   const templateLauncher = page.getByRole('region', { name: 'Plantillas de curacion' })
   await expect(templateLauncher).toContainText('Empieza con generos predefinidos')
   await page.getByLabel('Medio de plantillas de curacion').selectOption('game')
@@ -2800,6 +3760,7 @@ test('moderator curation can create a public catalog item in demo mode', async (
   await page.getByRole('button', { name: 'Cerrar', exact: true }).click()
   await page.getByRole('button', { name: 'Descartar cambios' }).click()
 
+  await openCurationTools(page)
   const templateDownloadPromise = page.waitForEvent('download')
   await page.getByRole('button', { name: 'Plantilla', exact: true }).click()
   const templateDownload = await templateDownloadPromise
@@ -2848,6 +3809,7 @@ test('moderator curation can create a public catalog item in demo mode', async (
   await expect(page.getByText('Repair Probe combina Accion, Aventura, palomitas, visual')).toBeVisible()
   await expect(page.getByLabel('Revision prioritaria del catalogo')).toContainText('Sin portada')
 
+  await openCurationTools(page)
   await page.getByRole('button', { name: 'Crear Libros' }).click()
   const editor = page.locator('.item-editor')
   await expect(editor.getByLabel('Tipo')).toHaveValue('book')
@@ -2878,14 +3840,16 @@ test('moderator curation can create a public catalog item in demo mode', async (
 
   await expect(page.getByRole('heading', { name: 'Solaris' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Dune' })).toBeVisible()
-  await expect(page.getByRole('button', { name: /Pendientes \d+/ })).toBeVisible()
-  await page.getByRole('button', { name: /Pendientes/ }).click()
+  await expect(page.getByRole('button', { name: 'Ver pendientes' })).toBeVisible()
+  await page.getByRole('button', { name: 'Ver pendientes' }).click()
   await expect(page.getByRole('heading', { name: 'Dune' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Outer Wilds' })).not.toBeVisible()
+  await openCurationTools(page)
   await page.getByLabel('Filtrar catalogo por tipo').selectOption('manhwa')
   await expect(page.getByRole('heading', { name: 'Sin entradas con esos filtros' })).toBeVisible()
   await page.getByRole('button', { name: 'Ver todo el catalogo' }).click()
   await expect(page.getByRole('heading', { name: 'Solaris' })).toBeVisible()
+  await openCurationTools(page)
   await page.getByLabel('Ordenar catalogo').selectOption('title')
   await expect(page.getByText(/\d+ de \d+ entradas visibles/)).toBeVisible()
   await expect(page.getByRole('button', { name: 'Editar Solaris' })).toBeVisible()
@@ -2956,20 +3920,29 @@ test('moderator can undo a public catalog seed import', async ({ page }) => {
 test('moderator can turn an explorer candidate into a public catalog item', async ({ page }) => {
   await openApp(page)
   await page.getByRole('button', { name: 'Explorador', exact: true }).click()
+  await openExplorerTools(page)
+  await page.getByLabel('Tipo de busqueda en explorador').selectOption('any')
   await page.getByLabel('Buscar en explorador').fill('V Rising')
   await page.getByRole('button', { name: 'Buscar' }).click()
 
-  await expect(page.getByRole('button', { name: 'Crear catalogo V Rising' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Crear catalogo V Rising' })).toBeVisible({ timeout: 15000 })
   await page.getByRole('button', { name: 'Crear catalogo V Rising' }).click()
 
   const editor = page.locator('.public-item-editor')
   await expect(editor.getByLabel('Titulo')).toHaveValue('V Rising')
-  await expect(editor.getByLabel('Descripcion')).toHaveValue('Candidato de demostracion hasta configurar Firebase Functions.')
-  await expect(editor.getByLabel('Tipo')).toHaveValue('movie')
+  await expect(editor.getByLabel('Descripcion')).toHaveValue(/Candidato de demostracion|video game developed by/i)
+  const publicEditorType = await editor.getByLabel('Tipo').inputValue()
 
-  await editor.getByRole('button', { name: 'Noche palomitas' }).click()
-  await expect(editor.getByLabel('Generos', { exact: true })).toHaveValue('Accion, Aventura')
-  await expect(editor.getByLabel('Tags', { exact: true })).toHaveValue('palomitas, visual')
+  if (publicEditorType === 'game') {
+    await editor.getByRole('button', { name: 'Survival craft' }).click()
+    await expect(editor.getByLabel('Generos', { exact: true })).toHaveValue(/Supervivencia, Crafting, Accion/)
+    await expect(editor.getByLabel('Tags', { exact: true })).toHaveValue(/cooperativo, base building, mundo abierto/)
+  } else {
+    await expect(editor.getByLabel('Tipo')).toHaveValue('movie')
+    await editor.getByRole('button', { name: 'Noche palomitas' }).click()
+    await expect(editor.getByLabel('Generos', { exact: true })).toHaveValue('Accion, Aventura')
+    await expect(editor.getByLabel('Tags', { exact: true })).toHaveValue('palomitas, visual')
+  }
   await editor.getByRole('button', { name: 'Guardar en catalogo' }).click()
 
   await expect(page.getByText('V Rising guardado en catalogo Nexo.')).toBeVisible()
@@ -2990,6 +3963,7 @@ test('delete all requires explicit confirmation', async ({ page }) => {
   await expect(page.getByText('Mass Effect Legendary Edition recuperado en Biblioteca')).toBeVisible()
   await expect(page.getByTestId('library-grid')).toContainText('Mass Effect Legendary Edition')
 
+  await openLibraryAdvanced(page)
   await page.getByRole('button', { name: 'Borrar todo' }).click()
   await expect(page.getByRole('heading', { name: 'Borrar toda la biblioteca' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Borrar todo' }).last()).toBeDisabled()
@@ -3010,8 +3984,10 @@ test('library cards stay legible at 1920x1080', async ({ page }, testInfo) => {
 
   await page.setViewportSize({ width: 1920, height: 1080 })
   await openApp(page)
-  await expect(page.getByRole('heading', { name: 'Biblioteca privada' })).toBeVisible()
+  await expect(page.getByTestId('library-masthead')).toContainText('Biblioteca')
+  await expect(page.getByRole('button', { name: 'Tarjetas' })).toHaveCount(0)
   await expect(page.getByTestId('library-grid')).toBeVisible()
+  await expectLibraryGridAnimationsSettled(page)
 
   const metrics = await page.getByTestId('library-grid').evaluate((grid) => {
     const cards = Array.from(grid.querySelectorAll('.item-card')).slice(0, 6)
@@ -3023,17 +3999,44 @@ test('library cards stay legible at 1920x1080', async ({ page }, testInfo) => {
         const mainElement = cardElement.querySelector('.item-main') as HTMLElement | null
         const actionsElement = cardElement.querySelector('.card-actions') as HTMLElement | null
         const coverElement = cardElement.querySelector('.cover-art') as HTMLElement | null
+        const coverTitle = coverElement?.querySelector('.cover-art-title') as HTMLElement | null
+        const coverType = coverElement?.querySelector('.cover-art-type') as HTMLElement | null
+        const primaryAction = cardElement.querySelector('.card-primary-action') as HTMLElement | null
+        const primaryLabel = primaryAction?.querySelector('span') as HTMLElement | null
         const cardRect = cardElement.getBoundingClientRect()
         const mainRect = mainElement?.getBoundingClientRect()
         const actionsRect = actionsElement?.getBoundingClientRect()
         const coverRect = coverElement?.getBoundingClientRect()
+        const primaryRect = primaryAction?.getBoundingClientRect()
+        const primaryLabelRect = primaryLabel?.getBoundingClientRect()
+        const primaryLabelStyle = primaryLabel ? getComputedStyle(primaryLabel) : null
+        const posterBackplateStyle = getComputedStyle(cardElement, '::after')
 
         return {
           actionsHeight: actionsRect?.height ?? 0,
           actionsTop: actionsRect?.top ?? 0,
           coverHeight: coverRect?.height ?? 0,
+          coverTextVisible: Boolean(
+            coverTitle &&
+              coverTitle.getBoundingClientRect().width > 0 &&
+              coverTitle.getBoundingClientRect().height > 0,
+          ),
+          coverTypeVisible: Boolean(
+            coverType &&
+              coverType.getBoundingClientRect().width > 0 &&
+              coverType.getBoundingClientRect().height > 0,
+          ),
           coverWidth: coverRect?.width ?? 0,
+          backgroundRoom: cardRect.width - (coverRect?.width ?? 0),
+          hasPosterBackplate: cardElement.classList.contains('has-poster'),
+          title: cardElement.querySelector('.item-identity h3')?.textContent?.trim() ?? '',
           mainBottom: mainRect?.bottom ?? 0,
+          posterBackplateImage: posterBackplateStyle.backgroundImage,
+          posterBackplateOpacity: Number(posterBackplateStyle.opacity),
+          primaryLabelOpacity: Number(primaryLabelStyle?.opacity ?? 1),
+          primaryLabelWidth: primaryLabelRect?.width ?? 0,
+          primaryLabelScrollWidth: primaryLabel?.scrollWidth ?? 0,
+          primaryWidth: primaryRect?.width ?? 0,
           top: cardRect.top,
           width: cardRect.width,
         }
@@ -3045,14 +4048,62 @@ test('library cards stay legible at 1920x1080', async ({ page }, testInfo) => {
 
   expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.viewportWidth + 1)
   expect(metrics.cards.length).toBeGreaterThanOrEqual(4)
-  expect(firstRowCards.length).toBeLessThanOrEqual(4)
+  expect(firstRowCards.length).toBe(4)
+  const posterCards = metrics.cards.filter((card) => card.hasPosterBackplate)
+  expect(posterCards.length).toBeGreaterThan(0)
+  for (const card of posterCards) {
+    expect(card.posterBackplateImage).toContain('url(')
+    expect(card.posterBackplateOpacity).toBeGreaterThanOrEqual(0.14)
+  }
+  const generatedBackplateCards = metrics.cards.filter((card) => !card.hasPosterBackplate)
+  expect(generatedBackplateCards.length).toBeGreaterThan(0)
+  for (const card of generatedBackplateCards) {
+    expect(card.posterBackplateImage).not.toBe('none')
+    expect(card.posterBackplateImage).toContain('radial-gradient')
+    expect(card.posterBackplateOpacity).toBeGreaterThanOrEqual(0.12)
+  }
   for (const card of firstRowCards) {
-    expect(card.width).toBeGreaterThanOrEqual(335)
+    expect(card.width).toBeGreaterThanOrEqual(360)
     expect(card.coverWidth).toBeGreaterThanOrEqual(100)
-    expect(card.coverHeight).toBeLessThanOrEqual(180)
+    expect(card.coverWidth).toBeLessThanOrEqual(160)
+    expect(card.backgroundRoom).toBeGreaterThanOrEqual(220)
+    expect(card.coverHeight).toBeGreaterThanOrEqual(170)
+    expect(card.coverHeight).toBeLessThanOrEqual(240)
+    if (card.hasPosterBackplate) {
+      expect(card.coverTextVisible).toBe(false)
+      expect(card.coverTypeVisible).toBe(false)
+    } else {
+      expect(card.coverTextVisible).toBe(false)
+      expect(card.coverTypeVisible).toBe(false)
+    }
     expect(card.actionsHeight).toBeGreaterThanOrEqual(40)
     expect(card.mainBottom).toBeLessThanOrEqual(card.actionsTop + 1)
+    expect(card.primaryLabelOpacity).toBeGreaterThanOrEqual(0.9)
+    expect(card.primaryLabelWidth).toBeGreaterThanOrEqual(42)
+    expect(card.primaryWidth).toBeGreaterThanOrEqual(128)
   }
+
+  const firstCard = page.getByTestId('library-grid').locator('.item-card').first()
+  await firstCard.hover()
+  await page.waitForTimeout(180)
+  const hoverMetrics = await firstCard.evaluate((card) => {
+    const primaryAction = card.querySelector('.card-primary-action') as HTMLElement | null
+    const primaryLabel = primaryAction?.querySelector('span') as HTMLElement | null
+    const primaryRect = primaryAction?.getBoundingClientRect()
+    const primaryLabelRect = primaryLabel?.getBoundingClientRect()
+    const primaryLabelStyle = primaryLabel ? getComputedStyle(primaryLabel) : null
+
+    return {
+      primaryLabelOpacity: Number(primaryLabelStyle?.opacity ?? 0),
+      primaryLabelWidth: primaryLabelRect?.width ?? 0,
+      primaryWidth: primaryRect?.width ?? 0,
+    }
+  })
+
+  expect(hoverMetrics.primaryLabelOpacity).toBeGreaterThanOrEqual(0.9)
+  expect(hoverMetrics.primaryLabelWidth).toBeGreaterThanOrEqual(42)
+  expect(hoverMetrics.primaryWidth).toBeGreaterThanOrEqual(128)
+  expect(hoverMetrics.primaryWidth).toBeLessThanOrEqual(360)
 })
 
 test('library cards fit the mobile PWA viewport', async ({ page }, testInfo) => {
@@ -3060,7 +4111,7 @@ test('library cards fit the mobile PWA viewport', async ({ page }, testInfo) => 
 
   await page.setViewportSize({ width: 390, height: 844 })
   await openApp(page)
-  await expect(page.getByRole('heading', { name: 'Biblioteca privada' })).toBeVisible()
+  await expectLibrarySurface(page)
   await expect(page.getByTestId('library-grid')).toBeVisible()
 
   const metrics = await page.getByTestId('library-grid').evaluate((grid) => {
@@ -3069,6 +4120,7 @@ test('library cards fit the mobile PWA viewport', async ({ page }, testInfo) => 
     return {
       gridWidth: gridRect.width,
       scrollWidth: document.documentElement.scrollWidth,
+      viewportHeight: document.documentElement.clientHeight,
       viewportWidth: document.documentElement.clientWidth,
       cards: cards.map((card) => {
         const cardElement = card as HTMLElement
@@ -3081,6 +4133,7 @@ test('library cards fit the mobile PWA viewport', async ({ page }, testInfo) => 
         return {
           actionsHeight: actionsRect?.height ?? 0,
           left: cardRect.left,
+          top: cardRect.top,
           primaryHeight: primaryRect?.height ?? 0,
           right: cardRect.right,
           width: cardRect.width,
@@ -3097,10 +4150,12 @@ test('library cards fit the mobile PWA viewport', async ({ page }, testInfo) => 
     expect(card.actionsHeight).toBeGreaterThanOrEqual(44)
     expect(card.primaryHeight).toBeGreaterThanOrEqual(44)
   }
+  expect(metrics.cards[0]?.top).toBeLessThanOrEqual(metrics.viewportHeight)
 
   await page.locator('.item-main').filter({ hasText: 'Outer Wilds' }).click()
-  await expect(page.getByRole('dialog', { name: 'Entrada' })).toBeVisible()
-  const dialogMetrics = await page.getByRole('dialog', { name: 'Entrada' }).evaluate((dialog) => {
+  const entryDialog = page.getByRole('dialog', { name: 'Entrada' })
+  await expectDialogAnimationsSettled(entryDialog)
+  const dialogMetrics = await entryDialog.evaluate((dialog) => {
     const backdrop = dialog.closest('.modal-backdrop') as HTMLElement | null
     const rect = dialog.getBoundingClientRect()
     const backdropStyle = backdrop ? window.getComputedStyle(backdrop) : undefined
@@ -3135,7 +4190,105 @@ test('library cards fit the mobile PWA viewport', async ({ page }, testInfo) => 
   expect(dialogMetrics.bottom).toBeLessThanOrEqual(dialogMetrics.viewportHeight - dialogMetrics.paddingBottom + geometryTolerance)
 })
 
-test('settings layout keeps the status area compact', async ({ page }, testInfo) => {
+test('explorer starts as a visual discovery surface', async ({ page }, testInfo) => {
+  if (testInfo.project.name === 'chromium') {
+    await page.setViewportSize({ width: 1920, height: 1080 })
+  } else {
+    await page.setViewportSize({ width: 390, height: 844 })
+  }
+
+  await openApp(page)
+  await page.getByRole('button', { name: 'Explorador', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Sorprendeme' })).toBeVisible()
+  await expect(page.getByLabel('Tipo para descubrir')).toBeVisible()
+  await expect(page.getByLabel('Duracion para descubrir')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Sorprendeme' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Descubrir' })).toHaveCount(0)
+  await expect(page.getByLabel('Buscar en explorador')).not.toBeVisible()
+  await expect(page.locator('details.explorer-tools-panel').first()).not.toHaveAttribute('open', '')
+
+  const metrics = await page.evaluate(() => {
+    const command = document.querySelector('.explorer-command') as HTMLElement | null
+    const search = document.querySelector('.explorer-command-search') as HTMLElement | null
+    const advanced = document.querySelector('details.explorer-tools-panel') as HTMLDetailsElement | null
+    const visibleSearch = search ? search.getBoundingClientRect() : undefined
+
+    return {
+      advancedOpen: Boolean(advanced?.open),
+      commandHeight: command?.getBoundingClientRect().height ?? 0,
+      scrollWidth: document.documentElement.scrollWidth,
+      searchBottom: visibleSearch?.bottom ?? 0,
+      searchRight: visibleSearch?.right ?? 0,
+      searchWidth: visibleSearch?.width ?? 0,
+      viewportHeight: document.documentElement.clientHeight,
+      viewportWidth: document.documentElement.clientWidth,
+    }
+  })
+
+  expect(metrics.advancedOpen).toBe(false)
+  expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.viewportWidth + 1)
+  expect(metrics.searchRight).toBeLessThanOrEqual(metrics.viewportWidth + 1)
+  expect(metrics.searchBottom).toBeLessThan(metrics.viewportHeight)
+
+  if (testInfo.project.name === 'chromium') {
+    expect(metrics.commandHeight).toBeLessThanOrEqual(240)
+    expect(metrics.searchWidth).toBeGreaterThanOrEqual(820)
+  } else {
+    expect(metrics.commandHeight).toBeLessThanOrEqual(260)
+    expect(metrics.searchWidth).toBeLessThanOrEqual(metrics.viewportWidth)
+  }
+})
+
+test('dice result owns the stage without mobile overflow', async ({ page }, testInfo) => {
+  if (testInfo.project.name === 'chromium') {
+    await page.setViewportSize({ width: 1920, height: 1080 })
+  } else {
+    await page.setViewportSize({ width: 390, height: 844 })
+  }
+
+  await openApp(page)
+  await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await page.getByTestId('roll-button').click()
+  await expect(page.getByTestId('recommendation-result')).toContainText('Dado eligio')
+
+  const metrics = await page.evaluate(() => {
+    const layout = document.querySelector('.dice-layout') as HTMLElement
+    const hero = document.querySelector('.dice-hero') as HTMLElement
+    const result = document.querySelector('.result-panel') as HTMLElement
+    const head = document.querySelector('.recommendation-head') as HTMLElement
+    const decision = document.querySelector('.recommendation-decision') as HTMLElement
+    const resultRect = result.getBoundingClientRect()
+    const layoutRect = layout.getBoundingClientRect()
+    const heroRect = hero.getBoundingClientRect()
+    const headRect = head.getBoundingClientRect()
+    const decisionRect = decision.getBoundingClientRect()
+
+    return {
+      decisionBottom: decisionRect.bottom,
+      decisionRight: decisionRect.right,
+      headRight: headRect.right,
+      heroWidth: heroRect.width,
+      layoutWidth: layoutRect.width,
+      resultWidth: resultRect.width,
+      scrollWidth: document.documentElement.scrollWidth,
+      viewportHeight: document.documentElement.clientHeight,
+      viewportWidth: document.documentElement.clientWidth,
+    }
+  })
+
+  expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.viewportWidth + 1)
+  expect(metrics.headRight).toBeLessThanOrEqual(metrics.viewportWidth + 1)
+  expect(metrics.decisionRight).toBeLessThanOrEqual(metrics.viewportWidth + 1)
+
+  if (testInfo.project.name === 'chromium') {
+    expect(metrics.resultWidth).toBeGreaterThanOrEqual(metrics.layoutWidth - 4)
+    expect(Math.abs(metrics.resultWidth - metrics.heroWidth)).toBeLessThanOrEqual(4)
+  } else {
+    expect(metrics.decisionBottom).toBeLessThanOrEqual(metrics.viewportHeight + 1)
+  }
+})
+
+test('settings layout keeps theme identity first and status compact', async ({ page }, testInfo) => {
   if (testInfo.project.name === 'chromium') {
     await page.setViewportSize({ width: 1920, height: 1080 })
   } else {
@@ -3144,29 +4297,136 @@ test('settings layout keeps the status area compact', async ({ page }, testInfo)
 
   await openApp(page)
   await page.getByRole('button', { name: 'Ajustes', exact: true }).click()
+  await expect(page.getByTestId('settings-theme-stage')).toBeVisible()
   await expect(page.getByTestId('settings-confidence')).toBeVisible()
+  await expect(page.getByTestId('settings-account-drawer')).not.toHaveAttribute('open', '')
+  await expect(page.getByTestId('settings-private-data-drawer')).not.toHaveAttribute('open', '')
 
   const metrics = await page.locator('.settings-panel').evaluate((panel) => {
     const heading = panel.querySelector('.panel-heading') as HTMLElement | null
     const status = panel.querySelector('.settings-status') as HTMLElement | null
+    const themeStage = panel.querySelector('[data-testid="settings-theme-stage"]') as HTMLElement | null
+    const themePreview = panel.querySelector('.settings-theme-preview') as HTMLElement | null
     const confidence = panel.querySelector('.settings-confidence-panel') as HTMLElement | null
+    const tastePanel = panel.querySelector('.settings-taste-panel') as HTMLDetailsElement | null
     const headingRect = heading?.getBoundingClientRect()
     const statusRect = status?.getBoundingClientRect()
+    const themeStageRect = themeStage?.getBoundingClientRect()
     const confidenceRect = confidence?.getBoundingClientRect()
+    const themePreviewRect = themePreview?.getBoundingClientRect()
+    const statusVisible = Boolean(statusRect && statusRect.width > 0 && statusRect.height > 0)
+    const visibleThemeOptions = Array.from(panel.querySelectorAll('.theme-option')).filter((button) => {
+      const rect = (button as HTMLElement).getBoundingClientRect()
+      return rect.width > 0 && rect.height > 0
+    }).length
+    const visibleTasteInputs = Array.from(panel.querySelectorAll('.settings-taste-content input')).filter((input) => {
+      const rect = (input as HTMLElement).getBoundingClientRect()
+      return rect.width > 0 && rect.height > 0
+    }).length
 
     return {
+      headingConfidenceGap: headingRect && confidenceRect ? confidenceRect.top - headingRect.bottom : 0,
       headingStatusGap: headingRect && statusRect ? statusRect.top - headingRect.bottom : 0,
+      headingThemeGap: headingRect && themeStageRect ? themeStageRect.top - headingRect.bottom : 0,
       scrollWidth: document.documentElement.scrollWidth,
       statusConfidenceGap: statusRect && confidenceRect ? confidenceRect.top - statusRect.bottom : 0,
       statusHeight: statusRect?.height ?? 0,
+      statusVisible,
+      themeBeforeConfidence: Boolean(themeStageRect && confidenceRect && themeStageRect.bottom <= confidenceRect.top),
+      themeConfidenceGap: themeStageRect && confidenceRect ? confidenceRect.top - themeStageRect.bottom : 0,
+      themePreviewVisible: Boolean(themePreviewRect && themePreviewRect.width > 0 && themePreviewRect.height > 0),
+      themeStageHeight: themeStageRect?.height ?? 0,
+      tastePanelOpen: Boolean(tastePanel?.open),
       viewportWidth: document.documentElement.clientWidth,
+      visibleThemeOptions,
+      visibleTasteInputs,
     }
   })
 
   expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.viewportWidth + 1)
-  expect(metrics.headingStatusGap).toBeLessThanOrEqual(48)
-  expect(metrics.statusHeight).toBeLessThanOrEqual(66)
-  expect(metrics.statusConfidenceGap).toBeLessThanOrEqual(24)
+  expect(metrics.headingThemeGap).toBeLessThanOrEqual(48)
+  expect(metrics.themeBeforeConfidence).toBe(true)
+  expect(metrics.themeConfidenceGap).toBeLessThanOrEqual(24)
+  expect(metrics.visibleThemeOptions).toBe(7)
+  if (testInfo.project.name === 'chromium') {
+    expect(metrics.themeStageHeight).toBeLessThanOrEqual(250)
+    expect(metrics.themePreviewVisible).toBe(true)
+  } else {
+    expect(metrics.themeStageHeight).toBeLessThanOrEqual(160)
+    expect(metrics.themePreviewVisible).toBe(false)
+  }
+  if (metrics.statusVisible) {
+    expect(metrics.headingStatusGap).toBeLessThanOrEqual(48)
+    expect(metrics.statusHeight).toBeLessThanOrEqual(66)
+    expect(metrics.statusConfidenceGap).toBeLessThanOrEqual(24)
+  } else {
+    expect(metrics.headingConfidenceGap).toBeGreaterThan(metrics.headingThemeGap)
+  }
+  expect(metrics.tastePanelOpen).toBe(false)
+  expect(metrics.visibleTasteInputs).toBe(0)
+
+  const drawerMetrics = await page.locator('.settings-side').evaluate((side) => {
+    const drawers = Array.from(side.querySelectorAll('.settings-drawer')).map((drawer) => {
+      const rect = drawer.getBoundingClientRect()
+      return {
+        height: rect.height,
+        open: (drawer as HTMLDetailsElement).open,
+        width: rect.width,
+      }
+    })
+
+    return {
+      drawerCount: drawers.length,
+      drawers,
+      sideHeight: side.getBoundingClientRect().height,
+    }
+  })
+  expect(drawerMetrics.drawerCount).toBeGreaterThanOrEqual(3)
+  expect(drawerMetrics.drawers.every((drawer) => !drawer.open)).toBe(true)
+  if (testInfo.project.name === 'chromium') {
+    expect(drawerMetrics.sideHeight).toBeLessThanOrEqual(120)
+  } else {
+    expect(drawerMetrics.drawers.every((drawer) => drawer.height <= 104)).toBe(true)
+  }
+})
+
+test('all themes keep core views legible without layout overflow', async ({ page }, testInfo) => {
+  if (testInfo.project.name === 'chromium') {
+    await page.setViewportSize({ width: 1920, height: 1080 })
+  } else {
+    await page.setViewportSize({ width: 390, height: 844 })
+  }
+
+  const themes = ['dark', 'light', 'rose', 'forest', 'ocean', 'mint', 'aurora']
+  const tabs = ['Biblioteca', 'Dado', 'Explorador', 'Ajustes']
+
+  await mockOpenLibraryOdisea(page)
+  await page.goto('/')
+
+  for (const theme of themes) {
+    await page.evaluate((nextTheme) => {
+      window.localStorage.setItem('nexo-theme', nextTheme)
+      window.sessionStorage.removeItem('nexo-library-advanced')
+    }, theme)
+    await page.reload({ waitUntil: 'networkidle' })
+    await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
+
+    for (const tab of tabs) {
+      await page.getByRole('button', { name: tab, exact: true }).click()
+      await expect(page.getByRole('button', { name: tab, exact: true })).toHaveAttribute('aria-current', 'page')
+      await expectNoVisibleTextClipping(page)
+
+      const geometry = await page.evaluate(() => ({
+        scrollWidth: document.documentElement.scrollWidth,
+        viewportWidth: document.documentElement.clientWidth,
+      }))
+      expect(geometry.scrollWidth, `${theme} ${tab} horizontal overflow`).toBeLessThanOrEqual(geometry.viewportWidth + 1)
+
+      const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze()
+      const seriousViolations = results.violations.filter((violation) => ['serious', 'critical'].includes(violation.impact ?? ''))
+      expect(seriousViolations, `${theme} ${tab} has serious accessibility violations`).toEqual([])
+    }
+  }
 })
 
 test('core tabs have no serious accessibility violations', async ({ page }) => {
@@ -3185,14 +4445,14 @@ test('core tabs have no serious accessibility violations', async ({ page }) => {
 
 test('editors have no serious accessibility violations', async ({ page }) => {
   await openApp(page)
-  await page.getByRole('button', { name: 'Anadir' }).first().click()
-  await expectDialogAnimationsSettled(page.getByRole('dialog', { name: 'Entrada' }))
+  await openManualEntryEditor(page)
   let results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze()
   let seriousViolations = results.violations.filter((violation) => ['serious', 'critical'].includes(violation.impact ?? ''))
   expect(seriousViolations, 'private editor has serious accessibility violations').toEqual([])
   await page.getByRole('button', { name: 'Cerrar', exact: true }).click()
 
   await page.getByRole('button', { name: 'Curacion' }).click()
+  await page.getByText('Herramientas de catalogo').click()
   await page.getByRole('button', { name: 'Crear Libros' }).click()
   await expectDialogAnimationsSettled(page.locator('.public-item-editor'))
   results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze()

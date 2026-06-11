@@ -28,7 +28,7 @@ export const demoPublicCatalog: PublicCatalogItem[] = [
       genres: ['misterio', 'exploracion', 'sci-fi'],
       tags: ['juego', 'raro', 'sin spoilers'],
       moodTags: ['sorpresa', 'intenso'],
-      posterUrl: 'https://images.igdb.com/igdb/image/upload/t_cover_big/co1bk6.jpg',
+      posterUrl: 'https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/753640/library_600x900_2x.jpg',
     },
     'demo-moderator',
   ),

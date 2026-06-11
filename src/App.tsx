@@ -5,6 +5,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type Dispatch,
   type KeyboardEvent,
   type ReactNode,
@@ -23,7 +24,6 @@ import {
   Film,
   Gamepad2,
   HelpCircle,
-  LayoutGrid,
   Library,
   List,
   LockKeyhole,
@@ -41,7 +41,9 @@ import {
   Save,
   Search,
   ShieldCheck,
+  SlidersHorizontal,
   Sparkles,
+  Star,
   Trash2,
   Upload,
   X,
@@ -66,6 +68,7 @@ import {
   type ExplorerSearchType,
   type ItemStatus,
   type ItemType,
+  type LibraryCardsPerRow,
   type LibraryViewMode,
   type ListItem,
   type PublicCatalogItem,
@@ -110,9 +113,7 @@ import {
   type CatalogSortMode,
 } from './lib/catalogInsights'
 import {
-  diceEnergyLabels as energyLabels,
   diceIntensityLabels as intensityLabels,
-  diceNoveltyLabels as noveltyLabels,
   getActiveDiceFilters,
   getDiceEligibilityBreakdown,
   getDiceScoreMeterWidth,
@@ -187,7 +188,7 @@ import {
   type PublicCatalogSeedSummary,
 } from './lib/publicCatalogSeed'
 import { recommendItem, scoreCandidates } from './lib/recommendations'
-import { externalSourceCredits } from './services/externalSearch'
+import { discoverExternalCandidate, externalSourceCredits, type ExternalDiscoverDuration, type ExternalDiscoverType } from './services/externalSearch'
 import { applyServiceWorkerUpdate, SERVICE_WORKER_UPDATE_READY_EVENT } from './services/serviceWorker'
 import {
   mergeListText,
@@ -207,10 +208,7 @@ const librarySortLabels: Record<LibrarySortMode, string> = {
   rating: 'Rating',
 }
 
-const libraryViewLabels: Record<LibraryViewMode, string> = {
-  cards: 'Tarjetas',
-  list: 'Lista',
-}
+const libraryCardsPerRowOptions: LibraryCardsPerRow[] = [4, 5, 6]
 
 const libraryCatalogSearchTypes: Array<{ id: ExplorerSearchType; label: string }> = [
   { id: 'any', label: 'Todo' },
@@ -220,6 +218,22 @@ const libraryCatalogSearchTypes: Array<{ id: ExplorerSearchType; label: string }
   { id: 'anime', label: 'Anime' },
   { id: 'manga', label: 'Manga' },
   { id: 'manhwa', label: 'Manhwa' },
+]
+
+const explorerDiscoverTypeOptions: Array<{ id: ExternalDiscoverType; label: string }> = [
+  { id: 'any', label: 'Cualquiera' },
+  { id: 'movie', label: 'Pelicula' },
+  { id: 'series', label: 'Serie' },
+  { id: 'animeManga', label: 'Anime/Manga' },
+  { id: 'game', label: 'Juego' },
+  { id: 'book', label: 'Libro' },
+]
+
+const explorerDiscoverDurationOptions: Array<{ id: ExternalDiscoverDuration; label: string }> = [
+  { id: 'any', label: 'Cualquiera' },
+  { id: 'short', label: 'Corto' },
+  { id: 'medium', label: 'Medio' },
+  { id: 'long', label: 'Largo' },
 ]
 
 type LibraryPriorityLevel = 'low' | 'normal' | 'high'
@@ -286,6 +300,45 @@ const themeMetaColors: Record<ThemeMode, string> = {
   mint: '#f5fbf7',
   ocean: '#0d1726',
   rose: '#fff5f8',
+}
+
+const coverArtPalettes: Record<ItemType, Array<[string, string, string]>> = {
+  anime: [
+    ['#7dd3fc', '#c084fc', '#0f172a'],
+    ['#f9a8d4', '#67e8f9', '#1e1b4b'],
+  ],
+  book: [
+    ['#fbbf24', '#7c3aed', '#1c1917'],
+    ['#f59e0b', '#10b981', '#111827'],
+  ],
+  comic: [
+    ['#fb7185', '#fde047', '#18181b'],
+    ['#38bdf8', '#fb923c', '#111827'],
+  ],
+  game: [
+    ['#34d399', '#60a5fa', '#06130f'],
+    ['#22d3ee', '#a3e635', '#111827'],
+  ],
+  manga: [
+    ['#f472b6', '#facc15', '#1f1020'],
+    ['#a78bfa', '#fda4af', '#18181b'],
+  ],
+  manhwa: [
+    ['#2dd4bf', '#f472b6', '#111827'],
+    ['#60a5fa', '#fbbf24', '#0f172a'],
+  ],
+  movie: [
+    ['#93c5fd', '#f97316', '#111827'],
+    ['#38bdf8', '#c084fc', '#0f172a'],
+  ],
+  other: [
+    ['#a7f3d0', '#f0abfc', '#111827'],
+    ['#fde68a', '#67e8f9', '#1f2937'],
+  ],
+  series: [
+    ['#818cf8', '#22c55e', '#111827'],
+    ['#fda4af', '#60a5fa', '#1e1b4b'],
+  ],
 }
 
 type BeforeInstallPromptEvent = Event & {
@@ -379,11 +432,6 @@ type ActivityFocus = ActivityTarget
 type AppTab = ActivityTab
 interface LibrarySmartViewRequest {
   id: LibrarySmartView
-  requestId: number
-}
-
-interface LibraryViewModeRequest {
-  mode: LibraryViewMode
   requestId: number
 }
 
@@ -544,7 +592,6 @@ type PendingNavigation = {
   librarySmartView?: LibrarySmartView
   libraryTypeFilter?: ItemType
   libraryVisibleSelection?: boolean
-  libraryViewMode?: LibraryViewMode
   settingsTasteSuggestions?: boolean
   settingsTaxonomyRepair?: boolean
   source: 'app' | 'history'
@@ -738,10 +785,12 @@ function DialogFocusReturn() {
 
 interface ShellNavItem {
   description: string
+  displayLabel?: string
   hidden?: boolean
   icon: typeof Library
   id: AppTab
   label: string
+  shortLabel?: string
 }
 
 const activityTabLabels: Record<AppTab, string> = {
@@ -785,8 +834,29 @@ const promptDeck = [
   'Un pendiente que merezca segunda oportunidad',
 ]
 
+const fallbackExplorerStarters: Array<{
+  id: string
+  kicker: string
+  posterUrl?: string
+  query: string
+  searchType: ExplorerSearchType
+  title: string
+  type: ItemType
+}> = [
+  { id: 'frieren', kicker: 'Anime tranquilo', query: 'Frieren', searchType: 'anime', title: 'Frieren', type: 'anime' },
+  { id: 'hollow-knight', kicker: 'Juego con mundo propio', query: 'Hollow Knight', searchType: 'game', title: 'Hollow Knight', type: 'game' },
+]
+
 const curationStarterTypes: ItemType[] = ['book', 'game', 'movie', 'series', 'anime', 'manga']
 const urlAddressableTabs: AppTab[] = ['library', 'dice', 'explorer', 'settings']
+
+function explorerSearchTypeForItemType(itemType: ItemType): ExplorerSearchType {
+  if (itemType === 'movie' || itemType === 'series') return 'watch'
+  if (itemType === 'game' || itemType === 'book' || itemType === 'anime' || itemType === 'manga' || itemType === 'manhwa') {
+    return itemType
+  }
+  return 'any'
+}
 
 function readInitialAppTab(): AppTab {
   const searchParams = new URLSearchParams(window.location.search)
@@ -957,6 +1027,24 @@ function cloneActivityEntry(entry: ActivityEntry): ActivityEntry {
   }
 }
 
+function useCloseDetailsOnOutsideClick() {
+  useEffect(() => {
+    function closeOpenDetails(event: MouseEvent) {
+      const target = event.target
+      if (!(target instanceof Node)) return
+      const origin = target instanceof Element ? target : target.parentElement
+      if (origin?.closest('[data-keep-details-open]')) return
+
+      document.querySelectorAll<HTMLDetailsElement>('details[data-close-on-outside][open]').forEach((details) => {
+        if (!details.contains(target)) details.open = false
+      })
+    }
+
+    window.addEventListener('click', closeOpenDetails)
+    return () => window.removeEventListener('click', closeOpenDetails)
+  }, [])
+}
+
 function App() {
   const auth = useAuth()
   const library = useLibrary(auth.user)
@@ -979,7 +1067,6 @@ function App() {
   const [librarySmartViewRequest, setLibrarySmartViewRequest] = useState<LibrarySmartViewRequest | undefined>()
   const [libraryTypeFilterRequest, setLibraryTypeFilterRequest] = useState<LibraryTypeFilterRequest | undefined>()
   const [libraryVisibleSelectionRequest, setLibraryVisibleSelectionRequest] = useState<LibraryVisibleSelectionRequest | undefined>()
-  const [libraryViewModeRequest, setLibraryViewModeRequest] = useState<LibraryViewModeRequest | undefined>()
   const [diceRollRequest, setDiceRollRequest] = useState<DiceRollRequest | undefined>()
   const [dicePreferencesSaveRequest, setDicePreferencesSaveRequest] = useState<DicePreferencesSaveRequest | undefined>()
   const [diceCooldownReactivateRequest, setDiceCooldownReactivateRequest] = useState<DiceCooldownReactivateRequest | undefined>()
@@ -999,7 +1086,6 @@ function App() {
   >()
   const [diceRollSummary, setDiceRollSummary] = useState<DiceRollSummary | undefined>()
   const [quickSearchOpen, setQuickSearchOpen] = useState(false)
-  const [themeMenuOpen, setThemeMenuOpen] = useState(false)
   const [serviceWorkerUpdateReady, setServiceWorkerUpdateReady] = useState(false)
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | undefined>()
   const [isOffline, setIsOffline] = useState(() => 'onLine' in navigator && !navigator.onLine)
@@ -1055,7 +1141,7 @@ function App() {
   )
   const quickSearchDiceRollSummary =
     activeTab === 'dice' && diceRollSummary ? diceRollSummary : fallbackDiceRollSummary
-  const activeThemeOption = themeOptions.find((option) => option.id === theme) ?? themeOptions[0]
+  useCloseDetailsOnOutsideClick()
 
   useEffect(() => {
     if (!auth.isFirebaseConfigured) return
@@ -1121,7 +1207,6 @@ function App() {
       const isSearchShortcut = event.key === '/' && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && !isTypingTarget
       if (isCommandShortcut || isSearchShortcut) {
         event.preventDefault()
-        setThemeMenuOpen(false)
         setQuickSearchOpen(true)
       }
     }
@@ -1163,7 +1248,6 @@ function App() {
   }, [activeTab])
 
   function applyTheme(nextTheme: ThemeMode) {
-    setThemeMenuOpen(false)
     if (nextTheme === theme) return
 
     setTheme(nextTheme)
@@ -1245,16 +1329,16 @@ function App() {
   }
 
   const navItems: ShellNavItem[] = [
-    { id: 'library', label: 'Biblioteca', description: 'Tus pendientes privados', icon: Library },
-    { id: 'dice', label: 'Dado', description: 'Decision ponderada', icon: Dice5 },
-    { id: 'explorer', label: 'Explorador', description: 'Catalogo y hallazgos', icon: Sparkles },
-    { id: 'settings', label: 'Ajustes', description: 'Preferencias y cuenta', icon: Palette },
-    { id: 'curation', label: 'Curacion', description: 'Catalogo Nexo', icon: ShieldCheck, hidden: !library.isModerator },
+    { id: 'library', label: 'Biblioteca', displayLabel: 'Estanteria', shortLabel: 'Inicio', description: 'Guardadas', icon: Library },
+    { id: 'dice', label: 'Dado', shortLabel: 'Dado', description: 'De tus guardadas', icon: Dice5 },
+    { id: 'explorer', label: 'Explorador', displayLabel: 'Explorar', shortLabel: 'Explora', description: 'Fuera de tu estanteria', icon: Sparkles },
+    { id: 'settings', label: 'Ajustes', shortLabel: 'Ajustes', description: 'Cuenta y temas', icon: Palette },
+    { id: 'curation', label: 'Curacion', displayLabel: 'Curar', shortLabel: 'Curar', description: 'Catalogo publico', icon: ShieldCheck, hidden: !library.isModerator },
   ]
   const visibleNavItems = navItems.filter((item) => !item.hidden)
   const activeNavItem = navItems.find((item) => item.id === activeTab) ?? navItems[0]
   const pendingNavItem = pendingNavigation ? navItems.find((item) => item.id === pendingNavigation.tab) : undefined
-  const shellTitle = activeTab === 'library' ? 'Biblioteca privada' : activeNavItem.label
+  const shellTitle = activeNavItem.displayLabel ?? activeNavItem.label
 
   function changeActiveTab(nextTab: AppTab, focus?: ActivityFocus) {
     if (nextTab === 'curation' && !library.isModerator) return
@@ -1296,10 +1380,6 @@ function App() {
   function requestLibrarySmartView(view: LibrarySmartView) {
     librarySmartViewRequestId.current += 1
     setLibrarySmartViewRequest({ id: view, requestId: librarySmartViewRequestId.current })
-  }
-
-  function requestLibraryViewMode(mode: LibraryViewMode) {
-    setLibraryViewModeRequest((current) => ({ mode, requestId: (current?.requestId ?? 0) + 1 }))
   }
 
   function requestLibrarySortMode(mode: LibrarySortMode) {
@@ -1666,25 +1746,6 @@ function App() {
     writeAppTabToUrl('library', 'push')
   }
 
-  function applyLibraryViewModeFromPalette(mode: LibraryViewMode) {
-    setQuickSearchOpen(false)
-    if (activeTab === 'library') {
-      setActivityFocus(undefined)
-      requestLibraryViewMode(mode)
-      writeAppTabToUrl('library', 'push')
-      return
-    }
-    if (tabsWithUnsavedChanges[activeTab]) {
-      setPendingNavigation({ libraryViewMode: mode, source: 'app', tab: 'library' })
-      return
-    }
-
-    setActivityFocus(undefined)
-    requestLibraryViewMode(mode)
-    setActiveTabState('library')
-    writeAppTabToUrl('library', 'push')
-  }
-
   function applyLibrarySortModeFromPalette(mode: LibrarySortMode) {
     setQuickSearchOpen(false)
     if (activeTab === 'library') {
@@ -2027,7 +2088,6 @@ function App() {
       librarySmartView,
       libraryTypeFilter,
       libraryVisibleSelection,
-      libraryViewMode,
       settingsTasteSuggestions,
       settingsTaxonomyRepair,
       source,
@@ -2110,9 +2170,6 @@ function App() {
     }
     if (libraryVisibleSelection) {
       requestLibraryVisibleSelection()
-    }
-    if (libraryViewMode) {
-      requestLibraryViewMode(libraryViewMode)
     }
     if (settingsTasteSuggestions) {
       requestSettingsTasteSuggestions()
@@ -2432,12 +2489,12 @@ function App() {
       : []),
     {
       Icon: Sparkles,
-      detail: 'Anadir idea manual al Explorador',
+      detail: 'Buscar algo relacionado con tu biblioteca',
       id: 'explorer-prompt-card',
       meta: 'Explorador',
       run: addExplorerPromptCardFromPalette,
-      searchText: 'carta sorpresa idea explorador descubrir recomendacion manual azar',
-      title: 'Carta sorpresa',
+      searchText: 'recomendar desde mi estanteria explorador descubrir buscar parecido biblioteca catalogo',
+      title: 'Recomendar desde mi estanteria',
       tone: 'section',
     },
     ...(quickSearchPrivateTaxonomyRepairCount
@@ -2613,16 +2670,6 @@ function App() {
           },
         ]
       : []),
-    ...(['cards', 'list'] as const).map((mode): QuickSearchCommand => ({
-      Icon: mode === 'cards' ? LayoutGrid : List,
-      detail: mode === library.settings.libraryViewMode ? 'Vista actual' : 'Guardar como vista de biblioteca',
-      id: `library-layout-${mode}`,
-      meta: 'Biblioteca',
-      run: () => applyLibraryViewModeFromPalette(mode),
-      searchText: `biblioteca vista layout ${libraryViewLabels[mode]} tarjetas lista columnas modo`,
-      title: `Vista ${libraryViewLabels[mode]}`,
-      tone: 'command',
-    })),
     ...(Object.keys(librarySortLabels) as LibrarySortMode[]).map((mode): QuickSearchCommand => ({
       Icon: mode === 'focus' ? Sparkles : mode === 'updated' ? Archive : mode === 'title' ? List : mode === 'priority' ? Dice5 : CheckCircle2,
       detail: 'Ordenar biblioteca',
@@ -2674,7 +2721,9 @@ function App() {
           <div className="brand-lockup">
             <NexoMark />
             <div className="brand-copy">
-              <span className="eyebrow">Nexo / mapa privado</span>
+              <span className="brand-line">
+                <span className="brand-wordmark">Nexo</span>
+              </span>
               <h1>{shellTitle}</h1>
               <p className="topbar-subtitle">{activeNavItem.description}</p>
             </div>
@@ -2682,8 +2731,6 @@ function App() {
           <ShellPulse library={library} isFirebaseConfigured={auth.isFirebaseConfigured} />
         </div>
         <div className="topbar-actions">
-          {!auth.isFirebaseConfigured && <span className="mode-pill">Demo local</span>}
-          {library.isModerator && <span className="mode-pill moderator">{roleLabels[library.userRole]}</span>}
           {isOffline && (
             <span aria-label="Sin conexion" className="mode-pill offline" role="status">
               Sin conexion
@@ -2720,68 +2767,12 @@ function App() {
             className="icon-button"
             type="button"
             onClick={() => {
-              setThemeMenuOpen(false)
               setQuickSearchOpen(true)
             }}
             title="Busqueda rapida"
           >
             <Search size={18} />
           </button>
-          <div
-            className="theme-menu-wrap"
-            onBlur={(event) => {
-              const nextTarget = event.relatedTarget
-              if (!(nextTarget instanceof Node) || !event.currentTarget.contains(nextTarget)) {
-                setThemeMenuOpen(false)
-              }
-            }}
-            onKeyDown={(event) => {
-              if (event.key === 'Escape') setThemeMenuOpen(false)
-            }}
-          >
-            <button
-              aria-expanded={themeMenuOpen}
-              aria-haspopup="menu"
-              aria-label={`Elegir tema. Actual ${themeLabels[theme]}`}
-              className="icon-button theme-trigger"
-              type="button"
-              onClick={() => setThemeMenuOpen((current) => !current)}
-              title={`Tema: ${themeLabels[theme]}`}
-            >
-              <Palette size={18} />
-              <span className="theme-trigger-swatch" aria-hidden="true">
-                {activeThemeOption.swatches.map((color) => (
-                  <span key={color} style={{ background: color }} />
-                ))}
-              </span>
-            </button>
-            {themeMenuOpen && (
-              <div aria-label="Temas de Nexo" className="theme-menu" role="menu">
-                {themeOptions.map((option) => (
-                  <button
-                    aria-checked={theme === option.id}
-                    aria-label={`Usar tema ${option.label}`}
-                    className={theme === option.id ? 'theme-menu-item active' : 'theme-menu-item'}
-                    key={option.id}
-                    role="menuitemradio"
-                    type="button"
-                    onClick={() => applyTheme(option.id)}
-                  >
-                    <span className="theme-menu-swatch" aria-hidden="true">
-                      {option.swatches.map((color) => (
-                        <span key={color} style={{ background: color }} />
-                      ))}
-                    </span>
-                    <span>
-                      <strong>{option.label}</strong>
-                      <small>{option.detail}</small>
-                    </span>
-                    {theme === option.id && <Check size={15} />}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
           {auth.user && (
             <button className="icon-button" type="button" onClick={auth.signOut} title="Salir">
               <LogOut size={18} />
@@ -2804,9 +2795,8 @@ function App() {
                 onClick={() => changeActiveTab(item.id)}
               >
                 <Icon size={17} />
-                <span className="tab-label">
-                  <span>{item.label}</span>
-                  <small>{item.description}</small>
+                <span className="tab-label" data-short-label={item.shortLabel ?? item.displayLabel ?? item.label}>
+                  <span>{item.displayLabel ?? item.label}</span>
                 </span>
               </button>
             )
@@ -2843,13 +2833,6 @@ function App() {
             onKeepEditing={() => setPendingNavigation(undefined)}
           />
         )}
-        <SessionActivityPanel
-          entries={library.activityEntries.slice(0, sessionActivityLimit)}
-          clearedCount={activityClearUndo.length}
-          onClear={() => void clearSessionActivity()}
-          onUndoClear={() => void undoClearSessionActivity()}
-          onSelect={(entry) => changeActiveTab(getActivityDestinationTab(entry), getActivityFocus(entry))}
-        />
         {activeTab === 'library' && (
           <LibraryTab
             activityFocusItemId={activityFocus?.kind === 'item' ? activityFocus.id : undefined}
@@ -2870,7 +2853,6 @@ function App() {
             smartViewRequest={librarySmartViewRequest}
             typeFilterRequest={libraryTypeFilterRequest}
             visibleSelectionRequest={libraryVisibleSelectionRequest}
-            viewModeRequest={libraryViewModeRequest}
             onActivity={recordVisibleActivity}
             onActivityFocusHandled={clearActivityFocus}
             onImportRequestHandled={clearLibraryImportRequest}
@@ -2939,6 +2921,13 @@ function App() {
         {activeTab === 'curation' && library.isModerator && (
           <CurationTab library={library} onActivity={recordVisibleActivity} />
         )}
+        <SessionActivityPanel
+          entries={library.activityEntries.slice(0, sessionActivityLimit)}
+          clearedCount={activityClearUndo.length}
+          onClear={() => void clearSessionActivity()}
+          onUndoClear={() => void undoClearSessionActivity()}
+          onSelect={(entry) => changeActiveTab(getActivityDestinationTab(entry), getActivityFocus(entry))}
+        />
       </section>
     </main>
   )
@@ -3367,6 +3356,7 @@ function SessionActivityPanel({
           <div className="session-continuity-main">
             <span className="eyebrow">Continuar sesion</span>
             <strong>{continuity.primaryEntry.label}</strong>
+            <small className="session-continuity-destination">{primaryDestination}</small>
             <p>{continuity.primaryEntry.detail}</p>
           </div>
           <button
@@ -3375,7 +3365,7 @@ function SessionActivityPanel({
             aria-label={`Continuar desde ${continuity.primaryEntry.label} en ${primaryDestination}`}
             onClick={() => onSelect(continuity.primaryEntry)}
           >
-            Abrir {primaryDestination}
+            Abrir
           </button>
           <div className="session-continuity-groups" aria-label="Actividad por zona">
             {continuity.groups.map((group) => {
@@ -3457,17 +3447,24 @@ function ShellPulse({
   library: Pick<LibrarySurface, 'discoveryCandidates' | 'isModerator' | 'items' | 'userRole'>
 }) {
   const pulseItems = getShellPulseItems(library, isFirebaseConfigured)
+  const [libraryPulse, dicePulse, explorerPulse] = pulseItems
+  const pulseSummary = pulseItems.map((item) => `${item.label} ${item.value} ${item.detail}`).join(' / ')
 
   return (
-    <div className="topbar-pulse" aria-label="Pulso de Nexo" data-testid="shell-pulse">
-      {pulseItems.map(({ Icon, detail, label, tone, value }) => (
-        <div className={`pulse-chip ${tone}`} key={label}>
-          <Icon size={15} />
-          <span>{label}</span>
-          <strong>{value}</strong>
-          <small>{detail}</small>
-        </div>
-      ))}
+    <div className="topbar-pulse sr-only" aria-label={`Pulso de Nexo: ${pulseSummary}`} data-testid="shell-pulse">
+      <span className={`pulse-summary ${libraryPulse.tone}`}>
+        <libraryPulse.Icon size={15} />
+        <strong>{libraryPulse.value}</strong>
+        <span>obras</span>
+      </span>
+      <span className="pulse-mini-strip" aria-hidden="true">
+        {[libraryPulse, dicePulse, explorerPulse].map(({ Icon, label, tone, value }) => (
+          <span className={`pulse-dot ${tone}`} key={label} title={`${label}: ${value}`}>
+            <Icon size={13} />
+          </span>
+        ))}
+      </span>
+      <span className="sr-only">{pulseSummary}</span>
     </div>
   )
 }
@@ -3621,7 +3618,6 @@ function LibraryTab({
   smartViewRequest,
   typeFilterRequest,
   visibleSelectionRequest,
-  viewModeRequest,
   onActivity,
   onActivityFocusHandled,
   onImportRequestHandled,
@@ -3652,7 +3648,6 @@ function LibraryTab({
   smartViewRequest?: LibrarySmartViewRequest
   typeFilterRequest?: LibraryTypeFilterRequest
   visibleSelectionRequest?: LibraryVisibleSelectionRequest
-  viewModeRequest?: LibraryViewModeRequest
   onActivity: ActivityRecorder
   onActivityFocusHandled: () => void
   onImportRequestHandled: () => void
@@ -3683,7 +3678,6 @@ function LibraryTab({
   const [handledSmartViewRequestId, setHandledSmartViewRequestId] = useState<number | undefined>()
   const handledTypeFilterRequestId = useRef<number | undefined>(undefined)
   const handledVisibleSelectionRequestId = useRef<number | undefined>(undefined)
-  const handledViewModeRequestId = useRef<number | undefined>(undefined)
   const handledImportRequestId = useRef<number | undefined>(undefined)
   const handledReviewRequestId = useRef<number | undefined>(undefined)
   const libraryImportInputRef = useRef<HTMLInputElement | null>(null)
@@ -3715,9 +3709,11 @@ function LibraryTab({
   const [catalogLoading, setCatalogLoading] = useState(false)
   const [catalogStatus, setCatalogStatus] = useState<string | undefined>()
   const [sourceCreditsOpen, setSourceCreditsOpen] = useState(false)
-  const [libraryAdvancedOpen, setLibraryAdvancedOpen] = useState(() => window.localStorage.getItem('nexo-library-advanced') === 'true')
+  const [libraryAdvancedOpen, setLibraryAdvancedOpen] = useState(false)
+  const libraryAdvancedRef = useRef<HTMLDetailsElement>(null)
+  const libraryCardsPerRow = library.settings.libraryCardsPerRow
+  const libraryGridStyle = { '--library-cards-per-row': String(libraryCardsPerRow) } as CSSProperties
   const handledPrimaryActionRequestId = useRef<number | undefined>(undefined)
-  const viewMode = library.settings.libraryViewMode
   const trimmedQuery = query.trim()
   const hasActiveLibraryFilters = Boolean(trimmedQuery) || typeFilter !== 'all' || statusFilter !== 'all' || smartView !== 'all'
   const hasActiveLibraryControls = hasActiveLibraryFilters || sortMode !== 'focus'
@@ -3734,6 +3730,7 @@ function LibraryTab({
   const nextFocusItem = focusItems[0]
   const nextFocusAction = nextFocusItem ? getPrimaryItemAction(nextFocusItem.status) : undefined
   const secondaryFocusItems = focusItems.slice(1)
+  const mastheadItems = (focusItems.length > 0 ? focusItems : library.items).slice(0, 4)
   const showFocusShelf = !hasActiveLibraryFilters && secondaryFocusItems.length > 0
 
   const filteredItems = useMemo(() => {
@@ -3748,6 +3745,23 @@ function LibraryTab({
 
     return sortLibraryItems(matchingItems, sortMode)
   }, [library.items, query, smartView, sortMode, statusFilter, typeFilter])
+
+  async function changeLibraryCardsPerRow(nextCardsPerRow: LibraryCardsPerRow) {
+    if (nextCardsPerRow === libraryCardsPerRow) return
+
+    try {
+      await library.saveSettings({ libraryCardsPerRow: nextCardsPerRow })
+      setImportStatus(`Biblioteca ajustada a ${nextCardsPerRow} tarjetas por fila`)
+      onActivity({
+        detail: `${nextCardsPerRow} por fila`,
+        label: 'Densidad ajustada',
+        tab: 'library',
+        tone: 'success',
+      })
+    } catch (reason) {
+      setImportStatus(reason instanceof Error ? reason.message : 'No se pudo guardar la densidad de Biblioteca.')
+    }
+  }
   const selectedItemIdSet = useMemo(() => new Set(selectedItemIds), [selectedItemIds])
   const selectedItems = useMemo(
     () => library.items.filter((item) => selectedItemIdSet.has(item.id)),
@@ -3756,6 +3770,23 @@ function LibraryTab({
   const visibleItemIds = useMemo(() => filteredItems.map((item) => item.id), [filteredItems])
   const selectedVisibleCount = visibleItemIds.filter((id) => selectedItemIdSet.has(id)).length
   const allVisibleItemsSelected = filteredItems.length > 0 && selectedVisibleCount === filteredItems.length
+
+  useEffect(() => {
+    if (!libraryAdvancedOpen) return
+
+    function closeLibraryAdvancedOnOutsideClick(event: MouseEvent) {
+      const target = event.target
+      if (!(target instanceof Node)) return
+      const origin = target instanceof Element ? target : target.parentElement
+      if (origin?.closest('[data-keep-details-open]')) return
+      if (libraryAdvancedRef.current?.contains(target)) return
+
+      setLibraryAdvancedOpen(false)
+    }
+
+    window.addEventListener('click', closeLibraryAdvancedOnOutsideClick)
+    return () => window.removeEventListener('click', closeLibraryAdvancedOnOutsideClick)
+  }, [libraryAdvancedOpen])
   const selectedItemsLabel = selectedItems.length === 1 ? '1 seleccionada' : `${selectedItems.length} seleccionadas`
   const selectedVisibleLabel =
     selectedVisibleCount === 1 ? '1 visible en esta vista' : `${selectedVisibleCount} visibles en esta vista`
@@ -3765,7 +3796,7 @@ function LibraryTab({
   const selectedCooldownCount = selectedItems.filter(isItemInCooldown).length
   const bulkSignalLabels = librarySelectionSignalLabels[bulkSignalKind]
   const bulkSignalOption = librarySelectionSignalOptions.find((option) => option.id === bulkSignalKind) ?? librarySelectionSignalOptions[0]
-  const isLibraryAdvancedOpen = Boolean(libraryAdvancedOpen || hasActiveLibraryControls || selectedItems.length > 0 || activeReviewSession)
+  const isLibraryAdvancedOpen = libraryAdvancedOpen
 
   useEffect(() => {
     onVisibleSelectionSummaryChange({
@@ -4014,29 +4045,51 @@ function LibraryTab({
     })
   }
 
+  async function deleteLibraryItem(item: ListItem) {
+    const deletedTitle = item.title
+    setImportStatus(`Borrando ${deletedTitle}...`)
+
+    try {
+      await library.deleteItem(item.id)
+      setDeletedItemUndo(item)
+      setDeletedLibraryUndo([])
+      setStatusUndo(undefined)
+      setCooldownUndo(undefined)
+      setPriorityUndo(undefined)
+      setTagUndo(undefined)
+      setPendingLibraryImport(undefined)
+      setLibraryImportUndo(undefined)
+      setSelectedItemIds((current) => current.filter((id) => id !== item.id))
+      setImportStatus(`${deletedTitle} borrado`)
+      onActivity({
+        detail: deletedTitle,
+        label: 'Entrada borrada',
+        tab: 'library',
+        tone: 'success',
+      })
+      return true
+    } catch (reason) {
+      setImportStatus(reason instanceof Error ? reason.message : 'No se pudo borrar la entrada.')
+      return false
+    }
+  }
+
   async function deleteSingleItem() {
     if (!deleteTarget) return
 
-    const deletedTitle = deleteTarget.title
-    setImportStatus(`Borrando ${deletedTitle}...`)
-    await library.deleteItem(deleteTarget.id)
-    setDeletedItemUndo(deleteTarget)
-    setDeletedLibraryUndo([])
-    setStatusUndo(undefined)
-    setCooldownUndo(undefined)
-    setPriorityUndo(undefined)
-    setTagUndo(undefined)
-    setPendingLibraryImport(undefined)
-    setLibraryImportUndo(undefined)
-    setDeleteTarget(undefined)
-    setSelectedItemIds((current) => current.filter((id) => id !== deleteTarget.id))
-    setImportStatus(`${deletedTitle} borrado`)
-    onActivity({
-      detail: deletedTitle,
-      label: 'Entrada borrada',
-      tab: 'library',
-      tone: 'success',
-    })
+    if (await deleteLibraryItem(deleteTarget)) {
+      setDeleteTarget(undefined)
+    }
+  }
+
+  async function deleteLibraryEditorItem(item: ListItem) {
+    if (await deleteLibraryItem(item)) {
+      setDeleteTarget(undefined)
+      setEditingItem(undefined)
+      onActivityFocusHandled()
+      onDraftRequestHandled()
+      writeAppTabToUrl('library')
+    }
   }
 
   async function undoDeleteSingleItem() {
@@ -4850,30 +4903,6 @@ function LibraryTab({
     return () => window.clearTimeout(timeoutId)
   }, [exportSelectedItems, selectedExportRequest])
 
-  const changeViewMode = useCallback(async (nextViewMode: LibraryViewMode) => {
-    if (viewMode === nextViewMode) return
-    const nextLabel = libraryViewLabels[nextViewMode]
-    try {
-      await library.saveSettings({ libraryViewMode: nextViewMode })
-      setImportStatus(`Vista ${nextLabel} guardada`)
-      onActivity({
-        detail: nextLabel,
-        label: 'Vista de biblioteca guardada',
-        tab: 'library',
-        tone: 'success',
-      })
-    } catch (reason) {
-      setImportStatus(reason instanceof Error ? reason.message : 'No se pudo guardar la vista de biblioteca.')
-    }
-  }, [library, onActivity, viewMode])
-
-  useLayoutEffect(() => {
-    if (!viewModeRequest || handledViewModeRequestId.current === viewModeRequest.requestId) return
-
-    handledViewModeRequestId.current = viewModeRequest.requestId
-    void changeViewMode(viewModeRequest.mode)
-  }, [changeViewMode, viewModeRequest])
-
   useEffect(() => {
     if (!sortModeRequest || handledSortModeRequestId.current === sortModeRequest.requestId) return
 
@@ -5152,64 +5181,145 @@ function LibraryTab({
     return () => window.clearTimeout(timeoutId)
   }, [library.items, onActivityFocusHandled, onNavigate, onReviewRequestHandled, onRollDice, reviewQueues, reviewRequest])
 
+  const showCatalogEmptyAction = !catalogCandidates.length && catalogStatus?.startsWith('Sin resultados')
+  const showCatalogResultsPanel = Boolean(catalogStatus || catalogCandidates.length > 0 || showCatalogEmptyAction)
+  const libraryUndoAction =
+    libraryImportUndo
+      ? { ariaLabel: 'Deshacer backup', label: 'Deshacer', onClick: () => void undoLibraryImportFile() }
+      : deletedItemUndo
+        ? { ariaLabel: 'Deshacer borrado', label: 'Deshacer', onClick: () => void undoDeleteSingleItem() }
+        : deletedLibraryUndo.length > 0
+          ? {
+              ariaLabel: deletedLibraryUndoKind === 'selection' ? 'Deshacer seleccion' : 'Deshacer borrado total',
+              label: 'Deshacer',
+              onClick: () => void undoDeleteEntireLibrary(),
+            }
+          : statusUndo
+            ? { ariaLabel: 'Deshacer estado', label: 'Deshacer', onClick: () => void undoLibraryStatusChange() }
+            : cooldownUndo
+              ? { ariaLabel: 'Deshacer dado', label: 'Deshacer', onClick: () => void undoLibraryCooldownChange() }
+              : priorityUndo
+                ? { ariaLabel: 'Deshacer foco', label: 'Deshacer', onClick: () => void undoLibraryPriorityChange() }
+                : tagUndo
+                  ? {
+                      ariaLabel: `Deshacer ${librarySelectionSignalLabels[tagUndo.kind].plural}`,
+                      label: 'Deshacer',
+                      onClick: () => void undoLibraryTagChange(),
+                    }
+                  : undefined
+  const libraryToastTone = importStatus ? feedbackToneFromText(importStatus) : undefined
+  const libraryToasts: ToastMessage[] = importStatus
+    ? [
+        {
+          action: libraryUndoAction,
+          durationMs: libraryToastTone === 'danger' || libraryToastTone === 'loading' ? undefined : libraryUndoAction ? 8000 : 3000,
+          id: 'library-status',
+          message: importStatus,
+          tone: libraryToastTone,
+        },
+      ]
+    : libraryUndoAction
+      ? [
+          {
+            action: libraryUndoAction,
+            durationMs: 8000,
+            id: 'library-undo',
+            message: 'Accion reciente disponible para deshacer.',
+            tone: 'info',
+          },
+        ]
+      : []
+
+  function clearLibraryUndoState() {
+    if (libraryImportUndo) setLibraryImportUndo(undefined)
+    if (deletedItemUndo) setDeletedItemUndo(undefined)
+    if (deletedLibraryUndo.length > 0) {
+      setDeletedLibraryUndo([])
+      setDeletedLibraryUndoKind(undefined)
+    }
+    if (statusUndo) setStatusUndo(undefined)
+    if (cooldownUndo) setCooldownUndo(undefined)
+    if (priorityUndo) setPriorityUndo(undefined)
+    if (tagUndo) setTagUndo(undefined)
+  }
+
+  function dismissLibraryToast(id: string) {
+    if (id === 'library-status') setImportStatus(undefined)
+    if (id === 'library-status' || id === 'library-undo') clearLibraryUndoState()
+  }
+
+  const catalogSearchForm = (
+    <form
+      aria-label="Buscar obras para guardar"
+      className="library-catalog-form"
+      data-testid="library-catalog-search"
+      onSubmit={(event) => {
+        event.preventDefault()
+        void searchCatalogFromLibrary()
+      }}
+    >
+      <label className="search-field library-catalog-query">
+        <Search size={18} />
+        <input
+          aria-label="Buscar obra para guardar"
+          value={catalogQuery}
+          onChange={(event) => setCatalogQuery(event.target.value)}
+          placeholder="Dune, Hollow Knight, Frieren, Berserk..."
+        />
+      </label>
+      <select
+        aria-label="Tipo de obra para buscar"
+        value={catalogType}
+        onChange={(event) => setCatalogType(event.target.value as ExplorerSearchType)}
+      >
+        {libraryCatalogSearchTypes.map((option) => (
+          <option key={option.id} value={option.id}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+      <button className="primary-button" disabled={catalogLoading} type="submit">
+        <Search size={18} />
+        {catalogLoading ? 'Buscando' : 'Buscar obra'}
+      </button>
+      <button
+        aria-label="Fuentes"
+        className="secondary-button source-credit-trigger"
+        title="Fuentes"
+        type="button"
+        onClick={() => setSourceCreditsOpen(true)}
+      >
+        <HelpCircle size={17} />
+        <span className="sr-only">Fuentes</span>
+      </button>
+    </form>
+  )
+
   return (
     <section className="content-grid library-content-grid">
-      <section className="workspace-panel wide" aria-label="Biblioteca">
-        <div className="panel-heading">
-          <div>
+      <section className="workspace-panel wide library-panel" aria-label="Biblioteca">
+        <section className="library-masthead" aria-label="Estanteria de Nexo" data-testid="library-masthead">
+          <div className="library-masthead-copy">
             <h2>Biblioteca</h2>
-            <p>{library.items.length} entradas privadas</p>
           </div>
-          <div className="panel-actions">
-            <button className="primary-button" type="button" onClick={() => openLibraryEditor(blankItem())}>
-              <Plus size={18} />
-              Anadir
-            </button>
+          <div className={mastheadItems.length > 0 ? 'library-masthead-covers' : 'library-masthead-covers empty'} aria-hidden="true">
+            {mastheadItems.length > 0 ? (
+              mastheadItems.map((item) => (
+                <CoverArt key={item.id} title={item.title} type={item.type} posterUrl={item.posterUrl} />
+              ))
+            ) : (
+              <>
+                <span />
+                <span />
+                <span />
+              </>
+            )}
           </div>
-        </div>
+          {catalogSearchForm}
+        </section>
 
-        <section className="library-search-hero" aria-label="Buscar obras para guardar" data-testid="library-catalog-search">
-          <div className="library-search-copy">
-            <span className="eyebrow">Buscar</span>
-            <h3>Encuentra una obra y guardala</h3>
-          </div>
-          <form
-            className="library-catalog-form"
-            onSubmit={(event) => {
-              event.preventDefault()
-              void searchCatalogFromLibrary()
-            }}
-          >
-            <label className="search-field library-catalog-query">
-              <Search size={18} />
-              <input
-                aria-label="Buscar obra para guardar"
-                value={catalogQuery}
-                onChange={(event) => setCatalogQuery(event.target.value)}
-                placeholder="Dune, Hollow Knight, Frieren, Berserk..."
-              />
-            </label>
-            <select
-              aria-label="Tipo de obra para buscar"
-              value={catalogType}
-              onChange={(event) => setCatalogType(event.target.value as ExplorerSearchType)}
-            >
-              {libraryCatalogSearchTypes.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            <button className="primary-button" disabled={catalogLoading} type="submit">
-              <Search size={18} />
-              {catalogLoading ? 'Buscando' : 'Buscar obra'}
-            </button>
-            <button className="secondary-button source-credit-trigger" type="button" onClick={() => setSourceCreditsOpen(true)}>
-              <HelpCircle size={17} />
-              Fuentes
-            </button>
-          </form>
-
+        {showCatalogResultsPanel && (
+        <section className="library-search-hero" aria-label="Resultados del catalogo">
           {catalogStatus && <FeedbackMessage tone={feedbackToneFromText(catalogStatus)}>{catalogStatus}</FeedbackMessage>}
           {catalogCandidates.length > 0 && (
             <div className="library-catalog-results" aria-label="Resultados para guardar">
@@ -5226,7 +5336,7 @@ function LibraryTab({
               })}
             </div>
           )}
-          {!catalogCandidates.length && catalogStatus?.startsWith('Sin resultados') && (
+          {showCatalogEmptyAction && (
             <div className="library-catalog-empty-action">
               <button className="secondary-button" type="button" onClick={() => openLibraryEditor({ ...blankItem(), title: catalogQuery.trim() })}>
                 <Plus size={16} />
@@ -5235,73 +5345,126 @@ function LibraryTab({
             </div>
           )}
         </section>
+        )}
+
+        <section className="library-shelf-header" aria-label="Obras guardadas" data-testid="library-shelf-header">
+          <div className="library-shelf-title">
+            <span className="eyebrow">Guardadas</span>
+            <h3>Todas</h3>
+            <p>
+              {filteredItems.length} de {library.items.length} obras / {hasActiveLibraryControls ? 'vista filtrada' : 'orden inteligente'}
+            </p>
+          </div>
+          <div className="library-primary-controls" aria-label="Ordenar y filtrar biblioteca">
+            <select
+              aria-label="Filtrar por estado"
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value as ItemStatus | 'all')}
+            >
+              <option value="all">Todos</option>
+              {ITEM_STATUSES.map((status) => (
+                <option key={status} value={status}>
+                  {statusLabels[status]}
+                </option>
+              ))}
+            </select>
+            <select
+              aria-label="Filtrar por tipo"
+              value={typeFilter}
+              onChange={(event) => setTypeFilter(event.target.value as ItemType | 'all')}
+            >
+              <option value="all">Tipo</option>
+              {ITEM_TYPES.map((type) => (
+                <option key={type} value={type}>
+                  {typeLabels[type]}
+                </option>
+              ))}
+            </select>
+            <select
+              aria-label="Ordenar biblioteca"
+              value={sortMode}
+              onChange={(event) => setSortMode(event.target.value as LibrarySortMode)}
+            >
+              {(Object.keys(librarySortLabels) as LibrarySortMode[]).map((mode) => (
+                <option key={mode} value={mode}>
+                  {librarySortLabels[mode]}
+                </option>
+              ))}
+            </select>
+            <select
+              aria-label="Tarjetas por fila"
+              value={libraryCardsPerRow}
+              onChange={(event) => void changeLibraryCardsPerRow(Number(event.target.value) as LibraryCardsPerRow)}
+            >
+              {libraryCardsPerRowOptions.map((count) => (
+                <option key={count} value={count}>
+                  {count} tarjetas
+                </option>
+              ))}
+            </select>
+          </div>
+        </section>
+
+        {hasActiveLibraryControls && (
+          <div className="filter-summary" aria-live="polite" data-testid="library-filter-summary">
+            <div>
+              <strong>
+                {filteredItems.length} de {library.items.length} entradas
+              </strong>
+              <span>{activeLibraryControls.join(' / ')}</span>
+            </div>
+            <button className="ghost-button" type="button" onClick={resetLibraryFilters}>
+              <X size={16} />
+              Restablecer vista
+            </button>
+          </div>
+        )}
 
         <details
           className="library-advanced-panel"
+          ref={libraryAdvancedRef}
           open={isLibraryAdvancedOpen}
           onToggle={(event) => {
-            const nextOpen = event.currentTarget.open
-            setLibraryAdvancedOpen(nextOpen)
-            window.localStorage.setItem('nexo-library-advanced', String(nextOpen))
+            setLibraryAdvancedOpen(event.currentTarget.open)
           }}
         >
           <summary>
             <span>
-              <strong>Herramientas</strong>
-              <small>Filtros, import/export y acciones masivas</small>
+              <strong>Avanzado</strong>
+              <small>Filtros, import/export, repaso y acciones masivas</small>
             </span>
             <em>{isLibraryAdvancedOpen ? 'Abierto' : 'Oculto'}</em>
           </summary>
           <div className="library-advanced-content">
             <div className="utility-actions library-tool-actions" aria-label="Herramientas de biblioteca">
-              <div className="view-switch" role="group" aria-label="Vista de biblioteca">
-                <button
-                  aria-pressed={viewMode === 'cards'}
-                  className={viewMode === 'cards' ? 'segment-option active' : 'segment-option'}
-                  type="button"
-                  onClick={() => void changeViewMode('cards')}
-                >
-                  <LayoutGrid size={16} />
-                  <span>Tarjetas</span>
+                <label className="icon-button file-button" title="Importar">
+                  <Upload size={18} />
+                  <span className="sr-only">Importar</span>
+                  <input
+                    accept="application/json,.json"
+                    aria-label="Importar biblioteca desde JSON"
+                    ref={libraryImportInputRef}
+                    type="file"
+                    onChange={(event) => {
+                      void prepareLibraryImportFile(event.target.files?.[0])
+                      event.target.value = ''
+                    }}
+                  />
+                </label>
+                <button className="icon-button" type="button" onClick={exportLibrary} title="Exportar">
+                  <Archive size={18} />
+                  <span className="sr-only">Exportar</span>
                 </button>
                 <button
-                  aria-pressed={viewMode === 'list'}
-                  className={viewMode === 'list' ? 'segment-option active' : 'segment-option'}
+                  className="icon-button danger-icon"
+                  disabled={library.items.length === 0}
                   type="button"
-                  onClick={() => void changeViewMode('list')}
+                  onClick={() => setDeleteDialogOpen(true)}
+                  title="Borrar todo"
                 >
-                  <List size={16} />
-                  <span>Lista</span>
+                  <Trash2 size={18} />
+                  <span className="sr-only">Borrar todo</span>
                 </button>
-              </div>
-              <label className="icon-button file-button" title="Importar">
-                <Upload size={18} />
-                <span className="sr-only">Importar</span>
-                <input
-                  accept="application/json,.json"
-                  aria-label="Importar biblioteca desde JSON"
-                  ref={libraryImportInputRef}
-                  type="file"
-                  onChange={(event) => {
-                    void prepareLibraryImportFile(event.target.files?.[0])
-                    event.target.value = ''
-                  }}
-                />
-              </label>
-              <button className="icon-button" type="button" onClick={exportLibrary} title="Exportar">
-                <Archive size={18} />
-                <span className="sr-only">Exportar</span>
-              </button>
-              <button
-                className="icon-button danger-icon"
-                disabled={library.items.length === 0}
-                type="button"
-                onClick={() => setDeleteDialogOpen(true)}
-                title="Borrar todo"
-              >
-                <Trash2 size={18} />
-                <span className="sr-only">Borrar todo</span>
-              </button>
             </div>
 
         <LaunchGuideCard
@@ -5339,8 +5502,8 @@ function LibraryTab({
             ) : (
               <>
                 <div>
-                  <strong>Biblioteca lista</strong>
-                  <p>Anade algo o guarda hallazgos desde Explorador para alimentar el dado.</p>
+                  <strong>Todo listo</strong>
+                  <p>Anade algo o guarda hallazgos desde Explorar para alimentar el dado.</p>
                 </div>
                 <button className="primary-button" type="button" onClick={() => openLibraryEditor(blankItem())}>
                   <Plus size={16} />
@@ -5493,7 +5656,7 @@ function LibraryTab({
           </section>
         )}
 
-        <div className="stats-row">
+        <div className="stats-row library-advanced-only">
           <button
             className={statusFilter === 'all' ? 'stat-chip active' : 'stat-chip'}
             data-status="all"
@@ -5535,7 +5698,7 @@ function LibraryTab({
           ))}
         </section>
 
-        <div className="toolbar">
+        <div className="toolbar library-advanced-toolbar">
           <label className="search-field">
             <Search size={18} />
             <input
@@ -5569,21 +5732,6 @@ function LibraryTab({
             ))}
           </select>
         </div>
-
-        {hasActiveLibraryControls && (
-          <div className="filter-summary" aria-live="polite">
-            <div>
-              <strong>
-                {filteredItems.length} de {library.items.length} entradas
-              </strong>
-              <span>{activeLibraryControls.join(' / ')}</span>
-            </div>
-            <button className="ghost-button" type="button" onClick={resetLibraryFilters}>
-              <X size={16} />
-              Restablecer vista
-            </button>
-          </div>
-        )}
 
         {(filteredItems.length > 0 || selectedItems.length > 0) && (
           <div className="library-selection-bar" aria-label="Seleccion de biblioteca">
@@ -5734,7 +5882,7 @@ function LibraryTab({
 
         {library.loading && <FeedbackMessage tone="loading">Cargando biblioteca...</FeedbackMessage>}
         {library.error && <FeedbackMessage tone="danger">{library.error}</FeedbackMessage>}
-        {importStatus && <FeedbackMessage tone={feedbackToneFromText(importStatus)}>{importStatus}</FeedbackMessage>}
+        <ToastStack label="Accion reciente de biblioteca Notificaciones" toasts={libraryToasts} onDismiss={dismissLibraryToast} />
         {libraryLinkCopy && (
           <div className="link-copy-feedback" aria-label={`Enlace listo para ${libraryLinkCopy.title}`}>
             <input
@@ -5788,73 +5936,23 @@ function LibraryTab({
             </div>
           </div>
         )}
-        {(deletedItemUndo || deletedLibraryUndo.length > 0 || statusUndo || cooldownUndo || priorityUndo || tagUndo || libraryImportUndo) && (
-          <div className="feedback-action-row" aria-label="Accion reciente de biblioteca">
-            {libraryImportUndo && (
-              <button className="secondary-button" type="button" onClick={() => void undoLibraryImportFile()}>
-                <RotateCcw size={16} />
-                Deshacer backup
-              </button>
-            )}
-            {deletedItemUndo && (
-              <button className="secondary-button" type="button" onClick={() => void undoDeleteSingleItem()}>
-                <RotateCcw size={16} />
-                Deshacer borrado
-              </button>
-            )}
-            {deletedLibraryUndo.length > 0 && (
-              <button className="secondary-button" type="button" onClick={() => void undoDeleteEntireLibrary()}>
-                <RotateCcw size={16} />
-                {deletedLibraryUndoKind === 'selection' ? 'Deshacer seleccion' : 'Deshacer borrado total'}
-              </button>
-            )}
-            {statusUndo && (
-              <button className="secondary-button" type="button" onClick={() => void undoLibraryStatusChange()}>
-                <RotateCcw size={16} />
-                Deshacer estado
-              </button>
-            )}
-            {cooldownUndo && (
-              <button className="secondary-button" type="button" onClick={() => void undoLibraryCooldownChange()}>
-                <RotateCcw size={16} />
-                Deshacer dado
-              </button>
-            )}
-            {priorityUndo && (
-              <button className="secondary-button" type="button" onClick={() => void undoLibraryPriorityChange()}>
-                <RotateCcw size={16} />
-                Deshacer foco
-              </button>
-            )}
-            {tagUndo && (
-              <button className="secondary-button" type="button" onClick={() => void undoLibraryTagChange()}>
-                <RotateCcw size={16} />
-                Deshacer {librarySelectionSignalLabels[tagUndo.kind].plural}
-              </button>
-            )}
-          </div>
-        )}
-
         {showFocusShelf && (
-          <section className="library-focus-shelf" aria-label="Foco de biblioteca" data-testid="library-focus-shelf">
+          <section className="library-focus-shelf" aria-label="Sugerencias de biblioteca" data-testid="library-focus-shelf">
             <div className="focus-shelf-heading">
               <div>
-                <h3>En foco</h3>
-                <p>Mas entradas listas sin abrir toda la parrilla.</p>
+                <h3>Sugerencias</h3>
+                <p>Entradas listas para seguir.</p>
               </div>
               <span>{secondaryFocusItems.length} sugeridas</span>
             </div>
             <div className="focus-shelf-grid">
               {secondaryFocusItems.map((item) => {
                 const primaryAction = getPrimaryItemAction(item.status)
-                const Icon = typeIcons[item.type]
 
                 return (
                   <article className="focus-item" key={item.id}>
                     <button className="focus-item-main" type="button" onClick={() => openLibraryEditor(item)}>
-                      <span className={`focus-type-dot ${item.type}`} aria-hidden="true">
-                        <Icon size={15} />
-                      </span>
+                      <CoverArt title={item.title} type={item.type} posterUrl={item.posterUrl} />
                       <span>
                         <strong>{item.title}</strong>
                         <small>{getLibraryFocusReason(item)}</small>
@@ -5877,12 +5975,17 @@ function LibraryTab({
         )}
 
         {filteredItems.length ? (
-          <div className={viewMode === 'list' ? 'item-grid list-view' : 'item-grid'} data-testid="library-grid">
+          <div
+            className="item-grid mosaic-view"
+            data-cards-per-row={libraryCardsPerRow}
+            data-testid="library-grid"
+            style={libraryGridStyle}
+          >
             {filteredItems.map((item) => (
               <ItemCard
                 item={item}
                 key={item.id}
-                layout={viewMode}
+                layout="mosaic"
                 isSelected={selectedItemIdSet.has(item.id)}
                 showSelectionControl={isLibraryAdvancedOpen || selectedItemIdSet.has(item.id)}
                 onToggleSelected={() => toggleLibraryItemSelection(item.id)}
@@ -5940,7 +6043,8 @@ function LibraryTab({
         <ItemEditor
           item={editorItem}
           onClose={closeLibraryEditor}
-          onSave={(item) => void saveLibraryEditorItem(item)}
+          onDelete={deleteLibraryEditorItem}
+          onSave={saveLibraryEditorItem}
         />
       )}
 
@@ -6505,6 +6609,26 @@ function DiceTab({
     }
   }
 
+  async function deleteDiceItem(item: ListItem) {
+    try {
+      await library.deleteItem(item.id)
+      setEditingDiceItem(undefined)
+      setRecommendation((current) => (current?.item.id === item.id ? undefined : current))
+      setDiceDecisionSummary((current) => (current?.itemId === item.id ? undefined : current))
+      setDiceUndoAction(undefined)
+      setDiceSettingsUndo(undefined)
+      setStatus(`${item.title || 'Entrada'} eliminada de Biblioteca.`)
+      onActivity({
+        detail: item.title || 'Entrada sin titulo',
+        label: 'Entrada eliminada',
+        tab: 'dice',
+        tone: 'success',
+      })
+    } catch (reason) {
+      setStatus(reason instanceof Error ? reason.message : 'No se pudo borrar la entrada.')
+    }
+  }
+
   function applyDicePreset(preferencesPreset: RecommendationPreferences) {
     setPreferences(preferencesPreset)
   }
@@ -6579,162 +6703,250 @@ function DiceTab({
     return () => window.clearTimeout(timeoutId)
   }, [onRollRequestHandled, rollRecommendation, rollRequest])
 
+  const shouldShowDiceResult = isRolling || Boolean(recommendation) || !hasCandidates
+
   return (
-    <section className="dice-layout">
+    <section className={shouldShowDiceResult ? 'dice-layout has-dice-result' : 'dice-layout dice-idle'}>
       <section className="workspace-panel dice-hero" aria-label="Dado ponderado">
-        <div>
-          <span className="eyebrow">Dado ponderado</span>
-          <h2>Elige el siguiente hilo</h2>
-          <p className="hero-copy">Una tirada con memoria: filtra por tiempo, energia y novedad sin perder sorpresa.</p>
-          <div className="dice-context">
-            <span>{typeLabels[preferences.medium]}</span>
-            <span>{preferences.timeBudgetHours ? `${preferences.timeBudgetHours}h` : 'Sin limite'}</span>
-            <span>Energia {energyLabels[preferences.energy]}</span>
-            <span>{noveltyLabels[preferences.novelty]}</span>
+        <div className="dice-hero-copy">
+          <span className="tool-mode-badge dice-mode-badge">
+            <Dice5 size={15} />
+            Dado
+          </span>
+          <span className="eyebrow">Guardadas / elegir ahora</span>
+          <h2>Que sigo ahora?</h2>
+          <p className="hero-copy">Elige una obra que ya guardaste. Para encontrar algo nuevo, abre Explorar.</p>
+          <div className="intent-flow dice-intent-flow" aria-label="Que hace el dado" data-testid="dice-job">
+            <span>
+              <Library size={14} />
+              Guardadas
+            </span>
+            <span>
+              <Dice5 size={14} />
+              Tirada
+            </span>
+            <span>
+              <Play size={14} />
+              Empiezas
+            </span>
           </div>
-          <div className="dice-readiness" aria-label="Resumen del dado" data-testid="dice-readiness">
-            <div className={hasCandidates ? 'dice-readiness-card ready' : 'dice-readiness-card warning'}>
-              <span>{hasCandidates ? 'Listo para tirar' : 'Sin tirada posible'}</span>
-              <strong>{topCandidate ? topCandidate.item.title : 'Ajusta filtros'}</strong>
-              <small>
-                {topCandidate
-                  ? `${topCandidate.score} score / ${topCandidate.reasons[0] ?? 'mejor candidata'}`
-                  : 'Afloja medio, tiempo, tags o pausados.'}
-              </small>
-            </div>
-            <div className="dice-readiness-metrics">
-              <span>
-                <strong>{scoredCandidates.length}</strong>
-                Candidatas
-              </span>
-              <span>
-                <strong>{poolSize}</strong>
-                Pool
-              </span>
-              <span>
-                <strong>{activeDiceFilters.length}</strong>
-                Filtros
-              </span>
-              <span>
-                <strong>{hasUnsavedDicePreferences ? '!' : 'OK'}</strong>
-                Ajustes
-              </span>
-            </div>
-          </div>
+          <p className="tool-boundary dice-boundary">
+            <LockKeyhole size={14} />
+            No busca fuera ni crea fichas.
+          </p>
         </div>
-        <button
-          className={isRolling ? 'dice-orb rolling' : 'dice-orb'}
-          disabled={isRolling || !hasCandidates}
-          type="button"
-          onClick={() => void rollRecommendation()}
-          data-testid="roll-button"
-          aria-label="Tirar dado ponderado"
-        >
-          <Dice5 size={42} />
-        </button>
+        <div className="dice-action-stage">
+          {candidatePreview.length > 0 && (
+            <div className="dice-deck-peek" aria-hidden="true">
+              {candidatePreview.slice(0, 3).map((candidate) => (
+                <CoverArt
+                  key={candidate.item.id}
+                  title={candidate.item.title}
+                  type={candidate.item.type}
+                  posterUrl={candidate.item.posterUrl}
+                />
+              ))}
+            </div>
+          )}
+          <button
+            className={isRolling ? 'dice-orb rolling' : 'dice-orb'}
+            disabled={isRolling || !hasCandidates}
+            type="button"
+            onClick={() => void rollRecommendation()}
+            data-testid="roll-button"
+            aria-label="Tirar dado ponderado"
+          >
+            <span className="dice-orb-kicker">{scoredCandidates.length ? `${scoredCandidates.length} candidatas` : 'Sin candidatas'}</span>
+            <Dice5 size={42} />
+            <strong>{isRolling ? 'Eligiendo' : recommendation ? 'Tirar otra' : 'Elegir ahora'}</strong>
+          </button>
+        </div>
+        <div className="dice-readiness" aria-label="Resumen del dado" data-testid="dice-readiness" role="group">
+          <div className={`${hasCandidates ? 'dice-readiness-card ready' : 'dice-readiness-card warning'}${topCandidate ? ' with-cover' : ''}`}>
+            {topCandidate && (
+              <CoverArt title={topCandidate.item.title} type={topCandidate.item.type} posterUrl={topCandidate.item.posterUrl} />
+            )}
+            <span>{hasCandidates ? 'Listo para tirar' : 'Sin tirada posible'}</span>
+            <strong>{topCandidate ? topCandidate.item.title : 'Ajusta filtros'}</strong>
+            <small>
+              {topCandidate
+                ? `${topCandidate.reasons[0] ?? 'Mejor candidata'} / guardada`
+                : 'Afloja medio, tiempo, tags o pausados.'}
+            </small>
+          </div>
+          <div className="dice-readiness-metrics">
+            <span>
+              <strong>{scoredCandidates.length}</strong>
+              Candidatas guardadas
+            </span>
+            <span>
+              <strong>{intensityLabels[preferences.intensity]}</strong>
+              Modo
+            </span>
+            <span>
+              <strong>{hasUnsavedDicePreferences ? '!' : 'OK'}</strong>
+              Ajustes
+            </span>
+          </div>
+          {(preferences.includePaused || library.settings.blockedTags.length > 0) && (
+            <div className="dice-active-filter-strip" aria-label="Filtros activos del dado">
+              {preferences.includePaused && <span>Incluye pausados</span>}
+              {library.settings.blockedTags.length > 0 && <span>{library.settings.blockedTags.length} senales bloqueadas</span>}
+            </div>
+          )}
+        </div>
       </section>
 
       <section className="workspace-panel dice-queue">
         <div className="panel-heading compact">
           <div>
-            <h2>En la mesa</h2>
-            <p>{scoredCandidates.length ? `${scoredCandidates.length} opciones pueden salir` : 'Sin candidatas con estos filtros'}</p>
+            <h2>Candidatas guardadas</h2>
+            <p>{scoredCandidates.length ? `${scoredCandidates.length} entradas pueden salir` : 'Sin candidatas con estos filtros'}</p>
           </div>
         </div>
-        {candidatePreview.length ? (
-          <ol className="dice-candidate-list" aria-label="Candidatas del dado" data-testid="dice-candidate-list">
-            {candidatePreview.map((candidate, index) => {
-              const Icon = typeIcons[candidate.item.type]
-
-              return (
-              <li key={candidate.item.id}>
-                <span className="dice-candidate-rank">#{index + 1}</span>
-                <span className={`dice-candidate-type ${candidate.item.type}`} aria-hidden="true">
-                  <Icon size={14} />
-                </span>
-                <span className="dice-candidate-main">
-                  <strong>{candidate.item.title}</strong>
-                  <small>
-                    {statusLabels[candidate.item.status]} / {typeLabels[candidate.item.type]}
-                  </small>
-                  <span className="dice-candidate-reasons">
-                    {candidate.reasons.slice(0, 2).map((reason) => (
-                      <em key={reason}>{reason}</em>
-                    ))}
-                  </span>
-                </span>
-                <span className="dice-candidate-score" aria-label={`Score ${candidate.score} de ${candidate.item.title}`}>
-                  <span>Score</span>
-                  <strong>{candidate.score}</strong>
-                  <span className="dice-score-meter" aria-hidden="true">
-                    <span style={{ width: getDiceScoreMeterWidth(candidate.score, maxCandidateScore) }} />
-                  </span>
-                </span>
-              </li>
-              )
-            })}
-          </ol>
-        ) : (
-          <EmptyState
-            icon={Dice5}
-            title="Sin candidatas"
-            detail="Afloja filtros, incluye pausados o anade pendientes desde Biblioteca y Explorador."
-          />
-        )}
-        {scoredCandidates.length > 4 && (
-          <button className="ghost-button dice-expand-button" type="button" onClick={() => setShowFullDicePool((current) => !current)}>
-            {showFullDicePool ? 'Ver menos candidatas' : `Ver ${hiddenCandidateCount} mas`}
+        {topCandidate && (
+          <button className="dice-featured-candidate" type="button" onClick={() => setEditingDiceItem(topCandidate.item)}>
+            <CoverArt title={topCandidate.item.title} type={topCandidate.item.type} posterUrl={topCandidate.item.posterUrl} />
+            <span className="dice-featured-copy">
+              <small>Mejor encaje ahora</small>
+              <strong>{topCandidate.item.title}</strong>
+              <em>{topCandidate.reasons[0] ?? 'Lista para salir'}</em>
+            </span>
+            <span className="dice-featured-score">
+              <small>Encaje</small>
+              <strong>{topCandidate.score}</strong>
+            </span>
           </button>
         )}
-        <div className="dice-footnotes">
-          <span>{unavailableCount} fuera por estado, cooldown o filtros</span>
-          <span>Pool maximo {poolSize}</span>
-        </div>
-        <DiceEligibilityPanel
-          activeFilters={activeDiceFilters}
-          breakdown={eligibilityBreakdown}
-          recoveryActions={diceRecoveryActions}
-        />
+        {candidatePreview.length ? (
+          <details className="dice-pool-detail" data-close-on-outside>
+            <summary>
+              <span>
+                <strong>Por que pueden salir</strong>
+                <small>{unavailableCount} fuera por estado, cooldown o filtros</small>
+              </span>
+              <em>{showFullDicePool ? `${candidatePreview.length} visibles` : `${candidatePreview.length} de ${scoredCandidates.length}`}</em>
+            </summary>
+            <ol className="dice-candidate-list" aria-label="Candidatas del dado" data-testid="dice-candidate-list">
+              {candidatePreview.map((candidate, index) => {
+                const Icon = typeIcons[candidate.item.type]
+
+                return (
+                <li key={candidate.item.id}>
+                  <span className="dice-candidate-rank">#{index + 1}</span>
+                  <span className={`dice-candidate-type ${candidate.item.type}`} aria-hidden="true">
+                    <Icon size={14} />
+                  </span>
+                  <span className="dice-candidate-main">
+                    <strong>{candidate.item.title}</strong>
+                    <small>
+                      {statusLabels[candidate.item.status]} / {typeLabels[candidate.item.type]}
+                    </small>
+                    <span className="dice-candidate-reasons">
+                      {candidate.reasons.slice(0, 2).map((reason) => (
+                        <em key={reason}>{reason}</em>
+                      ))}
+                    </span>
+                  </span>
+                  <span className="dice-candidate-score" aria-label={`Encaje ${candidate.score} de ${candidate.item.title}`}>
+                    <span>Encaje</span>
+                    <strong>{candidate.score}</strong>
+                    <span className="dice-score-meter" aria-hidden="true">
+                      <span style={{ width: getDiceScoreMeterWidth(candidate.score, maxCandidateScore) }} />
+                    </span>
+                  </span>
+                </li>
+                )
+              })}
+            </ol>
+            {scoredCandidates.length > 4 && (
+              <button className="ghost-button dice-expand-button" type="button" onClick={() => setShowFullDicePool((current) => !current)}>
+                {showFullDicePool ? 'Ver menos candidatas' : `Ver ${hiddenCandidateCount} mas`}
+              </button>
+            )}
+            <div className="dice-footnotes">
+              <span>{unavailableCount} fuera por estado, cooldown o filtros</span>
+              <span>Pool maximo {poolSize}</span>
+            </div>
+            <DiceEligibilityPanel
+              activeFilters={activeDiceFilters}
+              breakdown={eligibilityBreakdown}
+              recoveryActions={diceRecoveryActions}
+            />
+          </details>
+        ) : (
+          <>
+            <EmptyState
+              icon={Dice5}
+              title="Sin candidatas"
+              detail="Afloja filtros, incluye pausados o anade pendientes desde Estanteria y Explorar."
+            />
+            <DiceEligibilityPanel
+              activeFilters={activeDiceFilters}
+              breakdown={eligibilityBreakdown}
+              recoveryActions={diceRecoveryActions}
+            />
+          </>
+        )}
       </section>
 
       <section className="workspace-panel dice-settings">
-        <div className="panel-heading">
-          <div>
-            <h2>Preferencias</h2>
-            <p>{preferences.surprisePercent}% sorpresa / {intensityLabels[preferences.intensity]}</p>
-          </div>
-          <button className="secondary-button" disabled={!hasUnsavedDicePreferences} type="button" onClick={savePreferences}>
-            <Save size={17} />
-            {hasUnsavedDicePreferences ? 'Guardar ajustes' : 'Ajustes guardados'}
-          </button>
-        </div>
-        <div className={hasUnsavedDicePreferences ? 'settings-status pending' : 'settings-status'}>
-          <span>{hasUnsavedDicePreferences ? 'Cambios pendientes' : 'Sin cambios pendientes'}</span>
-          <strong>{scoredCandidates.length} candidatas</strong>
-        </div>
-        <div className="dice-preset-grid" aria-label="Presets rapidos del dado">
-          {dicePreferencePresets.map((preset) => {
-            const isActive = sameRecommendationPreferences(preferences, preset.preferences)
-
-            return (
-              <button
-                aria-label={`Aplicar preset ${preset.label}`}
-                aria-pressed={isActive}
-                className={isActive ? 'dice-preset-card active' : 'dice-preset-card'}
-                key={preset.id}
-                type="button"
-                onClick={() => applyDicePreset(preset.preferences)}
-              >
-                <preset.Icon size={16} />
-                <span>
-                  <strong>{preset.label}</strong>
-                  <small>{preset.detail}</small>
-                </span>
+        <details className="dice-settings-panel" data-close-on-outside open={hasUnsavedDicePreferences}>
+          <summary aria-label="Abrir modos de tirada">
+            <span className="dice-settings-summary-copy">
+              <strong>Afinar tirada</strong>
+              <small>{preferences.surprisePercent}% sorpresa / {intensityLabels[preferences.intensity]}</small>
+            </span>
+            <span className={hasUnsavedDicePreferences ? 'dice-settings-summary-state pending' : 'dice-settings-summary-state'}>
+              {hasUnsavedDicePreferences ? 'Pendiente' : `${scoredCandidates.length} candidatas`}
+            </span>
+          </summary>
+          <div className="dice-settings-content">
+            <div className="panel-heading">
+              <div>
+                <h2>Modos de tirada</h2>
+                <p>Presets rapidos y filtros para cuando quieras controlar el azar.</p>
+              </div>
+              <button className="secondary-button" disabled={!hasUnsavedDicePreferences} type="button" onClick={savePreferences}>
+                <Save size={17} />
+                {hasUnsavedDicePreferences ? 'Guardar ajustes' : 'Ajustes guardados'}
               </button>
-            )
-          })}
-        </div>
-        <PreferenceControls preferences={preferences} setPreferences={setPreferences} />
+            </div>
+            <div className={hasUnsavedDicePreferences ? 'settings-status pending' : 'settings-status'}>
+              <span>{hasUnsavedDicePreferences ? 'Cambios pendientes' : 'Sin cambios pendientes'}</span>
+              <strong>{scoredCandidates.length} candidatas</strong>
+            </div>
+            <div className="dice-preset-grid" aria-label="Presets rapidos del dado">
+              {dicePreferencePresets.map((preset) => {
+                const isActive = sameRecommendationPreferences(preferences, preset.preferences)
+
+                return (
+                  <button
+                    aria-label={`Aplicar preset ${preset.label}`}
+                    aria-pressed={isActive}
+                    className={isActive ? 'dice-preset-card active' : 'dice-preset-card'}
+                    key={preset.id}
+                    type="button"
+                    onClick={() => applyDicePreset(preset.preferences)}
+                  >
+                    <preset.Icon size={16} />
+                    <span>
+                      <strong>{preset.label}</strong>
+                      <small>{preset.detail}</small>
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+            <details className="dice-tuning-panel" data-close-on-outside open={hasUnsavedDicePreferences}>
+              <summary>
+                <span>Filtros concretos</span>
+                <small>Medio, tiempo, energia y sorpresa</small>
+              </summary>
+              <PreferenceControls preferences={preferences} setPreferences={setPreferences} />
+            </details>
+          </div>
+        </details>
         {status && <FeedbackMessage tone={feedbackToneFromText(status)}>{status}</FeedbackMessage>}
         {(diceSettingsUndo || diceUndoAction) && (
           <div className="feedback-action-row" aria-label="Accion reciente del dado">
@@ -6754,59 +6966,146 @@ function DiceTab({
         )}
       </section>
 
-      <section className="workspace-panel result-panel">
-        <div className="panel-heading compact">
-          <div>
-            <h2>Resultado</h2>
-            <p>{recommendation ? `Score ${recommendation.score}` : isRolling ? 'Tirada en curso' : 'Sin tirada todavia'}</p>
-          </div>
-        </div>
-
-        {isRolling ? (
-          <div className="recommendation-result rolling-result" data-testid="recommendation-result">
-            <Dice5 size={30} />
-            <strong>El dado esta eligiendo...</strong>
-            <div className="dice-roll-track" aria-hidden="true">
-              <span />
-              <span />
-              <span />
+      {shouldShowDiceResult && (
+        <section className="workspace-panel result-panel">
+          <div className="panel-heading compact">
+            <div>
+              <h2>Tu siguiente obra</h2>
+              <p>{recommendation ? `Elegida entre ${recommendation.poolSize}` : isRolling ? 'Eligiendo ahora' : 'Sin decision todavia'}</p>
             </div>
-            <FeedbackMessage>Barajando {scoredCandidates.length} opciones disponibles.</FeedbackMessage>
           </div>
-        ) : recommendation ? (
-          <div className="recommendation-result revealed-result" data-testid="recommendation-result">
+
+          {isRolling ? (
+            <div className="recommendation-result rolling-result" data-testid="recommendation-result">
+              <Dice5 size={30} />
+              <strong>El dado esta eligiendo...</strong>
+              <div className="dice-roll-track" aria-hidden="true">
+                <span />
+                <span />
+                <span />
+              </div>
+              <FeedbackMessage>Barajando {scoredCandidates.length} opciones disponibles.</FeedbackMessage>
+            </div>
+          ) : recommendation ? (
+            <div
+              className={recommendation.item.posterUrl ? 'recommendation-result revealed-result has-poster' : 'recommendation-result revealed-result'}
+              data-testid="recommendation-result"
+              style={getPosterBackplateStyle(recommendation.item.posterUrl)}
+            >
             <div className="recommendation-head">
               <CoverArt title={recommendation.item.title} type={recommendation.item.type} posterUrl={recommendation.item.posterUrl} />
               <div className="recommendation-summary">
+                <span className="eyebrow">Dado eligio</span>
                 <ItemIdentity item={recommendation.item} />
-                <div className="recommendation-scoreboard" aria-label="Detalle de tirada">
+                {activeDiceDecision ? (
+                  <section
+                    className={`recommendation-decision-complete ${activeDiceDecision.kind}`}
+                    aria-label="Decision cerrada del dado"
+                    data-testid="dice-decision-summary"
+                  >
+                    <div className="recommendation-decision-complete-main">
+                      {activeDiceDecision.kind === 'started' ? <Play size={17} /> : <Moon size={17} />}
+                      <div>
+                        <span className="eyebrow">Decision cerrada</span>
+                        <strong>{activeDiceDecision.title}</strong>
+                        <p>{activeDiceDecision.detail}</p>
+                      </div>
+                    </div>
+                    <div className="recommendation-decision-complete-actions">
+                      {activeDiceDecision.kind === 'started' && (
+                        <button className="secondary-button" type="button" onClick={openDiceDecisionItem}>
+                          <Info size={16} />
+                          Afinar ficha
+                        </button>
+                      )}
+                      <button className="primary-button" type="button" onClick={() => void rollAnotherRecommendation()}>
+                        <Dice5 size={16} />
+                        Tirar otra
+                      </button>
+                    </div>
+                  </section>
+                ) : (
+                  <section className="recommendation-decision" aria-label="Decision de la tirada">
+                    <div>
+                      <span className="eyebrow">Decision</span>
+                      <strong>Quieres seguir con esta ahora?</strong>
+                      <p>Empezar lo marca en curso. No hoy lo aparta hasta manana.</p>
+                    </div>
+                    <div className="action-row recommendation-actions">
+                      <button
+                        className="primary-button"
+                        type="button"
+                        onClick={startRecommendation}
+                      >
+                        <Play size={16} />
+                        Empezar
+                      </button>
+                      <button
+                        className="secondary-button"
+                        type="button"
+                        aria-label="Afinar ficha recomendada"
+                        onClick={openDiceDecisionItem}
+                      >
+                        <Info size={16} />
+                        Afinar ficha
+                      </button>
+                      <button
+                        className="secondary-button"
+                        type="button"
+                        onClick={skipRecommendation}
+                      >
+                        <X size={16} />
+                        No hoy
+                      </button>
+                    </div>
+                  </section>
+                )}
+                <div className="recommendation-scoreboard" aria-label="Resumen de la tirada">
                   <div className="score-card primary">
-                    <span>Score</span>
+                    <span>Encaje</span>
                     <strong>{recommendation.score}</strong>
                   </div>
                   <div className="score-card">
-                    <span>Pool</span>
+                    <span>Entre</span>
                     <strong>{recommendation.poolSize}</strong>
                   </div>
                   <div className="score-card">
-                    <span>Roll</span>
-                    <strong>{Math.round(recommendation.roll * 100)}%</strong>
+                    <span>Modo</span>
+                    <strong>{intensityLabels[preferences.intensity]}</strong>
                   </div>
                 </div>
               </div>
             </div>
-            <RecommendationSessionPlanView plan={getRecommendationSessionPlan(recommendation, preferences)} />
-            <section className="reason-stack" aria-label="Razones de la recomendacion">
-              <h3>Por que sale</h3>
-              <ul>
-                {recommendation.reasons.map((reason) => (
-                  <li key={reason}>
-                    <CheckCircle2 size={15} />
-                    <span>{reason}</span>
-                  </li>
-                ))}
-              </ul>
-            </section>
+            <div className="recommendation-detail-grid" aria-label="Detalles de la tirada">
+              <details className="recommendation-detail-panel" data-close-on-outside>
+                <summary>
+                  <span>
+                    <strong>Plan de sesion</strong>
+                    <small>{getRecommendationSessionPlan(recommendation, preferences).title}</small>
+                  </span>
+                </summary>
+                <RecommendationSessionPlanView plan={getRecommendationSessionPlan(recommendation, preferences)} />
+              </details>
+              <details className="recommendation-detail-panel" data-close-on-outside>
+                <summary>
+                  <span>
+                    <strong>Por que sale</strong>
+                    <small>{recommendation.reasons[0] ?? 'Mejor candidata ahora'}</small>
+                  </span>
+                </summary>
+                <section className="reason-stack" aria-label="Razones de la recomendacion">
+                  <h3>Por que sale</h3>
+                  <ul>
+                    {recommendation.reasons.map((reason) => (
+                      <li key={reason}>
+                        <CheckCircle2 size={15} />
+                        <span>{reason}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              </details>
+            </div>
             {recommendationLearningSignals && recommendationLearningSignals.total > 0 && (
               <section className="recommendation-learning" aria-label="Aprendizaje de gustos del dado" data-testid="dice-learning">
                 <div className="recommendation-learning-main">
@@ -6835,123 +7134,60 @@ function DiceTab({
                 </button>
               </section>
             )}
-            {activeDiceDecision ? (
-              <section
-                className={`recommendation-decision-complete ${activeDiceDecision.kind}`}
-                aria-label="Decision cerrada del dado"
-                data-testid="dice-decision-summary"
-              >
-                <div className="recommendation-decision-complete-main">
-                  {activeDiceDecision.kind === 'started' ? <Play size={17} /> : <Moon size={17} />}
-                  <div>
-                    <span className="eyebrow">Decision cerrada</span>
-                    <strong>{activeDiceDecision.title}</strong>
-                    <p>{activeDiceDecision.detail}</p>
-                  </div>
-                </div>
-                <div className="recommendation-decision-complete-actions">
-                  {activeDiceDecision.kind === 'started' && (
-                    <button className="secondary-button" type="button" onClick={openDiceDecisionItem}>
-                      <Info size={16} />
-                      Afinar ficha
-                    </button>
-                  )}
-                  <button className="primary-button" type="button" onClick={() => void rollAnotherRecommendation()}>
-                    <Dice5 size={16} />
-                    Tirar otra
-                  </button>
-                </div>
-              </section>
-            ) : (
-              <section className="recommendation-decision" aria-label="Decision de la tirada">
-                <div>
-                  <span className="eyebrow">Decision</span>
-                  <strong>Te lo llevas ahora?</strong>
-                  <p>Empezar lo marca en curso. No hoy lo aparta hasta manana para que el dado no insista.</p>
-                </div>
-                <div className="action-row recommendation-actions">
-                  <button
-                    className="primary-button"
-                    type="button"
-                    onClick={startRecommendation}
-                  >
-                    <Play size={16} />
-                    Empezar
-                  </button>
-                  <button
-                    className="secondary-button"
-                    type="button"
-                    aria-label="Afinar ficha recomendada"
-                    onClick={openDiceDecisionItem}
-                  >
-                    <Info size={16} />
-                    Afinar ficha
-                  </button>
-                  <button
-                    className="secondary-button"
-                    type="button"
-                    onClick={skipRecommendation}
-                  >
-                    <X size={16} />
-                    No hoy
-                  </button>
-                </div>
-              </section>
-            )}
-          </div>
-        ) : !hasCandidates ? (
-          <EmptyState
-            icon={AlertTriangle}
-            tone="warning"
-            title="No hay tirada posible"
-            detail="Cambia medio, tiempo, senales bloqueadas o incluye pausados para abrir el abanico."
-          />
-        ) : (
-          <EmptyState icon={Dice5} title="El dado espera" detail="Ajusta el clima de la sesion y tira cuando quieras una recomendacion." />
-        )}
-
-        <section className="recent-rolls" aria-label="Tiradas recientes" data-testid="recent-rolls">
-          <div className="recent-rolls-heading">
-            <h3>Tiradas recientes</h3>
-            <span>{recentRecommendations.length ? `${recentRecommendations.length} ultimas` : 'Sin memoria aun'}</span>
-          </div>
-          {recentRecommendations.length ? (
-            <ol className="recent-roll-list">
-              {recentRecommendations.map((item) => {
-                const Icon = typeIcons[item.type]
-
-                return (
-                  <li key={item.id}>
-                    <button
-                      aria-label={`Afinar tirada reciente ${item.title}`}
-                      type="button"
-                      onClick={() =>
-                        setEditingDiceItem(library.items.find((libraryItem) => libraryItem.id === item.id) ?? item)
-                      }
-                    >
-                      <span className={`recent-roll-icon ${item.type}`}>
-                        <Icon size={14} />
-                      </span>
-                      <span>
-                        <strong>{item.title}</strong>
-                        <small>{formatRecentRecommendationTime(item.lastRecommendedAt)}</small>
-                      </span>
-                    </button>
-                  </li>
-                )
-              })}
-            </ol>
+            </div>
           ) : (
-            <p className="muted-line">Las tiradas guardadas apareceran aqui despues de usar el dado.</p>
+            <EmptyState
+              icon={AlertTriangle}
+              tone="warning"
+              title="No hay tirada posible"
+              detail="Cambia medio, tiempo, senales bloqueadas o incluye pausados para abrir el abanico."
+            />
           )}
+
+          <section className="recent-rolls" aria-label="Tiradas recientes" data-testid="recent-rolls">
+            <div className="recent-rolls-heading">
+              <h3>Tiradas recientes</h3>
+              <span>{recentRecommendations.length ? `${recentRecommendations.length} ultimas` : 'Sin memoria aun'}</span>
+            </div>
+            {recentRecommendations.length ? (
+              <ol className="recent-roll-list">
+                {recentRecommendations.map((item) => {
+                  const Icon = typeIcons[item.type]
+
+                  return (
+                    <li key={item.id}>
+                      <button
+                        aria-label={`Afinar tirada reciente ${item.title}`}
+                        type="button"
+                        onClick={() =>
+                          setEditingDiceItem(library.items.find((libraryItem) => libraryItem.id === item.id) ?? item)
+                        }
+                      >
+                        <span className={`recent-roll-icon ${item.type}`}>
+                          <Icon size={14} />
+                        </span>
+                        <span>
+                          <strong>{item.title}</strong>
+                          <small>{formatRecentRecommendationTime(item.lastRecommendedAt)}</small>
+                        </span>
+                      </button>
+                    </li>
+                  )
+                })}
+              </ol>
+            ) : (
+              <p className="muted-line">Las tiradas guardadas apareceran aqui despues de usar el dado.</p>
+            )}
+          </section>
         </section>
-      </section>
+      )}
 
       {editingDiceItem && (
         <ItemEditor
           item={editingDiceItem}
           onClose={() => setEditingDiceItem(undefined)}
-          onSave={(item) => void saveDiceItemEdits(item)}
+          onDelete={deleteDiceItem}
+          onSave={saveDiceItemEdits}
         />
       )}
     </section>
@@ -7006,6 +7242,10 @@ function ExplorerTab({
   const [selected, setSelected] = useState<DiscoveryCandidate | undefined>()
   const [catalogDraft, setCatalogDraft] = useState<PublicCatalogItem | undefined>()
   const [completedExplorerQueue, setCompletedExplorerQueue] = useState<CompletedExplorerQueue | undefined>()
+  const [discoverType, setDiscoverType] = useState<ExternalDiscoverType>('any')
+  const [discoverDuration, setDiscoverDuration] = useState<ExternalDiscoverDuration>('any')
+  const [discoverCandidate, setDiscoverCandidate] = useState<DiscoveryCandidate | undefined>()
+  const [discoverLoading, setDiscoverLoading] = useState(false)
   const handledCandidateDismissRequestId = useRef<number | undefined>(undefined)
   const handledCandidateRequestId = useRef<number | undefined>(undefined)
   const handledCandidateSaveRequestId = useRef<number | undefined>(undefined)
@@ -7029,16 +7269,36 @@ function ExplorerTab({
     dominantSourceLabel,
     feedCandidates,
     isSourceFilteredEmpty,
-    queuedSourceCounts,
     sourceCounts,
     spotlightCandidate,
     totalDiscoveryCount,
     visibleCandidates,
   } = explorerDecision
-  const queuedNexoCount = queuedSourceCounts.nexo
-  const queuedExternalCount = queuedSourceCounts.external
-  const queuedPromptCount = queuedSourceCounts.prompt
   const canSaveVisibleQueue = view === 'queued' && sourceFilter !== 'all' && visibleCandidates.length > 0
+  const showCandidateFeedHeader = totalDiscoveryCount > 0 || visibleCandidates.length > 0 || view !== 'queued' || isSourceFilteredEmpty
+  const explorerShelfItems = useMemo(() => library.items.slice(0, 3), [library.items])
+  const explorerStarterIdeas = useMemo(() => {
+    const seen = new Set<string>()
+    const personalIdeas = explorerShelfItems
+      .map((item) => ({
+        id: item.id,
+        kicker: `Desde ${typeLabels[item.type]}`,
+        posterUrl: item.posterUrl,
+        query: item.title,
+        searchType: explorerSearchTypeForItemType(item.type),
+        title: item.title,
+        type: item.type,
+      }))
+      .filter((idea) => {
+        const key = normalizeKey(idea.query)
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
+
+    return [...personalIdeas, ...fallbackExplorerStarters.filter((idea) => !seen.has(normalizeKey(idea.query)))].slice(0, 2)
+  }, [explorerShelfItems])
+  const hasHeroStarterIdeas = totalDiscoveryCount === 0 && explorerStarterIdeas.length > 0
 
   const clearExplorerRecentActions = useCallback(() => {
     setBulkDismissUndo([])
@@ -7087,7 +7347,7 @@ function ExplorerTab({
     setCompletedExplorerQueue(undefined)
   }
 
-  async function changeSearchType(nextType: ExplorerSearchType) {
+  const changeSearchType = useCallback(async (nextType: ExplorerSearchType) => {
     setMessage(undefined)
     clearExplorerRecentActions()
     try {
@@ -7095,9 +7355,9 @@ function ExplorerTab({
     } catch (reason) {
       setMessage(reason instanceof Error ? reason.message : 'No se pudo guardar el tipo de busqueda.')
     }
-  }
+  }, [clearExplorerRecentActions, library])
 
-  const runDiscoverySearch = useCallback(async (searchQuery = query) => {
+  const runDiscoverySearch = useCallback(async (searchQuery = query, searchType = type) => {
     const cleanedQuery = searchQuery.trim()
     setMessage(undefined)
     clearExplorerRecentActions()
@@ -7109,8 +7369,8 @@ function ExplorerTab({
     setLoading(true)
     try {
       const [publicItems, externalCandidates] = await Promise.all([
-        library.searchPublicCatalog(cleanedQuery, type),
-        library.searchExternal(cleanedQuery, type),
+        library.searchPublicCatalog(cleanedQuery, searchType),
+        library.searchExternal(cleanedQuery, searchType),
       ])
       const candidates = [
         ...publicItems.map(library.publicItemToDiscovery),
@@ -7140,16 +7400,44 @@ function ExplorerTab({
     }
   }, [clearExplorerRecentActions, library, onActivity, query, type])
 
+  const runExternalDiscovery = useCallback(async () => {
+    setMessage(undefined)
+    clearExplorerRecentActions()
+    setDiscoverLoading(true)
+    try {
+      const candidate = await discoverExternalCandidate(discoverType, discoverDuration)
+      if (!candidate) {
+        setDiscoverCandidate(undefined)
+        setMessage('No encontre una recomendacion con portada. Prueba otra duracion o tipo.')
+        return
+      }
+
+      const discoveryCandidate = library.externalCandidateToDiscovery(candidate)
+      setDiscoverCandidate(discoveryCandidate)
+      setMessage(`${discoveryCandidate.title} encontrado fuera de tu biblioteca.`)
+      onActivity({
+        detail: `${typeLabels[discoveryCandidate.type]} / ${sourceLabels[discoveryCandidate.source]}`,
+        label: 'Explorador random',
+        tab: 'explorer',
+        tone: 'success',
+      })
+    } catch (reason) {
+      setMessage(reason instanceof Error ? reason.message : 'No se pudo descubrir una obra.')
+    } finally {
+      setDiscoverLoading(false)
+    }
+  }, [clearExplorerRecentActions, discoverDuration, discoverType, library, onActivity])
+
   const addPromptCard = useCallback(async () => {
     try {
       clearExplorerRecentActions()
       const title = promptDeck[Math.floor(Math.random() * promptDeck.length)]
       await library.queueDiscoveryCandidates([promptToDiscovery(title)])
       setView('queued')
-      setMessage('Carta de exploracion anadida.')
+      setMessage('Pista de exploracion anadida.')
       onActivity({
         detail: title,
-        label: 'Carta sorpresa anadida',
+        label: 'Pista anadida',
         tab: 'explorer',
         tone: 'success',
       })
@@ -7157,6 +7445,24 @@ function ExplorerTab({
       setMessage(reason instanceof Error ? reason.message : 'No se pudo anadir la carta.')
     }
   }, [clearExplorerRecentActions, library, onActivity])
+
+  const startExplorerIdea = useCallback(async (idea: (typeof explorerStarterIdeas)[number]) => {
+    setQuery(idea.query)
+    if (type !== idea.searchType) void changeSearchType(idea.searchType)
+    await runDiscoverySearch(idea.query, idea.searchType)
+  }, [changeSearchType, runDiscoverySearch, type])
+
+  const recommendFromLibrary = useCallback(async () => {
+    const personalIdea = explorerStarterIdeas.find((idea) => explorerShelfItems.some((item) => item.id === idea.id))
+      ?? explorerStarterIdeas[0]
+
+    if (personalIdea) {
+      await startExplorerIdea(personalIdea)
+      return
+    }
+
+    await addPromptCard()
+  }, [addPromptCard, explorerShelfItems, explorerStarterIdeas, startExplorerIdea])
 
   const saveCandidate = useCallback(async (candidate: DiscoveryCandidate) => {
     const completedQueue = candidateCompletesVisibleQueue(candidate) ? getCompletedExplorerQueue(1, 'saved') : undefined
@@ -7181,6 +7487,40 @@ function ExplorerTab({
       return false
     }
   }, [candidateCompletesVisibleQueue, getCompletedExplorerQueue, library, onActivity])
+
+  const saveDiscoverCandidate = useCallback(async (candidate: DiscoveryCandidate) => {
+    try {
+      setBulkDismissUndo([])
+      setBulkSaveUndo([])
+      const item = await library.saveDiscoveryToLibrary(candidate, { persistDiscoveryCandidate: false })
+      setSavedExplorerItem(item)
+      setSavedExplorerUndo(undefined)
+      setDiscoverCandidate(undefined)
+      setMessage(`${item.title} guardado en Biblioteca.`)
+      onActivity({
+        detail: item.title,
+        label: 'Hallazgo guardado',
+        tab: 'explorer',
+        target: { kind: 'item', id: item.id },
+        tone: 'success',
+      })
+      return true
+    } catch (reason) {
+      setMessage(reason instanceof Error ? reason.message : 'No se pudo guardar el hallazgo.')
+      return false
+    }
+  }, [library, onActivity])
+
+  function dismissDiscoverCandidate(candidate: DiscoveryCandidate) {
+    setDiscoverCandidate(undefined)
+    setMessage(`${candidate.title} descartado.`)
+    onActivity({
+      detail: candidate.title,
+      label: 'Hallazgo descartado',
+      tab: 'explorer',
+      tone: 'success',
+    })
+  }
 
   const dismissCandidate = useCallback(async (candidate: DiscoveryCandidate) => {
     const completedQueue = candidateCompletesVisibleQueue(candidate) ? getCompletedExplorerQueue(1, 'dismissed') : undefined
@@ -7403,6 +7743,24 @@ function ExplorerTab({
     }
   }
 
+  async function deleteExplorerItem(item: ListItem) {
+    try {
+      await library.deleteItem(item.id)
+      setEditingSavedItem(undefined)
+      setSavedExplorerItem((current) => (current?.id === item.id ? undefined : current))
+      setSavedExplorerUndo((current) => (current?.item.id === item.id ? undefined : current))
+      setMessage(`${item.title || 'Entrada'} eliminada de Biblioteca.`)
+      onActivity({
+        detail: item.title || 'Entrada sin titulo',
+        label: 'Entrada eliminada',
+        tab: 'explorer',
+        tone: 'success',
+      })
+    } catch (reason) {
+      setMessage(reason instanceof Error ? reason.message : 'No se pudo borrar la entrada.')
+    }
+  }
+
   async function saveSelectedCandidate(candidate: DiscoveryCandidate) {
     if (await saveCandidate(candidate)) setSelected(undefined)
   }
@@ -7436,13 +7794,6 @@ function ExplorerTab({
     }
   }
 
-  const emptyExplorerAction = isSourceFilteredEmpty ? undefined : view === 'queued' ? (
-    <button className="secondary-button" type="button" onClick={addPromptCard}>
-      <Sparkles size={16} />
-      Anadir carta sorpresa
-    </button>
-  ) : undefined
-
   useEffect(() => {
     if (!searchRequest || handledSearchRequestId.current === searchRequest.requestId) return
 
@@ -7466,11 +7817,11 @@ function ExplorerTab({
       if (handledPromptCardRequestId.current === promptCardRequest.requestId) return
 
       handledPromptCardRequestId.current = promptCardRequest.requestId
-      void addPromptCard().finally(onPromptCardRequestHandled)
+      void recommendFromLibrary().finally(onPromptCardRequestHandled)
     }, 0)
 
     return () => window.clearTimeout(timeoutId)
-  }, [addPromptCard, onPromptCardRequestHandled, promptCardRequest])
+  }, [onPromptCardRequestHandled, promptCardRequest, recommendFromLibrary])
 
   useEffect(() => {
     if (!candidateRequest || handledCandidateRequestId.current === candidateRequest.requestId) return
@@ -7600,81 +7951,186 @@ function ExplorerTab({
     return () => window.clearTimeout(timeoutId)
   }, [clearExplorerRecentActions, dismissVisibleQueueForFilter, onVisibleDismissRequestHandled, visibleDismissRequest])
 
+  const explorerMessageTone = message ? feedbackToneFromText(message) : undefined
+  const explorerUndoAction =
+    savedExplorerUndo
+      ? { ariaLabel: 'Deshacer guardado', label: 'Deshacer', onClick: () => void undoSaveCandidate() }
+      : bulkSaveUndo.length > 0
+        ? { ariaLabel: 'Deshacer guardado de vista', label: 'Deshacer', onClick: () => void undoSaveVisibleQueue() }
+        : bulkDismissUndo.length > 0
+          ? { ariaLabel: 'Deshacer descarte', label: 'Deshacer', onClick: () => void undoDismissVisibleQueue() }
+          : undefined
+  const explorerToasts: ToastMessage[] = message
+    ? [
+        {
+          action: explorerUndoAction,
+          durationMs: explorerMessageTone === 'danger' || explorerMessageTone === 'loading' ? undefined : explorerUndoAction ? 8000 : 3000,
+          id: 'explorer-status',
+          message,
+          tone: explorerMessageTone,
+        },
+      ]
+    : explorerUndoAction
+      ? [
+          {
+            action: explorerUndoAction,
+            durationMs: 8000,
+            id: 'explorer-undo',
+            message: 'Accion reciente disponible para deshacer.',
+            tone: 'info',
+          },
+        ]
+      : []
+
+  function clearExplorerUndoState() {
+    setBulkDismissUndo([])
+    setBulkSaveUndo([])
+    setSavedExplorerUndo(undefined)
+  }
+
+  function dismissExplorerToast(id: string) {
+    if (id === 'explorer-status') setMessage(undefined)
+    if (id === 'explorer-status' || id === 'explorer-undo') clearExplorerUndoState()
+  }
+
   return (
-    <section className={totalDiscoveryCount > 0 ? 'content-grid' : 'content-grid explorer-focus-grid'}>
+    <section className={totalDiscoveryCount > 0 ? 'content-grid explorer-grid' : 'content-grid explorer-focus-grid explorer-grid'}>
       <section className="workspace-panel wide">
         <div className="explorer-command">
-          <div className="explorer-command-heading">
-            <div>
-              <span className="eyebrow">Explorador</span>
-              <h2>Encuentra la proxima entrada</h2>
-              <p>Busca en Nexo y APIs publicas, manda resultados a una cola y decide sin ensuciar tu biblioteca.</p>
+          <div className="explorer-command-main">
+            <div className="explorer-command-heading">
+              <div>
+                <span className="tool-mode-badge explorer-mode-badge">
+                  <Sparkles size={15} />
+                  Explorar
+                </span>
+                <span className="eyebrow">Fuera de tu estanteria</span>
+                <h2>Sorprendeme</h2>
+              </div>
             </div>
-            <button className="secondary-button" type="button" onClick={addPromptCard}>
-              <Sparkles size={17} />
-              Carta sorpresa
-            </button>
-          </div>
 
-          <form
-            className="explorer-search explorer-command-search"
-            onSubmit={(event) => {
-              event.preventDefault()
-              void runDiscoverySearch()
-            }}
-          >
-            <label className="search-field explorer-query-field">
-              <Search size={18} />
-              <input
-                aria-label="Buscar en explorador"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Odisea, Arrival, metroidvania raro..."
-              />
-            </label>
-            <select
-              aria-label="Tipo de busqueda en explorador"
-              value={type}
-              onChange={(event) => void changeSearchType(event.target.value as ExplorerSearchType)}
+            <form
+              className="explorer-search explorer-command-search explorer-discover-form"
+              onSubmit={(event) => {
+                event.preventDefault()
+                void runExternalDiscovery()
+              }}
             >
-              <option value="any">Todo</option>
-              <option value="watch">Ver</option>
-              <option value="game">Juego</option>
-              <option value="book">Libro</option>
-              <option value="anime">Anime</option>
-              <option value="manga">Manga</option>
-              <option value="manhwa">Manhwa</option>
-            </select>
-            <button className="primary-button" disabled={loading} type="submit">
-              <Search size={18} />
-              {loading ? 'Buscando' : 'Buscar'}
-            </button>
-          </form>
-
-          <div className={totalDiscoveryCount > 0 ? 'explorer-command-summary' : 'explorer-command-summary sr-only'} aria-label="Resumen del explorador">
-            <span>
-              <strong>{discoveryCounts.queued}</strong>
-              Cola
-            </span>
-            <span>
-              <strong>{discoveryCounts.saved}</strong>
-              Guardados
-            </span>
-            <span>
-              <strong>{discoveryCounts.dismissed}</strong>
-              Descartes
-            </span>
-            <span>
-              <strong>{totalDiscoveryCount}</strong>
-              Historial
-            </span>
+              <select
+                aria-label="Tipo para descubrir"
+                value={discoverType}
+                onChange={(event) => setDiscoverType(event.target.value as ExternalDiscoverType)}
+              >
+                {explorerDiscoverTypeOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <select
+                aria-label="Duracion para descubrir"
+                value={discoverDuration}
+                onChange={(event) => setDiscoverDuration(event.target.value as ExternalDiscoverDuration)}
+              >
+                {explorerDiscoverDurationOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <button className="primary-button" disabled={discoverLoading} type="submit">
+                <Sparkles size={18} />
+                {discoverLoading ? 'Buscando' : 'Sorprendeme'}
+              </button>
+            </form>
           </div>
         </div>
 
-        {loading && <FeedbackMessage tone="loading">Buscando en Nexo y fuera...</FeedbackMessage>}
-        {message && <FeedbackMessage tone={feedbackToneFromText(message)}>{message}</FeedbackMessage>}
-        {(bulkDismissUndo.length > 0 || bulkSaveUndo.length > 0 || savedExplorerItem || savedExplorerUndo) && (
-          <div className="feedback-action-row" aria-label="Accion reciente del explorador">
+        <ToastStack label="Accion reciente del explorador Notificaciones" toasts={explorerToasts} onDismiss={dismissExplorerToast} />
+
+        {discoverCandidate && (
+          <section className="candidate-spotlight explorer-random-result" aria-label="Resultado random externo" data-testid="explorer-random-result">
+            <div className="candidate-spotlight-media">
+              <CoverArt title={discoverCandidate.title} type={discoverCandidate.type} posterUrl={discoverCandidate.posterUrl} />
+            </div>
+            <div className="candidate-spotlight-body">
+              <div className="candidate-meta">
+                <span className="source-pill">{sourceLabels[discoverCandidate.source]}</span>
+                <span>{typeLabels[discoverCandidate.type]}</span>
+                {discoverCandidate.releaseYear && <span>{discoverCandidate.releaseYear}</span>}
+              </div>
+              <h3>{discoverCandidate.title}</h3>
+              <p className="candidate-spotlight-overview">
+                {discoverCandidate.overview || `${typeLabels[discoverCandidate.type]} encontrado fuera de tu biblioteca.`}
+              </p>
+              <div className="tag-row">
+                {discoverCandidate.genres.slice(0, 4).map((genre) => (
+                  <span key={genre}>{genre}</span>
+                ))}
+              </div>
+              <div className="candidate-spotlight-actions" aria-label={`Decidir ${discoverCandidate.title}`}>
+                <button className="primary-button" type="button" onClick={() => void saveDiscoverCandidate(discoverCandidate)}>
+                  <Plus size={17} />
+                  Guardar
+                </button>
+                <button className="secondary-button" disabled={discoverLoading} type="button" onClick={() => void runExternalDiscovery()}>
+                  <Sparkles size={17} />
+                  Otra
+                </button>
+                <button className="ghost-button danger-ghost" type="button" onClick={() => dismissDiscoverCandidate(discoverCandidate)}>
+                  <X size={17} />
+                  Descartar
+                </button>
+              </div>
+            </div>
+          </section>
+        )}
+
+        <details className="explorer-tools-panel explorer-history-panel">
+          <summary aria-label="Abrir historial avanzado del explorador">
+            <span>
+              <SlidersHorizontal size={16} />
+              <strong>Avanzado</strong>
+              <small>{discoveryCounts.queued} por revisar / historial y busqueda manual</small>
+            </span>
+            <em>Oculto</em>
+          </summary>
+          <div className="explorer-tools-content">
+            <form
+              className="explorer-search explorer-command-search"
+              onSubmit={(event) => {
+                event.preventDefault()
+                void runDiscoverySearch()
+              }}
+            >
+              <label className="search-field explorer-query-field">
+                <Search size={18} />
+                <input
+                  aria-label="Buscar en explorador"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Frieren, Dune, Hollow Knight..."
+                />
+              </label>
+              <select
+                aria-label="Tipo de busqueda en explorador"
+                value={type}
+                onChange={(event) => void changeSearchType(event.target.value as ExplorerSearchType)}
+              >
+                <option value="any">Todo</option>
+                <option value="watch">Ver</option>
+                <option value="game">Juego</option>
+                <option value="book">Libro</option>
+                <option value="anime">Anime</option>
+                <option value="manga">Manga</option>
+                <option value="manhwa">Manhwa</option>
+              </select>
+              <button className="secondary-button" disabled={loading} type="submit">
+                <Search size={18} />
+                {loading ? 'Buscando' : 'Buscar'}
+              </button>
+            </form>
+
             {savedExplorerItem && (
               <button
                 aria-label={`Afinar ficha guardada ${savedExplorerItem.title}`}
@@ -7683,123 +8139,115 @@ function ExplorerTab({
                 onClick={() => setEditingSavedItem(savedExplorerItem)}
               >
                 <Info size={16} />
-                Afinar ficha
+                Afinar ficha guardada
               </button>
             )}
-            {savedExplorerUndo && (
-              <button className="secondary-button" type="button" onClick={() => void undoSaveCandidate()}>
-                <RotateCcw size={16} />
-                Deshacer guardado
-              </button>
-            )}
-            {bulkSaveUndo.length > 0 && (
-              <button className="secondary-button" type="button" onClick={() => void undoSaveVisibleQueue()}>
-                <RotateCcw size={16} />
-                Deshacer guardado de vista
-              </button>
-            )}
-            {bulkDismissUndo.length > 0 && (
-              <button className="secondary-button" type="button" onClick={() => void undoDismissVisibleQueue()}>
-                <RotateCcw size={16} />
-                Deshacer descarte
-              </button>
-            )}
-          </div>
-        )}
 
         {totalDiscoveryCount > 0 && (
           <>
-            <div className="explorer-control-deck">
-              <div className="explorer-status-strip" role="tablist" aria-label="Estado de descubrimiento">
-                {(['queued', 'saved', 'dismissed'] as const).map((status) => (
-                  <button
-                    aria-selected={view === status}
-                    className={view === status ? 'stat-chip active' : 'stat-chip'}
-                    data-status={status}
-                    key={status}
-                    role="tab"
-                    type="button"
-                    onClick={() => changeExplorerView(status)}
-                  >
-                    <span>{discoveryStatusLabels[status]}</span>
-                    <strong>{discoveryCounts[status]}</strong>
-                  </button>
-                ))}
-              </div>
+            <details className="explorer-tools-panel" data-close-on-outside open={sourceFilter !== 'all' || view !== 'queued'}>
+              <summary aria-label="Abrir filtros e historial del explorador">
+                <span>
+                  <SlidersHorizontal size={16} />
+                  <strong>Filtros e historial</strong>
+                  <small>{discoveryCounts.queued} por revisar / {activeSourceLabel}</small>
+                </span>
+                <em>{decisionProgressPercent}% decidido</em>
+              </summary>
+              <div className="explorer-tools-content">
+                <div className="explorer-control-deck">
+                  <div className="explorer-status-strip" role="tablist" aria-label="Estado de descubrimiento">
+                    {(['queued', 'saved', 'dismissed'] as const).map((status) => (
+                      <button
+                        aria-selected={view === status}
+                        className={view === status ? 'stat-chip active' : 'stat-chip'}
+                        data-status={status}
+                        key={status}
+                        role="tab"
+                        type="button"
+                        onClick={() => changeExplorerView(status)}
+                      >
+                        <span>{discoveryStatusLabels[status]}</span>
+                        <strong>{discoveryCounts[status]}</strong>
+                      </button>
+                    ))}
+                  </div>
 
-              <div className="explorer-source-strip" role="group" aria-label="Filtrar descubrimientos por origen">
-                {explorerSourceFilters.map((filter) => (
-                  <button
-                    aria-pressed={sourceFilter === filter.id}
-                    className={sourceFilter === filter.id ? 'source-filter-chip active' : 'source-filter-chip'}
-                    key={filter.id}
-                    type="button"
-                    onClick={() => changeExplorerSourceFilter(filter.id)}
-                  >
-                    <span>{filter.label}</span>
-                    <small>{filter.detail}</small>
-                    <strong>{sourceCounts[filter.id]}</strong>
-                  </button>
-                ))}
-              </div>
-            </div>
+                  <div className="explorer-source-strip" role="group" aria-label="Filtrar descubrimientos por origen">
+                    {explorerSourceFilters.map((filter) => (
+                      <button
+                        aria-pressed={sourceFilter === filter.id}
+                        className={sourceFilter === filter.id ? 'source-filter-chip active' : 'source-filter-chip'}
+                        key={filter.id}
+                        type="button"
+                        onClick={() => changeExplorerSourceFilter(filter.id)}
+                      >
+                        <span>{filter.label}</span>
+                        <small>{filter.detail}</small>
+                        <strong>{sourceCounts[filter.id]}</strong>
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
-            <section className="explorer-decision-panel" aria-label="Estado de decision del explorador" data-testid="explorer-decision-panel">
-              <div className="explorer-decision-main">
-                <div>
-                  <span className="eyebrow">Bandeja activa</span>
-                  <strong>{decisionSummaryTitle}</strong>
-                  <p>{decisionSummaryDetail}</p>
-                </div>
-                <div className="explorer-progress-badge">
-                  <strong>{decisionProgressPercent}%</strong>
-                  <span>historial decidido</span>
-                </div>
+                <section className="explorer-decision-panel" aria-label="Estado de decision del explorador" data-testid="explorer-decision-panel">
+                  <div className="explorer-decision-main">
+                    <div>
+                      <span className="eyebrow">Explorar</span>
+                      <strong>{decisionSummaryTitle}</strong>
+                      <p>{decisionSummaryDetail}</p>
+                    </div>
+                    <div className="explorer-progress-badge">
+                      <strong>{decisionProgressPercent}%</strong>
+                      <span>historial decidido</span>
+                    </div>
+                  </div>
+                  <div
+                    aria-label={`Progreso de decision ${decisionProgressPercent}%`}
+                    className="explorer-decision-meter"
+                    role="meter"
+                    aria-valuemax={100}
+                    aria-valuemin={0}
+                    aria-valuenow={decisionProgressPercent}
+                  >
+                    <span style={{ width: `${decisionProgressPercent}%` }} />
+                  </div>
+                  <div className="explorer-decision-facts">
+                    <span>
+                      <strong>{spotlightCandidate?.title ?? 'Sin siguiente'}</strong>
+                      Siguiente
+                    </span>
+                    <span>
+                      <strong>{dominantSourceLabel}</strong>
+                      Origen fuerte
+                    </span>
+                    <span>
+                      <strong>{activeSourceLabel}</strong>
+                      Filtro
+                    </span>
+                  </div>
+                  <div className="explorer-decision-actions">
+                    {sourceFilter !== 'all' && (
+                      <button className="secondary-button" type="button" onClick={() => changeExplorerSourceFilter('all')}>
+                        Ver todos los origenes
+                      </button>
+                    )}
+                    {canSaveVisibleQueue && (
+                      <button className="secondary-button" type="button" onClick={() => void saveVisibleQueue()}>
+                        <Plus size={16} />
+                        Guardar vista
+                      </button>
+                    )}
+                    {canDismissVisibleQueue && (
+                      <button className="ghost-button danger-ghost" type="button" onClick={() => void dismissVisibleQueue()}>
+                        <X size={16} />
+                        Descartar vista
+                      </button>
+                    )}
+                  </div>
+                </section>
               </div>
-              <div
-                aria-label={`Progreso de decision ${decisionProgressPercent}%`}
-                className="explorer-decision-meter"
-                role="meter"
-                aria-valuemax={100}
-                aria-valuemin={0}
-                aria-valuenow={decisionProgressPercent}
-              >
-                <span style={{ width: `${decisionProgressPercent}%` }} />
-              </div>
-              <div className="explorer-decision-facts">
-                <span>
-                  <strong>{spotlightCandidate?.title ?? 'Sin siguiente'}</strong>
-                  Siguiente
-                </span>
-                <span>
-                  <strong>{dominantSourceLabel}</strong>
-                  Origen fuerte
-                </span>
-                <span>
-                  <strong>{activeSourceLabel}</strong>
-                  Filtro
-                </span>
-              </div>
-              <div className="explorer-decision-actions">
-                {sourceFilter !== 'all' && (
-                  <button className="secondary-button" type="button" onClick={() => changeExplorerSourceFilter('all')}>
-                    Ver todos los origenes
-                  </button>
-                )}
-                {canSaveVisibleQueue && (
-                  <button className="secondary-button" type="button" onClick={() => void saveVisibleQueue()}>
-                    <Plus size={16} />
-                    Guardar vista
-                  </button>
-                )}
-                {canDismissVisibleQueue && (
-                  <button className="ghost-button danger-ghost" type="button" onClick={() => void dismissVisibleQueue()}>
-                    <X size={16} />
-                    Descartar vista
-                  </button>
-                )}
-              </div>
-            </section>
+            </details>
           </>
         )}
 
@@ -7828,24 +8276,26 @@ function ExplorerTab({
           </section>
         )}
 
-        <div className="candidate-feed-header">
-          <div>
-            <h3>{spotlightCandidate ? 'Bandeja de decision' : discoveryStatusLabels[view]}</h3>
-            <p>
-              {spotlightCandidate
-                ? 'Decide primero el hallazgo superior; el resto espera debajo.'
-                : view === 'queued'
-                ? 'Revisa, guarda o descarta sin mezclarlo con tu biblioteca privada.'
-                : 'Historial ligero de decisiones del explorador.'}
-            </p>
+        {showCandidateFeedHeader && (
+          <div className="candidate-feed-header">
+            <div>
+              <h3>{spotlightCandidate ? 'Para revisar' : view === 'queued' ? 'Descubrir' : discoveryStatusLabels[view]}</h3>
+              <p>
+                {spotlightCandidate
+                  ? 'Guarda si encaja o descartalo para limpiar la busqueda.'
+                  : view === 'queued'
+                  ? 'Busca por titulo o lanza una pista cuando no sepas por donde empezar.'
+                  : 'Historial ligero de decisiones del explorador.'}
+              </p>
+            </div>
+            <span className="feed-count-pill">
+              {visibleCandidates.length} / {candidatesInView.length} {activeSourceLabel}
+            </span>
           </div>
-          <span className="feed-count-pill">
-            {visibleCandidates.length} / {candidatesInView.length} {activeSourceLabel}
-          </span>
-        </div>
+        )}
 
         {spotlightCandidate && (
-          <section className="candidate-spotlight" aria-label="Hallazgo destacado" data-testid="candidate-spotlight">
+          <section className="candidate-spotlight" aria-label="Obra encontrada" data-testid="candidate-spotlight">
             <div className="candidate-spotlight-media">
               <CoverArt title={spotlightCandidate.title} type={spotlightCandidate.type} posterUrl={spotlightCandidate.posterUrl} />
             </div>
@@ -7855,40 +8305,40 @@ function ExplorerTab({
                 <span>{typeLabels[spotlightCandidate.type]}</span>
                 {spotlightCandidate.releaseYear && <span>{spotlightCandidate.releaseYear}</span>}
               </div>
-              <span className="eyebrow">Siguiente hallazgo</span>
+              <span className="eyebrow">Resultado listo</span>
               <h3>{spotlightCandidate.title}</h3>
-              <p>{spotlightCandidate.overview || `${typeLabels[spotlightCandidate.type]} para explorar`}</p>
+              <p className="candidate-spotlight-overview">{spotlightCandidate.overview || `${typeLabels[spotlightCandidate.type]} para explorar`}</p>
               <div className="tag-row">
                 {spotlightCandidate.genres.slice(0, 4).map((genre) => (
                   <span key={genre}>{genre}</span>
                 ))}
               </div>
               <CandidateDecisionBriefView brief={getCandidateDecisionBrief(spotlightCandidate, library.isModerator)} />
-            </div>
-            <div className="candidate-spotlight-actions" aria-label={`Decidir ${spotlightCandidate.title}`}>
-              <button className="primary-button" type="button" onClick={() => void saveCandidate(spotlightCandidate)} aria-label={`Guardar ${spotlightCandidate.title}`}>
-                <Plus size={17} />
-                Guardar
-              </button>
-              <button className="secondary-button" type="button" onClick={() => setSelected(spotlightCandidate)} aria-label={`Abrir ficha ${spotlightCandidate.title}`}>
-                <Eye size={17} />
-                Detalles
-              </button>
-              <button className="ghost-button danger-ghost" type="button" onClick={() => void dismissCandidate(spotlightCandidate)} aria-label={`Descartar ${spotlightCandidate.title}`}>
-                <X size={17} />
-                Descartar
-              </button>
-              {library.isModerator && (
-                <button
-                  className="ghost-button"
-                  type="button"
-                  onClick={() => openCatalogDraft(spotlightCandidate)}
-                  aria-label={`${spotlightCandidate.source === 'nexo' ? 'Editar catalogo' : 'Crear catalogo'} ${spotlightCandidate.title}`}
-                >
-                  <ShieldCheck size={17} />
-                  Catalogo
+              <div className="candidate-spotlight-actions" aria-label={`Decidir ${spotlightCandidate.title}`}>
+                <button className="primary-button" type="button" onClick={() => void saveCandidate(spotlightCandidate)} aria-label={`Guardar ${spotlightCandidate.title}`}>
+                  <Plus size={17} />
+                  Guardar
                 </button>
-              )}
+                <button className="secondary-button" type="button" onClick={() => setSelected(spotlightCandidate)} aria-label={`Abrir ficha ${spotlightCandidate.title}`}>
+                  <Eye size={17} />
+                  Ver ficha
+                </button>
+                <button className="ghost-button danger-ghost" type="button" onClick={() => void dismissCandidate(spotlightCandidate)} aria-label={`Descartar ${spotlightCandidate.title}`}>
+                  <X size={17} />
+                  Descartar
+                </button>
+                {library.isModerator && (
+                  <button
+                    className="ghost-button"
+                    type="button"
+                    onClick={() => openCatalogDraft(spotlightCandidate)}
+                    aria-label={`${spotlightCandidate.source === 'nexo' ? 'Editar catalogo' : 'Crear catalogo'} ${spotlightCandidate.title}`}
+                  >
+                    <ShieldCheck size={17} />
+                    Catalogo
+                  </button>
+                )}
+              </div>
             </div>
           </section>
         )}
@@ -7911,27 +8361,73 @@ function ExplorerTab({
             )}
           </div>
         ) : (
-          <EmptyState
-            icon={view === 'queued' ? Sparkles : view === 'saved' ? CheckCircle2 : X}
-            tone={view === 'dismissed' ? 'muted' : 'neutral'}
-            title={isSourceFilteredEmpty ? `Sin resultados ${activeSourceLabel}` : discoveryEmptyCopy[view].title}
-            detail={
-              isSourceFilteredEmpty
-                ? 'Este estado tiene hallazgos, pero ninguno coincide con el origen seleccionado.'
-                : discoveryEmptyCopy[view].detail
-            }
-            action={emptyExplorerAction}
-          />
+          <div className={explorerShelfItems.length > 0 ? 'explorer-empty-state with-constellation' : 'explorer-empty-state'}>
+            {explorerShelfItems.length > 0 && (
+              <div className="explorer-empty-constellation" aria-hidden="true">
+                {explorerShelfItems.map((item) => (
+                  <CoverArt key={item.id} title={item.title} type={item.type} posterUrl={item.posterUrl} />
+                ))}
+              </div>
+            )}
+            <EmptyState
+              icon={view === 'queued' ? Sparkles : view === 'saved' ? CheckCircle2 : X}
+              tone={view === 'dismissed' ? 'muted' : 'neutral'}
+              title={
+                isSourceFilteredEmpty
+                  ? `Sin resultados ${activeSourceLabel}`
+                  : hasHeroStarterIdeas && view === 'queued'
+                    ? 'Desde tu estanteria'
+                    : discoveryEmptyCopy[view].title
+              }
+              detail={
+                isSourceFilteredEmpty
+                  ? 'Este estado tiene hallazgos, pero ninguno coincide con el origen seleccionado.'
+                  : hasHeroStarterIdeas && view === 'queued'
+                    ? 'Abre una busqueda relacionada con algo que ya guardaste.'
+                  : discoveryEmptyCopy[view].detail
+              }
+              action={
+                view === 'queued' && !isSourceFilteredEmpty ? (
+                  <div className="explorer-empty-actions explorer-starter-actions">
+                    <div className="explorer-primary-empty-actions">
+                      <button className="primary-button" type="button" onClick={() => void recommendFromLibrary()}>
+                        <Sparkles size={16} />
+                        Recomendar desde mi estanteria
+                      </button>
+                      {query.trim() && (
+                        <button className="secondary-button" disabled={!query.trim() || loading} type="button" onClick={() => void runDiscoverySearch()}>
+                          <Search size={16} />
+                          Usar consulta
+                        </button>
+                      )}
+                    </div>
+                    {!hasHeroStarterIdeas && explorerStarterIdeas.length > 0 && (
+                      <div className="explorer-starter-grid" aria-label="Ideas rapidas de exploracion">
+                        {explorerStarterIdeas.map((idea) => (
+                          <button
+                            className="explorer-starter-card"
+                            key={idea.id}
+                            type="button"
+                            onClick={() => void startExplorerIdea(idea)}
+                          >
+                            <CoverArt title={idea.title} type={idea.type} posterUrl={idea.posterUrl} />
+                            <span>
+                              <small>{idea.kicker}</small>
+                              <strong>{idea.title}</strong>
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : undefined
+              }
+            />
+          </div>
         )}
+          </div>
+        </details>
       </section>
-
-      {totalDiscoveryCount > 0 && (
-        <aside className="insight-rail">
-          <MetricCard label="Nexo en cola" value={queuedNexoCount} />
-          <MetricCard label="APIs en cola" value={queuedExternalCount} />
-          <MetricCard label="Ideas" value={queuedPromptCount} />
-        </aside>
-      )}
 
       {selected && (
         <CandidateDialog
@@ -7957,7 +8453,8 @@ function ExplorerTab({
         <ItemEditor
           item={editingSavedItem}
           onClose={() => setEditingSavedItem(undefined)}
-          onSave={(item) => void saveExplorerItemEdits(item)}
+          onDelete={deleteExplorerItem}
+          onSave={saveExplorerItemEdits}
         />
       )}
     </section>
@@ -8135,6 +8632,14 @@ function SettingsTab({
     const suggestionKey = normalizeKey(suggestion.label)
     return !currentValues.some((value) => normalizeKey(value) === suggestionKey)
   }), [draftFavoriteGenres, draftFavoriteTags, visibleTasteSuggestions])
+  const draftThemeOption = themeOptions.find((option) => option.id === draft.theme) ?? themeOptions[0]
+  const personalTasteCount = draftFavoriteGenres.length + draftFavoriteTags.length
+  const tasteSummary =
+    pendingTasteSuggestions.length > 0
+      ? `${pendingTasteSuggestions.length} sugerencias`
+      : personalTasteCount > 0 || draftBlockedTags.length > 0
+        ? `${personalTasteCount} favoritos / ${draftBlockedTags.length} bloqueados`
+        : 'Sin preferencias'
   const hasUnsavedChanges =
     draft.theme !== theme ||
     draft.explorerDefaultType !== library.settings.explorerDefaultType ||
@@ -8387,6 +8892,24 @@ function SettingsTab({
     })
   }
 
+  async function deletePrivateItemFromSettings(item: ListItem) {
+    try {
+      await library.deleteItem(item.id)
+      setEditingItem(undefined)
+      setPrivateTaxonomyUndoItems([])
+      setSettingsImportUndo(undefined)
+      setStatus(`${item.title || 'Entrada'} eliminada de Biblioteca.`)
+      onActivity({
+        detail: item.title || 'Entrada sin titulo',
+        label: 'Entrada eliminada',
+        tab: 'settings',
+        tone: 'success',
+      })
+    } catch (reason) {
+      setStatus(reason instanceof Error ? reason.message : 'No se pudo borrar la entrada.')
+    }
+  }
+
   const repairPrivateTaxonomy = useCallback(async () => {
     if (!privateTaxonomyRepairs.length) {
       setStatus('No hay taxonomia privada que completar')
@@ -8525,8 +9048,8 @@ function SettingsTab({
       >
         <div className="panel-heading">
           <div>
-            <h2>Ajustes</h2>
-            <p>Preferencias privadas para el dado y el explorador</p>
+            <h2>Tu Nexo</h2>
+            <p>Tema, descubrimiento y privacidad sin ruido.</p>
           </div>
           <button className="primary-button" disabled={!hasUnsavedChanges} type="submit">
             <Save size={17} />
@@ -8535,9 +9058,57 @@ function SettingsTab({
         </div>
 
         <div className={hasUnsavedChanges ? 'settings-status pending' : 'settings-status'}>
-          <span>{hasUnsavedChanges ? 'Cambios pendientes' : 'Sin cambios pendientes'}</span>
+          <span>{hasUnsavedChanges ? 'Ajustes sin guardar' : 'Sin cambios pendientes'}</span>
           <strong>{typeLabels[draft.explorerDefaultType]}</strong>
         </div>
+
+        <section className="settings-theme-stage" aria-label="Apariencia de Nexo" data-testid="settings-theme-stage">
+          <div className="settings-theme-preview">
+            <div>
+              <span className="eyebrow">Apariencia</span>
+              <h3>{draftThemeOption.label}</h3>
+              <p>{draftThemeOption.detail}</p>
+            </div>
+            <span className="settings-theme-preview-swatch" aria-hidden="true">
+              {draftThemeOption.swatches.map((swatch) => (
+                <span key={swatch} style={{ background: swatch }} />
+              ))}
+            </span>
+          </div>
+          <div className="settings-theme-picker">
+            <div className="settings-section-heading">
+              <h3>Tema de Nexo</h3>
+              <p>Elige el tono que quieres recordar.</p>
+            </div>
+            <div className="theme-option-grid" role="group" aria-label="Tema">
+              {themeOptions.map((option) => (
+                <button
+                  aria-label={`Tema ${option.label}`}
+                  className={draft.theme === option.id ? 'theme-option active' : 'theme-option'}
+                  key={option.id}
+                  type="button"
+                  onClick={() => updateDraft((current) => ({ ...current, theme: option.id }))}
+                >
+                  <span className="theme-swatch" aria-hidden="true">
+                    {option.swatches.map((swatch) => (
+                      <span key={swatch} style={{ background: swatch }} />
+                    ))}
+                  </span>
+                  <span className="theme-option-copy">
+                    <strong>{option.label}</strong>
+                    <small>{option.detail}</small>
+                  </span>
+                  {draft.theme === option.id && (
+                    <span className="theme-option-status" aria-hidden="true">
+                      <Check size={13} />
+                      Actual
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        </section>
 
         <section className="settings-confidence-panel" aria-label="Estado de cuenta y datos" data-testid="settings-confidence">
           <div className="settings-confidence-main">
@@ -8567,15 +9138,18 @@ function SettingsTab({
             </span>
           </div>
           {hasUnsavedChanges ? (
-            <button className="secondary-button" type="submit">
-              <Save size={16} />
-              Aplicar ajustes pendientes
-            </button>
+            <div className="settings-confidence-actions">
+              <span className="settings-pending-badge">Cambios pendientes</span>
+              <button className="secondary-button" type="submit">
+                <Save size={16} />
+                Guardar ajustes
+              </button>
+            </div>
           ) : (
-            <button className="secondary-button" type="button" onClick={exportPrivateBackup}>
-              <Download size={16} />
-              Exportar backup rapido
-            </button>
+            <span className="settings-confidence-rest">
+              <CheckCircle2 size={16} />
+              Sin acciones urgentes
+            </span>
           )}
         </section>
 
@@ -8583,37 +9157,6 @@ function SettingsTab({
           <MetricCard label="Favoritos" value={draftFavoriteGenres.length + draftFavoriteTags.length} />
           <MetricCard label="Bloqueados" value={draftBlockedTags.length} />
           <MetricCard label="Explorador" value={typeLabels[draft.explorerDefaultType]} />
-        </div>
-
-        <div className="settings-section">
-          <h3>Temas</h3>
-          <div className="theme-option-grid" role="group" aria-label="Tema">
-            {themeOptions.map((option) => (
-              <button
-                aria-label={`Tema ${option.label}`}
-                className={draft.theme === option.id ? 'theme-option active' : 'theme-option'}
-                key={option.id}
-                type="button"
-                onClick={() => updateDraft((current) => ({ ...current, theme: option.id }))}
-              >
-                <span className="theme-swatch" aria-hidden="true">
-                  {option.swatches.map((swatch) => (
-                    <span key={swatch} style={{ background: swatch }} />
-                  ))}
-                </span>
-                <span className="theme-option-copy">
-                  <strong>{option.label}</strong>
-                  <small>{option.detail}</small>
-                </span>
-                {draft.theme === option.id && (
-                  <span className="theme-option-status" aria-hidden="true">
-                    <Check size={13} />
-                    Actual
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
         </div>
 
         <div className="settings-section">
@@ -8640,66 +9183,76 @@ function SettingsTab({
           </label>
         </div>
 
-        <div className="settings-section">
-          <h3>Preferencias del dado</h3>
-          <label>
-            Tags favoritos
-            <input value={draft.favoriteTags} onChange={(event) => updateDraft((current) => ({ ...current, favoriteTags: event.target.value }))} />
-          </label>
-          <label>
-            Generos favoritos
-            <input value={draft.favoriteGenres} onChange={(event) => updateDraft((current) => ({ ...current, favoriteGenres: event.target.value }))} />
-          </label>
-          <label>
-            Senales bloqueadas
-            <input value={draft.blockedTags} onChange={(event) => updateDraft((current) => ({ ...current, blockedTags: event.target.value }))} />
-          </label>
-          {visibleTasteSuggestions.length > 0 && (
-            <div className="taste-suggestions" aria-label="Sugerencias de gusto" data-testid="taste-suggestions">
-              <div className="taste-suggestions-heading">
-                <div>
-                  <strong>Sugerencias de gusto</strong>
-                  <span>Desde completadas con rating alto</span>
-                </div>
-                {pendingTasteSuggestions.length > 0 && (
-                  <button className="secondary-button" type="button" onClick={applyTasteSuggestions}>
-                    <Sparkles size={15} />
-                    Aplicar sugerencias
-                  </button>
-                )}
-              </div>
-              <div className="taste-suggestion-row">
-                {visibleTasteSuggestions.map((suggestion) => {
-                  const suggestionKey = `${suggestion.kind}:${normalizeKey(suggestion.label)}`
-                  const isApplied = !pendingTasteSuggestions.some(
-                    (pending) => pending.kind === suggestion.kind && normalizeKey(pending.label) === normalizeKey(suggestion.label),
-                  )
-                  const suggestionKindLabel = suggestion.kind === 'genre' ? 'Genero' : 'Tag'
-
-                  return (
-                    <button
-                      aria-label={`${isApplied ? 'Sugerencia aplicada' : 'Anadir'} ${suggestionKindLabel.toLowerCase()} ${suggestion.label}`}
-                      className={isApplied ? 'taste-suggestion-chip applied' : 'taste-suggestion-chip'}
-                      disabled={isApplied}
-                      key={suggestionKey}
-                      type="button"
-                      onClick={() => applyTasteSuggestion(suggestion)}
-                    >
-                      <span>{suggestionKindLabel}</span>
-                      <strong>{suggestion.label}</strong>
-                      <small>{suggestion.sourceCount}</small>
+        <details className="settings-section settings-taste-panel" data-close-on-outside>
+          <summary>
+            <span>
+              <strong>Preferencias del dado</strong>
+              <small>Tags, generos y bloqueos personales</small>
+            </span>
+            <em>{tasteSummary}</em>
+          </summary>
+          <div className="settings-taste-content">
+            <label>
+              Tags favoritos
+              <input value={draft.favoriteTags} onChange={(event) => updateDraft((current) => ({ ...current, favoriteTags: event.target.value }))} />
+            </label>
+            <label>
+              Generos favoritos
+              <input value={draft.favoriteGenres} onChange={(event) => updateDraft((current) => ({ ...current, favoriteGenres: event.target.value }))} />
+            </label>
+            <label>
+              Senales bloqueadas
+              <input value={draft.blockedTags} onChange={(event) => updateDraft((current) => ({ ...current, blockedTags: event.target.value }))} />
+            </label>
+            {visibleTasteSuggestions.length > 0 && (
+              <div className="taste-suggestions" aria-label="Sugerencias de gusto" data-testid="taste-suggestions">
+                <div className="taste-suggestions-heading">
+                  <div>
+                    <strong>Sugerencias de gusto</strong>
+                    <span>Desde completadas con rating alto</span>
+                  </div>
+                  {pendingTasteSuggestions.length > 0 && (
+                    <button className="secondary-button" type="button" onClick={applyTasteSuggestions}>
+                      <Sparkles size={15} />
+                      Aplicar sugerencias
                     </button>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-        </div>
+                  )}
+                </div>
+                <div className="taste-suggestion-row">
+                  {visibleTasteSuggestions.map((suggestion) => {
+                    const suggestionKey = `${suggestion.kind}:${normalizeKey(suggestion.label)}`
+                    const isApplied = !pendingTasteSuggestions.some(
+                      (pending) => pending.kind === suggestion.kind && normalizeKey(pending.label) === normalizeKey(suggestion.label),
+                    )
+                    const suggestionKindLabel = suggestion.kind === 'genre' ? 'Genero' : 'Tag'
 
-        <div className="preference-preview" aria-label="Resumen de preferencias">
-          <PreferencePreview label="Favoritos" values={[...draftFavoriteGenres, ...draftFavoriteTags]} />
-          <PreferencePreview label="Bloqueados" values={draftBlockedTags} tone="danger" />
-        </div>
+                    return (
+                      <button
+                        aria-label={`${isApplied ? 'Sugerencia aplicada' : 'Anadir'} ${suggestionKindLabel.toLowerCase()} ${suggestion.label}`}
+                        className={isApplied ? 'taste-suggestion-chip applied' : 'taste-suggestion-chip'}
+                        disabled={isApplied}
+                        key={suggestionKey}
+                        type="button"
+                        onClick={() => applyTasteSuggestion(suggestion)}
+                      >
+                        <span>{suggestionKindLabel}</span>
+                        <strong>{suggestion.label}</strong>
+                        <small>{suggestion.sourceCount}</small>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        </details>
+
+        {(personalTasteCount > 0 || draftBlockedTags.length > 0) && (
+          <div className="preference-preview" aria-label="Resumen de preferencias">
+            <PreferencePreview label="Favoritos" values={[...draftFavoriteGenres, ...draftFavoriteTags]} />
+            <PreferencePreview label="Bloqueados" values={draftBlockedTags} tone="danger" />
+          </div>
+        )}
 
         {status && <FeedbackMessage tone={feedbackToneFromText(status)}>{status}</FeedbackMessage>}
         {(settingsUndo || privateTaxonomyUndoItems.length > 0 || settingsImportUndo) && !hasUnsavedChanges && (
@@ -8727,50 +9280,77 @@ function SettingsTab({
       </form>
 
       <div className="settings-side">
-        <section className="workspace-panel">
-          <div className="panel-heading compact">
-            <div>
-              <h2>Cuenta</h2>
-              <p className="muted-line">{user?.email ?? 'Sesion activa'}</p>
-            </div>
-            <span className={library.isModerator ? 'mode-pill moderator' : 'mode-pill'}>
-              {roleLabels[library.userRole]}
+        <details className="workspace-panel settings-drawer" data-close-on-outside data-testid="settings-account-drawer">
+          <summary>
+            <span>
+              <strong>Cuenta</strong>
+              <small>{user?.email ?? 'Sesion activa'}</small>
             </span>
-          </div>
-          <div className="account-card">
-            <span className="account-avatar">{accountInitial}</span>
-            <div>
-              <strong>{accountLabel}</strong>
-              <span>{library.isModerator ? 'Puede curar catalogo publico' : 'Biblioteca privada activa'}</span>
+            <em>{roleLabels[library.userRole]}</em>
+          </summary>
+          <div className="settings-drawer-body">
+            <div className="panel-heading compact">
+              <div>
+                <h2>Cuenta</h2>
+                <p className="muted-line">{user?.email ?? 'Sesion activa'}</p>
+              </div>
+              <span className={library.isModerator ? 'mode-pill moderator' : 'mode-pill'}>
+                {roleLabels[library.userRole]}
+              </span>
+            </div>
+            <div className="account-card">
+              <span className="account-avatar">{accountInitial}</span>
+              <div>
+                <strong>{accountLabel}</strong>
+                <span>{library.isModerator ? 'Puede curar catalogo publico' : 'Biblioteca privada activa'}</span>
+              </div>
+            </div>
+            <div className="account-panel">
+              <label>
+                Email
+                <input readOnly value={user?.email ?? 'Sin email'} />
+              </label>
+              <label>
+                UID
+                <div className="inline-control">
+                  <input readOnly value={user?.uid ?? 'Demo local'} />
+                  <button className="icon-button" disabled={!user} type="button" onClick={copyUserId} title="Copiar UID">
+                    <Copy size={17} />
+                  </button>
+                </div>
+              </label>
             </div>
           </div>
-          <div className="account-panel">
-            <label>
-              Email
-              <input readOnly value={user?.email ?? 'Sin email'} />
-            </label>
-            <label>
-              UID
-              <div className="inline-control">
-                <input readOnly value={user?.uid ?? 'Demo local'} />
-                <button className="icon-button" disabled={!user} type="button" onClick={copyUserId} title="Copiar UID">
-                  <Copy size={17} />
-                </button>
-              </div>
-            </label>
-          </div>
-        </section>
+        </details>
 
         {library.userRole === 'admin' && (
-          <AdminRolesPanel
-            currentUserId={user?.uid}
-            onActivity={onActivity}
-            onRoleChange={library.updateUserRole}
-            profiles={library.userProfiles}
-          />
+          <details className="workspace-panel settings-drawer settings-roles-drawer" data-close-on-outside data-testid="settings-roles-drawer">
+            <summary>
+              <span>
+                <strong>Roles</strong>
+                <small>{library.userProfiles.length ? `${library.userProfiles.length} perfiles con acceso` : 'Sin perfiles cargados'}</small>
+              </span>
+              <em>Admin</em>
+            </summary>
+            <AdminRolesPanel
+              currentUserId={user?.uid}
+              embedded
+              onActivity={onActivity}
+              onRoleChange={library.updateUserRole}
+              profiles={library.userProfiles}
+            />
+          </details>
         )}
 
-        <section className="workspace-panel private-data-panel">
+        <details className="workspace-panel settings-drawer private-data-panel" data-close-on-outside data-testid="settings-private-data-drawer">
+          <summary>
+            <span>
+              <strong>Datos privados</strong>
+              <small>{library.items.length} entradas / {queuedDiscoveryCount} en cola</small>
+            </span>
+            <em>JSON v1</em>
+          </summary>
+          <div className="settings-drawer-body">
           <div className="panel-heading compact">
             <div>
               <h2>Datos privados</h2>
@@ -8933,24 +9513,35 @@ function SettingsTab({
             <Archive size={17} />
             Exportar backup JSON
           </button>
-        </section>
-
-        <section className="workspace-panel">
-          <h2>Beta suave</h2>
-          <p className="muted-line">Google login abre una biblioteca privada por usuario. El catalogo Nexo es comun, pero solo moderadores lo editan.</p>
-          <div className="release-list">
-            <span>Firestore privado por usuario</span>
-            <span>Catalogo publico curado</span>
-            <span>Export JSON schemaVersion 1</span>
           </div>
-        </section>
+        </details>
+
+        <details className="workspace-panel settings-drawer" data-close-on-outside data-testid="settings-beta-drawer">
+          <summary>
+            <span>
+              <strong>Beta suave</strong>
+              <small>Privacidad y catalogo compartido</small>
+            </span>
+            <em>Info</em>
+          </summary>
+          <div className="settings-drawer-body">
+            <h2>Beta suave</h2>
+            <p className="muted-line">Google login abre una biblioteca privada por usuario. El catalogo Nexo es comun, pero solo moderadores lo editan.</p>
+            <div className="release-list">
+              <span>Firestore privado por usuario</span>
+              <span>Catalogo publico curado</span>
+              <span>Export JSON schemaVersion 1</span>
+            </div>
+          </div>
+        </details>
       </div>
 
       {editingItem && (
         <ItemEditor
           item={editingItem}
           onClose={() => setEditingItem(undefined)}
-          onSave={(item) => void savePrivateItemFromSettings(item)}
+          onDelete={deletePrivateItemFromSettings}
+          onSave={savePrivateItemFromSettings}
         />
       )}
     </section>
@@ -8958,11 +9549,13 @@ function SettingsTab({
 }
 
 function AdminRolesPanel({
+  embedded = false,
   currentUserId,
   onActivity,
   onRoleChange,
   profiles,
 }: {
+  embedded?: boolean
   currentUserId?: string
   onActivity: ActivityRecorder
   onRoleChange: (targetUserId: string, role: UserRole) => Promise<void>
@@ -9040,7 +9633,7 @@ function AdminRolesPanel({
   }
 
   return (
-    <section className="workspace-panel">
+    <section className={embedded ? 'settings-drawer-body admin-roles-panel' : 'workspace-panel'}>
       <div className="panel-heading compact">
         <div>
           <h2>Roles</h2>
@@ -9527,39 +10120,14 @@ function CurationTab({
   }
 
   return (
-    <section className="content-grid">
+    <section className="content-grid curation-layout">
       <section className="workspace-panel wide">
         <div className="panel-heading">
           <div>
             <h2>Catalogo Nexo</h2>
-            <p>Catalogo compartido visible para usuarios logueados</p>
+            <p>Cola visual de fichas publicas: primero arregla lo que se vera en Biblioteca.</p>
           </div>
           <div className="panel-actions">
-            <button className="secondary-button catalog-import-button" type="button" onClick={downloadCatalogSeedTemplate}>
-              <Download size={17} />
-              Plantilla
-            </button>
-            <label
-              className={
-                isImporting
-                  ? 'secondary-button file-button catalog-import-button disabled'
-                  : 'secondary-button file-button catalog-import-button'
-              }
-              title="Importar lote JSON"
-            >
-              <Upload size={17} />
-              {isImporting ? 'Importando' : 'Importar lote'}
-              <input
-                accept="application/json,.json"
-                aria-label="Importar lote de catalogo JSON"
-                disabled={isImporting}
-                type="file"
-                onChange={(event) => {
-                  void prepareCatalogSeed(event.target.files?.[0])
-                  event.target.value = ''
-                }}
-              />
-            </label>
             <button className="primary-button" type="button" onClick={() => startNewCatalogItem()}>
               <Plus size={18} />
               Nueva entrada
@@ -9585,69 +10153,6 @@ function CurationTab({
             </div>
           </div>
         )}
-        <div className="curation-starter-strip" aria-label="Crear entrada por tipo">
-          <span>Crear como</span>
-          <div>
-            {curationStarterTypes.map((type) => {
-              const Icon = typeIcons[type]
-
-              return (
-                <button key={type} type="button" onClick={() => startNewCatalogItem(type)} aria-label={`Crear ${typeLabels[type]}`}>
-                  <Icon size={15} />
-                  {typeLabels[type]}
-                </button>
-              )
-            })}
-          </div>
-        </div>
-        <section className="curation-template-launcher" aria-label="Plantillas de curacion">
-          <div className="curation-template-heading">
-            <div>
-              <span className="eyebrow">Presets</span>
-              <strong>Empieza con generos predefinidos</strong>
-              <p>Elige una receta y se abre una ficha con generos, tags y tono ya cargados.</p>
-            </div>
-            <label>
-              Medio
-              <select
-                aria-label="Medio de plantillas de curacion"
-                value={starterTemplateType}
-                onChange={(event) => setStarterTemplateType(event.target.value as ItemType)}
-              >
-                {ITEM_TYPES.map((type) => (
-                  <option key={type} value={type}>
-                    {typeLabels[type]}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-          <div className="curation-template-grid">
-            {starterTemplates.map((template) => (
-              <button
-                aria-label={`Usar plantilla ${template.label} para ${typeLabels[starterTemplateType]}`}
-                className="curation-template-card"
-                key={template.label}
-                type="button"
-                onClick={() => startNewCatalogItem(starterTemplateType, template)}
-              >
-                <span>
-                  <Sparkles size={15} />
-                  <strong>{template.label}</strong>
-                </span>
-                <small>{template.detail}</small>
-                <div className="curation-template-taxonomy">
-                  {template.genres.slice(0, 3).map((genre) => (
-                    <em key={genre}>{genre}</em>
-                  ))}
-                  {template.tags.slice(0, 2).map((tag) => (
-                    <em key={tag}>{tag}</em>
-                  ))}
-                </div>
-              </button>
-            ))}
-          </div>
-        </section>
         <form
           className="explorer-search two"
           onSubmit={(event) => {
@@ -9666,55 +10171,232 @@ function CurationTab({
             {isLoading ? 'Buscando' : 'Buscar'}
           </button>
         </form>
-        <section className="catalog-diagnostics-panel" aria-label="Diagnostico del catalogo publico" data-testid="catalog-diagnostics">
-          <div className="catalog-diagnostics-main">
-            <div>
-              <span className="eyebrow">Diagnostico</span>
-              <strong>{catalogDiagnostics.summaryLabel}</strong>
-              <p>{catalogDiagnostics.summaryCopy}</p>
-            </div>
-            <div className="catalog-diagnostics-score">
-              <strong>{catalogDiagnostics.coveragePercent}%</strong>
-              <span>
-                {catalogDiagnostics.readyCount}/{catalogDiagnostics.totalItems} completas
-              </span>
-            </div>
-          </div>
-          <div
-            aria-label={`Cobertura del catalogo ${catalogDiagnostics.coveragePercent}%`}
-            className="catalog-diagnostics-meter"
-            role="meter"
-            aria-valuemax={100}
-            aria-valuemin={0}
-            aria-valuenow={catalogDiagnostics.coveragePercent}
-          >
-            <span style={{ width: `${catalogDiagnostics.coveragePercent}%` }} />
-          </div>
-          <div className="catalog-issue-grid" aria-label="Pendientes por tipo de dato">
-            {catalogDiagnostics.issueStats.map((issue) => (
-              <button
-                aria-pressed={issueFilter === issue.id}
-                className={issueFilter === issue.id ? 'catalog-issue-card active' : 'catalog-issue-card'}
-                disabled={issue.count === 0}
-                key={issue.id}
-                type="button"
-                onClick={() => focusCatalogIssue(issue.id)}
+        <details className="curation-admin-drawer" data-close-on-outside>
+          <summary>
+            <span>
+              <SlidersHorizontal size={17} />
+              Herramientas de catalogo
+            </span>
+            <small>Plantillas, diagnostico, filtros e importacion viven aqui.</small>
+          </summary>
+          <div className="curation-admin-content">
+            <div className="curation-admin-actions" aria-label="Acciones avanzadas de catalogo">
+              <button className="secondary-button catalog-import-button" type="button" onClick={downloadCatalogSeedTemplate}>
+                <Download size={17} />
+                Plantilla
+              </button>
+              <label
+                className={
+                  isImporting
+                    ? 'secondary-button file-button catalog-import-button disabled'
+                    : 'secondary-button file-button catalog-import-button'
+                }
+                title="Importar lote JSON"
               >
-                <span>{issue.label}</span>
-                <strong>{issue.count}</strong>
-                <small>{issue.detail}</small>
-              </button>
-            ))}
-          </div>
-          {issueFilter !== 'all' && (
-            <div className="catalog-active-issue">
-              <span>Viendo {catalogIssueLabels[issueFilter].toLowerCase()}</span>
-              <button className="ghost-button" type="button" onClick={() => setIssueFilter('all')}>
-                Quitar foco
-              </button>
+                <Upload size={17} />
+                {isImporting ? 'Importando' : 'Importar lote'}
+                <input
+                  accept="application/json,.json"
+                  aria-label="Importar lote de catalogo JSON"
+                  disabled={isImporting}
+                  type="file"
+                  onChange={(event) => {
+                    void prepareCatalogSeed(event.target.files?.[0])
+                    event.target.value = ''
+                  }}
+                />
+              </label>
+              <div className="curation-metric-strip" aria-label="Resumen del catalogo">
+                <span>
+                  <strong>{items.length}</strong>
+                  Catalogo
+                </span>
+                <span>
+                  <strong>{incompleteCount}</strong>
+                  Incompletas
+                </span>
+                <span>
+                  <strong>{typeCount}</strong>
+                  Tipos
+                </span>
+                <span>
+                  <strong>{roleLabels[library.userRole]}</strong>
+                  Rol
+                </span>
+              </div>
             </div>
-          )}
-        </section>
+            <div className="curation-starter-strip" aria-label="Crear entrada por tipo">
+              <span>Crear como</span>
+              <div>
+                {curationStarterTypes.map((type) => {
+                  const Icon = typeIcons[type]
+
+                  return (
+                    <button key={type} type="button" onClick={() => startNewCatalogItem(type)} aria-label={`Crear ${typeLabels[type]}`}>
+                      <Icon size={15} />
+                      {typeLabels[type]}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+            <section className="curation-template-launcher" aria-label="Plantillas de curacion">
+              <div className="curation-template-heading">
+                <div>
+                  <span className="eyebrow">Presets</span>
+                  <strong>Empieza con generos predefinidos</strong>
+                  <p>Elige una receta y se abre una ficha con generos, tags y tono ya cargados.</p>
+                </div>
+                <label>
+                  Medio
+                  <select
+                    aria-label="Medio de plantillas de curacion"
+                    value={starterTemplateType}
+                    onChange={(event) => setStarterTemplateType(event.target.value as ItemType)}
+                  >
+                    {ITEM_TYPES.map((type) => (
+                      <option key={type} value={type}>
+                        {typeLabels[type]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <div className="curation-template-grid">
+                {starterTemplates.map((template) => (
+                  <button
+                    aria-label={`Usar plantilla ${template.label} para ${typeLabels[starterTemplateType]}`}
+                    className="curation-template-card"
+                    key={template.label}
+                    type="button"
+                    onClick={() => startNewCatalogItem(starterTemplateType, template)}
+                  >
+                    <span>
+                      <Sparkles size={15} />
+                      <strong>{template.label}</strong>
+                    </span>
+                    <small>{template.detail}</small>
+                    <div className="curation-template-taxonomy">
+                      {template.genres.slice(0, 3).map((genre) => (
+                        <em key={genre}>{genre}</em>
+                      ))}
+                      {template.tags.slice(0, 2).map((tag) => (
+                        <em key={tag}>{tag}</em>
+                      ))}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </section>
+            <section className="catalog-diagnostics-panel" aria-label="Diagnostico del catalogo publico" data-testid="catalog-diagnostics">
+              <div className="catalog-diagnostics-main">
+                <div>
+                  <span className="eyebrow">Diagnostico</span>
+                  <strong>{catalogDiagnostics.summaryLabel}</strong>
+                  <p>{catalogDiagnostics.summaryCopy}</p>
+                </div>
+                <div className="catalog-diagnostics-score">
+                  <strong>{catalogDiagnostics.coveragePercent}%</strong>
+                  <span>
+                    {catalogDiagnostics.readyCount}/{catalogDiagnostics.totalItems} completas
+                  </span>
+                </div>
+              </div>
+              <div
+                aria-label={`Cobertura del catalogo ${catalogDiagnostics.coveragePercent}%`}
+                className="catalog-diagnostics-meter"
+                role="meter"
+                aria-valuemax={100}
+                aria-valuemin={0}
+                aria-valuenow={catalogDiagnostics.coveragePercent}
+              >
+                <span style={{ width: `${catalogDiagnostics.coveragePercent}%` }} />
+              </div>
+              <div className="catalog-issue-grid" aria-label="Pendientes por tipo de dato">
+                {catalogDiagnostics.issueStats.map((issue) => (
+                  <button
+                    aria-pressed={issueFilter === issue.id}
+                    className={issueFilter === issue.id ? 'catalog-issue-card active' : 'catalog-issue-card'}
+                    disabled={issue.count === 0}
+                    key={issue.id}
+                    type="button"
+                    onClick={() => focusCatalogIssue(issue.id)}
+                  >
+                    <span>{issue.label}</span>
+                    <strong>{issue.count}</strong>
+                    <small>{issue.detail}</small>
+                  </button>
+                ))}
+              </div>
+              {issueFilter !== 'all' && (
+                <div className="catalog-active-issue">
+                  <span>Viendo {catalogIssueLabels[issueFilter].toLowerCase()}</span>
+                  <button className="ghost-button" type="button" onClick={() => setIssueFilter('all')}>
+                    Quitar foco
+                  </button>
+                </div>
+              )}
+            </section>
+            <div className="catalog-curation-toolbar">
+              <div className="catalog-filter-tabs" role="group" aria-label="Calidad del catalogo">
+                {qualityFilters.map((filter) => (
+                  <button
+                    aria-pressed={qualityFilter === filter.id}
+                    className={qualityFilter === filter.id ? 'catalog-filter-chip active' : 'catalog-filter-chip'}
+                    key={filter.id}
+                    type="button"
+                    onClick={() => {
+                      setQualityFilter(filter.id)
+                      if (filter.id !== 'needs-work') setIssueFilter('all')
+                    }}
+                  >
+                    <span>{filter.label}</span>
+                    <strong>{filter.value}</strong>
+                  </button>
+                ))}
+              </div>
+              <div className="catalog-curation-tools">
+                <label>
+                  Tipo
+                  <select
+                    aria-label="Filtrar catalogo por tipo"
+                    value={typeFilter}
+                    onChange={(event) => setTypeFilter(event.target.value as ItemType | 'all')}
+                  >
+                    <option value="all">Todos</option>
+                    {ITEM_TYPES.map((itemType) => (
+                      <option key={itemType} value={itemType}>
+                        {typeLabels[itemType]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Orden
+                  <select
+                    aria-label="Ordenar catalogo"
+                    value={sortMode}
+                    onChange={(event) => setSortMode(event.target.value as CatalogSortMode)}
+                  >
+                    {(Object.keys(catalogSortLabels) as CatalogSortMode[]).map((mode) => (
+                      <option key={mode} value={mode}>
+                        {catalogSortLabels[mode]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {hasActiveCatalogFilters && (
+                  <button className="ghost-button" type="button" onClick={resetCatalogFilters}>
+                    Quitar filtros
+                  </button>
+                )}
+              </div>
+            </div>
+            <p className="catalog-count-line" aria-live="polite">
+              {visibleCatalogItems.length} de {items.length} entradas visibles
+            </p>
+          </div>
+        </details>
         {reviewQueue.length > 0 && (
           <section className="catalog-review-panel" aria-label="Revision prioritaria del catalogo">
             <div className="catalog-review-heading">
@@ -9748,7 +10430,8 @@ function CurationTab({
 
                 return (
                   <article className="catalog-review-item" key={item.id}>
-                    <div>
+                    <CoverArt title={item.title} type={item.type} posterUrl={item.posterUrl} />
+                    <div className="catalog-review-copy">
                       <strong>{item.title}</strong>
                       <span>
                         {typeLabels[item.type]} / {warnings.length} pendiente{warnings.length === 1 ? '' : 's'}
@@ -9781,64 +10464,6 @@ function CurationTab({
             </div>
           </section>
         )}
-        <div className="catalog-curation-toolbar">
-          <div className="catalog-filter-tabs" role="group" aria-label="Calidad del catalogo">
-            {qualityFilters.map((filter) => (
-              <button
-                aria-pressed={qualityFilter === filter.id}
-                className={qualityFilter === filter.id ? 'catalog-filter-chip active' : 'catalog-filter-chip'}
-                key={filter.id}
-                type="button"
-                onClick={() => {
-                  setQualityFilter(filter.id)
-                  if (filter.id !== 'needs-work') setIssueFilter('all')
-                }}
-              >
-                <span>{filter.label}</span>
-                <strong>{filter.value}</strong>
-              </button>
-            ))}
-          </div>
-          <div className="catalog-curation-tools">
-            <label>
-              Tipo
-              <select
-                aria-label="Filtrar catalogo por tipo"
-                value={typeFilter}
-                onChange={(event) => setTypeFilter(event.target.value as ItemType | 'all')}
-              >
-                <option value="all">Todos</option>
-                {ITEM_TYPES.map((itemType) => (
-                  <option key={itemType} value={itemType}>
-                    {typeLabels[itemType]}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Orden
-              <select
-                aria-label="Ordenar catalogo"
-                value={sortMode}
-                onChange={(event) => setSortMode(event.target.value as CatalogSortMode)}
-              >
-                {(Object.keys(catalogSortLabels) as CatalogSortMode[]).map((mode) => (
-                  <option key={mode} value={mode}>
-                    {catalogSortLabels[mode]}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {hasActiveCatalogFilters && (
-              <button className="ghost-button" type="button" onClick={resetCatalogFilters}>
-                Quitar filtros
-              </button>
-            )}
-          </div>
-        </div>
-        <p className="catalog-count-line" aria-live="polite">
-          {visibleCatalogItems.length} de {items.length} entradas visibles
-        </p>
         {status && <FeedbackMessage tone={feedbackToneFromText(status)}>{status}</FeedbackMessage>}
         {(archiveUndoItem || catalogRepairUndoItems.length > 0 || catalogSeedUndo) && (
           <div className="feedback-action-row" aria-label="Accion reciente de curacion">
@@ -9936,7 +10561,7 @@ function CurationTab({
         )}
       </section>
 
-      <aside className="insight-rail">
+      <aside className="insight-rail curation-rail">
         <MetricCard label="Catalogo" value={items.length} />
         <MetricCard label="Incompletas" value={incompleteCount} />
         <MetricCard label="Tipos" value={typeCount} />
@@ -10210,10 +10835,10 @@ function DiscoveryCard({
 
 function CandidateDecisionBriefView({ brief }: { brief: CandidateDecisionBrief }) {
   return (
-    <section className="candidate-decision-brief" aria-label="Guia de decision del hallazgo">
-      <div>
-        <span className="eyebrow">Que hacer ahora</span>
-        <strong>{brief.title}</strong>
+    <section className="candidate-decision-brief" aria-label="Siguiente paso del hallazgo">
+      <div className="candidate-decision-main">
+        <span className="eyebrow">{brief.title}</span>
+        <strong>{brief.action}</strong>
         <p>{brief.detail}</p>
       </div>
       <div className="candidate-decision-facts">
@@ -10298,7 +10923,7 @@ function LibraryCatalogCandidateCard({
         <h4>{candidate.title}</h4>
         <p>{candidate.overview || `${typeLabels[candidate.type]} encontrado en ${sourceLabels[candidate.source]}.`}</p>
         <div className="tag-row library-catalog-tags">
-          {candidate.genres.slice(0, 3).map((genre) => (
+          {candidate.genres.slice(0, 2).map((genre) => (
             <span key={genre}>{genre}</span>
           ))}
         </div>
@@ -10336,7 +10961,7 @@ function ItemCard({
 }: {
   isSelected: boolean
   item: ListItem
-  layout?: 'cards' | 'list'
+  layout?: LibraryViewMode
   onEdit: () => void
   onCopyLink: () => void
   onDelete: () => void
@@ -10349,9 +10974,15 @@ function ItemCard({
   const primaryAction = getPrimaryItemAction(item.status)
   const secondaryAction = getSecondaryItemAction(item.status)
   const canControlDiceCooldown = item.status !== 'completed' && item.status !== 'dropped'
-  const cardClassName = [layout === 'list' ? 'item-card list-card' : 'item-card', isSelected ? 'selected' : undefined]
+  const cardClassName = [
+    layout === 'list' ? 'item-card list-card' : layout === 'mosaic' ? 'item-card mosaic-card' : 'item-card',
+    item.posterUrl ? 'has-poster' : undefined,
+    isSelected ? 'selected' : undefined,
+  ]
     .filter(Boolean)
     .join(' ')
+  const posterBackplateStyle = getPosterBackplateStyle(item.posterUrl)
+  const cardStyle = { ...getCoverArtStyle(item.title, item.type), ...posterBackplateStyle } as CSSProperties
   const diceCooldownAction = isItemInCooldown(item)
     ? {
         Icon: RotateCcw,
@@ -10373,9 +11004,9 @@ function ItemCard({
   }
 
   return (
-    <article className={cardClassName} data-status={item.status}>
+    <article className={cardClassName} data-status={item.status} style={cardStyle}>
       {showSelectionControl && (
-        <label className="item-select-control" title="Seleccionar">
+        <label className="item-select-control" data-keep-details-open title="Seleccionar">
           <input
             aria-label={`Seleccionar ${item.title}`}
             checked={isSelected}
@@ -10423,6 +11054,91 @@ function ItemCard({
   )
 }
 
+const editorRatingOptions = [2, 4, 6, 8, 10]
+const editorStatusButtonMeta: Record<ItemStatus, { Icon: LucideIcon; label: string }> = {
+  completed: { Icon: Check, label: 'Hecho' },
+  dropped: { Icon: X, label: 'Soltar' },
+  in_progress: { Icon: Play, label: 'Activo' },
+  paused: { Icon: Pause, label: 'Pausa' },
+  wishlist: { Icon: Plus, label: 'Lista' },
+}
+
+function StatusControl({ onChange, value }: { onChange: (value: ItemStatus) => void; value: ItemStatus }) {
+  return (
+    <div className="status-control" role="group" aria-label="Estado">
+      <div className="status-control-heading">
+        <span>Estado</span>
+        <strong className="sr-only">Estado actual: {statusLabels[value]}</strong>
+      </div>
+      <div className="status-chip-row">
+        {ITEM_STATUSES.map((status) => {
+          const Icon = editorStatusButtonMeta[status].Icon
+
+          return (
+            <button
+              aria-label={`Cambiar estado a ${statusLabels[status]}`}
+              aria-pressed={value === status}
+              className={value === status ? `status-chip-button ${status} active` : `status-chip-button ${status}`}
+              key={status}
+              title={statusLabels[status]}
+              type="button"
+              onClick={() => onChange(status)}
+            >
+              <Icon size={14} />
+              <span>{editorStatusButtonMeta[status].label}</span>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function RatingControl({ onChange, value }: { onChange: (value: number | undefined) => void; value?: number }) {
+  const displayValue = typeof value === 'number' ? formatRatingValue(value) : 'Sin nota'
+
+  return (
+    <div className="rating-control" role="group" aria-label="Rating">
+      <div className="rating-control-heading">
+        <span>Nota</span>
+        <strong>{typeof value === 'number' ? `${displayValue}/10` : displayValue}</strong>
+      </div>
+      <div className="rating-star-row">
+        {editorRatingOptions.map((option) => {
+          const isSelected = value === option
+          const isActive = typeof value === 'number' && value >= option - 1
+
+          return (
+            <button
+              aria-label={`Puntuar ${option / 2} estrellas (${option}/10)`}
+              aria-pressed={isSelected}
+              className={isActive ? 'rating-star-button active' : 'rating-star-button'}
+              key={option}
+              type="button"
+              onClick={() => onChange(isSelected ? undefined : option)}
+            >
+              <Star size={16} />
+            </button>
+          )
+        })}
+        <button
+          aria-label="Quitar rating"
+          className="rating-clear-button"
+          disabled={typeof value !== 'number'}
+          type="button"
+          onClick={() => onChange(undefined)}
+        >
+          <X size={15} />
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function formatRatingValue(value: number) {
+  return Number.isInteger(value) ? String(value) : value.toFixed(1)
+}
+
 function ActionMenu({
   items,
   label,
@@ -10439,6 +11155,20 @@ function ActionMenu({
   triggerClassName?: string
 }) {
   const [open, setOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+
+    function closeOnOutsidePointer(event: PointerEvent) {
+      const target = event.target
+      if (target instanceof Node && menuRef.current?.contains(target)) return
+      setOpen(false)
+    }
+
+    window.addEventListener('pointerdown', closeOnOutsidePointer)
+    return () => window.removeEventListener('pointerdown', closeOnOutsidePointer)
+  }, [open])
 
   function selectItem(onSelect: () => void) {
     setOpen(false)
@@ -10447,6 +11177,7 @@ function ActionMenu({
 
   return (
     <div
+      ref={menuRef}
       className="card-menu-wrap"
       onBlur={(event) => {
         const nextTarget = event.relatedTarget
@@ -10521,6 +11252,12 @@ function getSecondaryItemAction(status: ItemStatus): { Icon: typeof Play; label:
   }
 }
 
+function getPosterBackplateStyle(posterUrl?: string): CSSProperties | undefined {
+  if (!posterUrl) return undefined
+
+  return { '--item-poster-image': `url("${posterUrl.replace(/"/g, '\\"')}")` } as CSSProperties
+}
+
 function getLibraryReviewQueueIcon(id: LibraryReviewQueue['id']): LucideIcon {
   const icons: Record<LibraryReviewQueue['id'], LucideIcon> = {
     all: Library,
@@ -10544,14 +11281,52 @@ function CoverArt({ posterUrl, title, type }: { posterUrl?: string; title: strin
   const [failedPosterUrl, setFailedPosterUrl] = useState<string | undefined>()
   const Icon = typeIcons[type]
   const shouldShowPoster = Boolean(posterUrl && failedPosterUrl !== posterUrl)
+  const fallbackStyle = useMemo(() => getCoverArtStyle(title, type), [title, type])
+  const coverClassName = shouldShowPoster ? `cover-art ${type} with-poster` : `cover-art ${type} fallback-cover`
+  const coverTitle = getCoverArtTitle(title)
 
   return (
-    <div className={`cover-art ${type}`}>
+    <div className={coverClassName} style={shouldShowPoster ? undefined : fallbackStyle}>
       {shouldShowPoster && <img alt="" loading="lazy" src={posterUrl} onError={() => setFailedPosterUrl(posterUrl)} />}
-      {!shouldShowPoster && <Icon size={24} aria-hidden="true" />}
-      {!shouldShowPoster && <span>{title.slice(0, 1).toUpperCase()}</span>}
+      {!shouldShowPoster && (
+        <>
+          <span className="cover-art-letter">{title.slice(0, 1).toUpperCase()}</span>
+          <span className="cover-art-type">{typeLabels[type]}</span>
+          <strong className="cover-art-title">{coverTitle}</strong>
+          <Icon className="cover-art-icon" size={24} aria-hidden="true" />
+        </>
+      )}
     </div>
   )
+}
+
+function getCoverArtStyle(title: string, type: ItemType): CSSProperties {
+  const palettes = coverArtPalettes[type]
+  const palette = palettes[Math.abs(hashText(`${type}:${title}`)) % palettes.length]
+
+  return {
+    '--cover-accent-a': palette[0],
+    '--cover-accent-b': palette[1],
+    '--cover-ink': palette[2],
+  } as CSSProperties
+}
+
+function getCoverArtTitle(title: string) {
+  const words = title
+    .replace(/\([^)]*\)/g, '')
+    .split(/\s+/)
+    .map((word) => word.trim())
+    .filter(Boolean)
+
+  return words.slice(0, 3).join(' ') || title.slice(0, 18) || 'Nexo'
+}
+
+function hashText(value: string) {
+  let hash = 0
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) | 0
+  }
+  return hash
 }
 
 function ItemIdentity({ item }: { item: ListItem }) {
@@ -10708,11 +11483,13 @@ function EditorDiscardPrompt({ onDiscard, onKeepEditing }: { onDiscard: () => vo
 function ItemEditor({
   item,
   onClose,
+  onDelete,
   onSave,
 }: {
   item: ListItem
   onClose: () => void
-  onSave: (item: ListItem) => void
+  onDelete?: (item: ListItem) => Promise<void> | void
+  onSave: (item: ListItem) => Promise<void> | void
 }) {
   useRestoreFocusOnUnmount()
 
@@ -10724,7 +11501,11 @@ function ItemEditor({
   }), [item])
   const [draft, setDraft] = useState(initialDraft)
   const [showDiscardPrompt, setShowDiscardPrompt] = useState(false)
+  const [isSavingAndClosing, setIsSavingAndClosing] = useState(false)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [isDeletingItem, setIsDeletingItem] = useState(false)
   const [linkCopyStatus, setLinkCopyStatus] = useState<{ message: string; tone: FeedbackTone; url: string } | undefined>()
+  const editorFormRef = useRef<HTMLFormElement>(null)
   const hasUnsavedEditorChanges = useMemo(() => JSON.stringify(draft) !== JSON.stringify(initialDraft), [draft, initialDraft])
 
   const update = <Key extends keyof typeof draft>(key: Key, value: (typeof draft)[Key]) => {
@@ -10742,14 +11523,37 @@ function ItemEditor({
   const moodPresets = catalogMoodPresets.slice(0, 9)
   const taxonomyTemplates = catalogTaxonomyTemplates[draft.type].slice(0, 3)
   const starterTemplates = catalogTaxonomyTemplates[draft.type].slice(0, 4)
-  const canCopyItemLink = !item.id.startsWith('manual-')
+  const isNewDraft = item.id.startsWith('manual-')
+  const canCopyItemLink = !isNewDraft
+  const canDeleteItem = Boolean(onDelete) && !isNewDraft
   const isMetadataLocked = item.source === 'external' || item.source === 'public'
+  const canEditTitleInPrimary = !isMetadataLocked && isNewDraft
+  const shouldAutofocusTitle = canEditTitleInPrimary && !draft.title.trim()
+  const canSaveDraft = Boolean(draft.title.trim())
+  const editorHeroClassName = [
+    'editor-hero',
+    draft.posterUrl ? 'has-poster' : 'generated-cover',
+    isMetadataLocked ? 'metadata-locked' : undefined,
+  ]
+    .filter(Boolean)
+    .join(' ')
+  const editorHeroStyle = getPosterBackplateStyle(draft.posterUrl)
+  const editorSummaryText =
+    draft.notes?.trim() || draft.publicSnapshot?.description?.trim() || `${typeLabels[draft.type]} en tu biblioteca personal.`
+  const personalProgressSummary =
+    draft.progress?.trim() || (draft.notes?.trim() ? 'Notas personales guardadas.' : 'Estado, nota y notas personales.')
+  const heroSignals = uniqueValues([...selectedGenres, ...selectedTags]).slice(0, 4)
   const readiness = getPersonalEditorReadiness({
     ...draft,
     genres: selectedGenres,
     tags: selectedTags,
     moodTags: selectedMoodTags,
   })
+
+  useEffect(() => {
+    if (shouldAutofocusTitle) return
+    editorFormRef.current?.focus({ preventScroll: true })
+  }, [shouldAutofocusTitle])
 
   function toggleDraftTextPreset(field: 'genresText' | 'tagsText' | 'moodText', value: string) {
     setDraft((current) => ({
@@ -10767,12 +11571,69 @@ function ItemEditor({
     }))
   }
 
-  function requestClose() {
-    if (hasUnsavedEditorChanges) {
+  function buildSavedItem(): ListItem {
+    const priorityWeight = Number(draft.weights.priority)
+    const surpriseWeight = Number(draft.weights.surprise)
+    const challengeWeight = Number(draft.weights.challenge)
+
+    return {
+      ...draft,
+      id: draft.id.startsWith('manual-') && draft.title ? `${draft.type}-${slugify(draft.title)}` : draft.id,
+      tags: splitList(draft.tagsText),
+      genres: splitList(draft.genresText),
+      moodTags: splitList(draft.moodText),
+      weights: {
+        priority: Number.isFinite(priorityWeight) ? priorityWeight : 1,
+        surprise: Number.isFinite(surpriseWeight) ? surpriseWeight : 0,
+        challenge: Number.isFinite(challengeWeight) ? challengeWeight : 0,
+      },
+      updatedAt: nowIso(),
+    }
+  }
+
+  async function saveAndClose() {
+    if (isSavingAndClosing) return
+
+    if (!hasUnsavedEditorChanges) {
+      onClose()
+      return
+    }
+
+    if (!canSaveDraft) {
       setShowDiscardPrompt(true)
       return
     }
+
+    setShowDiscardPrompt(false)
+    setIsSavingAndClosing(true)
+    try {
+      await onSave(buildSavedItem())
+    } finally {
+      setIsSavingAndClosing(false)
+    }
+  }
+
+  function requestClose() {
+    void saveAndClose()
+  }
+
+  function discardAndClose() {
     onClose()
+  }
+
+  function requestDelete() {
+    setDeleteConfirmOpen(true)
+  }
+
+  async function confirmDelete() {
+    if (!onDelete || isDeletingItem) return
+
+    setIsDeletingItem(true)
+    try {
+      await onDelete(item)
+    } finally {
+      setIsDeletingItem(false)
+    }
   }
 
   async function copyItemLink() {
@@ -10786,40 +11647,33 @@ function ItemEditor({
   }
 
   return (
-    <div className="modal-backdrop" role="presentation">
+    <div
+      className="modal-backdrop"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) {
+          requestClose()
+        }
+      }}
+    >
       <form
+        ref={editorFormRef}
         className="item-editor"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="item-editor-title"
+        aria-label="Entrada"
+        aria-describedby="item-editor-title"
+        tabIndex={-1}
         onKeyDown={(event) => handleDialogKeyDown(event, requestClose)}
         onSubmit={(event) => {
           event.preventDefault()
-          const priorityWeight = Number(draft.weights.priority)
-          const surpriseWeight = Number(draft.weights.surprise)
-          const challengeWeight = Number(draft.weights.challenge)
-          const saved: ListItem = {
-            ...draft,
-            id: draft.id.startsWith('manual-') && draft.title ? `${draft.type}-${slugify(draft.title)}` : draft.id,
-            tags: splitList(draft.tagsText),
-            genres: splitList(draft.genresText),
-            moodTags: splitList(draft.moodText),
-            weights: {
-              priority: Number.isFinite(priorityWeight) ? priorityWeight : 1,
-              surprise: Number.isFinite(surpriseWeight) ? surpriseWeight : 0,
-              challenge: Number.isFinite(challengeWeight) ? challengeWeight : 0,
-            },
-            updatedAt: nowIso(),
-          }
-          onSave(saved)
+          void saveAndClose()
         }}
       >
         <div className="panel-heading">
           <div>
-            <h2 id="item-editor-title">Entrada</h2>
-            <p>
-              {typeLabels[draft.type]} / {statusLabels[draft.status]}
-            </p>
+            <span className="eyebrow">Ficha personal</span>
+            <p>{typeLabels[draft.type]} / {statusLabels[draft.status]}</p>
           </div>
           <div className="action-row end">
             {canCopyItemLink && (
@@ -10833,7 +11687,7 @@ function ItemEditor({
                 {linkCopyStatus?.tone === 'success' ? <Check size={18} /> : <Copy size={18} />}
               </button>
             )}
-            <button className="icon-button" type="button" onClick={requestClose} title="Cerrar">
+            <button className="icon-button" type="button" onClick={requestClose} title="Cerrar y guardar">
               <X size={18} />
             </button>
           </div>
@@ -10850,77 +11704,77 @@ function ItemEditor({
             />
           </div>
         )}
+        {deleteConfirmOpen && (
+          <div className="editor-delete-warning" role="alert" aria-label="Confirmar borrado de entrada">
+            <div>
+              <strong>Eliminar entrada</strong>
+              <span>{editorTitle} se borrara por completo de tu biblioteca privada.</span>
+            </div>
+            <div className="action-row end">
+              <button className="ghost-button" type="button" onClick={() => setDeleteConfirmOpen(false)}>
+                Mantener
+              </button>
+              <button className="danger-button" type="button" disabled={isDeletingItem} onClick={() => void confirmDelete()}>
+                <Trash2 size={16} />
+                {isDeletingItem ? 'Eliminando' : 'Eliminar definitivamente'}
+              </button>
+            </div>
+          </div>
+        )}
 
-        <div className="editor-hero">
-          <CoverArt title={editorTitle} type={draft.type} posterUrl={draft.posterUrl} />
+        <div className={editorHeroClassName} style={editorHeroStyle}>
+          <div className="editor-cover-frame">
+            <CoverArt title={editorTitle} type={draft.type} posterUrl={draft.posterUrl} />
+          </div>
           <div className="editor-summary">
             <div className="detail-meta">
               <span>{itemSourceLabels[draft.source]}</span>
-              <span>{statusLabels[draft.status]}</span>
-              {draft.rating && <span>{draft.rating}/10</span>}
-              {draft.publicItemId && <span>Nexo</span>}
+              <span>{typeLabels[draft.type]}</span>
+              {isMetadataLocked && <span>Solo progreso</span>}
             </div>
-            <h3>{editorTitle}</h3>
-            <p>{draft.notes || 'Sin notas todavia.'}</p>
+            <h3 id="item-editor-title">{editorTitle}</h3>
+            <p>{editorSummaryText}</p>
+            {heroSignals.length > 0 && (
+              <div className="tag-row editor-hero-tags" aria-label="Senales de la ficha">
+                {heroSignals.map((signal) => (
+                  <span key={signal}>{signal}</span>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
         {isMetadataLocked && <LockedMetadataSummary item={draft} />}
 
-        <section className="editor-section">
-          <h3>{isMetadataLocked ? 'Tu progreso' : 'Basico'}</h3>
-          {!isMetadataLocked && (
+        <section className={canEditTitleInPrimary ? 'editor-section editor-progress-panel has-title-field' : 'editor-section editor-progress-panel'}>
+          <div className="editor-progress-heading">
+            <div>
+              <span className="eyebrow">{canEditTitleInPrimary ? 'Nueva obra' : 'Personal'}</span>
+              <h3>{canEditTitleInPrimary ? 'Datos basicos' : 'Progreso'}</h3>
+              <p>{personalProgressSummary}</p>
+            </div>
+          </div>
+          {canEditTitleInPrimary && (
             <label>
               Titulo
-              <input autoFocus required value={draft.title} onChange={(event) => update('title', event.target.value)} />
+              <input autoFocus={shouldAutofocusTitle} required value={draft.title} onChange={(event) => update('title', event.target.value)} />
             </label>
           )}
-          <div className="form-grid">
-            <label>
-              Estado
-              <select autoFocus={isMetadataLocked} value={draft.status} onChange={(event) => update('status', event.target.value as ItemStatus)}>
-                {ITEM_STATUSES.map((status) => (
-                  <option key={status} value={status}>
-                    {statusLabels[status]}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Rating
-              <input
-                max="10"
-                min="0"
-                step="0.1"
-                type="number"
-                value={draft.rating ?? ''}
-                onChange={(event) => update('rating', event.target.value ? Number(event.target.value) : undefined)}
-              />
-            </label>
-            <label>
-              Duracion max.
-              <input
-                min="0"
-                step="0.5"
-                type="number"
-                value={draft.durationMaxHours ?? ''}
-                onChange={(event) =>
-                  update('durationMaxHours', event.target.value ? Number(event.target.value) : undefined)
-                }
-              />
-            </label>
+          <div className="form-grid editor-progress-fields">
+            <StatusControl value={draft.status} onChange={(status) => update('status', status)} />
+            <RatingControl value={draft.rating} onChange={(rating) => update('rating', rating)} />
             <label>
               Progreso
               <input value={draft.progress ?? ''} onChange={(event) => update('progress', event.target.value || undefined)} />
             </label>
           </div>
-          <label>
+          <label className="editor-notes-field">
             Notas
             <textarea value={draft.notes ?? ''} onChange={(event) => update('notes', event.target.value)} />
           </label>
         </section>
 
-        <details className="editor-advanced-panel">
+        <details className="editor-advanced-panel" data-close-on-outside>
           <summary>
             <span>
               <strong>Avanzado</strong>
@@ -10997,6 +11851,12 @@ function ItemEditor({
                 <section className="editor-section">
                   <h3>Metadatos</h3>
                   <div className="form-grid">
+                    {!canEditTitleInPrimary && (
+                      <label>
+                        Titulo
+                        <input required value={draft.title} onChange={(event) => update('title', event.target.value)} />
+                      </label>
+                    )}
                     <label>
                       Tipo
                       <select value={draft.type} onChange={(event) => update('type', event.target.value as ItemType)}>
@@ -11072,6 +11932,18 @@ function ItemEditor({
                     onChange={(event) => update('weights', { ...draft.weights, priority: Number(event.target.value) || 0 })}
                   />
                 </label>
+                <label>
+                  Duracion personal
+                  <input
+                    min="0"
+                    step="0.5"
+                    type="number"
+                    value={draft.durationMaxHours ?? ''}
+                    onChange={(event) =>
+                      update('durationMaxHours', event.target.value ? Number(event.target.value) : undefined)
+                    }
+                  />
+                </label>
               </div>
             </section>
             <section className="editor-section">
@@ -11087,12 +11959,27 @@ function ItemEditor({
           </div>
         </details>
 
-        <div className="action-row end">
-          <button className="ghost-button" type="button" onClick={requestClose}>
-            Cancelar
-          </button>
-          <button className="primary-button" type="submit">
-            Guardar
+        <div className="action-row end editor-footer-actions">
+          {canDeleteItem && (
+            <button className="editor-delete-entry-button" type="button" onClick={requestDelete}>
+              <Trash2 size={16} />
+              Eliminar entrada
+            </button>
+          )}
+          <details className="editor-secondary-actions">
+            <summary>
+              <MoreHorizontal size={17} />
+              Opciones
+            </summary>
+            <div className="editor-secondary-action-list">
+              <button className="ghost-button" type="button" onClick={discardAndClose}>
+                Descartar cambios
+              </button>
+            </div>
+          </details>
+          <span className="editor-autosave-note">Se guarda al cerrar</span>
+          <button className="primary-button" type="button" disabled={isSavingAndClosing} onClick={requestClose}>
+            {isSavingAndClosing ? 'Guardando' : 'Cerrar'}
           </button>
         </div>
       </form>
@@ -11710,6 +12597,63 @@ function MetricCard({ label, value }: { label: string; value: number | string })
     <div className="metric-card">
       <span>{label}</span>
       <strong>{value}</strong>
+    </div>
+  )
+}
+
+interface ToastAction {
+  ariaLabel?: string
+  label: string
+  onClick: () => void
+}
+
+interface ToastMessage {
+  action?: ToastAction
+  durationMs?: number
+  id: string
+  message: ReactNode
+  tone?: FeedbackTone
+}
+
+function ToastStack({ label = 'Notificaciones', onDismiss, toasts }: { label?: string; onDismiss: (id: string) => void; toasts: ToastMessage[] }) {
+  useEffect(() => {
+    const timers = toasts.flatMap((toast) => {
+      if (!toast.durationMs) return []
+      return [
+        window.setTimeout(() => {
+          onDismiss(toast.id)
+        }, toast.durationMs),
+      ]
+    })
+
+    return () => {
+      timers.forEach((timer) => window.clearTimeout(timer))
+    }
+  }, [onDismiss, toasts])
+
+  if (!toasts.length) return null
+
+  return (
+    <div className="toast-stack" aria-live="polite" aria-label={label}>
+      {toasts.map((toast) => {
+        const tone = toast.tone ?? 'info'
+        const Icon = tone === 'danger' ? AlertTriangle : tone === 'success' ? CheckCircle2 : tone === 'loading' ? LoaderCircle : Info
+
+        return (
+          <div className={`toast-message ${tone}`} key={toast.id} role={tone === 'danger' ? 'alert' : 'status'}>
+            <Icon aria-hidden="true" size={16} />
+            <span>{toast.message}</span>
+            {toast.action && (
+              <button className="toast-action" type="button" aria-label={toast.action.ariaLabel ?? toast.action.label} onClick={toast.action.onClick}>
+                {toast.action.label}
+              </button>
+            )}
+            <button className="toast-close" type="button" aria-label="Cerrar notificacion" onClick={() => onDismiss(toast.id)}>
+              <X size={14} />
+            </button>
+          </div>
+        )
+      })}
     </div>
   )
 }

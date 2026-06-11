@@ -29,7 +29,8 @@ describe('library backup schema', () => {
     expect(payload.exportedAt).toBe('2026-01-02T00:00:00.000Z')
     expect(payload.items).toEqual([baseItem])
     expect(payload.settings.theme).toBe('dark')
-    expect(payload.settings.libraryViewMode).toBe('cards')
+    expect(payload.settings.libraryViewMode).toBe('mosaic')
+    expect(payload.settings.libraryCardsPerRow).toBe(4)
   })
 
   it('creates a scoped export payload without private settings', () => {
@@ -50,6 +51,33 @@ describe('library backup schema', () => {
     expect(parsed.items).toHaveLength(1)
     expect(parsed.items[0]).toEqual(expect.objectContaining({ title: 'Outer Wilds', updatedAt: '2026-01-03T00:00:00.000Z' }))
     expect(parsed.settings?.explorerDefaultType).toBe('watch')
+    expect(parsed.settings?.libraryViewMode).toBe('mosaic')
+    expect(parsed.settings?.libraryCardsPerRow).toBe(4)
+  })
+
+  it('keeps a library card density preference from exported settings', () => {
+    const parsed = parseLibraryImportPayload(
+      createLibraryExportPayload(
+        [baseItem],
+        { ...DEFAULT_SETTINGS, libraryCardsPerRow: 6 },
+        '2026-01-02T00:00:00.000Z',
+      ),
+      '2026-01-03T00:00:00.000Z',
+    )
+
+    expect(parsed.settings?.libraryCardsPerRow).toBe(6)
+  })
+
+  it('keeps a cards view preference from exported settings', () => {
+    const parsed = parseLibraryImportPayload(
+      createLibraryExportPayload(
+        [baseItem],
+        { ...DEFAULT_SETTINGS, libraryViewMode: 'cards' },
+        '2026-01-02T00:00:00.000Z',
+      ),
+      '2026-01-03T00:00:00.000Z',
+    )
+
     expect(parsed.settings?.libraryViewMode).toBe('cards')
   })
 

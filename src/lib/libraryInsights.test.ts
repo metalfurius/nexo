@@ -152,6 +152,8 @@ describe('library insights', () => {
       ['dice', true],
       ['explorer', false],
     ])
+    expect(guide.steps.find((step) => step.id === 'dice')?.label).toBe('Dado elige guardadas')
+    expect(guide.steps.find((step) => step.id === 'explorer')?.label).toBe('Explorar encuentra nuevas')
     expect(guide.steps.find((step) => step.id === 'taxonomy')?.item?.id).toBe('two')
   })
 

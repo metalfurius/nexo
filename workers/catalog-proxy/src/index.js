@@ -37,6 +37,8 @@ const CACHE_LANGUAGE = 'es-ES'
 const PROVIDER_VERSION = '2026-06-06-v2'
 const POSITIVE_TTL_SECONDS = 86_400
 const EMPTY_TTL_SECONDS = 900
+const DISCOVER_TTL_SECONDS = 900
+const DISCOVER_SEED_BUCKETS = 32
 
 export default {
   async fetch(request, env) {
@@ -49,6 +51,10 @@ export default {
     const url = new URL(request.url)
     if (url.pathname === '/health') {
       return json({ ok: true }, corsHeaders)
+    }
+
+    if (request.method === 'GET' && url.pathname === '/discover') {
+      return handleDiscover(request, env, corsHeaders, url)
     }
 
     if (request.method !== 'GET' || url.pathname !== '/search') {
@@ -91,15 +97,61 @@ export default {
   },
 }
 
+async function handleDiscover(request, env, corsHeaders, url) {
+  const type = normalizeDiscoverType(url.searchParams.get('type')?.trim() ?? 'any')
+  const duration = normalizeDiscoverDuration(url.searchParams.get('duration')?.trim() ?? 'any')
+  const seed = normalizeCacheKeyPart(url.searchParams.get('seed')?.trim() || new Date().toISOString().slice(0, 13))
+  const seedBucket = getSeedBucket(seed)
+  const cacheSeed = `${type}:${duration}:${seedBucket}`
+  const cache = caches.default
+  const cacheRequest = createDiscoverCacheRequest(request, type, duration, seedBucket)
+  const cachedResponse = await cache.match(cacheRequest)
+  if (cachedResponse) {
+    const cachedPayload = await cachedResponse.json()
+    return json(cachedPayload, corsHeaders, 200, {
+      'cache-control': cachedResponse.headers.get('cache-control') ?? `public, max-age=${DISCOVER_TTL_SECONDS}`,
+      'x-nexo-cache': 'hit',
+    })
+  }
+
+  const result = await discoverCandidate(type, duration, cacheSeed, env)
+  const payload = { result: result ?? null }
+  const ttl = result ? DISCOVER_TTL_SECONDS : EMPTY_TTL_SECONDS
+  await cache.put(
+    cacheRequest,
+    new Response(JSON.stringify(payload), {
+      headers: {
+        'cache-control': `public, max-age=${ttl}`,
+        'content-type': 'application/json; charset=utf-8',
+      },
+    }),
+  )
+
+  return json(payload, corsHeaders, 200, {
+    'cache-control': `public, max-age=${ttl}`,
+    'x-nexo-cache': 'miss',
+  })
+}
+
+async function discoverCandidate(type, duration, seed, env) {
+  const queries = getDiscoverQueries(type, duration, seed).slice(0, 3)
+  const groups = await Promise.allSettled(queries.map((query) => searchProviders(query, discoverTypeToSearchType(type), env)))
+  const candidates = uniqueCandidates(groups.flatMap((group) => (group.status === 'fulfilled' ? group.value : []))).filter((candidate) =>
+    Boolean(candidate.posterUrl),
+  )
+  if (!candidates.length) return undefined
+  return candidates[hashSeed(seed) % candidates.length]
+}
+
 async function searchProviders(query, type, env) {
   const tasks = []
   if (type === 'watch' || type === 'movie' || type === 'series' || type === 'any') {
     tasks.push(searchTmdb(query, env, type))
   }
-  if (type === 'watch' || type === 'anime' || type === 'any') {
+  if (type === 'watch' || type === 'anime' || type === 'animeManga' || type === 'any') {
     tasks.push(searchAniList(query, 'anime'))
   }
-  if (type === 'watch' || type === 'manga' || type === 'manhwa' || type === 'any') {
+  if (type === 'watch' || type === 'manga' || type === 'manhwa' || type === 'animeManga' || type === 'any') {
     tasks.push(searchAniList(query, type === 'anime' ? 'anime' : 'manga', type))
   }
   if (type === 'book' || type === 'any') {
@@ -112,6 +164,34 @@ async function searchProviders(query, type, env) {
 
   const groups = await Promise.allSettled(tasks)
   return groups.flatMap((group) => (group.status === 'fulfilled' ? group.value : []))
+}
+
+function getDiscoverQueries(type, duration, seed) {
+  const typedSeeds = DISCOVER_QUERY_SEEDS[type] ?? DISCOVER_QUERY_SEEDS.any
+  const durationSeeds = DISCOVER_DURATION_SEEDS[duration] ?? DISCOVER_DURATION_SEEDS.any
+  const combined = [...typedSeeds, ...durationSeeds, ...DISCOVER_QUERY_SEEDS.any]
+  const start = hashSeed(seed) % combined.length
+  return [...combined.slice(start), ...combined.slice(0, start)]
+}
+
+const DISCOVER_QUERY_SEEDS = {
+  animeManga: ['frieren', 'chainsaw man', 'vinland saga', 'dungeon meshi', 'pluto', 'monster'],
+  any: ['frieren', 'hollow knight', 'dune', 'parasite', 'arrival', 'outer wilds', 'station eleven'],
+  book: ['dune', 'earthsea', 'the left hand of darkness', 'babel', 'project hail mary', 'annihilation'],
+  game: ['hollow knight', 'celeste', 'outer wilds', 'disco elysium', 'hades', 'gris'],
+  movie: ['parasite', 'arrival', 'spirited away', 'blade runner', 'perfect days', 'portrait of a lady on fire'],
+  series: ['station eleven', 'severance', 'andor', 'the bear', 'arcane', 'dark'],
+}
+
+const DISCOVER_DURATION_SEEDS = {
+  any: [],
+  long: ['epic', 'saga', 'open world', 'long running', 'trilogy'],
+  medium: ['season', 'adventure', 'story rich', 'novel'],
+  short: ['short', 'movie', 'one shot', 'indie', 'novella'],
+}
+
+function discoverTypeToSearchType(type) {
+  return type
 }
 
 async function searchTmdb(query, env, requestedType = 'watch') {
@@ -353,6 +433,13 @@ function createCacheRequest(request, query, type) {
   )
 }
 
+function createDiscoverCacheRequest(request, type, duration, seedBucket) {
+  return new Request(
+    `https://nexo-catalog-cache.local/discover?v=${PROVIDER_VERSION}&language=${CACHE_LANGUAGE}&type=${type}&duration=${duration}&seedBucket=${seedBucket}`,
+    request,
+  )
+}
+
 function normalizeCacheKeyPart(value) {
   return String(value || '')
     .normalize('NFD')
@@ -363,8 +450,31 @@ function normalizeCacheKeyPart(value) {
 }
 
 function normalizeSearchType(value) {
-  const allowed = ['any', 'watch', 'game', 'book', 'movie', 'series', 'anime', 'manga', 'manhwa']
+  const allowed = ['any', 'watch', 'game', 'book', 'movie', 'series', 'anime', 'manga', 'manhwa', 'animeManga']
   return allowed.includes(value) ? value : 'any'
+}
+
+function normalizeDiscoverType(value) {
+  const allowed = ['any', 'movie', 'series', 'animeManga', 'game', 'book']
+  return allowed.includes(value) ? value : 'any'
+}
+
+function normalizeDiscoverDuration(value) {
+  const allowed = ['any', 'short', 'medium', 'long']
+  return allowed.includes(value) ? value : 'any'
+}
+
+function getSeedBucket(seed) {
+  return String(hashSeed(seed) % DISCOVER_SEED_BUCKETS)
+}
+
+function hashSeed(seed) {
+  let hash = 2166136261
+  for (let index = 0; index < seed.length; index += 1) {
+    hash ^= seed.charCodeAt(index)
+    hash = Math.imul(hash, 16777619)
+  }
+  return Math.abs(hash)
 }
 
 function json(payload, corsHeaders, status = 200, headers = {}) {
