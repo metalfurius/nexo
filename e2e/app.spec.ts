@@ -3963,20 +3963,62 @@ test('delete all requires explicit confirmation', async ({ page }) => {
   await expect(page.getByText('Mass Effect Legendary Edition recuperado en Biblioteca')).toBeVisible()
   await expect(page.getByTestId('library-grid')).toContainText('Mass Effect Legendary Edition')
 
-  await openLibraryAdvanced(page)
-  await page.getByRole('button', { name: 'Borrar todo' }).click()
-  await expect(page.getByRole('heading', { name: 'Borrar toda la biblioteca' })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Borrar todo' }).last()).toBeDisabled()
+  await page.getByRole('button', { name: 'Ajustes', exact: true }).click()
+  await expect(page.getByTestId('settings-confidence')).toContainText('Entradas')
+  await openSettingsDrawer(page, 'settings-private-data-drawer')
+  await page.getByTestId('private-action-plan').getByRole('button', { name: /Borrar entradas/ }).click()
+  const deleteAllDialog = page.getByRole('dialog', { name: 'Borrar entradas privadas' })
+  await expect(deleteAllDialog).toContainText(/\d+ entradas privadas/)
+  await expect(deleteAllDialog.getByRole('button', { name: 'Borrar entradas' })).toBeDisabled()
 
-  await page.getByLabel('Confirmacion').fill('BORRAR')
-  await page.getByRole('button', { name: 'Borrar todo' }).last().click()
+  await deleteAllDialog.getByLabel('Confirmacion').fill('BORRAR')
+  await deleteAllDialog.getByRole('button', { name: 'Borrar entradas' }).click()
 
-  await expect(page.getByText('Tu biblioteca ha sido borrada')).toBeVisible()
-  await expect(page.getByText('Outer Wilds')).not.toBeVisible()
+  await expect(page.getByText('Tus entradas privadas han sido borradas')).toBeVisible()
+  await expect(page.getByLabel('Estado de datos privados')).toContainText('0')
   await expect(page.getByRole('button', { name: 'Deshacer borrado total' })).toBeVisible()
   await page.getByRole('button', { name: 'Deshacer borrado total' }).click()
   await expect(page.getByText(/\d+ entradas recuperadas en Biblioteca/)).toBeVisible()
+  await page.getByRole('button', { name: 'Biblioteca', exact: true }).click()
   await expect(page.getByTestId('library-grid')).toContainText('Outer Wilds')
+})
+
+test('entry dialog locks background scroll while open', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'chromium', 'desktop scroll lock check')
+
+  await page.setViewportSize({ width: 1024, height: 520 })
+  await openApp(page)
+  await expect(page.getByTestId('library-grid')).toContainText('Inception')
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight))
+  const scrollYBeforeOpen = await page.evaluate(() => window.scrollY)
+  expect(scrollYBeforeOpen).toBeGreaterThan(0)
+
+  await page.evaluate(() => {
+    window.history.pushState({}, '', '/?item=movie-inception')
+    window.dispatchEvent(new PopStateEvent('popstate'))
+  })
+  const dialog = page.getByRole('dialog', { name: 'Entrada' })
+  await expect(dialog).toBeVisible()
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          document.documentElement.classList.contains('dialog-scroll-locked') &&
+          document.body.classList.contains('dialog-scroll-locked'),
+      ),
+    )
+    .toBe(true)
+  const scrollYWhileOpen = await page.evaluate(() => window.scrollY)
+  await expect.poll(() => page.evaluate(() => document.body.style.top)).toBe(`-${scrollYBeforeOpen}px`)
+  await page.mouse.move(8, 8)
+  await page.mouse.wheel(0, 900)
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(scrollYWhileOpen)
+
+  await page.getByRole('button', { name: 'Cerrar', exact: true }).click()
+  await expect(dialog).not.toBeVisible()
+  await expect.poll(() => page.evaluate(() => document.documentElement.classList.contains('dialog-scroll-locked'))).toBe(false)
+  const scrollYAfterClose = await page.evaluate(() => window.scrollY)
+  expect(Math.abs(scrollYAfterClose - scrollYBeforeOpen)).toBeLessThanOrEqual(1)
 })
 
 test('library cards stay legible at 1920x1080', async ({ page }, testInfo) => {

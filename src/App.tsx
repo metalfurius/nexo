@@ -689,6 +689,74 @@ const dialogFocusableSelector = [
   '[tabindex]:not([tabindex="-1"])',
 ].join(',')
 
+interface DialogScrollLockSnapshot {
+  bodyOverflow: string
+  bodyPaddingRight: string
+  bodyPosition: string
+  bodyTop: string
+  bodyWidth: string
+  documentOverflow: string
+  scrollX: number
+  scrollY: number
+}
+
+let dialogScrollLockCount = 0
+let dialogScrollLockSnapshot: DialogScrollLockSnapshot | undefined
+
+function lockDialogScroll() {
+  if (typeof window === 'undefined') return
+
+  dialogScrollLockCount += 1
+  if (dialogScrollLockCount > 1) return
+
+  const { body, documentElement } = document
+  const scrollbarWidth = window.innerWidth - documentElement.clientWidth
+  dialogScrollLockSnapshot = {
+    bodyOverflow: body.style.overflow,
+    bodyPaddingRight: body.style.paddingRight,
+    bodyPosition: body.style.position,
+    bodyTop: body.style.top,
+    bodyWidth: body.style.width,
+    documentOverflow: documentElement.style.overflow,
+    scrollX: window.scrollX,
+    scrollY: window.scrollY,
+  }
+
+  documentElement.classList.add('dialog-scroll-locked')
+  body.classList.add('dialog-scroll-locked')
+  documentElement.style.overflow = 'hidden'
+  body.style.overflow = 'hidden'
+  body.style.position = 'fixed'
+  body.style.top = `-${dialogScrollLockSnapshot.scrollY}px`
+  body.style.width = '100%'
+  if (scrollbarWidth > 0) {
+    body.style.paddingRight = `${scrollbarWidth}px`
+  }
+}
+
+function unlockDialogScroll() {
+  if (typeof window === 'undefined') return
+
+  dialogScrollLockCount = Math.max(0, dialogScrollLockCount - 1)
+  if (dialogScrollLockCount > 0) return
+
+  const snapshot = dialogScrollLockSnapshot
+  dialogScrollLockSnapshot = undefined
+
+  const { body, documentElement } = document
+  documentElement.classList.remove('dialog-scroll-locked')
+  body.classList.remove('dialog-scroll-locked')
+  if (!snapshot) return
+
+  documentElement.style.overflow = snapshot.documentOverflow
+  body.style.overflow = snapshot.bodyOverflow
+  body.style.paddingRight = snapshot.bodyPaddingRight
+  body.style.position = snapshot.bodyPosition
+  body.style.top = snapshot.bodyTop
+  body.style.width = snapshot.bodyWidth
+  window.scrollTo(snapshot.scrollX, snapshot.scrollY)
+}
+
 function getDialogFocusableElements(container: HTMLElement) {
   return Array.from(container.querySelectorAll<HTMLElement>(dialogFocusableSelector)).filter(
     (element) => element.getClientRects().length > 0 && !element.closest('[aria-hidden="true"]'),
@@ -766,20 +834,28 @@ function scheduleDialogFocusRestore(target: HTMLElement | null) {
   window.setTimeout(() => restoreDialogFocus(target), 0)
 }
 
-function useRestoreFocusOnUnmount() {
+function useDialogLifecycle() {
   const returnFocusTargetRef = useRef<HTMLElement | null | undefined>(undefined)
   if (returnFocusTargetRef.current === undefined) {
     returnFocusTargetRef.current = getCurrentFocusTarget()
   }
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const returnFocusTarget = returnFocusTargetRef.current ?? null
-    return () => scheduleDialogFocusRestore(returnFocusTarget)
+    lockDialogScroll()
+    return () => {
+      unlockDialogScroll()
+      scheduleDialogFocusRestore(returnFocusTarget)
+    }
   }, [])
 }
 
+function useRestoreFocusOnUnmount() {
+  useDialogLifecycle()
+}
+
 function DialogFocusReturn() {
-  useRestoreFocusOnUnmount()
+  useDialogLifecycle()
   return null
 }
 
@@ -804,6 +880,8 @@ const sessionActivityLimit = 5
 
 interface PrivateDataAction {
   detail: string
+  disabled?: boolean
+  danger?: boolean
   Icon: typeof Download
   id: string
   label: string
@@ -8597,6 +8675,9 @@ function SettingsTab({
   const [editingItem, setEditingItem] = useState<ListItem | undefined>()
   const [pendingBackupImport, setPendingBackupImport] = useState<PendingBackupImport | undefined>()
   const [applyBackupImportSettings, setApplyBackupImportSettings] = useState(false)
+  const [deleteAllDialogOpen, setDeleteAllDialogOpen] = useState(false)
+  const [deleteAllConfirmText, setDeleteAllConfirmText] = useState('')
+  const [deletedPrivateItemsUndo, setDeletedPrivateItemsUndo] = useState<ListItem[]>([])
   const handledSaveRequestId = useRef<number | undefined>(undefined)
   const handledTasteSuggestionsRequestId = useRef<number | undefined>(undefined)
   const handledTaxonomyRepairRequestId = useRef<number | undefined>(undefined)
@@ -8716,6 +8797,7 @@ function SettingsTab({
     setApplyBackupImportSettings(false)
     setPrivateTaxonomyUndoItems([])
     setSettingsImportUndo(undefined)
+    setDeletedPrivateItemsUndo([])
     setSettingsUndo(previousSettings)
     setStatus('Ajustes guardados')
     onActivity({
@@ -8752,6 +8834,7 @@ function SettingsTab({
       setApplyBackupImportSettings(false)
       setPrivateTaxonomyUndoItems([])
       setSettingsImportUndo(undefined)
+      setDeletedPrivateItemsUndo([])
       setStatus('Ajustes recuperados')
       onActivity({
         detail: `${themeLabels[previousSettings.theme]} / ${typeLabels[previousSettings.explorerDefaultType]}`,
@@ -8790,6 +8873,7 @@ function SettingsTab({
       const summary = getLibraryImportSummary(payload, library.items)
       setPrivateTaxonomyUndoItems([])
       setSettingsImportUndo(undefined)
+      setDeletedPrivateItemsUndo([])
       setPendingBackupImport({ fileName: file.name, payload, summary })
       setApplyBackupImportSettings(Boolean(payload.settings))
       setStatus(`Backup preparado: ${formatBackupImportSummary(summary)}`)
@@ -8821,6 +8905,7 @@ function SettingsTab({
       }
       setPrivateTaxonomyUndoItems([])
       setSettingsUndo(undefined)
+      setDeletedPrivateItemsUndo([])
       setSettingsImportUndo(rollbackPlan)
       setStatus(
         shouldApplySettings
@@ -8865,6 +8950,7 @@ function SettingsTab({
       setSettingsImportUndo(undefined)
       setApplyBackupImportSettings(false)
       setPrivateTaxonomyUndoItems([])
+      setDeletedPrivateItemsUndo([])
       setStatus(formatLibraryImportRollbackStatus(settingsImportUndo))
       onActivity({
         detail: formatLibraryImportRollbackDetail(settingsImportUndo),
@@ -8882,6 +8968,7 @@ function SettingsTab({
     setEditingItem(undefined)
     setPrivateTaxonomyUndoItems([])
     setSettingsImportUndo(undefined)
+    setDeletedPrivateItemsUndo([])
     setStatus(`${item.title || 'Entrada'} guardada`)
     onActivity({
       detail: item.title || 'Entrada sin titulo',
@@ -8924,6 +9011,7 @@ function SettingsTab({
       setSettingsUndo(undefined)
       setPrivateTaxonomyUndoItems(privateTaxonomyRepairs.map((entry) => entry.original))
       setSettingsImportUndo(undefined)
+      setDeletedPrivateItemsUndo([])
       setStatus(
         `Taxonomia privada completada en ${privateTaxonomyRepairs.length} ficha${privateTaxonomyRepairs.length === 1 ? '' : 's'}`,
       )
@@ -8972,6 +9060,60 @@ function SettingsTab({
       })
     } catch (reason) {
       setStatus(reason instanceof Error ? reason.message : 'No se pudo deshacer la taxonomia privada.')
+    }
+  }
+
+  async function deleteAllPrivateItemsFromSettings() {
+    const deletedItems = library.items.map((item) => ({ ...item }))
+    if (!deletedItems.length) {
+      setDeleteAllDialogOpen(false)
+      setDeleteAllConfirmText('')
+      setStatus('No hay entradas privadas que borrar')
+      return
+    }
+
+    setStatus('Borrando entradas privadas...')
+    try {
+      await library.deleteAllItems()
+      setPendingBackupImport(undefined)
+      setApplyBackupImportSettings(false)
+      setSettingsUndo(undefined)
+      setPrivateTaxonomyUndoItems([])
+      setSettingsImportUndo(undefined)
+      setDeletedPrivateItemsUndo(deletedItems)
+      setDeleteAllDialogOpen(false)
+      setDeleteAllConfirmText('')
+      setStatus('Tus entradas privadas han sido borradas')
+      onActivity({
+        detail: `${deletedItems.length} entradas eliminadas`,
+        label: 'Entradas privadas borradas',
+        tab: 'settings',
+        tone: 'success',
+      })
+    } catch (reason) {
+      setStatus(reason instanceof Error ? reason.message : 'No se pudieron borrar las entradas privadas.')
+    }
+  }
+
+  async function undoDeleteAllPrivateItemsFromSettings() {
+    if (!deletedPrivateItemsUndo.length) return
+
+    const itemsToRestore = deletedPrivateItemsUndo
+    setStatus('Restaurando entradas privadas...')
+    try {
+      for (const item of itemsToRestore) {
+        await library.saveItem(item)
+      }
+      setDeletedPrivateItemsUndo([])
+      setStatus(`${itemsToRestore.length} entradas recuperadas en Biblioteca`)
+      onActivity({
+        detail: `${itemsToRestore.length} entradas restauradas`,
+        label: 'Entradas privadas recuperadas',
+        tab: 'settings',
+        tone: 'success',
+      })
+    } catch (reason) {
+      setStatus(reason instanceof Error ? reason.message : 'No se pudieron recuperar las entradas privadas.')
     }
   }
 
@@ -9034,6 +9176,18 @@ function SettingsTab({
       id: 'backup',
       label: 'Backup JSON',
       onClick: exportPrivateBackup,
+    },
+    {
+      danger: true,
+      detail: library.items.length ? `${library.items.length} entradas privadas` : 'Sin entradas privadas',
+      disabled: library.items.length === 0,
+      Icon: Trash2,
+      id: 'delete-all',
+      label: 'Borrar entradas',
+      onClick: () => {
+        setDeleteAllConfirmText('')
+        setDeleteAllDialogOpen(true)
+      },
     },
   ]
 
@@ -9255,7 +9409,8 @@ function SettingsTab({
         )}
 
         {status && <FeedbackMessage tone={feedbackToneFromText(status)}>{status}</FeedbackMessage>}
-        {(settingsUndo || privateTaxonomyUndoItems.length > 0 || settingsImportUndo) && !hasUnsavedChanges && (
+        {(settingsUndo || privateTaxonomyUndoItems.length > 0 || settingsImportUndo || deletedPrivateItemsUndo.length > 0) &&
+          !hasUnsavedChanges && (
           <div className="feedback-action-row" aria-label="Accion reciente de ajustes">
             {settingsImportUndo && (
               <button className="secondary-button" type="button" onClick={() => void undoSettingsImport()}>
@@ -9273,6 +9428,12 @@ function SettingsTab({
               <button className="secondary-button" type="button" onClick={() => void undoPrivateTaxonomyRepair()}>
                 <RotateCcw size={16} />
                 Deshacer taxonomia
+              </button>
+            )}
+            {deletedPrivateItemsUndo.length > 0 && (
+              <button className="secondary-button" type="button" onClick={() => void undoDeleteAllPrivateItemsFromSettings()}>
+                <RotateCcw size={16} />
+                Deshacer borrado total
               </button>
             )}
           </div>
@@ -9443,9 +9604,15 @@ function SettingsTab({
             <div className="private-action-list">
               {privateDataActions.map((action) => {
                 const Icon = action.Icon
+                const actionClassName = [
+                  'private-action-item',
+                  action.primary ? 'primary' : undefined,
+                  action.danger ? 'danger' : undefined,
+                ].filter(Boolean).join(' ')
                 return (
                   <button
-                    className={action.primary ? 'private-action-item primary' : 'private-action-item'}
+                    className={actionClassName}
+                    disabled={action.disabled}
                     key={action.id}
                     type="button"
                     onClick={action.onClick}
@@ -9535,6 +9702,65 @@ function SettingsTab({
           </div>
         </details>
       </div>
+
+      {deleteAllDialogOpen && (
+        <div className="modal-backdrop" role="presentation">
+          <DialogFocusReturn />
+          <form
+            aria-labelledby="settings-delete-all-title"
+            aria-modal="true"
+            className="confirm-dialog"
+            role="dialog"
+            onKeyDown={(event) =>
+              handleDialogKeyDown(event, () => {
+                setDeleteAllDialogOpen(false)
+                setDeleteAllConfirmText('')
+              })
+            }
+            onSubmit={(event) => {
+              event.preventDefault()
+              if (deleteAllConfirmText === 'BORRAR') void deleteAllPrivateItemsFromSettings()
+            }}
+          >
+            <div>
+              <h2 id="settings-delete-all-title">Borrar entradas privadas</h2>
+              <p>
+                Esto elimina {library.items.length} entradas privadas de tu cuenta. Tus ajustes, cola, actividad y
+                catalogo publico no cambian. Podras deshacerlo justo despues.
+              </p>
+            </div>
+            <label>
+              Confirmacion
+              <input
+                autoFocus
+                value={deleteAllConfirmText}
+                onChange={(event) => setDeleteAllConfirmText(event.target.value)}
+                placeholder="BORRAR"
+              />
+            </label>
+            <div className="action-row end">
+              <button
+                className="ghost-button"
+                type="button"
+                onClick={() => {
+                  setDeleteAllDialogOpen(false)
+                  setDeleteAllConfirmText('')
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                className="danger-button"
+                disabled={deleteAllConfirmText !== 'BORRAR' || library.items.length === 0}
+                type="submit"
+              >
+                <Trash2 size={16} />
+                Borrar entradas
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {editingItem && (
         <ItemEditor

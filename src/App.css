@@ -1,3 +1,9 @@
+html.dialog-scroll-locked,
+body.dialog-scroll-locked {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
 .app-shell {
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--surface-muted) 76%, transparent), transparent 340px),
@@ -5216,6 +5222,17 @@
   transform: translateY(-1px);
 }
 
+.private-action-item:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.private-action-item:disabled:hover {
+  background: var(--surface-muted);
+  color: var(--muted);
+  transform: none;
+}
+
 .private-import-item {
   cursor: pointer;
 }
@@ -5265,6 +5282,26 @@
   background: color-mix(in srgb, var(--accent-soft) 68%, var(--surface-muted));
   border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
   color: var(--accent-dark);
+}
+
+.private-action-item.danger {
+  background: var(--danger-bg);
+  border-color: var(--danger-border);
+  color: var(--danger-text);
+}
+
+.private-action-item.danger strong {
+  color: var(--danger-text);
+}
+
+.private-action-item.danger:disabled {
+  background: var(--surface-muted);
+  border-color: var(--border);
+  color: var(--muted);
+}
+
+.private-action-item.danger:disabled strong {
+  color: var(--text-strong);
 }
 
 .private-action-item svg {
@@ -11612,6 +11649,7 @@ button:active:not(:disabled),
   display: flex;
   inset: 0;
   justify-content: center;
+  overscroll-behavior: contain;
   padding: var(--modal-safe-top) var(--modal-safe-right) var(--modal-safe-bottom) var(--modal-safe-left);
   position: fixed;
   -webkit-backdrop-filter: blur(10px) saturate(0.78);
@@ -11628,8 +11666,10 @@ button:active:not(:disabled),
   max-height: calc(100vh - 36px);
   max-height: calc(100dvh - var(--modal-safe-top) - var(--modal-safe-bottom));
   overflow: auto;
+  overscroll-behavior: contain;
   padding: 18px;
   box-shadow: 0 28px 90px rgba(0, 0, 0, 0.38);
+  -webkit-overflow-scrolling: touch;
   width: min(720px, 100%);
 }
 
