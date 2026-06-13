@@ -33,6 +33,13 @@ const letterboxdMaxZipBytes = 10 * 1024 * 1024
 const letterboxdMaxCsvBytes = 4 * 1024 * 1024
 const letterboxdMaxTotalCsvBytes = 12 * 1024 * 1024
 const goodreadsMaxCsvBytes = 10 * 1024 * 1024
+const letterboxdCsvSourcePriority: Record<LetterboxdCsvSource, number> = {
+  reviews: 0,
+  ratings: 1,
+  diary: 2,
+  watched: 3,
+  watchlist: 4,
+}
 
 export const importSourceLabels: Record<ImportSourceId, string> = {
   anilist: 'AniList',
@@ -93,6 +100,9 @@ export async function importMyAnimeListLibrary(input: string): Promise<LibraryIm
 }
 
 export async function importLetterboxdZip(file: File): Promise<LibraryImportProviderResult> {
+  if (file.size > letterboxdMaxZipBytes) {
+    throw new Error('El ZIP de Letterboxd supera el limite de 10 MB.')
+  }
   return parseLetterboxdZipBytes(new Uint8Array(await file.arrayBuffer()))
 }
 
@@ -183,12 +193,18 @@ export function parseLetterboxdZipBytes(bytes: Uint8Array): LibraryImportProvide
   const byKey = new Map<string, ImportedLibraryItemDraft>()
   let parsedFiles = 0
   let inflatedCsvBytes = 0
+  const fileEntries = Object.entries(files)
+    .flatMap(([path, fileBytes]) => {
+      const source = readLetterboxdCsvSource(path.toLowerCase())
+      return source ? [{ fileBytes, path, source }] : []
+    })
+    .sort(
+      (left, right) =>
+        letterboxdCsvSourcePriority[left.source] - letterboxdCsvSourcePriority[right.source] ||
+        left.path.localeCompare(right.path),
+    )
 
-  for (const [path, fileBytes] of Object.entries(files)) {
-    const normalizedPath = path.toLowerCase()
-    const source = readLetterboxdCsvSource(normalizedPath)
-    if (!source) continue
-
+  for (const { fileBytes, path, source } of fileEntries) {
     inflatedCsvBytes += fileBytes.byteLength
     if (fileBytes.byteLength > letterboxdMaxCsvBytes || inflatedCsvBytes > letterboxdMaxTotalCsvBytes) {
       throw new Error('El ZIP de Letterboxd contiene CSVs demasiado grandes para importar en navegador.')

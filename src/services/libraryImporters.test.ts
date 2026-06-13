@@ -5,6 +5,7 @@ import {
   buildImportPreview,
   importAniListLibrary,
   importGoodreadsCsv,
+  importLetterboxdZip,
   importMyAnimeListLibrary,
   importPreviewItemsToListItems,
   parseGoodreadsCsv,
@@ -100,6 +101,43 @@ describe('library importers', () => {
     })
 
     expect(() => parseLetterboxdZipBytes(zipBytes)).toThrow('El CSV letterboxd/watched.csv supera el limite de 4 MB.')
+  })
+
+  it('rejects oversized Letterboxd files before reading them into memory', async () => {
+    const arrayBuffer = vi.fn()
+    const file = { arrayBuffer, size: 10 * 1024 * 1024 + 1 } as unknown as File
+
+    await expect(importLetterboxdZip(file)).rejects.toThrow('El ZIP de Letterboxd supera el limite de 10 MB.')
+    expect(arrayBuffer).not.toHaveBeenCalled()
+  })
+
+  it('merges repeated Letterboxd rows in a stable priority order', () => {
+    const csvs = {
+      'letterboxd/watchlist.csv': strToU8(
+        'Date,Name,Year,Letterboxd URI\n2026-01-01,Arrival,2016,https://letterboxd.com/film/arrival-2016/\n',
+      ),
+      'letterboxd/diary.csv': strToU8(
+        'Date,Name,Year,Letterboxd URI,Rating\n2026-01-02,Arrival,2016,https://letterboxd.com/film/arrival-2016/,2\n',
+      ),
+      'letterboxd/ratings.csv': strToU8(
+        'Date,Name,Year,Letterboxd URI,Rating\n2026-01-03,Arrival,2016,https://letterboxd.com/film/arrival-2016/,3\n',
+      ),
+      'letterboxd/reviews.csv': strToU8(
+        'Date,Name,Year,Letterboxd URI,Rating,Review\n2026-01-04,Arrival,2016,https://letterboxd.com/film/arrival-2016/,4.5,Review wins\n',
+      ),
+    }
+    const naturalOrder = parseLetterboxdZipBytes(zipSync(csvs))
+    const reverseOrder = parseLetterboxdZipBytes(zipSync(Object.fromEntries(Object.entries(csvs).reverse())))
+
+    expect(naturalOrder.drafts).toEqual(reverseOrder.drafts)
+    expect(naturalOrder.drafts[0]).toEqual(
+      expect.objectContaining({
+        notes: 'Review wins',
+        progress: 'Vista el 2026-01-04',
+        rating: 9,
+        status: 'completed',
+      }),
+    )
   })
 
   it('ignores non-official Letterboxd CSV names that only share suffixes', () => {
