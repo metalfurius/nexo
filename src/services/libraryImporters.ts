@@ -29,6 +29,10 @@ type UnknownRecord = Record<string, unknown>
 const anilistGraphqlUrl = 'https://graphql.anilist.co'
 const jikanBaseUrl = 'https://api.jikan.moe/v4'
 const maxJikanPages = 20
+const letterboxdMaxZipBytes = 10 * 1024 * 1024
+const letterboxdMaxCsvBytes = 4 * 1024 * 1024
+const letterboxdMaxTotalCsvBytes = 12 * 1024 * 1024
+const goodreadsMaxCsvBytes = 10 * 1024 * 1024
 
 export const importSourceLabels: Record<ImportSourceId, string> = {
   anilist: 'AniList',
@@ -93,6 +97,9 @@ export async function importLetterboxdZip(file: File): Promise<LibraryImportProv
 }
 
 export async function importGoodreadsCsv(file: File): Promise<LibraryImportProviderResult> {
+  if (file.size > goodreadsMaxCsvBytes) {
+    throw new Error('El CSV de Goodreads supera el limite de 10 MB.')
+  }
   return parseGoodreadsCsv(await file.text())
 }
 
@@ -154,15 +161,38 @@ export function parseGoodreadsCsv(csvText: string): LibraryImportProviderResult 
 }
 
 export function parseLetterboxdZipBytes(bytes: Uint8Array): LibraryImportProviderResult {
-  const files = unzipSync(bytes)
+  if (bytes.byteLength > letterboxdMaxZipBytes) {
+    throw new Error('El ZIP de Letterboxd supera el limite de 10 MB.')
+  }
+
+  let selectedCsvBytes = 0
+  const files = unzipSync(bytes, {
+    filter(file) {
+      if (!readLetterboxdCsvSource(file.name.toLowerCase())) return false
+      if (file.originalSize > letterboxdMaxCsvBytes) {
+        throw new Error(`El CSV ${file.name} supera el limite de 4 MB.`)
+      }
+      selectedCsvBytes += file.originalSize
+      if (selectedCsvBytes > letterboxdMaxTotalCsvBytes) {
+        throw new Error('El ZIP de Letterboxd supera el limite total de CSV permitido.')
+      }
+      return true
+    },
+  })
   const warnings: ImportWarning[] = []
   const byKey = new Map<string, ImportedLibraryItemDraft>()
   let parsedFiles = 0
+  let inflatedCsvBytes = 0
 
   for (const [path, fileBytes] of Object.entries(files)) {
     const normalizedPath = path.toLowerCase()
     const source = readLetterboxdCsvSource(normalizedPath)
     if (!source) continue
+
+    inflatedCsvBytes += fileBytes.byteLength
+    if (fileBytes.byteLength > letterboxdMaxCsvBytes || inflatedCsvBytes > letterboxdMaxTotalCsvBytes) {
+      throw new Error('El ZIP de Letterboxd contiene CSVs demasiado grandes para importar en navegador.')
+    }
 
     parsedFiles += 1
     const csvText = strFromU8(fileBytes)
@@ -207,6 +237,8 @@ export function buildImportPreview(result: LibraryImportProviderResult, currentI
   const items: ImportPreviewItem[] = []
   const usedPreviewIds = new Set<string>()
   const seenDraftIds = new Map<string, string>()
+  const seenDraftExternalIndex = new Map<string, string>()
+  const seenDraftTitleIndex = new Map<string, string>()
 
   for (const draft of result.drafts) {
     const validationWarning = validateDraft(draft)
@@ -220,15 +252,38 @@ export function buildImportPreview(result: LibraryImportProviderResult, currentI
     const baseId = createImportedItemId(draft)
     const duplicateById = duplicateByExternal || duplicateByTitle ? undefined : currentById.get(baseId)
     const previewId = ensureUniquePreviewId(baseId, usedPreviewIds)
+    const draftExternalKeys = externalRefKeys(draft.externalRefs)
+    const duplicateDraftExternalId = draftExternalKeys
+      .map((key) => seenDraftExternalIndex.get(key))
+      .find((id): id is string => Boolean(id))
+    const draftTitleKey = titleDuplicateKey(draft.title, draft.type, draft.releaseYear)
+    const duplicateDraftTitleId =
+      duplicateByExternal || duplicateDraftExternalId ? undefined : seenDraftTitleIndex.get(draftTitleKey)
     const previousDraftId = seenDraftIds.get(baseId)
-    const duplicateOfId = duplicateByExternal?.id ?? duplicateByTitle?.id ?? duplicateById?.id ?? previousDraftId
-    const duplicateReason = duplicateByExternal
+    const duplicateOfId =
+      duplicateByExternal?.id ??
+      duplicateDraftExternalId ??
+      duplicateByTitle?.id ??
+      duplicateDraftTitleId ??
+      duplicateById?.id ??
+      previousDraftId
+    const duplicateReason = duplicateByExternal || duplicateDraftExternalId
       ? 'externalRefs'
-      : duplicateByTitle || duplicateById || previousDraftId
+      : duplicateByTitle || duplicateDraftTitleId || duplicateById || previousDraftId
         ? 'titleTypeYear'
         : undefined
 
-    seenDraftIds.set(baseId, previewId)
+    if (!seenDraftIds.has(baseId)) {
+      seenDraftIds.set(baseId, previewId)
+    }
+    for (const key of draftExternalKeys) {
+      if (!seenDraftExternalIndex.has(key)) {
+        seenDraftExternalIndex.set(key, previewId)
+      }
+    }
+    if (!seenDraftTitleIndex.has(draftTitleKey)) {
+      seenDraftTitleIndex.set(draftTitleKey, previewId)
+    }
     items.push({
       id: previewId,
       draft,
@@ -542,11 +597,12 @@ function letterboxdRowToDraft(row: CsvRow, source: LetterboxdCsvSource): Importe
 type LetterboxdCsvSource = 'diary' | 'ratings' | 'reviews' | 'watched' | 'watchlist'
 
 function readLetterboxdCsvSource(path: string): LetterboxdCsvSource | undefined {
-  if (path.endsWith('diary.csv')) return 'diary'
-  if (path.endsWith('ratings.csv')) return 'ratings'
-  if (path.endsWith('reviews.csv')) return 'reviews'
-  if (path.endsWith('watched.csv')) return 'watched'
-  if (path.endsWith('watchlist.csv')) return 'watchlist'
+  const fileName = path.split(/[\\/]/).pop()
+  if (fileName === 'diary.csv') return 'diary'
+  if (fileName === 'ratings.csv') return 'ratings'
+  if (fileName === 'reviews.csv') return 'reviews'
+  if (fileName === 'watched.csv') return 'watched'
+  if (fileName === 'watchlist.csv') return 'watchlist'
   return undefined
 }
 
@@ -652,10 +708,11 @@ function titleDuplicateKey(title: string, type: ItemType, year?: number) {
 }
 
 function ensureUniquePreviewId(baseId: string, usedIds: Set<string>) {
-  let id = baseId
+  let id = baseId.slice(0, 120)
   let suffix = 2
   while (usedIds.has(id)) {
-    id = `${baseId}-${suffix}`.slice(0, 120)
+    const suffixText = `-${suffix}`
+    id = `${baseId.slice(0, Math.max(1, 120 - suffixText.length))}${suffixText}`
     suffix += 1
   }
   usedIds.add(id)

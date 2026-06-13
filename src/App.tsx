@@ -890,6 +890,7 @@ const activityTabLabels: Record<AppTab, string> = {
   settings: 'Ajustes',
 }
 const sessionActivityLimit = 5
+const serviceImportPreviewRenderLimit = 80
 
 interface PrivateDataAction {
   detail: string
@@ -8754,6 +8755,7 @@ function SettingsTab({
   const [serviceImportPreview, setServiceImportPreview] = useState<ImportPreview | undefined>()
   const [serviceImportSelectedIds, setServiceImportSelectedIds] = useState<string[]>([])
   const [serviceImportStatusFilter, setServiceImportStatusFilter] = useState<ItemStatus | 'all'>('all')
+  const [serviceImportVisibleLimit, setServiceImportVisibleLimit] = useState(serviceImportPreviewRenderLimit)
   const [serviceImportLoading, setServiceImportLoading] = useState<ImportSourceId | undefined>()
   const [anilistImportInput, setAnilistImportInput] = useState('')
   const [myAnimeListImportInput, setMyAnimeListImportInput] = useState('')
@@ -8782,6 +8784,10 @@ function SettingsTab({
       (item) => serviceImportStatusFilter === 'all' || item.draft.status === serviceImportStatusFilter,
     )
   }, [serviceImportPreview, serviceImportStatusFilter])
+  const serviceImportRenderedItems = useMemo(
+    () => serviceImportVisibleItems.slice(0, serviceImportVisibleLimit),
+    [serviceImportVisibleItems, serviceImportVisibleLimit],
+  )
   const serviceImportSelectedIdSet = useMemo(() => new Set(serviceImportSelectedIds), [serviceImportSelectedIds])
   const serviceImportSelectedItems = useMemo(
     () =>
@@ -8968,7 +8974,13 @@ function SettingsTab({
     setApplyBackupImportSettings(false)
     setServiceImportPreview(preview)
     setServiceImportStatusFilter('all')
-    setServiceImportSelectedIds(preview.items.filter((item) => !item.duplicateOfId).map((item) => item.id))
+    setServiceImportVisibleLimit(serviceImportPreviewRenderLimit)
+    setServiceImportSelectedIds(
+      preview.items
+        .slice(0, serviceImportPreviewRenderLimit)
+        .filter((item) => !item.duplicateOfId)
+        .map((item) => item.id),
+    )
     setStatus(
       `${preview.sourceLabel}: ${preview.newItems} nuevas, ${preview.duplicateItems} posibles duplicadas, ${preview.invalidItems} invalidas`,
     )
@@ -8984,6 +8996,7 @@ function SettingsTab({
     } catch (reason) {
       setServiceImportPreview(undefined)
       setServiceImportSelectedIds([])
+      setServiceImportVisibleLimit(serviceImportPreviewRenderLimit)
       setStatus(reason instanceof Error ? reason.message : `No se pudo importar desde ${importSourceLabels[sourceId]}.`)
     } finally {
       setServiceImportLoading(undefined)
@@ -9001,6 +9014,7 @@ function SettingsTab({
     } catch (reason) {
       setServiceImportPreview(undefined)
       setServiceImportSelectedIds([])
+      setServiceImportVisibleLimit(serviceImportPreviewRenderLimit)
       setStatus(reason instanceof Error ? reason.message : `No se pudo importar desde ${importSourceLabels[sourceId]}.`)
     } finally {
       setServiceImportLoading(undefined)
@@ -9022,7 +9036,7 @@ function SettingsTab({
     setServiceImportSelectedIds((current) =>
       uniqueValues([
         ...current,
-        ...serviceImportVisibleItems.filter((item) => !item.duplicateOfId).map((item) => item.id),
+        ...serviceImportRenderedItems.filter((item) => !item.duplicateOfId).map((item) => item.id),
       ]),
     )
   }
@@ -9035,6 +9049,7 @@ function SettingsTab({
     setServiceImportPreview(undefined)
     setServiceImportSelectedIds([])
     setServiceImportStatusFilter('all')
+    setServiceImportVisibleLimit(serviceImportPreviewRenderLimit)
     setStatus('Importacion desde servicio cancelada')
   }
 
@@ -9062,6 +9077,7 @@ function SettingsTab({
       setServiceImportPreview(undefined)
       setServiceImportSelectedIds([])
       setServiceImportStatusFilter('all')
+      setServiceImportVisibleLimit(serviceImportPreviewRenderLimit)
       setStatus(`Importadas ${itemsToImport.length} entradas desde ${serviceImportPreview.sourceLabel}`)
       onActivity({
         detail: `${itemsToImport.length} entradas privadas`,
@@ -9086,6 +9102,7 @@ function SettingsTab({
       setDeletedPrivateItemsUndo([])
       setServiceImportPreview(undefined)
       setServiceImportSelectedIds([])
+      setServiceImportVisibleLimit(serviceImportPreviewRenderLimit)
       setPendingBackupImport({ fileName: file.name, payload, summary })
       setApplyBackupImportSettings(Boolean(payload.settings))
       setStatus(`Backup preparado: ${formatBackupImportSummary(summary)}`)
@@ -9986,7 +10003,10 @@ function SettingsTab({
                   <button
                     className={serviceImportStatusFilter === 'all' ? 'active' : undefined}
                     type="button"
-                    onClick={() => setServiceImportStatusFilter('all')}
+                    onClick={() => {
+                      setServiceImportStatusFilter('all')
+                      setServiceImportVisibleLimit(serviceImportPreviewRenderLimit)
+                    }}
                   >
                     Todos
                   </button>
@@ -9995,7 +10015,10 @@ function SettingsTab({
                       className={serviceImportStatusFilter === status ? 'active' : undefined}
                       key={status}
                       type="button"
-                      onClick={() => setServiceImportStatusFilter(status)}
+                      onClick={() => {
+                        setServiceImportStatusFilter(status)
+                        setServiceImportVisibleLimit(serviceImportPreviewRenderLimit)
+                      }}
                     >
                       {statusLabels[status]} ({serviceImportPreview.statusCounts[status] ?? 0})
                     </button>
@@ -10015,7 +10038,7 @@ function SettingsTab({
                 </div>
 
                 <div className="service-import-list">
-                  {serviceImportVisibleItems.slice(0, 80).map((item) => {
+                  {serviceImportRenderedItems.map((item) => {
                     const duplicateLabel =
                       item.duplicateReason === 'externalRefs'
                         ? 'Duplicado por ID externo'
@@ -10042,6 +10065,20 @@ function SettingsTab({
                     )
                   })}
                 </div>
+                {serviceImportVisibleItems.length > serviceImportRenderedItems.length && (
+                  <div className="service-import-overflow-note">
+                    <span>
+                      Mostrando {serviceImportRenderedItems.length} de {serviceImportVisibleItems.length}; usa filtros para acotar.
+                    </span>
+                    <button
+                      className="ghost-button"
+                      type="button"
+                      onClick={() => setServiceImportVisibleLimit((limit) => limit + serviceImportPreviewRenderLimit)}
+                    >
+                      Mostrar mas
+                    </button>
+                  </div>
+                )}
 
                 {serviceImportPreview.warnings.length > 0 && (
                   <div className="service-import-warnings" aria-label="Avisos de importacion">

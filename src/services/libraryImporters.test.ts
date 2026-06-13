@@ -1,9 +1,10 @@
 import { strToU8, zipSync } from 'fflate'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { DEFAULT_WEIGHTS, type ListItem } from '../domain/types'
+import { DEFAULT_WEIGHTS, type ImportedLibraryItemDraft, type ListItem } from '../domain/types'
 import {
   buildImportPreview,
   importAniListLibrary,
+  importGoodreadsCsv,
   importMyAnimeListLibrary,
   importPreviewItemsToListItems,
   parseGoodreadsCsv,
@@ -85,6 +86,93 @@ describe('library importers', () => {
         rating: 9,
         releaseYear: 2016,
         externalRefs: expect.objectContaining({ letterboxdSlug: 'arrival-2016' }),
+      }),
+    )
+  })
+
+  it('rejects oversized Letterboxd ZIP and CSV payloads before parsing rows', () => {
+    expect(() => parseLetterboxdZipBytes(new Uint8Array(10 * 1024 * 1024 + 1))).toThrow(
+      'El ZIP de Letterboxd supera el limite de 10 MB.',
+    )
+
+    const zipBytes = zipSync({
+      'letterboxd/watched.csv': strToU8(`Date,Name,Year,Letterboxd URI\n${'A'.repeat(4 * 1024 * 1024 + 1)}`),
+    })
+
+    expect(() => parseLetterboxdZipBytes(zipBytes)).toThrow('El CSV letterboxd/watched.csv supera el limite de 4 MB.')
+  })
+
+  it('ignores non-official Letterboxd CSV names that only share suffixes', () => {
+    const zipBytes = zipSync({
+      'letterboxd/unwatched.csv': strToU8(
+        'Date,Name,Year,Letterboxd URI\n2026-01-01,Should Not Import,2026,https://letterboxd.com/film/should-not-import/\n',
+      ),
+    })
+
+    const result = parseLetterboxdZipBytes(zipBytes)
+
+    expect(result.drafts).toEqual([])
+    expect(result.warnings).toEqual([expect.objectContaining({ code: 'parse' })])
+  })
+
+  it('rejects oversized Goodreads CSV files before reading them', async () => {
+    const file = new File([new Uint8Array(10 * 1024 * 1024 + 1)], 'goodreads-too-large.csv', { type: 'text/csv' })
+
+    await expect(importGoodreadsCsv(file)).rejects.toThrow('El CSV de Goodreads supera el limite de 10 MB.')
+  })
+
+  it('keeps preview IDs unique when duplicate drafts already hit the max ID length', () => {
+    const draft: ImportedLibraryItemDraft = {
+      sourceId: 'goodreads',
+      sourceItemId: 'same-book',
+      title: 'A'.repeat(180),
+      type: 'book',
+      status: 'completed',
+      genres: [],
+      tags: ['Goodreads'],
+      moodTags: [],
+    }
+
+    const preview = buildImportPreview({ sourceId: 'goodreads', warnings: [], drafts: [draft, { ...draft }] }, [])
+    const previewIds = preview.items.map((item) => item.id)
+
+    expect(previewIds).toHaveLength(2)
+    expect(new Set(previewIds).size).toBe(2)
+    expect(previewIds[0]).toHaveLength(120)
+    expect(previewIds[1]).toHaveLength(120)
+    expect(previewIds[1]).toMatch(/-2$/)
+    expect(preview.duplicateItems).toBe(1)
+  })
+
+  it('marks duplicates inside the same preview by external refs and title type year', () => {
+    const duplicateIsbn = parseGoodreadsCsv(
+      [
+        'Book Id,Title,Author,ISBN13,My Rating,Exclusive Shelf,Bookshelves,Original Publication Year,My Review',
+        '100,Duplicate ISBN One,Author A,9780000000001,0,to-read,,2020,',
+        '101,Duplicate ISBN Two,Author B,9780000000001,0,to-read,,2021,',
+      ].join('\n'),
+    )
+    const duplicateTitle = parseGoodreadsCsv(
+      [
+        'Book Id,Title,Author,ISBN13,My Rating,Exclusive Shelf,Bookshelves,Original Publication Year,My Review',
+        '200,Same Title Same Year,Author A,9780000000002,0,to-read,,2020,',
+        '201,Same Title Same Year,Author B,9780000000003,0,to-read,,2020,',
+      ].join('\n'),
+    )
+
+    const isbnPreview = buildImportPreview(duplicateIsbn, [])
+    const titlePreview = buildImportPreview(duplicateTitle, [])
+
+    expect(isbnPreview.items[1]).toEqual(
+      expect.objectContaining({
+        duplicateOfId: isbnPreview.items[0].id,
+        duplicateReason: 'externalRefs',
+      }),
+    )
+    expect(titlePreview.items[1]).toEqual(
+      expect.objectContaining({
+        duplicateOfId: titlePreview.items[0].id,
+        duplicateReason: 'titleTypeYear',
       }),
     )
   })
