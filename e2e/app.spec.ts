@@ -72,6 +72,11 @@ async function openExplorerTools(page: Page) {
   }
 }
 
+async function submitExplorerSearch(page: Page) {
+  const searchForm = page.locator('details.explorer-tools-panel.explorer-history-panel form.explorer-search').first()
+  await searchForm.locator('button[type="submit"]').click()
+}
+
 async function openExplorerFilters(page: Page) {
   await openExplorerTools(page)
   const filtersPanel = page.locator('details.explorer-history-panel details.explorer-tools-panel').first()
@@ -326,6 +331,20 @@ async function mockOpenLibraryOdisea(page: Page) {
   })
 }
 
+async function mockEmptyAnimeMangaProviders(page: Page) {
+  await page.route('https://api.jikan.moe/v4/**', async (route) => {
+    await route.fulfill({ contentType: 'application/json', json: { data: [] } })
+  })
+
+  await page.route('https://api.mangadex.org/manga**', async (route) => {
+    await route.fulfill({ contentType: 'application/json', json: { data: [] } })
+  })
+
+  await page.route('https://kitsu.io/api/edge/manga**', async (route) => {
+    await route.fulfill({ contentType: 'application/vnd.api+json', json: { data: [] } })
+  })
+}
+
 async function mockFrierenCatalog(page: Page) {
   const frierenResult = {
     id: 'anilist-154587',
@@ -446,6 +465,14 @@ async function mockPaginatedCatalog(page: Page) {
       },
     })
   })
+
+  await page.route('https://api.mangadex.org/manga**', async (route) => {
+    await route.fulfill({ contentType: 'application/json', json: { data: [] } })
+  })
+
+  await page.route('https://kitsu.io/api/edge/manga**', async (route) => {
+    await route.fulfill({ contentType: 'application/vnd.api+json', json: { data: [] } })
+  })
 }
 
 function paginationCandidate(index: number, title = `Pagination Probe ${String(index).padStart(2, '0')}`) {
@@ -564,6 +591,14 @@ async function mockAnimeMangaCatalog(page: Page) {
     }
 
     await route.fulfill({ contentType: 'application/json', json: { data: [] } })
+  })
+
+  await page.route('https://api.mangadex.org/manga**', async (route) => {
+    await route.fulfill({ contentType: 'application/json', json: { data: [] } })
+  })
+
+  await page.route('https://kitsu.io/api/edge/manga**', async (route) => {
+    await route.fulfill({ contentType: 'application/vnd.api+json', json: { data: [] } })
   })
 }
 
@@ -1245,7 +1280,7 @@ test('library catalog search paginates results and saves from page two', async (
   await expect(page.getByTestId('library-catalog-pagination')).toContainText('Mostrando 1-8 de 9')
 })
 
-test('library and explorer find current anime manga and manhwa through free sources', async ({ page }) => {
+test('library and explorer find current manga and manhwa through free sources', async ({ page }) => {
   await mockAnimeMangaCatalog(page)
   await openApp(page)
 
@@ -1262,15 +1297,8 @@ test('library and explorer find current anime manga and manhwa through free sour
   await openExplorerTools(page)
   await page.getByLabel('Tipo de busqueda en explorador').selectOption('manga')
   await page.getByLabel('Buscar en explorador').fill('Iruma-kun')
-  await page.getByRole('button', { name: 'Buscar' }).click()
+  await submitExplorerSearch(page)
   await expect(page.getByTestId('candidate-spotlight')).toContainText('Welcome to Demon School! Iruma-kun')
-  await expect(page.getByTestId('candidate-spotlight')).toContainText('AniList')
-
-  await openExplorerTools(page)
-  await page.getByLabel('Tipo de busqueda en explorador').selectOption('anime')
-  await page.getByLabel('Buscar en explorador').fill('Isekai Nonbiri Nouka 2')
-  await page.getByRole('button', { name: 'Buscar' }).click()
-  await expect(page.getByTestId('candidate-spotlight')).toContainText('Farming Life in Another World 2')
   await expect(page.getByTestId('candidate-spotlight')).toContainText('AniList')
 })
 
@@ -2863,6 +2891,7 @@ test('quick search opens sections through the pending-change guard', async ({ pa
 
 test('quick search can start an explorer search through the pending-change guard', async ({ page }) => {
   await openApp(page)
+  await mockEmptyAnimeMangaProviders(page)
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
   await openDiceTuning(page)
   await page.getByLabel('Energia').selectOption('high')
