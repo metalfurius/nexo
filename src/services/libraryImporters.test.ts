@@ -281,4 +281,30 @@ describe('library importers', () => {
       ]),
     )
   })
+
+  it('warns when Jikan still has more pages after the import page limit', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        new Response(JSON.stringify({ data: [], pagination: { has_next_page: true } }), {
+          headers: { 'content-type': 'application/json' },
+        }),
+      ),
+    )
+
+    const result = await importMyAnimeListLibrary('very-long-list')
+
+    expect(result.warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'partial',
+          message: 'Jikan tiene mas de 20 paginas en animelist; se importaron solo las primeras 20.',
+        }),
+        expect.objectContaining({
+          code: 'partial',
+          message: 'Jikan tiene mas de 20 paginas en mangalist; se importaron solo las primeras 20.',
+        }),
+      ]),
+    )
+  })
 })

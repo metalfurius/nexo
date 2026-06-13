@@ -5288,7 +5288,7 @@ function LibraryTab({
   const catalogRangeEnd = Math.min(catalogPageStart + catalogPageCandidates.length, catalogCandidates.length)
   const libraryUndoAction =
     libraryImportUndo
-      ? { ariaLabel: 'Deshacer backup', label: 'Deshacer', onClick: () => void undoLibraryImportFile() }
+      ? { ariaLabel: 'Deshacer importacion', label: 'Deshacer', onClick: () => void undoLibraryImportFile() }
       : deletedItemUndo
         ? { ariaLabel: 'Deshacer borrado', label: 'Deshacer', onClick: () => void undoDeleteSingleItem() }
         : deletedLibraryUndo.length > 0

@@ -55,6 +55,52 @@ describe('library backup schema', () => {
     expect(parsed.settings?.libraryCardsPerRow).toBe(4)
   })
 
+  it('preserves every supported external ref when parsing backups', () => {
+    const parsed = parseLibraryImportPayload(
+      createLibraryExportPayload(
+        [
+          {
+            ...baseItem,
+            externalRefs: {
+              anilistId: '1',
+              googleBooksId: 'gb-1',
+              goodreadsBookId: 'gr-1',
+              isbn: '9780000000001',
+              kitsuId: 'kitsu-1',
+              letterboxdSlug: 'arrival-2016',
+              malId: 'mal-1',
+              mangaDexId: 'mangadex-1',
+              openLibraryKey: '/works/OL1W',
+              rawgId: 'rawg-1',
+              sourceUrl: 'https://example.test/item',
+              tmdbId: 'tmdb-1',
+              wikidataId: 'Q1',
+            },
+          },
+        ],
+        undefined,
+        '2026-01-02T00:00:00.000Z',
+      ),
+      '2026-01-03T00:00:00.000Z',
+    )
+
+    expect(parsed.items[0].externalRefs).toEqual({
+      anilistId: '1',
+      googleBooksId: 'gb-1',
+      goodreadsBookId: 'gr-1',
+      isbn: '9780000000001',
+      kitsuId: 'kitsu-1',
+      letterboxdSlug: 'arrival-2016',
+      malId: 'mal-1',
+      mangaDexId: 'mangadex-1',
+      openLibraryKey: '/works/OL1W',
+      rawgId: 'rawg-1',
+      sourceUrl: 'https://example.test/item',
+      tmdbId: 'tmdb-1',
+      wikidataId: 'Q1',
+    })
+  })
+
   it('keeps a library card density preference from exported settings', () => {
     const parsed = parseLibraryImportPayload(
       createLibraryExportPayload(

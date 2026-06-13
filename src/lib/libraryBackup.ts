@@ -259,6 +259,8 @@ function normalizeExternalRefs(value: unknown): ExternalRefs | undefined {
     openLibraryKey: optionalString(refs.openLibraryKey),
     googleBooksId: optionalString(refs.googleBooksId),
     anilistId: optionalString(refs.anilistId),
+    mangaDexId: optionalString(refs.mangaDexId),
+    kitsuId: optionalString(refs.kitsuId),
     malId: optionalString(refs.malId),
     goodreadsBookId: optionalString(refs.goodreadsBookId),
     isbn: optionalString(refs.isbn),

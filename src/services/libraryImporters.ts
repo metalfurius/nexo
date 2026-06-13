@@ -457,6 +457,14 @@ async function fetchJikanList(
     }
 
     const pagination = asRecord(body.pagination)
+    if (page === maxJikanPages && pagination?.has_next_page === true) {
+      warnings.push({
+        code: 'partial',
+        message: `Jikan tiene mas de ${maxJikanPages} paginas en ${listKind}; se importaron solo las primeras ${maxJikanPages}.`,
+        sourceId: 'myanimelist',
+      })
+      break
+    }
     if (pagination?.has_next_page !== true) break
   }
 
