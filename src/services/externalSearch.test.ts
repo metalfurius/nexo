@@ -146,6 +146,48 @@ describe('external search', () => {
     )
   })
 
+  it('uses a readable MangaDex alias when the primary title is non-Latin but the query is Latin', async () => {
+    mockCatalogFetch((url) => {
+      if (url.hostname === 'graphql.anilist.co') return aniListPayload([])
+      if (url.hostname === 'api.mangadex.org') {
+        return mangaDexPayload([
+          {
+            id: 'b0b721ff-c388-4486-aa0f-c2b0bb321512',
+            attributes: {
+              title: {
+                th: '\u0e04\u0e33\u0e2d\u0e18\u0e34\u0e29\u0e10\u0e32\u0e19\u0e43\u0e19\u0e27\u0e31\u0e19\u0e17\u0e35\u0e48\u0e08\u0e32\u0e01\u0e25\u0e32 Frieren',
+              },
+              altTitles: [{ 'ja-ro': 'Sousou no Frieren' }, { en: "Frieren: Beyond Journey's End" }],
+              originalLanguage: 'ja',
+              year: 2020,
+              description: { en: 'Fantasy manga.' },
+              tags: [{ attributes: { name: { en: 'Fantasy' } } }],
+            },
+            relationships: [
+              {
+                type: 'cover_art',
+                attributes: { fileName: 'cover.jpg' },
+              },
+            ],
+          },
+        ])
+      }
+      return jikanPayload([])
+    })
+
+    const results = await searchExternalSources('Frieren', 'manga')
+
+    expect(results[0]).toEqual(
+      expect.objectContaining({
+        externalRefs: expect.objectContaining({ mangaDexId: 'b0b721ff-c388-4486-aa0f-c2b0bb321512' }),
+        searchAliases: expect.arrayContaining(["Frieren: Beyond Journey's End"]),
+        source: 'mangaDex',
+        title: "Frieren: Beyond Journey's End",
+        type: 'manga',
+      }),
+    )
+  })
+
   it('uses Kitsu localized titles when other manga providers miss a Spanish alias', async () => {
     mockCatalogFetch((url) => {
       if (url.hostname === 'graphql.anilist.co') return aniListPayload([])

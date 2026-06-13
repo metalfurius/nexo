@@ -113,6 +113,90 @@ describe('catalog search relevance', () => {
     expect(scoreCatalogSearchCandidate('Odisea', candidate('Outer Wilds', 'game', 'nexo'), 'game')).toBe(0)
   })
 
+  it('filters broad Spanish connector noise without hiding the exact book match', () => {
+    const ranked = rankCatalogSearchCandidates(
+      [
+        {
+          ...candidate('En tu siglo o en el mio', 'book', 'googleBooks'),
+          searchAliases: ['En tu siglo o en el mio', 'Laia Tinaut'],
+        },
+        candidate("Frieren: Beyond Journey's End", 'anime', 'anilist', {
+          sourceUrl: 'https://anilist.co/anime/154587',
+        }),
+        {
+          ...candidate('Hana no O-en Step', 'manga', 'jikan'),
+          overview: 'A future adventure about students assigned to a dorm.',
+          searchAliases: ['\u82b1\u306eO-EN\u30b9\u30c6\u30c3\u30d7'],
+        },
+      ],
+      'En tu siglo o en el mio',
+      'any',
+    )
+
+    expect(ranked.map((entry) => entry.title)).toEqual(['En tu siglo o en el mio'])
+  })
+
+  it.each([
+    [
+      'One Piece',
+      candidate('One Piece', 'anime', 'jikan'),
+      {
+        ...candidate('Straw Hat Almanac', 'book', 'googleBooks'),
+        overview: 'A historian finds one piece of evidence after another.',
+      },
+    ],
+    [
+      'Dune',
+      candidate('Dune', 'movie', 'tmdb'),
+      {
+        ...candidate('Desert Planet', 'game', 'rawg'),
+        overview: 'Explore a shifting dune in a survival sandbox.',
+      },
+    ],
+    [
+      'The Last of Us',
+      candidate('The Last of Us', 'series', 'tmdb'),
+      {
+        ...candidate('Apocalypse Dispatch', 'movie', 'tmdb'),
+        overview: 'The last of us will write one final message.',
+      },
+    ],
+    [
+      'Chainsaw Man',
+      candidate('Chainsaw Man', 'manga', 'jikan'),
+      {
+        ...candidate('Toolbox Manual', 'book', 'openLibrary'),
+        overview: 'A chainsaw man repairs equipment in short essays.',
+      },
+    ],
+    [
+      'Painter of the Night',
+      candidate('Painter of the Night', 'manhwa', 'mangaDex'),
+      {
+        ...candidate('Night Gallery', 'movie', 'tmdb'),
+        overview: 'A painter of the night sky becomes famous.',
+      },
+    ],
+  ])('requires title or alias signal before secondary metadata can rank %s', (query, exact, noise) => {
+    const ranked = rankCatalogSearchCandidates([noise, exact], query, 'any')
+
+    expect(ranked.map((entry) => entry.title)).toEqual([exact.title])
+  })
+
+  it('prefers canonical anime and manga indexes over broad chapter catalogs when text relevance ties', () => {
+    const ranked = rankCatalogSearchCandidates(
+      [
+        candidate('Example Saga', 'manga', 'mangaDex'),
+        candidate('Example Saga', 'anime', 'jikan'),
+        candidate('Example Saga', 'manga', 'kitsu'),
+      ],
+      'Example Saga',
+      'any',
+    )
+
+    expect(ranked.map((entry) => entry.source)).toEqual(['jikan', 'kitsu', 'mangaDex'])
+  })
+
   it('keeps the real catalog audit list findable through exact titles or curated aliases', () => {
     const fixtures = [
       ['akatsuki no yona', 'Yona of the Dawn', ['Akatsuki no Yona']],
@@ -162,7 +246,7 @@ describe('catalog search relevance', () => {
 
 function candidate(
   title: string,
-  type: 'anime' | 'book' | 'game' | 'manga' | 'manhwa' | 'movie',
+  type: 'anime' | 'book' | 'game' | 'manga' | 'manhwa' | 'movie' | 'series',
   source: 'anilist' | 'googleBooks' | 'jikan' | 'kitsu' | 'mangaDex' | 'nexo' | 'openLibrary' | 'tmdb',
   externalRefs = {},
 ) {

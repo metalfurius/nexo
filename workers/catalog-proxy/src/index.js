@@ -34,7 +34,7 @@ const DEFAULT_ALLOWED_ORIGINS = [
   'http://127.0.0.1:5173',
 ]
 const CACHE_LANGUAGE = 'es-ES'
-const PROVIDER_VERSION = '2026-06-13-v7'
+const PROVIDER_VERSION = '2026-06-13-v12'
 const POSITIVE_TTL_SECONDS = 86_400
 const EMPTY_TTL_SECONDS = 900
 const DISCOVER_TTL_SECONDS = 900
@@ -642,11 +642,15 @@ function collectMangaDexTitleAliases(attributes) {
 function pickMangaDexTitle(attributes, query, aliases) {
   const queryText = normalizeSearchText(query)
   const queryCompact = compactSearchText(query)
-  const exactAlias = aliases.find((alias) => {
+  const exactAliases = aliases.filter((alias) => {
     const aliasText = normalizeSearchText(alias)
     return aliasText === queryText || compactSearchText(aliasText) === queryCompact
   })
+  const exactAlias = exactAliases.find(isReadableLatinAlias)
   if (exactAlias) return exactAlias
+  const readableMatch = pickReadableMatchingAlias(aliases, queryText, queryCompact)
+  if (readableMatch) return readableMatch
+  if (exactAliases[0]) return exactAliases[0]
 
   const titles = attributes.title && typeof attributes.title === 'object' ? attributes.title : {}
   return (
@@ -657,6 +661,34 @@ function pickMangaDexTitle(attributes, query, aliases) {
     optionalString(Object.values(titles)[0]) ||
     'Sin titulo'
   )
+}
+
+function pickReadableMatchingAlias(aliases, queryText, queryCompact) {
+  return aliases
+    .map((alias) => {
+      const aliasText = normalizeSearchText(alias)
+      const aliasCompact = compactSearchText(aliasText)
+      return { alias, aliasCompact, aliasText, score: scoreMatchingAlias(aliasText, aliasCompact, queryText, queryCompact) }
+    })
+    .filter((entry) => entry.score > 0 && isReadableLatinAlias(entry.alias))
+    .sort((left, right) => right.score - left.score)[0]?.alias
+}
+
+function scoreMatchingAlias(aliasText, aliasCompact, queryText, queryCompact) {
+  if (!queryText || !queryCompact) return 0
+  if (aliasText === queryText || aliasCompact === queryCompact) return 5
+  if (aliasText.startsWith(queryText)) return 4
+  if (aliasCompact.startsWith(queryCompact)) return 3
+  if (aliasText.includes(queryText)) return 2
+  if (aliasCompact.includes(queryCompact)) return 1
+  return 0
+}
+
+function isReadableLatinAlias(value) {
+  const letterCount = value.match(/\p{Letter}/gu)?.length ?? 0
+  if (!letterCount) return true
+  const latinLetterCount = value.match(/[A-Za-z]/g)?.length ?? 0
+  return latinLetterCount / letterCount >= 0.5
 }
 
 function readLocalizedText(value) {
@@ -840,24 +872,42 @@ const LOW_SIGNAL_TOKENS = new Set([
   'la',
   'las',
   'los',
+  'mas',
+  'mi',
+  'mia',
+  'mio',
+  'mis',
   'no',
   'of',
   'on',
+  'para',
+  'por',
   'princess',
+  'que',
+  'se',
+  'sin',
   'star',
+  'su',
+  'sus',
+  'te',
   'the',
   'to',
+  'tu',
+  'un',
+  'una',
+  'uno',
   'upon',
   'wa',
   'wish',
   'with',
+  'y',
 ])
 
 const SOURCE_PRIORITY = {
   anilist: 1,
-  mangaDex: 2,
+  jikan: 2,
   kitsu: 3,
-  jikan: 4,
+  mangaDex: 4,
   tmdb: 5,
   googleBooks: 6,
   openLibrary: 7,
@@ -903,10 +953,11 @@ function scoreSearchCandidate(query, candidate, requestedType) {
     ...(candidate.genres ?? []),
     ...Object.values(candidate.externalRefs ?? {}),
   ].filter(Boolean)
+  const sourceFields = Object.values(candidate.externalRefs ?? {}).filter(Boolean)
   const normalizedTitleFields = titleFields.map(normalizeSearchText).filter(Boolean)
   const compactTitleFields = titleFields.map(compactSearchText).filter(Boolean)
   const normalizedAllFields = allFields.map(normalizeSearchText).filter(Boolean)
-  const compactAllFields = allFields.map(compactSearchText).filter(Boolean)
+  const normalizedTitleTokenFields = new Set(normalizedTitleFields.flatMap(tokenizeSearchText))
   const normalizedTokenFields = new Set(normalizedAllFields.flatMap(tokenizeSearchText))
 
   let score = 0
@@ -919,25 +970,45 @@ function scoreSearchCandidate(query, candidate, requestedType) {
     if (compactTitle === queryCompact) phraseScore = Math.max(phraseScore, 1060)
     if (titleText.includes(queryText)) phraseScore = Math.max(phraseScore, 840)
     if (compactTitle.includes(queryCompact)) phraseScore = Math.max(phraseScore, 800)
-    if (queryText.includes(titleText) && titleText.length >= 4) phraseScore = Math.max(phraseScore, 620)
+    if (queryText.includes(titleText) && compactTitle.length >= 4) phraseScore = Math.max(phraseScore, 620)
   }
 
-  for (let index = 0; index < normalizedAllFields.length; index += 1) {
-    if (normalizedAllFields[index].includes(queryText)) phraseScore = Math.max(phraseScore, 720)
-    if ((compactAllFields[index] ?? '').includes(queryCompact)) phraseScore = Math.max(phraseScore, 700)
+  for (const field of sourceFields) {
+    const normalizedField = normalizeSearchText(field)
+    const compactField = compactSearchText(field)
+    if (normalizedField.includes(queryText)) phraseScore = Math.max(phraseScore, 720)
+    if (compactField.includes(queryCompact)) phraseScore = Math.max(phraseScore, 700)
   }
 
   score += phraseScore
 
   let highSignalHits = 0
   let lowSignalHits = 0
+  let titleHighSignalHits = 0
+  let titleLowSignalHits = 0
+  let highSignalQueryTokens = 0
   for (const token of queryTokens) {
-    const hasToken = normalizedTokenFields.has(token) || normalizedAllFields.some((field) => field.includes(token))
+    if (!LOW_SIGNAL_TOKENS.has(token)) highSignalQueryTokens += 1
+    const hasTitleToken = normalizedTitleTokenFields.has(token) || normalizedTitleFields.some((field) => isSearchTokenSubstringHit(token, field))
+    const hasToken = hasTitleToken || normalizedTokenFields.has(token) || normalizedAllFields.some((field) => isSearchTokenSubstringHit(token, field))
     if (!hasToken) continue
     if (LOW_SIGNAL_TOKENS.has(token)) {
       lowSignalHits += 1
+      if (hasTitleToken) titleLowSignalHits += 1
     } else {
       highSignalHits += 1
+      if (hasTitleToken) titleHighSignalHits += 1
+    }
+  }
+
+  const titleTokenHits = titleHighSignalHits + titleLowSignalHits
+  if (!phraseScore) {
+    if (titleTokenHits === 0) return 0
+    if (queryTokens.length > 1) {
+      const titleCoverage = titleTokenHits / queryTokens.length
+      const titleHighCoverage = highSignalQueryTokens ? titleHighSignalHits / highSignalQueryTokens : 0
+      if (highSignalQueryTokens > 0 && titleHighCoverage < 0.67) return 0
+      if (titleCoverage < 0.5) return 0
     }
   }
 
@@ -979,6 +1050,10 @@ function tokenizeSearchText(value) {
   return normalizeSearchText(value)
     .split(/\s+/)
     .filter((token) => token.length >= 2)
+}
+
+function isSearchTokenSubstringHit(token, field) {
+  return token.length >= 4 && !LOW_SIGNAL_TOKENS.has(token) && field.includes(token)
 }
 
 function matchesRankType(itemType, requestedType) {

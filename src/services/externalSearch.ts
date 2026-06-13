@@ -592,11 +592,15 @@ function collectMangaDexTitleAliases(attributes: Record<string, unknown>) {
 function pickMangaDexTitle(attributes: Record<string, unknown>, query: string, aliases: string[]) {
   const queryText = normalizeCatalogSearchText(query)
   const queryCompact = compactCatalogSearchText(query)
-  const exactAlias = aliases.find((alias) => {
+  const exactAliases = aliases.filter((alias) => {
     const aliasText = normalizeCatalogSearchText(alias)
     return aliasText === queryText || compactCatalogSearchText(aliasText) === queryCompact
   })
+  const exactAlias = exactAliases.find(isReadableLatinAlias)
   if (exactAlias) return exactAlias
+  const readableMatch = pickReadableMatchingAlias(aliases, queryText, queryCompact)
+  if (readableMatch) return readableMatch
+  if (exactAliases[0]) return exactAliases[0]
 
   const titles = readRecord(attributes.title)
   return (
@@ -607,6 +611,34 @@ function pickMangaDexTitle(attributes: Record<string, unknown>, query: string, a
     optionalString(Object.values(titles)[0]) ??
     'Sin titulo'
   )
+}
+
+function pickReadableMatchingAlias(aliases: string[], queryText: string, queryCompact: string) {
+  return aliases
+    .map((alias) => {
+      const aliasText = normalizeCatalogSearchText(alias)
+      const aliasCompact = compactCatalogSearchText(aliasText)
+      return { alias, aliasCompact, aliasText, score: scoreMatchingAlias(aliasText, aliasCompact, queryText, queryCompact) }
+    })
+    .filter((entry) => entry.score > 0 && isReadableLatinAlias(entry.alias))
+    .sort((left, right) => right.score - left.score)[0]?.alias
+}
+
+function scoreMatchingAlias(aliasText: string, aliasCompact: string, queryText: string, queryCompact: string) {
+  if (!queryText || !queryCompact) return 0
+  if (aliasText === queryText || aliasCompact === queryCompact) return 5
+  if (aliasText.startsWith(queryText)) return 4
+  if (aliasCompact.startsWith(queryCompact)) return 3
+  if (aliasText.includes(queryText)) return 2
+  if (aliasCompact.includes(queryCompact)) return 1
+  return 0
+}
+
+function isReadableLatinAlias(value: string) {
+  const letterCount = value.match(/\p{Letter}/gu)?.length ?? 0
+  if (!letterCount) return true
+  const latinLetters = value.match(/[A-Za-z]/g)?.length ?? 0
+  return latinLetters / letterCount >= 0.5
 }
 
 function readLocalizedText(value: unknown) {

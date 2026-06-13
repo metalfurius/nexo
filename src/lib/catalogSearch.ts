@@ -15,25 +15,43 @@ const LOW_SIGNAL_TOKENS = new Set([
   'la',
   'las',
   'los',
+  'mas',
+  'mi',
+  'mia',
+  'mio',
+  'mis',
   'no',
   'of',
   'on',
+  'para',
+  'por',
   'princess',
+  'que',
+  'se',
+  'sin',
   'star',
+  'su',
+  'sus',
+  'te',
   'the',
   'to',
+  'tu',
+  'un',
+  'una',
+  'uno',
   'upon',
   'wa',
   'wish',
   'with',
+  'y',
 ])
 
 const SOURCE_PRIORITY: Record<string, number> = {
   nexo: 0,
   anilist: 1,
-  mangaDex: 2,
+  jikan: 2,
   kitsu: 3,
-  jikan: 4,
+  mangaDex: 4,
   tmdb: 5,
   googleBooks: 6,
   openLibrary: 7,
@@ -94,6 +112,7 @@ export function scoreCatalogSearchCandidate(
   const normalizedTitleFields = titleFields.map(normalizeCatalogSearchText).filter(Boolean)
   const compactTitleFields = titleFields.map(compactCatalogSearchText).filter(Boolean)
   const normalizedAllFields = allFields.map(normalizeCatalogSearchText).filter(Boolean)
+  const normalizedTitleTokenFields = new Set(normalizedTitleFields.flatMap(tokenizeCatalogText))
   const normalizedTokenFields = new Set(normalizedAllFields.flatMap(tokenizeCatalogText))
 
   let score = 0
@@ -107,7 +126,9 @@ export function scoreCatalogSearchCandidate(
     if (compactTitle === queryCompact) phraseScore = Math.max(phraseScore, isPrimaryTitle ? 1060 : 1020)
     if (titleText.includes(queryText)) phraseScore = Math.max(phraseScore, isPrimaryTitle ? 840 : 800)
     if (compactTitle.includes(queryCompact)) phraseScore = Math.max(phraseScore, isPrimaryTitle ? 800 : 760)
-    if (queryText.includes(titleText) && titleText.length >= 4) phraseScore = Math.max(phraseScore, isPrimaryTitle ? 620 : 580)
+    if (queryText.includes(titleText) && compactTitle.length >= 4) {
+      phraseScore = Math.max(phraseScore, isPrimaryTitle ? 620 : 580)
+    }
   }
 
   const sourceFields = getCandidateSourceFields(candidate)
@@ -122,13 +143,31 @@ export function scoreCatalogSearchCandidate(
 
   let highSignalHits = 0
   let lowSignalHits = 0
+  let titleHighSignalHits = 0
+  let titleLowSignalHits = 0
+  let highSignalQueryTokens = 0
   for (const token of queryTokens) {
-    const hasToken = normalizedTokenFields.has(token) || normalizedAllFields.some((field) => field.includes(token))
+    if (!LOW_SIGNAL_TOKENS.has(token)) highSignalQueryTokens += 1
+    const hasTitleToken = normalizedTitleTokenFields.has(token) || normalizedTitleFields.some((field) => isSearchTokenSubstringHit(token, field))
+    const hasToken = hasTitleToken || normalizedTokenFields.has(token) || normalizedAllFields.some((field) => isSearchTokenSubstringHit(token, field))
     if (!hasToken) continue
     if (LOW_SIGNAL_TOKENS.has(token)) {
       lowSignalHits += 1
+      if (hasTitleToken) titleLowSignalHits += 1
     } else {
       highSignalHits += 1
+      if (hasTitleToken) titleHighSignalHits += 1
+    }
+  }
+
+  const titleTokenHits = titleHighSignalHits + titleLowSignalHits
+  if (!phraseScore) {
+    if (titleTokenHits === 0) return 0
+    if (queryTokens.length > 1) {
+      const titleCoverage = titleTokenHits / queryTokens.length
+      const titleHighCoverage = highSignalQueryTokens ? titleHighSignalHits / highSignalQueryTokens : 0
+      if (highSignalQueryTokens > 0 && titleHighCoverage < 0.67) return 0
+      if (titleCoverage < 0.5) return 0
     }
   }
 
@@ -225,6 +264,10 @@ function tokenizeCatalogText(value: string) {
   return normalizeCatalogSearchText(value)
     .split(/\s+/)
     .filter((token) => token.length >= 2)
+}
+
+function isSearchTokenSubstringHit(token: string, field: string) {
+  return token.length >= 4 && !LOW_SIGNAL_TOKENS.has(token) && field.includes(token)
 }
 
 function matchesCatalogSearchType(itemType: ItemType, requestedType: string) {
