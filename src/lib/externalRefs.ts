@@ -14,6 +14,9 @@ export const externalRefLabels: Record<keyof ExternalRefs, string> = {
   mangaDexId: 'MangaDex',
   kitsuId: 'Kitsu',
   malId: 'MyAnimeList',
+  goodreadsBookId: 'Goodreads',
+  isbn: 'ISBN',
+  letterboxdSlug: 'Letterboxd',
   wikidataId: 'Wikidata',
   sourceUrl: 'URL',
 }

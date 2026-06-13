@@ -257,8 +257,12 @@ function normalizeExternalRefs(value: unknown): ExternalRefs | undefined {
     tmdbId: optionalString(refs.tmdbId),
     rawgId: optionalString(refs.rawgId),
     openLibraryKey: optionalString(refs.openLibraryKey),
+    googleBooksId: optionalString(refs.googleBooksId),
     anilistId: optionalString(refs.anilistId),
     malId: optionalString(refs.malId),
+    goodreadsBookId: optionalString(refs.goodreadsBookId),
+    isbn: optionalString(refs.isbn),
+    letterboxdSlug: optionalString(refs.letterboxdSlug),
     wikidataId: optionalString(refs.wikidataId),
     sourceUrl: optionalString(refs.sourceUrl),
   }
