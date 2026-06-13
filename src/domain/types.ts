@@ -36,6 +36,7 @@ export type DiscoveryOrigin = 'publicCatalog' | 'externalSearch' | 'prompt' | 'r
 export type DiscoveryStatus = 'queued' | 'saved' | 'dismissed'
 export type ActivityTab = 'library' | 'dice' | 'explorer' | 'settings' | 'curation'
 export type ActivityTone = 'info' | 'success' | 'danger' | 'loading'
+export type ImportSourceId = 'anilist' | 'myanimelist' | 'letterboxd' | 'goodreads'
 
 export interface ExternalRefs {
   tmdbId?: string
@@ -46,8 +47,58 @@ export interface ExternalRefs {
   mangaDexId?: string
   kitsuId?: string
   malId?: string
+  goodreadsBookId?: string
+  isbn?: string
+  letterboxdSlug?: string
   wikidataId?: string
   sourceUrl?: string
+}
+
+export interface ImportedLibraryItemDraft {
+  sourceId: ImportSourceId
+  sourceItemId: string
+  title: string
+  type: ItemType
+  status: ItemStatus
+  rating?: number
+  progress?: string
+  genres: string[]
+  tags: string[]
+  moodTags: string[]
+  notes?: string
+  rawText?: string
+  importNotes?: string[]
+  externalRefs?: ExternalRefs
+  posterUrl?: string
+  releaseYear?: number
+}
+
+export interface ImportWarning {
+  code: 'duplicate' | 'invalid-entry' | 'network' | 'parse' | 'partial'
+  message: string
+  sourceId: ImportSourceId
+  entryLabel?: string
+}
+
+export interface ImportPreviewItem {
+  id: string
+  draft: ImportedLibraryItemDraft
+  duplicateOfId?: string
+  duplicateReason?: 'externalRefs' | 'titleTypeYear'
+}
+
+export interface ImportPreview {
+  sourceId: ImportSourceId
+  sourceLabel: string
+  createdAt: string
+  totalEntries: number
+  newItems: number
+  duplicateItems: number
+  invalidItems: number
+  statusCounts: Partial<Record<ItemStatus, number>>
+  typeCounts: Partial<Record<ItemType, number>>
+  items: ImportPreviewItem[]
+  warnings: ImportWarning[]
 }
 
 export interface ItemWeights {

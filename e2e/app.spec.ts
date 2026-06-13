@@ -650,7 +650,7 @@ async function openSettingsDrawer(page: Page, testId: string) {
   await expect(drawer).toBeVisible()
   const isOpen = await drawer.evaluate((element) => (element as HTMLDetailsElement).open)
   if (!isOpen) {
-    await drawer.locator('summary').click()
+    await drawer.locator(':scope > summary').click()
   }
 }
 
@@ -3708,9 +3708,9 @@ test('settings can undo a private backup import with settings', async ({ page })
   await page.getByRole('button', { name: 'Aplicar backup' }).click()
   await expect(page.getByText('Importadas 1 entradas y ajustes desde backup')).toBeVisible()
   await expect(page.getByTestId('settings-confidence')).toContainText('Claro')
-  await expect(page.getByRole('button', { name: 'Deshacer backup' })).toBeVisible()
-  await page.getByRole('button', { name: 'Deshacer backup' }).click()
-  await expect(page.getByText('Backup deshecho: 1 nuevas eliminadas / ajustes recuperados')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Deshacer importacion' })).toBeVisible()
+  await page.getByRole('button', { name: 'Deshacer importacion' }).click()
+  await expect(page.getByText('Importacion deshecha: 1 nuevas eliminadas / ajustes recuperados')).toBeVisible()
   await expect(page.getByTestId('settings-confidence')).toContainText('Oscuro')
   await page.getByRole('button', { name: 'Biblioteca', exact: true }).click()
   await expect(page.getByTestId('library-grid')).not.toContainText('Settings Rollback Probe')
@@ -3760,9 +3760,9 @@ test('library quick import previews a backup before applying it', async ({ page 
   await expect(page.getByText('Importadas 1 entradas')).toBeVisible()
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
   await expect(page.getByTestId('library-grid')).toContainText('Preview Probe')
-  await expect(page.getByRole('button', { name: 'Deshacer backup' })).toBeVisible()
-  await page.getByRole('button', { name: 'Deshacer backup' }).click()
-  await expect(page.getByText('Backup deshecho: 1 nuevas eliminadas')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Deshacer importacion' })).toBeVisible()
+  await page.getByRole('button', { name: 'Deshacer importacion' }).click()
+  await expect(page.getByText('Importacion deshecha: 1 nuevas eliminadas')).toBeVisible()
   await expect(page.getByTestId('library-grid')).not.toContainText('Preview Probe')
 })
 
@@ -3810,12 +3810,44 @@ test('settings can import backup entries without applying included settings', as
   await page.getByRole('button', { name: 'Aplicar backup' }).click()
   await expect(page.getByText('Importadas 1 entradas desde backup')).toBeVisible()
   await expect(page.getByTestId('settings-confidence')).toContainText('Oscuro')
-  await expect(page.getByRole('button', { name: 'Deshacer backup' })).toBeVisible()
-  await page.getByRole('button', { name: 'Deshacer backup' }).click()
-  await expect(page.getByText('Backup deshecho: 1 nuevas eliminadas')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Deshacer importacion' })).toBeVisible()
+  await page.getByRole('button', { name: 'Deshacer importacion' }).click()
+  await expect(page.getByText('Importacion deshecha: 1 nuevas eliminadas')).toBeVisible()
   await expect(page.getByTestId('settings-confidence')).toContainText('Oscuro')
   await page.getByRole('button', { name: 'Biblioteca', exact: true }).click()
   await expect(page.getByTestId('library-grid')).not.toContainText('Settings Skip Probe')
+})
+
+test('settings service import visible selection only selects rendered preview rows', async ({ page }) => {
+  await openApp(page)
+  await page.getByRole('button', { name: 'Ajustes', exact: true }).click()
+  await openSettingsDrawer(page, 'settings-private-data-drawer')
+  const rows = Array.from({ length: 85 }, (_, index) => {
+    const rowNumber = String(index + 1).padStart(3, '0')
+    return `${9000 + index},Service Visible Probe ${rowNumber},Test Author,,0,read,,2026,`
+  })
+
+  await page.getByLabel('Importar CSV oficial de Goodreads').setInputFiles({
+    name: 'goodreads-visible-selection.csv',
+    mimeType: 'text/csv',
+    buffer: Buffer.from(
+      ['Book Id,Title,Author,ISBN13,My Rating,Exclusive Shelf,Bookshelves,Original Publication Year,My Review', ...rows].join('\n'),
+    ),
+  })
+
+  const preview = page.getByLabel('Preview de importacion Goodreads')
+  await expect(preview).toContainText('85 entradas revisadas')
+  await expect(preview.getByText('80 seleccionadas')).toBeVisible()
+  await expect(page.locator('.service-import-row')).toHaveCount(80)
+  await expect(page.getByText('Mostrando 80 de 85')).toBeVisible()
+  await preview.getByRole('button', { name: 'Limpiar' }).click()
+  await expect(preview.getByText('0 seleccionadas')).toBeVisible()
+  await preview.getByRole('button', { name: 'Seleccionar nuevas visibles' }).click()
+  await expect(preview.getByText('80 seleccionadas')).toBeVisible()
+  await expect(page.getByText('Service Visible Probe 081')).toHaveCount(0)
+  await preview.getByRole('button', { name: 'Mostrar mas' }).click()
+  await expect(page.locator('.service-import-row')).toHaveCount(85)
+  await expect(page.locator('.service-import-row input:checked')).toHaveCount(80)
 })
 
 test('explorer searches public catalog and saves to private library', async ({ page }) => {

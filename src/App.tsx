@@ -7,6 +7,7 @@ import {
   useState,
   type CSSProperties,
   type Dispatch,
+  type DragEvent,
   type KeyboardEvent,
   type ReactNode,
   type SetStateAction,
@@ -66,6 +67,8 @@ import {
   type DiscoveryCandidate,
   type DiscoveryStatus,
   type ExplorerSearchType,
+  type ImportPreview,
+  type ImportSourceId,
   type ItemStatus,
   type ItemType,
   type LibraryCardsPerRow,
@@ -190,6 +193,15 @@ import {
 } from './lib/publicCatalogSeed'
 import { recommendItem, scoreCandidates } from './lib/recommendations'
 import { discoverExternalCandidate, externalSourceCredits, type ExternalDiscoverDuration, type ExternalDiscoverType } from './services/externalSearch'
+import {
+  buildImportPreview,
+  importAniListLibrary,
+  importGoodreadsCsv,
+  importLetterboxdZip,
+  importMyAnimeListLibrary,
+  importPreviewItemsToListItems,
+  importSourceLabels,
+} from './services/libraryImporters'
 import { applyServiceWorkerUpdate, SERVICE_WORKER_UPDATE_READY_EVENT } from './services/serviceWorker'
 import {
   mergeListText,
@@ -878,6 +890,7 @@ const activityTabLabels: Record<AppTab, string> = {
   settings: 'Ajustes',
 }
 const sessionActivityLimit = 5
+const serviceImportPreviewRenderLimit = 80
 
 interface PrivateDataAction {
   detail: string
@@ -5276,7 +5289,7 @@ function LibraryTab({
   const catalogRangeEnd = Math.min(catalogPageStart + catalogPageCandidates.length, catalogCandidates.length)
   const libraryUndoAction =
     libraryImportUndo
-      ? { ariaLabel: 'Deshacer backup', label: 'Deshacer', onClick: () => void undoLibraryImportFile() }
+      ? { ariaLabel: 'Deshacer importacion', label: 'Deshacer', onClick: () => void undoLibraryImportFile() }
       : deletedItemUndo
         ? { ariaLabel: 'Deshacer borrado', label: 'Deshacer', onClick: () => void undoDeleteSingleItem() }
         : deletedLibraryUndo.length > 0
@@ -8624,7 +8637,7 @@ function formatLibraryImportRollbackDetail(plan: LibraryImportRollbackPlan) {
 }
 
 function formatLibraryImportRollbackStatus(plan: LibraryImportRollbackPlan) {
-  return `Backup deshecho: ${formatLibraryImportRollbackDetail(plan)}`
+  return `Importacion deshecha: ${formatLibraryImportRollbackDetail(plan)}`
 }
 
 function formatLibraryCooldownRollbackDetail(plan: LibraryCooldownUndo) {
@@ -8739,6 +8752,13 @@ function SettingsTab({
   const [editingItem, setEditingItem] = useState<ListItem | undefined>()
   const [pendingBackupImport, setPendingBackupImport] = useState<PendingBackupImport | undefined>()
   const [applyBackupImportSettings, setApplyBackupImportSettings] = useState(false)
+  const [serviceImportPreview, setServiceImportPreview] = useState<ImportPreview | undefined>()
+  const [serviceImportSelectedIds, setServiceImportSelectedIds] = useState<string[]>([])
+  const [serviceImportStatusFilter, setServiceImportStatusFilter] = useState<ItemStatus | 'all'>('all')
+  const [serviceImportVisibleLimit, setServiceImportVisibleLimit] = useState(serviceImportPreviewRenderLimit)
+  const [serviceImportLoading, setServiceImportLoading] = useState<ImportSourceId | undefined>()
+  const [anilistImportInput, setAnilistImportInput] = useState('')
+  const [myAnimeListImportInput, setMyAnimeListImportInput] = useState('')
   const [deleteAllDialogOpen, setDeleteAllDialogOpen] = useState(false)
   const [deleteAllConfirmText, setDeleteAllConfirmText] = useState('')
   const [deletedPrivateItemsUndo, setDeletedPrivateItemsUndo] = useState<ListItem[]>([])
@@ -8757,6 +8777,24 @@ function SettingsTab({
   const privateDataHealth = useMemo(
     () => getPrivateDataHealth(library.items, library.discoveryCandidates, undefined, draftBlockedTags),
     [draftBlockedTags, library.discoveryCandidates, library.items],
+  )
+  const serviceImportVisibleItems = useMemo(() => {
+    if (!serviceImportPreview) return []
+    return serviceImportPreview.items.filter(
+      (item) => serviceImportStatusFilter === 'all' || item.draft.status === serviceImportStatusFilter,
+    )
+  }, [serviceImportPreview, serviceImportStatusFilter])
+  const serviceImportRenderedItems = useMemo(
+    () => serviceImportVisibleItems.slice(0, serviceImportVisibleLimit),
+    [serviceImportVisibleItems, serviceImportVisibleLimit],
+  )
+  const serviceImportSelectedIdSet = useMemo(() => new Set(serviceImportSelectedIds), [serviceImportSelectedIds])
+  const serviceImportSelectedItems = useMemo(
+    () =>
+      serviceImportPreview?.items.filter(
+        (item) => serviceImportSelectedIdSet.has(item.id) && !item.duplicateOfId,
+      ) ?? [],
+    [serviceImportPreview, serviceImportSelectedIdSet],
   )
   const privateTaxonomyRepairs = useMemo(() => {
     return library.items
@@ -8928,6 +8966,130 @@ function SettingsTab({
     })
   }
 
+  function setPreparedServiceImport(preview: ImportPreview) {
+    setPrivateTaxonomyUndoItems([])
+    setSettingsImportUndo(undefined)
+    setDeletedPrivateItemsUndo([])
+    setPendingBackupImport(undefined)
+    setApplyBackupImportSettings(false)
+    setServiceImportPreview(preview)
+    setServiceImportStatusFilter('all')
+    setServiceImportVisibleLimit(serviceImportPreviewRenderLimit)
+    setServiceImportSelectedIds(
+      preview.items
+        .slice(0, serviceImportPreviewRenderLimit)
+        .filter((item) => !item.duplicateOfId)
+        .map((item) => item.id),
+    )
+    setStatus(
+      `${preview.sourceLabel}: ${preview.newItems} nuevas, ${preview.duplicateItems} posibles duplicadas, ${preview.invalidItems} invalidas`,
+    )
+  }
+
+  async function preparePublicProfileImport(sourceId: 'anilist' | 'myanimelist') {
+    const input = sourceId === 'anilist' ? anilistImportInput : myAnimeListImportInput
+    setServiceImportLoading(sourceId)
+    setStatus(`Leyendo ${importSourceLabels[sourceId]}...`)
+    try {
+      const result = sourceId === 'anilist' ? await importAniListLibrary(input) : await importMyAnimeListLibrary(input)
+      setPreparedServiceImport(buildImportPreview(result, library.items))
+    } catch (reason) {
+      setServiceImportPreview(undefined)
+      setServiceImportSelectedIds([])
+      setServiceImportVisibleLimit(serviceImportPreviewRenderLimit)
+      setStatus(reason instanceof Error ? reason.message : `No se pudo importar desde ${importSourceLabels[sourceId]}.`)
+    } finally {
+      setServiceImportLoading(undefined)
+    }
+  }
+
+  async function prepareServiceFileImport(sourceId: 'letterboxd' | 'goodreads', file?: File) {
+    if (!file) return
+
+    setServiceImportLoading(sourceId)
+    setStatus(`Leyendo ${importSourceLabels[sourceId]}...`)
+    try {
+      const result = sourceId === 'letterboxd' ? await importLetterboxdZip(file) : await importGoodreadsCsv(file)
+      setPreparedServiceImport(buildImportPreview(result, library.items))
+    } catch (reason) {
+      setServiceImportPreview(undefined)
+      setServiceImportSelectedIds([])
+      setServiceImportVisibleLimit(serviceImportPreviewRenderLimit)
+      setStatus(reason instanceof Error ? reason.message : `No se pudo importar desde ${importSourceLabels[sourceId]}.`)
+    } finally {
+      setServiceImportLoading(undefined)
+    }
+  }
+
+  function handleServiceFileDrop(sourceId: 'letterboxd' | 'goodreads', event: DragEvent<HTMLLabelElement>) {
+    event.preventDefault()
+    void prepareServiceFileImport(sourceId, event.dataTransfer.files?.[0])
+  }
+
+  function toggleServiceImportSelection(itemId: string, selected: boolean) {
+    setServiceImportSelectedIds((current) =>
+      selected ? uniqueValues([...current, itemId]) : current.filter((id) => id !== itemId),
+    )
+  }
+
+  function selectVisibleServiceImportItems() {
+    setServiceImportSelectedIds((current) =>
+      uniqueValues([
+        ...current,
+        ...serviceImportRenderedItems.filter((item) => !item.duplicateOfId).map((item) => item.id),
+      ]),
+    )
+  }
+
+  function clearServiceImportSelection() {
+    setServiceImportSelectedIds([])
+  }
+
+  function cancelServiceImport() {
+    setServiceImportPreview(undefined)
+    setServiceImportSelectedIds([])
+    setServiceImportStatusFilter('all')
+    setServiceImportVisibleLimit(serviceImportPreviewRenderLimit)
+    setStatus('Importacion desde servicio cancelada')
+  }
+
+  async function applyServiceImport() {
+    if (!serviceImportPreview) return
+    if (!serviceImportSelectedItems.length) {
+      setStatus('Selecciona al menos una entrada nueva para importar.')
+      return
+    }
+
+    setStatus(`Importando ${serviceImportSelectedItems.length} entradas desde ${serviceImportPreview.sourceLabel}...`)
+    try {
+      const itemsToImport = importPreviewItemsToListItems(serviceImportSelectedItems)
+      const payload: ParsedLibraryImport = { items: itemsToImport }
+      const rollbackPlan = getLibraryImportRollbackPlan(payload, library.items, library.settings)
+
+      for (const item of itemsToImport) {
+        await library.saveItem(item)
+      }
+
+      setPrivateTaxonomyUndoItems([])
+      setSettingsUndo(undefined)
+      setDeletedPrivateItemsUndo([])
+      setSettingsImportUndo(rollbackPlan)
+      setServiceImportPreview(undefined)
+      setServiceImportSelectedIds([])
+      setServiceImportStatusFilter('all')
+      setServiceImportVisibleLimit(serviceImportPreviewRenderLimit)
+      setStatus(`Importadas ${itemsToImport.length} entradas desde ${serviceImportPreview.sourceLabel}`)
+      onActivity({
+        detail: `${itemsToImport.length} entradas privadas`,
+        label: `${serviceImportPreview.sourceLabel} importado`,
+        tab: 'settings',
+        tone: 'success',
+      })
+    } catch (reason) {
+      setStatus(reason instanceof Error ? reason.message : 'No se pudo aplicar la importacion.')
+    }
+  }
+
   async function preparePrivateBackupImport(file?: File) {
     if (!file) return
 
@@ -8938,6 +9100,9 @@ function SettingsTab({
       setPrivateTaxonomyUndoItems([])
       setSettingsImportUndo(undefined)
       setDeletedPrivateItemsUndo([])
+      setServiceImportPreview(undefined)
+      setServiceImportSelectedIds([])
+      setServiceImportVisibleLimit(serviceImportPreviewRenderLimit)
       setPendingBackupImport({ fileName: file.name, payload, summary })
       setApplyBackupImportSettings(Boolean(payload.settings))
       setStatus(`Backup preparado: ${formatBackupImportSummary(summary)}`)
@@ -8998,7 +9163,7 @@ function SettingsTab({
   async function undoSettingsImport() {
     if (!settingsImportUndo) return
 
-    setStatus('Deshaciendo importacion de backup...')
+    setStatus('Deshaciendo importacion privada...')
     try {
       for (const id of settingsImportUndo.newItemIds) {
         await library.deleteItem(id)
@@ -9018,7 +9183,7 @@ function SettingsTab({
       setStatus(formatLibraryImportRollbackStatus(settingsImportUndo))
       onActivity({
         detail: formatLibraryImportRollbackDetail(settingsImportUndo),
-        label: 'Backup privado deshecho',
+        label: 'Importacion privada deshecha',
         tab: 'settings',
         tone: 'success',
       })
@@ -9479,7 +9644,7 @@ function SettingsTab({
             {settingsImportUndo && (
               <button className="secondary-button" type="button" onClick={() => void undoSettingsImport()}>
                 <RotateCcw size={16} />
-                Deshacer backup
+                Deshacer importacion
               </button>
             )}
             {settingsUndo && (
@@ -9652,6 +9817,291 @@ function SettingsTab({
                 </div>
               ))}
             </div>
+          </section>
+          <section className="service-import-section" aria-label="Importar desde servicios" data-testid="service-import-section">
+            <div className="service-import-heading">
+              <div>
+                <span className="eyebrow">Importar desde servicios</span>
+                <strong>Traer biblioteca privada</strong>
+                <p>AniList y MyAnimeList leen perfiles publicos; Letterboxd y Goodreads usan el export oficial.</p>
+              </div>
+            </div>
+            <div className="service-import-grid">
+              <form
+                className="service-import-card"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  void preparePublicProfileImport('anilist')
+                }}
+              >
+                <div className="service-import-card-heading">
+                  <Sparkles size={17} />
+                  <div>
+                    <strong>AniList</strong>
+                    <small>Anime, manga y manhwa</small>
+                  </div>
+                </div>
+                <label>
+                  Usuario o URL publica
+                  <input
+                    value={anilistImportInput}
+                    onChange={(event) => setAnilistImportInput(event.target.value)}
+                    placeholder="usuario o anilist.co/user/..."
+                  />
+                </label>
+                <button className="secondary-button" disabled={serviceImportLoading === 'anilist'} type="submit">
+                  {serviceImportLoading === 'anilist' ? <LoaderCircle size={16} /> : <Search size={16} />}
+                  Leer perfil
+                </button>
+              </form>
+
+              <form
+                className="service-import-card"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  void preparePublicProfileImport('myanimelist')
+                }}
+              >
+                <div className="service-import-card-heading">
+                  <BookOpen size={17} />
+                  <div>
+                    <strong>MyAnimeList</strong>
+                    <small>Experimental via Jikan</small>
+                  </div>
+                  <span className="mode-pill warning">Best effort</span>
+                </div>
+                <label>
+                  Usuario o URL publica
+                  <input
+                    value={myAnimeListImportInput}
+                    onChange={(event) => setMyAnimeListImportInput(event.target.value)}
+                    placeholder="usuario o myanimelist.net/profile/..."
+                  />
+                </label>
+                <button className="secondary-button" disabled={serviceImportLoading === 'myanimelist'} type="submit">
+                  {serviceImportLoading === 'myanimelist' ? <LoaderCircle size={16} /> : <Search size={16} />}
+                  Leer perfil
+                </button>
+              </form>
+
+              <div className="service-import-card">
+                <div className="service-import-card-heading">
+                  <Film size={17} />
+                  <div>
+                    <strong>Letterboxd</strong>
+                    <small>ZIP oficial de exportacion</small>
+                  </div>
+                </div>
+                <details className="service-import-guide">
+                  <summary>
+                    <HelpCircle size={15} />
+                    Mini guia
+                  </summary>
+                  <ol>
+                    <li>En Letterboxd abre Settings, Data y Export your data.</li>
+                    <li>Descarga el ZIP y sueltalo aqui sin descomprimir.</li>
+                  </ol>
+                </details>
+                <label
+                  className="service-file-drop"
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={(event) => handleServiceFileDrop('letterboxd', event)}
+                >
+                  <Upload size={17} />
+                  <span>Elegir ZIP</span>
+                  <input
+                    accept="application/zip,application/x-zip-compressed,.zip"
+                    aria-label="Importar ZIP oficial de Letterboxd"
+                    type="file"
+                    onChange={(event) => {
+                      void prepareServiceFileImport('letterboxd', event.target.files?.[0])
+                      event.target.value = ''
+                    }}
+                  />
+                </label>
+              </div>
+
+              <div className="service-import-card">
+                <div className="service-import-card-heading">
+                  <BookOpen size={17} />
+                  <div>
+                    <strong>Goodreads</strong>
+                    <small>CSV oficial de exportacion</small>
+                  </div>
+                </div>
+                <details className="service-import-guide">
+                  <summary>
+                    <HelpCircle size={15} />
+                    Mini guia
+                  </summary>
+                  <ol>
+                    <li>En Goodreads abre My Books, Import and export.</li>
+                    <li>Descarga el CSV y cargalo aqui.</li>
+                  </ol>
+                </details>
+                <label
+                  className="service-file-drop"
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={(event) => handleServiceFileDrop('goodreads', event)}
+                >
+                  <Upload size={17} />
+                  <span>Elegir CSV</span>
+                  <input
+                    accept="text/csv,.csv"
+                    aria-label="Importar CSV oficial de Goodreads"
+                    type="file"
+                    onChange={(event) => {
+                      void prepareServiceFileImport('goodreads', event.target.files?.[0])
+                      event.target.value = ''
+                    }}
+                  />
+                </label>
+              </div>
+            </div>
+
+            {serviceImportPreview && (
+              <div className="service-import-preview" aria-label={`Preview de importacion ${serviceImportPreview.sourceLabel}`}>
+                <div className="service-import-preview-heading">
+                  <div>
+                    <strong>{serviceImportPreview.sourceLabel}</strong>
+                    <span>{serviceImportPreview.totalEntries} entradas revisadas antes de aplicar</span>
+                  </div>
+                  <button className="ghost-button" type="button" onClick={cancelServiceImport}>
+                    <X size={16} />
+                    Cancelar
+                  </button>
+                </div>
+
+                <div className="service-import-metrics">
+                  <span>
+                    <strong>{serviceImportPreview.totalEntries}</strong>
+                    Total
+                  </span>
+                  <span>
+                    <strong>{serviceImportPreview.newItems}</strong>
+                    Nuevas
+                  </span>
+                  <span>
+                    <strong>{serviceImportPreview.duplicateItems}</strong>
+                    Duplicadas
+                  </span>
+                  <span>
+                    <strong>{serviceImportPreview.invalidItems}</strong>
+                    Invalidas
+                  </span>
+                </div>
+
+                <div className="service-import-counts" aria-label="Conteo por tipo">
+                  {(Object.entries(serviceImportPreview.typeCounts) as Array<[ItemType, number]>).map(([type, count]) => (
+                    <span key={type}>
+                      {typeLabels[type]}: {count}
+                    </span>
+                  ))}
+                </div>
+
+                <div className="service-import-filters" aria-label="Filtros por estado">
+                  <button
+                    className={serviceImportStatusFilter === 'all' ? 'active' : undefined}
+                    type="button"
+                    onClick={() => {
+                      setServiceImportStatusFilter('all')
+                      setServiceImportVisibleLimit(serviceImportPreviewRenderLimit)
+                    }}
+                  >
+                    Todos
+                  </button>
+                  {ITEM_STATUSES.map((status) => (
+                    <button
+                      className={serviceImportStatusFilter === status ? 'active' : undefined}
+                      key={status}
+                      type="button"
+                      onClick={() => {
+                        setServiceImportStatusFilter(status)
+                        setServiceImportVisibleLimit(serviceImportPreviewRenderLimit)
+                      }}
+                    >
+                      {statusLabels[status]} ({serviceImportPreview.statusCounts[status] ?? 0})
+                    </button>
+                  ))}
+                </div>
+
+                <div className="service-import-selection-actions">
+                  <span>{serviceImportSelectedItems.length} seleccionadas</span>
+                  <button className="ghost-button" type="button" onClick={selectVisibleServiceImportItems}>
+                    <Check size={15} />
+                    Seleccionar nuevas visibles
+                  </button>
+                  <button className="ghost-button" type="button" onClick={clearServiceImportSelection}>
+                    <X size={15} />
+                    Limpiar
+                  </button>
+                </div>
+
+                <div className="service-import-list">
+                  {serviceImportRenderedItems.map((item) => {
+                    const duplicateLabel =
+                      item.duplicateReason === 'externalRefs'
+                        ? 'Duplicado por ID externo'
+                        : item.duplicateReason === 'titleTypeYear'
+                          ? 'Duplicado por titulo/tipo/ano'
+                          : 'Nueva'
+                    return (
+                      <label className={item.duplicateOfId ? 'service-import-row duplicate' : 'service-import-row'} key={item.id}>
+                        <input
+                          checked={serviceImportSelectedIdSet.has(item.id)}
+                          disabled={Boolean(item.duplicateOfId)}
+                          type="checkbox"
+                          onChange={(event) => toggleServiceImportSelection(item.id, event.target.checked)}
+                        />
+                        <span>
+                          <strong>{item.draft.title}</strong>
+                          <small>
+                            {typeLabels[item.draft.type]} / {statusLabels[item.draft.status]}
+                            {item.draft.releaseYear ? ` / ${item.draft.releaseYear}` : ''}
+                          </small>
+                        </span>
+                        <em>{duplicateLabel}</em>
+                      </label>
+                    )
+                  })}
+                </div>
+                {serviceImportVisibleItems.length > serviceImportRenderedItems.length && (
+                  <div className="service-import-overflow-note">
+                    <span>
+                      Mostrando {serviceImportRenderedItems.length} de {serviceImportVisibleItems.length}; usa filtros para acotar.
+                    </span>
+                    <button
+                      className="ghost-button"
+                      type="button"
+                      onClick={() => setServiceImportVisibleLimit((limit) => limit + serviceImportPreviewRenderLimit)}
+                    >
+                      Mostrar mas
+                    </button>
+                  </div>
+                )}
+
+                {serviceImportPreview.warnings.length > 0 && (
+                  <div className="service-import-warnings" aria-label="Avisos de importacion">
+                    {serviceImportPreview.warnings.slice(0, 6).map((warning, index) => (
+                      <span key={`${warning.code}-${warning.entryLabel ?? index}`}>
+                        {warning.entryLabel ? `${warning.entryLabel}: ` : ''}
+                        {warning.message}
+                      </span>
+                    ))}
+                    {serviceImportPreview.warnings.length > 6 && (
+                      <span>{serviceImportPreview.warnings.length - 6} avisos mas en este archivo.</span>
+                    )}
+                  </div>
+                )}
+
+                <div className="action-row end">
+                  <button className="primary-button" disabled={!serviceImportSelectedItems.length} type="button" onClick={() => void applyServiceImport()}>
+                    <Upload size={16} />
+                    Importar seleccionadas
+                  </button>
+                </div>
+              </div>
+            )}
           </section>
           <section className="private-action-plan" aria-label="Plan de mantenimiento privado" data-testid="private-action-plan">
             <div className="private-action-plan-heading">
