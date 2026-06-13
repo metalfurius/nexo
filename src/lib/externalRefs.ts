@@ -10,6 +10,7 @@ export const externalRefLabels: Record<keyof ExternalRefs, string> = {
   rawgId: 'RAWG',
   openLibraryKey: 'Open Library',
   anilistId: 'AniList',
+  malId: 'MyAnimeList',
   wikidataId: 'Wikidata',
   sourceUrl: 'URL',
 }

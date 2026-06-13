@@ -190,6 +190,7 @@ function readExternalRefs(value: unknown, path: string, errors: string[]): Exter
     rawgId: readString(value.rawgId),
     openLibraryKey: readString(value.openLibraryKey),
     anilistId: readString(value.anilistId),
+    malId: readString(value.malId),
     wikidataId: readString(value.wikidataId),
     sourceUrl: readString(value.sourceUrl),
   }

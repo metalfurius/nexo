@@ -258,6 +258,7 @@ function normalizeExternalRefs(value: unknown): ExternalRefs | undefined {
     rawgId: optionalString(refs.rawgId),
     openLibraryKey: optionalString(refs.openLibraryKey),
     anilistId: optionalString(refs.anilistId),
+    malId: optionalString(refs.malId),
     wikidataId: optionalString(refs.wikidataId),
     sourceUrl: optionalString(refs.sourceUrl),
   }

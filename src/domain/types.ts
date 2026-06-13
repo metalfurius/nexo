@@ -42,6 +42,7 @@ export interface ExternalRefs {
   rawgId?: string
   openLibraryKey?: string
   anilistId?: string
+  malId?: string
   wikidataId?: string
   sourceUrl?: string
 }
@@ -83,7 +84,7 @@ export interface ExternalCandidate {
   id: string
   title: string
   type: ItemType
-  source: 'tmdb' | 'rawg' | 'openLibrary' | 'anilist' | 'wikidata'
+  source: 'tmdb' | 'rawg' | 'openLibrary' | 'anilist' | 'jikan' | 'wikidata'
   sourceId: string
   overview?: string
   posterUrl?: string
