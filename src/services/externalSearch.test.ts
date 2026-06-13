@@ -98,6 +98,30 @@ describe('external search', () => {
     )
   })
 
+  it('drops invalid Jikan genre names', async () => {
+    mockCatalogFetch((url) => {
+      if (url.hostname === 'graphql.anilist.co') return aniListPayload([])
+      return jikanPayload([
+        {
+          mal_id: 104241,
+          title: 'Mairimashita! Iruma-kun',
+          title_english: 'Welcome to Demon School! Iruma-kun',
+          type: 'Manga',
+          published: { prop: { from: { year: 2017 } } },
+          images: { jpg: { image_url: 'https://cdn.myanimelist.net/images/manga/3/104241.jpg' } },
+          genres: [{ name: undefined }, { name: 'Action' }, {}, null, { name: '  ' }, { name: 'Fantasy' }, 'Comedy'],
+          url: 'https://myanimelist.net/manga/104241/Mairimashita_Iruma-kun',
+        },
+      ])
+    })
+
+    const results = await searchExternalSources('Iruma-kun', 'manga')
+    const candidate = results.find((result) => result.source === 'jikan')
+
+    expect(candidate?.genres).toEqual(['Action', 'Fantasy'])
+    expect(candidate?.genres).not.toContain('undefined')
+  })
+
   it('keeps Japanese AniList manga entries as manga', async () => {
     mockCatalogFetch((url) => {
       if (url.hostname === 'graphql.anilist.co') {

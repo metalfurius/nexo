@@ -365,7 +365,13 @@ async function searchJikan(
         posterUrl: optionalString(images?.jpg?.image_url),
         releaseYear: readJikanReleaseYear(entry),
         genres: Array.isArray(entry.genres)
-          ? entry.genres.flatMap((genre) => (genre && typeof genre === 'object' && 'name' in genre ? String(genre.name) : [])).slice(0, 8)
+          ? entry.genres
+              .flatMap((genre) => {
+                if (!genre || typeof genre !== 'object' || !('name' in genre)) return []
+                const name = optionalString((genre as { name?: unknown }).name)
+                return name ? [name] : []
+              })
+              .slice(0, 8)
           : [],
         externalRefs: {
           malId: id,
