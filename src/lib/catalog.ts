@@ -8,19 +8,21 @@ import {
   type PublicCatalogSnapshot,
   nowIso,
 } from '../domain/types'
-import { normalizeKey, slugify, uniqueValues } from './strings'
+import { normalizeKey, slugify, uniqueNormalizedValues, uniqueValues } from './strings'
 
 export function createSearchTokens(value: {
   title: string
   type?: ItemType
   genres?: string[]
   tags?: string[]
+  searchAliases?: string[]
   releaseYear?: number
 }) {
   const words = [
     value.title,
     value.type,
     value.releaseYear ? String(value.releaseYear) : undefined,
+    ...(value.searchAliases ?? []),
     ...(value.genres ?? []),
     ...(value.tags ?? []),
   ]
@@ -45,6 +47,7 @@ export function snapshotPublicItem(item: PublicCatalogItem): PublicCatalogSnapsh
     genres: item.genres,
     tags: item.tags,
     moodTags: item.moodTags,
+    searchAliases: item.searchAliases ?? [],
     externalRefs: item.externalRefs,
     posterUrl: item.posterUrl,
     canonicalKey: item.canonicalKey,
@@ -164,6 +167,7 @@ export function buildPublicCatalogItem(
   const id = draft.id || `${draft.type}-${slugify(draft.title)}`.slice(0, 120)
   const genres = uniqueValues(draft.genres ?? [])
   const tags = uniqueValues(draft.tags ?? [])
+  const searchAliases = uniqueNormalizedValues((draft.searchAliases ?? []).map((entry) => entry.trim()))
 
   return {
     id,
@@ -174,9 +178,17 @@ export function buildPublicCatalogItem(
     genres,
     tags,
     moodTags: uniqueValues(draft.moodTags ?? []),
+    searchAliases,
     externalRefs: draft.externalRefs ?? {},
     posterUrl: draft.posterUrl?.trim() || undefined,
-    searchTokens: createSearchTokens({ title: draft.title, type: draft.type, genres, tags, releaseYear: draft.releaseYear }),
+    searchTokens: createSearchTokens({
+      title: draft.title,
+      type: draft.type,
+      genres,
+      tags,
+      searchAliases,
+      releaseYear: draft.releaseYear,
+    }),
     canonicalKey: createCanonicalKey(draft.title, draft.type),
     createdAt: draft.createdAt ?? timestamp,
     updatedAt: timestamp,

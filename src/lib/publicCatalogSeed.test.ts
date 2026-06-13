@@ -26,6 +26,7 @@ describe('parsePublicCatalogSeed', () => {
             releaseYear: 2019,
             genres: ['Exploracion', 'Misterio'],
             tags: ['indie'],
+            searchAliases: ['Outer Wilds Ventures'],
             externalRefs: { wikidataId: 'Q65058922' },
           },
         ],
@@ -44,7 +45,8 @@ describe('parsePublicCatalogSeed', () => {
         updatedBy: 'admin-1',
       }),
     )
-    expect(result.items[0].searchTokens).toEqual(expect.arrayContaining(['outer', 'wilds', 'game', '2019']))
+    expect(result.items[0].searchAliases).toEqual(['Outer Wilds Ventures'])
+    expect(result.items[0].searchTokens).toEqual(expect.arrayContaining(['outer', 'wilds', 'ventures', 'game', '2019']))
     expect(result.items[0].externalRefs.wikidataId).toBe('Q65058922')
   })
 

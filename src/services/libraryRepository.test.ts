@@ -432,6 +432,7 @@ describe('createFirestoreRepository', () => {
       genres: [],
       tags: [],
       moodTags: [],
+      searchAliases: ['La llegada'],
       externalRefs: {},
       searchTokens: ['arrival'],
       canonicalKey: 'movie:arrival',
@@ -457,9 +458,17 @@ describe('createFirestoreRepository', () => {
         },
       ],
     })
+    mocks.getDocs.mockResolvedValueOnce({
+      docs: [
+        {
+          data: () => activePublicItem,
+        },
+      ],
+    })
 
     const results = await repository?.searchPublicCatalog('', 'movie')
     const catalog = await repository?.listPublicCatalog()
+    const aliasResults = await repository?.searchPublicCatalog('La llegada', 'movie')
     await repository?.upsertPublicItem({
       title: 'Arrival',
       type: 'movie',
@@ -474,6 +483,7 @@ describe('createFirestoreRepository', () => {
 
     expect(results?.[0]?.title).toBe('Arrival')
     expect(catalog?.map((item) => item.title)).toEqual(['Arrival'])
+    expect(aliasResults?.[0]?.title).toBe('Arrival')
     expect(mocks.setDoc).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({ path: 'publicItems/movie-arrival' }),

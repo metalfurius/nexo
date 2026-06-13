@@ -1,5 +1,6 @@
 import type { ExternalCandidate } from '../domain/types'
 import { nowIso } from '../domain/types'
+import { rankCatalogSearchCandidates } from '../lib/catalogSearch'
 
 export interface ExternalSourceCredit {
   detail: string
@@ -62,10 +63,14 @@ export async function searchExternalSources(searchQuery: string, type: string): 
   if (query.length < 2) return []
 
   const proxyCandidates = await searchCatalogProxy(query, type).catch(() => undefined)
-  if (proxyCandidates?.length) return uniqueExternalCandidates(proxyCandidates).slice(0, 24)
+  if (proxyCandidates?.length) return rankCatalogSearchCandidates(uniqueExternalCandidates(proxyCandidates), query, type).slice(0, 24)
 
   const groups = await Promise.allSettled(getSearchTasks(query, type))
-  return uniqueExternalCandidates(groups.flatMap((group) => (group.status === 'fulfilled' ? group.value : []))).slice(0, 24)
+  return rankCatalogSearchCandidates(
+    uniqueExternalCandidates(groups.flatMap((group) => (group.status === 'fulfilled' ? group.value : []))),
+    query,
+    type,
+  ).slice(0, 24)
 }
 
 export async function discoverExternalCandidate(

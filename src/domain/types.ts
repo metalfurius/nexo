@@ -103,6 +103,7 @@ export interface PublicCatalogItem {
   genres: string[]
   tags: string[]
   moodTags: string[]
+  searchAliases?: string[]
   externalRefs: ExternalRefs
   posterUrl?: string
   searchTokens: string[]
@@ -124,6 +125,7 @@ export type PublicCatalogSnapshot = Pick<
   | 'genres'
   | 'tags'
   | 'moodTags'
+  | 'searchAliases'
   | 'externalRefs'
   | 'posterUrl'
   | 'canonicalKey'

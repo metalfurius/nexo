@@ -27,6 +27,7 @@ import {
   nowIso,
 } from '../domain/types'
 import { buildPublicCatalogItem, shouldPreserveDiscoveryDecision } from '../lib/catalog'
+import { rankCatalogSearchCandidates, scoreCatalogSearchCandidate } from '../lib/catalogSearch'
 import { normalizeKey } from '../lib/strings'
 import { searchExternalSources } from './externalSearch'
 import { getFirebaseServices } from './firebaseDb'
@@ -175,16 +176,17 @@ export function createFirestoreRepository(userId: string): LibraryRepository | u
     async searchPublicCatalog(searchQuery, type) {
       const snapshot = await getDocs(collection(services.db, 'publicItems'))
       const queryKey = normalizeKey(searchQuery)
-      const queryTokens = queryKey.split(/\s+/).filter(Boolean)
-      return snapshot.docs
+      const items = snapshot.docs
         .map((itemDoc) => itemDoc.data() as PublicCatalogItem)
         .filter((item) => !item.archivedAt)
         .filter((item) => matchesSearchType(item.type, type))
-        .map((item) => ({ item, score: scorePublicCatalogItem(item, queryKey, queryTokens) }))
-        .filter((entry) => !queryKey || entry.score > 0)
-        .sort((left, right) => right.score - left.score || left.item.title.localeCompare(right.item.title, 'es'))
+
+      return rankCatalogSearchCandidates(
+        items.filter((item) => !queryKey || scoreCatalogSearchCandidate(searchQuery, item, type) > 0),
+        searchQuery,
+        type,
+      )
         .slice(0, 12)
-        .map((entry) => entry.item)
     },
     async listPublicCatalog() {
       const snapshot = await getDocs(collection(services.db, 'publicItems'))
@@ -436,21 +438,8 @@ export function createItemId(db: Firestore, userId: string, title: string) {
 function matchesSearchType(itemType: string, requestedType?: string) {
   if (!requestedType || requestedType === 'any') return true
   if (requestedType === 'watch') return ['movie', 'series', 'anime', 'manga', 'manhwa', 'comic'].includes(itemType)
+  if (requestedType === 'animeManga') return ['anime', 'manga', 'manhwa'].includes(itemType)
   return itemType === requestedType
-}
-
-function scorePublicCatalogItem(item: PublicCatalogItem, queryKey: string, queryTokens: string[]) {
-  if (!queryKey) return 1
-  const titleKey = normalizeKey(item.title)
-  let score = 0
-
-  if (titleKey === queryKey) score += 100
-  if (titleKey.includes(queryKey)) score += 45
-  for (const token of queryTokens) {
-    if (item.searchTokens.includes(token)) score += 12
-    if (titleKey.includes(token)) score += 8
-  }
-  return score
 }
 
 async function searchExternalClientSide(searchQuery: string, type: string): Promise<ExternalCandidate[]> {

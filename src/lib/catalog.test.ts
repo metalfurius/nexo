@@ -14,13 +14,15 @@ describe('catalog helpers', () => {
         type: 'book',
         genres: ['Clasico', 'Mitologia'],
         tags: ['Grecia'],
+        searchAliases: ['The Odyssey', 'Odyssey'],
       },
       'moderator-1',
     )
 
     expect(item.id).toBe('book-odisea')
     expect(item.canonicalKey).toBe('book:odisea')
-    expect(item.searchTokens).toEqual(expect.arrayContaining(['odisea', 'book', 'clasico']))
+    expect(item.searchAliases).toEqual(['The Odyssey', 'Odyssey'])
+    expect(item.searchTokens).toEqual(expect.arrayContaining(['odisea', 'book', 'clasico', 'odyssey']))
     expect(item.createdBy).toBe('moderator-1')
   })
 
@@ -44,6 +46,7 @@ describe('catalog helpers', () => {
     expect(libraryItem.source).toBe('public')
     expect(libraryItem.publicItemId).toBe('book-odisea')
     expect(libraryItem.publicSnapshot?.title).toBe('Odisea')
+    expect(libraryItem.publicSnapshot?.searchAliases).toEqual([])
     expect(libraryItem.status).toBe('wishlist')
   })
 

@@ -19,6 +19,7 @@ export interface PublicCatalogSeedEntry {
   genres?: string[]
   tags?: string[]
   moodTags?: string[]
+  searchAliases?: string[]
   externalRefs?: ExternalRefs
   posterUrl?: string
   archivedAt?: string
@@ -57,6 +58,7 @@ export function createPublicCatalogSeedTemplate(): PublicCatalogSeedFile {
         genres: ['Ciencia ficcion', 'Drama'],
         tags: ['culto', 'introspectivo'],
         moodTags: ['melancolico'],
+        searchAliases: ['Moon 2009'],
         externalRefs: {
           sourceUrl: 'https://www.wikidata.org/w/index.php?search=Moon+2009+film',
         },
@@ -172,6 +174,7 @@ function normalizeSeedEntry(value: unknown, index: number, errors: string[]): Pu
     genres: readStringArray(value.genres, `items[${index}].genres`, errors),
     tags: readStringArray(value.tags, `items[${index}].tags`, errors),
     moodTags: readStringArray(value.moodTags, `items[${index}].moodTags`, errors),
+    searchAliases: readStringArray(value.searchAliases, `items[${index}].searchAliases`, errors),
     externalRefs: readExternalRefs(value.externalRefs, `items[${index}].externalRefs`, errors),
     posterUrl: readString(value.posterUrl),
     archivedAt: readString(value.archivedAt),
@@ -227,6 +230,7 @@ function clonePublicCatalogItem(item: PublicCatalogItem): PublicCatalogItem {
     externalRefs: { ...item.externalRefs },
     genres: [...item.genres],
     moodTags: [...item.moodTags],
+    searchAliases: [...(item.searchAliases ?? [])],
     searchTokens: [...item.searchTokens],
     tags: [...item.tags],
   }

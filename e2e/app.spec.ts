@@ -389,6 +389,84 @@ async function mockFrierenCatalog(page: Page) {
   })
 }
 
+async function mockPaginatedCatalog(page: Page) {
+  const firstResults = Array.from({ length: 10 }, (_, index) => paginationCandidate(index + 1))
+  const secondResults = Array.from({ length: 9 }, (_, index) =>
+    paginationCandidate(101 + index, `Second Pagination ${String(index + 1).padStart(2, '0')}`),
+  )
+
+  await page.route('**/search**', async (route) => {
+    const url = new URL(route.request().url())
+    const query = url.searchParams.get('q')?.toLowerCase()
+    if (url.pathname === '/search' && query === 'pagination probe') {
+      await route.fulfill({
+        contentType: 'application/json',
+        headers: { 'x-nexo-cache': 'hit' },
+        json: { results: firstResults },
+      })
+      return
+    }
+    if (url.pathname === '/search' && query === 'second pagination') {
+      await route.fulfill({
+        contentType: 'application/json',
+        headers: { 'x-nexo-cache': 'hit' },
+        json: { results: secondResults },
+      })
+      return
+    }
+    await route.fallback()
+  })
+
+  await page.route('https://graphql.anilist.co', async (route) => {
+    await route.fulfill({ contentType: 'application/json', json: { data: { Page: { media: [] } } } })
+  })
+
+  await page.route('https://api.jikan.moe/v4/anime**', async (route) => {
+    await route.fulfill({ contentType: 'application/json', json: { data: [] } })
+  })
+
+  await page.route('https://api.jikan.moe/v4/manga**', async (route) => {
+    const url = new URL(route.request().url())
+    const query = url.searchParams.get('q')?.toLowerCase()
+    const results = query === 'second pagination' ? secondResults : query === 'pagination probe' ? firstResults : []
+    await route.fulfill({
+      contentType: 'application/json',
+      json: {
+        data: results.map((result) => ({
+          mal_id: Number(result.sourceId),
+          title: result.title,
+          title_english: result.title,
+          synopsis: result.overview,
+          type: 'Manga',
+          published: { prop: { from: { year: result.releaseYear } } },
+          images: { jpg: { image_url: result.posterUrl } },
+          genres: result.genres.map((name) => ({ name })),
+          url: result.externalRefs.sourceUrl,
+        })),
+      },
+    })
+  })
+}
+
+function paginationCandidate(index: number, title = `Pagination Probe ${String(index).padStart(2, '0')}`) {
+  return {
+    id: `jikan-${7000 + index}`,
+    title,
+    type: 'manga',
+    source: 'jikan',
+    sourceId: String(7000 + index),
+    overview: `Resultado paginado ${index}.`,
+    posterUrl: `https://cdn.example.test/pagination-${index}.jpg`,
+    releaseYear: 2020 + (index % 4),
+    genres: ['Drama'],
+    externalRefs: {
+      malId: String(7000 + index),
+      sourceUrl: `https://myanimelist.net/manga/${7000 + index}/${title.replace(/\s+/g, '_')}`,
+    },
+    createdAt: '2026-06-06T10:00:00.000Z',
+  }
+}
+
 async function mockAnimeMangaCatalog(page: Page) {
   await page.route('https://graphql.anilist.co', async (route) => {
     const body = route.request().postDataJSON() as { variables?: { search?: string; type?: string } } | undefined
@@ -1067,7 +1145,12 @@ test('library can search a free catalog source and save directly', async ({ page
   await page.getByRole('button', { name: 'Buscar obra' }).click()
   await expect(page.getByLabel('Resultados para guardar')).toContainText('Dune - Frank Herbert')
   await expect(page.getByLabel('Resultados para guardar')).toContainText('Open Library')
-  await page.getByRole('button', { name: 'Guardar' }).click()
+  await page
+    .getByLabel('Resultados para guardar')
+    .locator('article')
+    .filter({ hasText: 'Dune - Frank Herbert' })
+    .getByRole('button', { name: 'Guardar' })
+    .click()
   await expect(page.getByRole('status').filter({ hasText: 'Dune - Frank Herbert guardado en Biblioteca' })).toBeVisible()
   await expect(page.getByTestId('library-grid')).toContainText('Dune - Frank Herbert')
   await page.getByRole('button', { name: 'Fuentes' }).click()
@@ -1113,6 +1196,53 @@ test('library saves Frieren from external search without candidate permission no
   await expect(savedEditor.getByRole('textbox', { name: 'Progreso' })).toHaveValue('Episodio 4')
   await expect(savedEditor.getByRole('group', { name: 'Rating' })).toContainText('8/10')
   await expect(savedEditor.getByLabel('Notas')).toHaveValue('Mucho mas tranquila de lo que esperaba.')
+})
+
+test('library catalog search paginates results and saves from page two', async ({ page }) => {
+  await openApp(page)
+  await mockPaginatedCatalog(page)
+
+  await page.getByLabel('Buscar obra para guardar').fill('pagination probe')
+  await page.getByLabel('Tipo de obra para buscar').selectOption('manga')
+  await page.getByRole('button', { name: 'Buscar obra' }).click()
+
+  const results = page.getByLabel('Resultados para guardar')
+  await expect(results).toContainText('Pagination Probe 01')
+  await expect(results).not.toContainText('Pagination Probe 09')
+
+  const pagination = page.getByTestId('library-catalog-pagination')
+  await expect(pagination).toContainText('Mostrando 1-8 de 10')
+  await pagination.getByRole('button', { name: 'Siguiente' }).click()
+  await expect(pagination).toContainText('Mostrando 9-10 de 10')
+  await expect(results).toContainText('Pagination Probe 09')
+
+  const pageTwoCard = results.locator('article').filter({ hasText: 'Pagination Probe 09' })
+  await pageTwoCard.getByRole('button', { name: 'Guardar' }).click()
+  await expect(page.getByRole('status').filter({ hasText: 'Pagination Probe 09 guardado en Biblioteca' })).toBeVisible()
+  await expect(pageTwoCard.getByRole('button', { name: 'Guardado' })).toBeVisible()
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  await expect(pagination).toContainText('Mostrando 9-10 de 10')
+  const catalogOverflow = await page.locator('.library-search-hero').evaluate((section) => {
+    const viewportWidth = document.documentElement.clientWidth
+    return Array.from(section.querySelectorAll('.library-catalog-pagination, .library-catalog-card, button, select')).flatMap((element) => {
+      const node = element as HTMLElement
+      const rect = node.getBoundingClientRect()
+      const overflowX = Math.max(0, node.scrollWidth - node.clientWidth)
+      const outsideViewport = rect.left < -1 || rect.right > viewportWidth + 1
+      return overflowX > 1 || outsideViewport
+        ? [{ className: node.className, overflowX, outsideViewport, text: node.textContent?.trim() }]
+        : []
+    })
+  })
+  expect(catalogOverflow).toEqual([])
+
+  await page.getByLabel('Buscar obra para guardar').fill('second pagination')
+  await page.getByRole('button', { name: 'Buscar obra' }).click()
+
+  await expect(results).toContainText('Second Pagination 01')
+  await expect(results).not.toContainText('Second Pagination 09')
+  await expect(page.getByTestId('library-catalog-pagination')).toContainText('Mostrando 1-8 de 9')
 })
 
 test('library and explorer find current anime manga and manhwa through free sources', async ({ page }) => {

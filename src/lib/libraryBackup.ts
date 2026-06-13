@@ -281,6 +281,7 @@ function normalizePublicSnapshot(value: unknown): PublicCatalogSnapshot | undefi
     genres: stringList(snapshot.genres),
     tags: stringList(snapshot.tags),
     moodTags: stringList(snapshot.moodTags),
+    searchAliases: stringList(snapshot.searchAliases),
     externalRefs: normalizeExternalRefs(snapshot.externalRefs) ?? {},
     posterUrl: optionalString(snapshot.posterUrl),
     canonicalKey: optionalString(snapshot.canonicalKey) ?? `${type}:${slugify(title)}`,

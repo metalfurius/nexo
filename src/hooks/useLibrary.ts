@@ -28,6 +28,7 @@ import {
   publicItemToDiscovery,
   shouldPreserveDiscoveryDecision,
 } from '../lib/catalog'
+import { rankCatalogSearchCandidates, scoreCatalogSearchCandidate } from '../lib/catalogSearch'
 import { slugify, uniqueValues } from '../lib/strings'
 import { isFirebaseConfigured } from '../services/firebaseConfig'
 import { searchExternalSources } from '../services/externalSearch'
@@ -296,13 +297,15 @@ export function useLibrary(user?: SignedInUserProfile | null) {
     if (repository) return repository.searchPublicCatalog(query, type)
 
     const normalized = query.trim().toLowerCase()
-    return publicCatalog
+    const matchingItems = publicCatalog
       .filter((item) => !item.archivedAt)
       .filter((item) => matchesSearchType(item.type, type))
       .filter((item) => {
-        const haystack = `${item.title} ${item.genres.join(' ')} ${item.tags.join(' ')}`.toLowerCase()
-        return !normalized || haystack.includes(normalized)
+        const haystack = `${item.title} ${(item.searchAliases ?? []).join(' ')} ${item.genres.join(' ')} ${item.tags.join(' ')}`.toLowerCase()
+        return !normalized || haystack.includes(normalized) || scoreCatalogSearchCandidate(query, item, type) > 0
       })
+
+    return rankCatalogSearchCandidates(matchingItems, query, type)
   }
 
   async function listPublicCatalog(): Promise<PublicCatalogItem[]> {
@@ -604,6 +607,7 @@ function toUserProfileSeed(user: SignedInUserProfile): Partial<UserProfile> {
 function matchesSearchType(itemType: string, requestedType?: string) {
   if (!requestedType || requestedType === 'any') return true
   if (requestedType === 'watch') return ['movie', 'series', 'anime', 'manga', 'manhwa', 'comic'].includes(itemType)
+  if (requestedType === 'animeManga') return ['anime', 'manga', 'manhwa'].includes(itemType)
   return itemType === requestedType
 }
 

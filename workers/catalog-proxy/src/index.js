@@ -34,7 +34,7 @@ const DEFAULT_ALLOWED_ORIGINS = [
   'http://127.0.0.1:5173',
 ]
 const CACHE_LANGUAGE = 'es-ES'
-const PROVIDER_VERSION = '2026-06-13-v1'
+const PROVIDER_VERSION = '2026-06-13-v3'
 const POSITIVE_TTL_SECONDS = 86_400
 const EMPTY_TTL_SECONDS = 900
 const DISCOVER_TTL_SECONDS = 900
@@ -78,7 +78,7 @@ export default {
       })
     }
 
-    const results = uniqueCandidates(await searchProviders(query, type, env)).slice(0, 24)
+    const results = rankSearchCandidates(uniqueCandidates(await searchProviders(query, type, env)), query, type).slice(0, 24)
     const payload = { results }
     const ttl = results.length ? POSITIVE_TTL_SECONDS : EMPTY_TTL_SECONDS
     await cache.put(
@@ -562,6 +562,163 @@ function uniqueCandidates(candidates) {
     byId.set(`${candidate.source}:${candidate.sourceId}`, candidate)
   }
   return [...byId.values()]
+}
+
+const LOW_SIGNAL_TOKENS = new Set([
+  'a',
+  'an',
+  'and',
+  'de',
+  'del',
+  'el',
+  'en',
+  'for',
+  'girl',
+  'la',
+  'las',
+  'los',
+  'no',
+  'of',
+  'on',
+  'princess',
+  'star',
+  'the',
+  'to',
+  'upon',
+  'wa',
+  'wish',
+  'with',
+])
+
+const SOURCE_PRIORITY = {
+  anilist: 1,
+  jikan: 2,
+  tmdb: 3,
+  openLibrary: 4,
+  rawg: 5,
+  wikidata: 6,
+}
+
+function rankSearchCandidates(candidates, query, requestedType) {
+  return candidates
+    .map((candidate, index) => ({
+      candidate,
+      index,
+      score: scoreSearchCandidate(query, candidate, requestedType),
+    }))
+    .sort((left, right) => {
+      const scoreDelta = right.score - left.score
+      if (scoreDelta !== 0) return scoreDelta
+
+      const leftSource = SOURCE_PRIORITY[left.candidate.source] ?? 99
+      const rightSource = SOURCE_PRIORITY[right.candidate.source] ?? 99
+      if (leftSource !== rightSource) return leftSource - rightSource
+
+      return left.candidate.title.localeCompare(right.candidate.title, 'es') || left.index - right.index
+    })
+    .map((entry) => entry.candidate)
+}
+
+function scoreSearchCandidate(query, candidate, requestedType) {
+  const queryText = normalizeSearchText(query)
+  if (!queryText) return matchesRankType(candidate.type, requestedType) ? 1 : 0
+
+  const queryCompact = compactSearchText(queryText)
+  const queryTokens = tokenizeSearchText(queryText)
+  const titleFields = [candidate.title].filter(Boolean)
+  const allFields = [
+    candidate.title,
+    candidate.overview,
+    candidate.type,
+    candidate.source,
+    candidate.sourceId,
+    candidate.releaseYear ? String(candidate.releaseYear) : undefined,
+    ...(candidate.genres ?? []),
+    ...Object.values(candidate.externalRefs ?? {}),
+  ].filter(Boolean)
+  const normalizedTitleFields = titleFields.map(normalizeSearchText).filter(Boolean)
+  const compactTitleFields = titleFields.map(compactSearchText).filter(Boolean)
+  const normalizedAllFields = allFields.map(normalizeSearchText).filter(Boolean)
+  const compactAllFields = allFields.map(compactSearchText).filter(Boolean)
+  const normalizedTokenFields = new Set(normalizedAllFields.flatMap(tokenizeSearchText))
+
+  let score = 0
+  let phraseScore = 0
+
+  for (let index = 0; index < normalizedTitleFields.length; index += 1) {
+    const titleText = normalizedTitleFields[index]
+    const compactTitle = compactTitleFields[index] ?? ''
+    if (titleText === queryText) phraseScore = Math.max(phraseScore, 1120)
+    if (compactTitle === queryCompact) phraseScore = Math.max(phraseScore, 1060)
+    if (titleText.includes(queryText)) phraseScore = Math.max(phraseScore, 840)
+    if (compactTitle.includes(queryCompact)) phraseScore = Math.max(phraseScore, 800)
+    if (queryText.includes(titleText) && titleText.length >= 4) phraseScore = Math.max(phraseScore, 620)
+  }
+
+  for (let index = 0; index < normalizedAllFields.length; index += 1) {
+    if (normalizedAllFields[index].includes(queryText)) phraseScore = Math.max(phraseScore, 720)
+    if ((compactAllFields[index] ?? '').includes(queryCompact)) phraseScore = Math.max(phraseScore, 700)
+  }
+
+  score += phraseScore
+
+  let highSignalHits = 0
+  let lowSignalHits = 0
+  for (const token of queryTokens) {
+    const hasToken = normalizedTokenFields.has(token) || normalizedAllFields.some((field) => field.includes(token))
+    if (!hasToken) continue
+    if (LOW_SIGNAL_TOKENS.has(token)) {
+      lowSignalHits += 1
+    } else {
+      highSignalHits += 1
+    }
+  }
+
+  score += highSignalHits * 74
+  score += lowSignalHits * 10
+  if (queryTokens.length) {
+    score += Math.round(((highSignalHits + lowSignalHits) / queryTokens.length) * (highSignalHits ? 160 : 44))
+  }
+  if (!phraseScore && lowSignalHits > 0 && highSignalHits === 0) score -= 90
+  if (candidate.releaseYear && queryTokens.includes(String(candidate.releaseYear))) score += 40
+  if (score <= 0) return 0
+
+  if (matchesRankType(candidate.type, requestedType)) {
+    if (requestedType !== 'any') score += requestedType === 'watch' ? 28 : 90
+  } else if (requestedType !== 'any') {
+    score -= 220
+  }
+
+  return Math.max(0, score)
+}
+
+function normalizeSearchText(value) {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .replace(/&/g, ' and ')
+    .replace(/['`\u2019]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function compactSearchText(value) {
+  return normalizeSearchText(value).replace(/\s+/g, '')
+}
+
+function tokenizeSearchText(value) {
+  return normalizeSearchText(value)
+    .split(/\s+/)
+    .filter((token) => token.length >= 2)
+}
+
+function matchesRankType(itemType, requestedType) {
+  if (!requestedType || requestedType === 'any') return true
+  if (requestedType === 'watch') return ['movie', 'series', 'anime', 'manga', 'manhwa', 'comic'].includes(itemType)
+  if (requestedType === 'animeManga') return ['anime', 'manga', 'manhwa'].includes(itemType)
+  return itemType === requestedType
 }
 
 function optionalString(value) {

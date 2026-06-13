@@ -90,6 +90,7 @@ import {
   type CatalogTaxonomyTemplate,
 } from './data/catalogPresets'
 import { buildPublicCatalogItem, promptToDiscovery } from './lib/catalog'
+import { CATALOG_RESULTS_PAGE_SIZE, rankCatalogSearchCandidates } from './lib/catalogSearch'
 import { getActivityContinuitySummary, getActivityDestinationTab } from './lib/activityInsights'
 import {
   blankPublicCatalogItem,
@@ -3784,6 +3785,7 @@ function LibraryTab({
   const [catalogQuery, setCatalogQuery] = useState('')
   const [catalogType, setCatalogType] = useState<ExplorerSearchType>('any')
   const [catalogCandidates, setCatalogCandidates] = useState<DiscoveryCandidate[]>([])
+  const [catalogResultsPage, setCatalogResultsPage] = useState(1)
   const [catalogLoading, setCatalogLoading] = useState(false)
   const [catalogStatus, setCatalogStatus] = useState<string | undefined>()
   const [sourceCreditsOpen, setSourceCreditsOpen] = useState(false)
@@ -4880,6 +4882,7 @@ function LibraryTab({
   async function searchCatalogFromLibrary() {
     const cleanedQuery = catalogQuery.trim()
     setCatalogStatus(undefined)
+    setCatalogResultsPage(1)
     if (cleanedQuery.length < 2) {
       setCatalogStatus('Escribe al menos 2 caracteres para buscar obras.')
       setCatalogCandidates([])
@@ -4892,10 +4895,14 @@ function LibraryTab({
         library.searchPublicCatalog(cleanedQuery, catalogType),
         library.searchExternal(cleanedQuery, catalogType),
       ])
-      const candidates = uniqueDiscoveryCandidates([
-        ...publicItems.map(library.publicItemToDiscovery),
-        ...externalCandidates.map(library.externalCandidateToDiscovery),
-      ])
+      const candidates = rankCatalogSearchCandidates(
+        uniqueDiscoveryCandidates([
+          ...publicItems.map(library.publicItemToDiscovery),
+          ...externalCandidates.map(library.externalCandidateToDiscovery),
+        ]),
+        cleanedQuery,
+        catalogType,
+      )
       setCatalogCandidates(candidates)
       setCatalogStatus(
         candidates.length
@@ -5261,6 +5268,12 @@ function LibraryTab({
 
   const showCatalogEmptyAction = !catalogCandidates.length && catalogStatus?.startsWith('Sin resultados')
   const showCatalogResultsPanel = Boolean(catalogStatus || catalogCandidates.length > 0 || showCatalogEmptyAction)
+  const catalogPageCount = Math.max(1, Math.ceil(catalogCandidates.length / CATALOG_RESULTS_PAGE_SIZE))
+  const safeCatalogResultsPage = Math.min(Math.max(catalogResultsPage, 1), catalogPageCount)
+  const catalogPageStart = (safeCatalogResultsPage - 1) * CATALOG_RESULTS_PAGE_SIZE
+  const catalogPageCandidates = catalogCandidates.slice(catalogPageStart, catalogPageStart + CATALOG_RESULTS_PAGE_SIZE)
+  const catalogRangeStart = catalogCandidates.length ? catalogPageStart + 1 : 0
+  const catalogRangeEnd = Math.min(catalogPageStart + catalogPageCandidates.length, catalogCandidates.length)
   const libraryUndoAction =
     libraryImportUndo
       ? { ariaLabel: 'Deshacer backup', label: 'Deshacer', onClick: () => void undoLibraryImportFile() }
@@ -5348,7 +5361,10 @@ function LibraryTab({
       <select
         aria-label="Tipo de obra para buscar"
         value={catalogType}
-        onChange={(event) => setCatalogType(event.target.value as ExplorerSearchType)}
+        onChange={(event) => {
+          setCatalogType(event.target.value as ExplorerSearchType)
+          setCatalogResultsPage(1)
+        }}
       >
         {libraryCatalogSearchTypes.map((option) => (
           <option key={option.id} value={option.id}>
@@ -5400,19 +5416,63 @@ function LibraryTab({
         <section className="library-search-hero" aria-label="Resultados del catalogo">
           {catalogStatus && <FeedbackMessage tone={feedbackToneFromText(catalogStatus)}>{catalogStatus}</FeedbackMessage>}
           {catalogCandidates.length > 0 && (
-            <div className="library-catalog-results" aria-label="Resultados para guardar">
-              {catalogCandidates.slice(0, 8).map((candidate) => {
-                const savedItem = getSavedLibraryItemForCandidate(candidate, library.items)
-                return (
-                  <LibraryCatalogCandidateCard
-                    candidate={candidate}
-                    isSaved={Boolean(savedItem)}
-                    key={candidate.id}
-                    onSave={() => void saveCatalogCandidateFromLibrary(candidate)}
-                  />
-                )
-              })}
-            </div>
+            <>
+              <div className="library-catalog-results" aria-label="Resultados para guardar">
+                {catalogPageCandidates.map((candidate) => {
+                  const savedItem = getSavedLibraryItemForCandidate(candidate, library.items)
+                  return (
+                    <LibraryCatalogCandidateCard
+                      candidate={candidate}
+                      isSaved={Boolean(savedItem)}
+                      key={candidate.id}
+                      onSave={() => void saveCatalogCandidateFromLibrary(candidate)}
+                    />
+                  )
+                })}
+              </div>
+              {catalogCandidates.length > CATALOG_RESULTS_PAGE_SIZE && (
+                <nav className="library-catalog-pagination" aria-label="Paginacion del catalogo" data-testid="library-catalog-pagination">
+                  <span>
+                    Mostrando {catalogRangeStart}-{catalogRangeEnd} de {catalogCandidates.length}
+                  </span>
+                  <div className="library-catalog-pagination-controls">
+                    <button
+                      className="secondary-button"
+                      disabled={safeCatalogResultsPage <= 1}
+                      type="button"
+                      onClick={() => setCatalogResultsPage((page) => Math.max(1, page - 1))}
+                    >
+                      Anterior
+                    </button>
+                    <label>
+                      Pagina
+                      <select
+                        aria-label="Pagina de resultados"
+                        value={safeCatalogResultsPage}
+                        onChange={(event) => setCatalogResultsPage(Number(event.target.value))}
+                      >
+                        {Array.from({ length: catalogPageCount }, (_, index) => {
+                          const page = index + 1
+                          return (
+                            <option key={page} value={page}>
+                              {page} de {catalogPageCount}
+                            </option>
+                          )
+                        })}
+                      </select>
+                    </label>
+                    <button
+                      className="secondary-button"
+                      disabled={safeCatalogResultsPage >= catalogPageCount}
+                      type="button"
+                      onClick={() => setCatalogResultsPage((page) => Math.min(catalogPageCount, page + 1))}
+                    >
+                      Siguiente
+                    </button>
+                  </div>
+                </nav>
+              )}
+            </>
           )}
           {showCatalogEmptyAction && (
             <div className="library-catalog-empty-action">
@@ -7450,10 +7510,14 @@ function ExplorerTab({
         library.searchPublicCatalog(cleanedQuery, searchType),
         library.searchExternal(cleanedQuery, searchType),
       ])
-      const candidates = [
-        ...publicItems.map(library.publicItemToDiscovery),
-        ...externalCandidates.map(library.externalCandidateToDiscovery),
-      ]
+      const candidates = rankCatalogSearchCandidates(
+        uniqueDiscoveryCandidates([
+          ...publicItems.map(library.publicItemToDiscovery),
+          ...externalCandidates.map(library.externalCandidateToDiscovery),
+        ]),
+        cleanedQuery,
+        searchType,
+      )
       const queuedCount = await library.queueDiscoveryCandidates(candidates)
       setView('queued')
       setMessage(
@@ -12230,6 +12294,7 @@ function PublicItemEditor({
     tagsText: item.tags.join(', '),
     genresText: item.genres.join(', '),
     moodText: item.moodTags.join(', '),
+    aliasesText: (item.searchAliases ?? []).join(', '),
   }), [item])
   const [draft, setDraft] = useState(initialDraft)
   const [showDiscardPrompt, setShowDiscardPrompt] = useState(false)
@@ -12270,6 +12335,7 @@ function PublicItemEditor({
         tags: splitList(draft.tagsText),
         genres: splitList(draft.genresText),
         moodTags: splitList(draft.moodText),
+        searchAliases: splitList(draft.aliasesText),
       },
       draft.updatedBy || 'moderator',
     )
@@ -12506,6 +12572,14 @@ function PublicItemEditor({
               <label>
                 Titulo
                 <input autoFocus required value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} />
+              </label>
+              <label>
+                Alias de busqueda
+                <input
+                  aria-label="Alias de busqueda"
+                  value={draft.aliasesText}
+                  onChange={(event) => setDraft((current) => ({ ...current, aliasesText: event.target.value }))}
+                />
               </label>
               <div className="form-grid">
                 <label>
