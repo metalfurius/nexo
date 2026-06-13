@@ -31,11 +31,14 @@ const LOW_SIGNAL_TOKENS = new Set([
 const SOURCE_PRIORITY: Record<string, number> = {
   nexo: 0,
   anilist: 1,
-  jikan: 2,
-  tmdb: 3,
-  openLibrary: 4,
-  rawg: 5,
-  wikidata: 6,
+  mangaDex: 2,
+  kitsu: 3,
+  jikan: 4,
+  tmdb: 5,
+  googleBooks: 6,
+  openLibrary: 7,
+  rawg: 8,
+  wikidata: 9,
 }
 
 export interface CatalogSearchCandidate {
@@ -169,6 +172,7 @@ export function rankCatalogSearchCandidates<Candidate extends CatalogSearchCandi
         score: scoreCatalogSearchCandidate(query, candidate, requestedType),
       }),
     )
+    .filter((entry) => entry.score > 0)
     .sort(compareScoredCandidates)
     .map((entry) => entry.candidate)
 }

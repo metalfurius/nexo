@@ -1,6 +1,6 @@
 import type { ExternalCandidate } from '../domain/types'
 import { nowIso } from '../domain/types'
-import { rankCatalogSearchCandidates } from '../lib/catalogSearch'
+import { compactCatalogSearchText, normalizeCatalogSearchText, rankCatalogSearchCandidates } from '../lib/catalogSearch'
 
 export interface ExternalSourceCredit {
   detail: string
@@ -36,11 +36,32 @@ export const externalSourceCredits: ExternalSourceCredit[] = [
     url: 'https://openlibrary.org/',
   },
   {
+    detail: 'Libros, autores y portadas a traves del proxy privado de catalogo.',
+    id: 'googleBooks',
+    label: 'Google Books',
+    requiresKey: true,
+    url: 'https://books.google.com/',
+  },
+  {
     detail: 'Anime, manga y manhwa con generos y portadas sin clave de API.',
     id: 'anilist',
     label: 'AniList',
     requiresKey: false,
     url: 'https://anilist.co/',
+  },
+  {
+    detail: 'Manga y manhwa con aliases localizados, tags y portadas sin clave de API.',
+    id: 'mangaDex',
+    label: 'MangaDex',
+    requiresKey: false,
+    url: 'https://mangadex.org/',
+  },
+  {
+    detail: 'Manga y manhwa con titulos localizados y portadas sin clave de API.',
+    id: 'kitsu',
+    label: 'Kitsu',
+    requiresKey: false,
+    url: 'https://kitsu.io/',
   },
   {
     detail: 'Respaldo abierto de MyAnimeList para anime, manga y manhwa sin clave de API.',
@@ -94,19 +115,37 @@ function getSearchTasks(query: string, type: string): Array<Promise<ExternalCand
   if (type === 'book') return [searchOpenLibrary(query)]
   if (type === 'game') return [searchWikidataGames(query)]
   if (type === 'anime') return [searchAniList(query, 'anime'), searchJikan(query, 'anime')]
-  if (type === 'manga') return [searchAniList(query, 'manga', 'manga'), searchJikan(query, 'manga')]
-  if (type === 'manhwa') return [searchAniList(query, 'manga', 'manhwa'), searchJikan(query, 'manhwa')]
+  if (type === 'manga') return [searchAniList(query, 'manga', 'manga'), searchMangaDex(query, 'manga'), searchKitsuManga(query, 'manga'), searchJikan(query, 'manga')]
+  if (type === 'manhwa') {
+    return [searchAniList(query, 'manga', 'manhwa'), searchMangaDex(query, 'manhwa'), searchKitsuManga(query, 'manhwa'), searchJikan(query, 'manhwa')]
+  }
   if (type === 'animeManga') {
-    return [searchAniList(query, 'anime'), searchAniList(query, 'manga', 'allManga'), searchJikan(query, 'anime'), searchJikan(query, 'allManga')]
+    return [
+      searchAniList(query, 'anime'),
+      searchAniList(query, 'manga', 'allManga'),
+      searchMangaDex(query, 'allManga'),
+      searchKitsuManga(query, 'allManga'),
+      searchJikan(query, 'anime'),
+      searchJikan(query, 'allManga'),
+    ]
   }
   if (type === 'watch') {
-    return [searchAniList(query, 'anime'), searchAniList(query, 'manga', 'allManga'), searchJikan(query, 'anime'), searchJikan(query, 'allManga')]
+    return [
+      searchAniList(query, 'anime'),
+      searchAniList(query, 'manga', 'allManga'),
+      searchMangaDex(query, 'allManga'),
+      searchKitsuManga(query, 'allManga'),
+      searchJikan(query, 'anime'),
+      searchJikan(query, 'allManga'),
+    ]
   }
   if (type === 'any') {
     return [
       searchOpenLibrary(query),
       searchAniList(query, 'anime'),
       searchAniList(query, 'manga', 'allManga'),
+      searchMangaDex(query, 'allManga'),
+      searchKitsuManga(query, 'allManga'),
       searchJikan(query, 'anime'),
       searchJikan(query, 'allManga'),
       searchWikidataGames(query),
@@ -318,6 +357,7 @@ async function searchAniList(
       const title = entry.title as Record<string, string | undefined>
       const startDate = entry.startDate as { year?: number } | undefined
       const coverImage = entry.coverImage as { medium?: string } | undefined
+      const aliases = uniqueStrings([title.english, title.romaji, title.native])
       return {
         id: `anilist-${entry.id}`,
         title: title.english ?? title.romaji ?? title.native ?? 'Sin titulo',
@@ -328,6 +368,7 @@ async function searchAniList(
         posterUrl: coverImage?.medium,
         releaseYear: startDate?.year,
         genres: Array.isArray(entry.genres) ? entry.genres.map(String) : [],
+        searchAliases: aliases,
         externalRefs: {
           anilistId: String(entry.id),
           sourceUrl: `https://anilist.co/${inferredType === 'anime' ? 'anime' : 'manga'}/${entry.id}`,
@@ -360,6 +401,7 @@ async function searchJikan(
     .map(({ entry, inferredType }) => {
       const id = String(entry.mal_id ?? '')
       const images = entry.images as { jpg?: { image_url?: string } } | undefined
+      const aliases = readJikanTitleAliases(entry)
       return {
         id: `jikan-${id}`,
         title: optionalString(entry.title_english) ?? optionalString(entry.title) ?? 'Sin titulo',
@@ -378,9 +420,114 @@ async function searchJikan(
               })
               .slice(0, 8)
           : [],
+        searchAliases: aliases,
         externalRefs: {
           malId: id,
           sourceUrl: optionalString(entry.url) ?? `https://myanimelist.net/${inferredType === 'anime' ? 'anime' : 'manga'}/${id}`,
+        },
+        createdAt: nowIso(),
+      } satisfies ExternalCandidate
+    })
+    .filter((candidate) => Boolean(candidate.sourceId))
+}
+
+async function searchMangaDex(
+  query: string,
+  requestedFilter: 'manga' | 'manhwa' | 'allManga',
+): Promise<ExternalCandidate[]> {
+  const url = new URL('https://api.mangadex.org/manga')
+  url.searchParams.set('title', query)
+  url.searchParams.set('limit', '8')
+  url.searchParams.append('includes[]', 'cover_art')
+  for (const rating of ['safe', 'suggestive', 'erotica', 'pornographic']) {
+    url.searchParams.append('contentRating[]', rating)
+  }
+
+  const response = await fetch(url, { headers: { accept: 'application/json' } })
+  if (!response.ok) return []
+  const payload = (await response.json()) as { data?: Array<Record<string, unknown>> }
+
+  return (payload.data ?? [])
+    .map((entry) => {
+      const inferredType = inferMangaDexType(entry)
+      return { entry, inferredType }
+    })
+    .filter(({ inferredType }) => matchesAnimeMangaFilter(inferredType, requestedFilter))
+    .map(({ entry, inferredType }) => {
+      const id = String(entry.id ?? '')
+      const attributes = readRecord(entry.attributes)
+      const aliases = collectMangaDexTitleAliases(attributes)
+      const title = pickMangaDexTitle(attributes, query, aliases)
+      const cover = Array.isArray(entry.relationships)
+        ? entry.relationships.find((relationship) => readRecord(relationship).type === 'cover_art')
+        : undefined
+      const coverAttributes = readRecord(readRecord(cover).attributes)
+      const fileName = optionalString(coverAttributes.fileName)
+      return {
+        id: `mangadex-${id}`,
+        title,
+        type: inferredType,
+        source: 'mangaDex',
+        sourceId: id,
+        overview: readLocalizedText(attributes.description),
+        posterUrl: fileName ? `https://uploads.mangadex.org/covers/${id}/${fileName}.256.jpg` : undefined,
+        releaseYear: typeof attributes.year === 'number' ? attributes.year : undefined,
+        genres: readMangaDexTags(attributes.tags),
+        searchAliases: aliases,
+        externalRefs: {
+          mangaDexId: id,
+          sourceUrl: `https://mangadex.org/title/${id}`,
+        },
+        createdAt: nowIso(),
+      } satisfies ExternalCandidate
+    })
+    .filter((candidate) => Boolean(candidate.sourceId))
+}
+
+async function searchKitsuManga(
+  query: string,
+  requestedFilter: 'manga' | 'manhwa' | 'allManga',
+): Promise<ExternalCandidate[]> {
+  const url = new URL('https://kitsu.io/api/edge/manga')
+  url.searchParams.set('filter[text]', query)
+  url.searchParams.set('page[limit]', '8')
+
+  const response = await fetch(url, { headers: { accept: 'application/vnd.api+json' } })
+  if (!response.ok) return []
+  const payload = (await response.json()) as { data?: Array<Record<string, unknown>> }
+
+  return (payload.data ?? [])
+    .map((entry) => {
+      const inferredType = inferKitsuType(entry)
+      return { entry, inferredType }
+    })
+    .filter(
+      (result): result is { entry: Record<string, unknown>; inferredType: ExternalCandidate['type'] } => {
+        if (!result.inferredType) return false
+        return matchesAnimeMangaFilter(result.inferredType, requestedFilter)
+      },
+    )
+    .map(({ entry, inferredType }) => {
+      const id = String(entry.id ?? '')
+      const attributes = readRecord(entry.attributes)
+      const aliases = collectKitsuTitleAliases(attributes)
+      const title = pickKitsuTitle(attributes, query, aliases)
+      const posterImage = readRecord(attributes.posterImage)
+      const slug = optionalString(attributes.slug)
+      return {
+        id: `kitsu-${id}`,
+        title,
+        type: inferredType,
+        source: 'kitsu',
+        sourceId: id,
+        overview: optionalString(attributes.synopsis),
+        posterUrl: optionalString(posterImage.small) ?? optionalString(posterImage.medium),
+        releaseYear: parseFirstYear(optionalString(attributes.startDate)),
+        genres: [],
+        searchAliases: aliases,
+        externalRefs: {
+          kitsuId: id,
+          sourceUrl: slug ? `https://kitsu.io/manga/${slug}` : `https://kitsu.io/manga/${id}`,
         },
         createdAt: nowIso(),
       } satisfies ExternalCandidate
@@ -402,6 +549,19 @@ function inferJikanType(endpoint: 'anime' | 'manga', entry: Record<string, unkno
   return type.includes('manhwa') ? 'manhwa' : 'manga'
 }
 
+function inferMangaDexType(entry: Record<string, unknown>): ExternalCandidate['type'] {
+  const attributes = readRecord(entry.attributes)
+  return String(attributes.originalLanguage ?? '').toLowerCase() === 'ko' ? 'manhwa' : 'manga'
+}
+
+function inferKitsuType(entry: Record<string, unknown>): ExternalCandidate['type'] | undefined {
+  const attributes = readRecord(entry.attributes)
+  const subtype = String(attributes.subtype ?? '').toLowerCase()
+  if (subtype === 'manhwa') return 'manhwa'
+  if (subtype === 'novel') return undefined
+  return 'manga'
+}
+
 function matchesAnimeMangaFilter(type: ExternalCandidate['type'], requestedFilter: 'anime' | 'manga' | 'manhwa' | 'allManga') {
   if (requestedFilter === 'allManga') return type === 'manga' || type === 'manhwa'
   return type === requestedFilter
@@ -412,6 +572,86 @@ function readJikanReleaseYear(entry: Record<string, unknown>) {
   const published = entry.published as { prop?: { from?: { year?: number } } } | undefined
   const aired = entry.aired as { prop?: { from?: { year?: number } } } | undefined
   return published?.prop?.from?.year ?? aired?.prop?.from?.year
+}
+
+function readJikanTitleAliases(entry: Record<string, unknown>) {
+  const titles = Array.isArray(entry.titles) ? entry.titles : []
+  const typedTitles = titles.map((titleEntry) => optionalString(readRecord(titleEntry).title)).filter((title): title is string => Boolean(title))
+  return uniqueStrings([entry.title, entry.title_english, entry.title_japanese, ...typedTitles])
+}
+
+function collectMangaDexTitleAliases(attributes: Record<string, unknown>) {
+  const titles = readRecord(attributes.title)
+  const altTitles = Array.isArray(attributes.altTitles) ? attributes.altTitles : []
+  return uniqueStrings([
+    ...Object.values(titles),
+    ...altTitles.flatMap((entry) => Object.values(readRecord(entry))),
+  ])
+}
+
+function pickMangaDexTitle(attributes: Record<string, unknown>, query: string, aliases: string[]) {
+  const queryText = normalizeCatalogSearchText(query)
+  const queryCompact = compactCatalogSearchText(query)
+  const exactAlias = aliases.find((alias) => {
+    const aliasText = normalizeCatalogSearchText(alias)
+    return aliasText === queryText || compactCatalogSearchText(aliasText) === queryCompact
+  })
+  if (exactAlias) return exactAlias
+
+  const titles = readRecord(attributes.title)
+  return (
+    optionalString(titles.es) ??
+    optionalString(titles.en) ??
+    optionalString(titles['ja-ro']) ??
+    optionalString(titles.ko) ??
+    optionalString(Object.values(titles)[0]) ??
+    'Sin titulo'
+  )
+}
+
+function readLocalizedText(value: unknown) {
+  const record = readRecord(value)
+  return (
+    optionalString(record.es) ??
+    optionalString(record.en) ??
+    optionalString(record['ja-ro']) ??
+    optionalString(record.ko) ??
+    optionalString(Object.values(record)[0])
+  )
+}
+
+function readMangaDexTags(value: unknown) {
+  if (!Array.isArray(value)) return []
+  return value
+    .map((tag) => readLocalizedText(readRecord(readRecord(tag).attributes).name))
+    .filter((tag): tag is string => Boolean(tag))
+    .slice(0, 8)
+}
+
+function collectKitsuTitleAliases(attributes: Record<string, unknown>) {
+  const titles = readRecord(attributes.titles)
+  const abbreviatedTitles = Array.isArray(attributes.abbreviatedTitles) ? attributes.abbreviatedTitles : []
+  return uniqueStrings([attributes.canonicalTitle, ...Object.values(titles), ...abbreviatedTitles])
+}
+
+function pickKitsuTitle(attributes: Record<string, unknown>, query: string, aliases: string[]) {
+  const queryText = normalizeCatalogSearchText(query)
+  const queryCompact = compactCatalogSearchText(query)
+  const exactAlias = aliases.find((alias) => {
+    const aliasText = normalizeCatalogSearchText(alias)
+    return aliasText === queryText || compactCatalogSearchText(aliasText) === queryCompact
+  })
+  if (exactAlias) return exactAlias
+
+  const titles = readRecord(attributes.titles)
+  return (
+    optionalString(titles.es_es) ??
+    optionalString(titles.en_us) ??
+    optionalString(titles.en_jp) ??
+    optionalString(attributes.canonicalTitle) ??
+    optionalString(Object.values(titles)[0]) ??
+    'Sin titulo'
+  )
 }
 
 function uniqueExternalCandidates(candidates: ExternalCandidate[]) {
@@ -441,6 +681,7 @@ function normalizeProxyCandidate(value: unknown): ExternalCandidate[] {
       posterUrl: optionalString(candidate.posterUrl),
       releaseYear: typeof candidate.releaseYear === 'number' ? candidate.releaseYear : undefined,
       genres: Array.isArray(candidate.genres) ? candidate.genres.map(String).filter(Boolean).slice(0, 8) : [],
+      searchAliases: Array.isArray(candidate.searchAliases) ? candidate.searchAliases.map(String).filter(Boolean).slice(0, 24) : undefined,
       externalRefs:
         candidate.externalRefs && typeof candidate.externalRefs === 'object' && !Array.isArray(candidate.externalRefs)
           ? candidate.externalRefs
@@ -468,13 +709,43 @@ function normalizeProxyType(type: unknown): ExternalCandidate['type'] {
 }
 
 function normalizeProxySource(source: unknown): ExternalCandidate['source'] | undefined {
-  if (source === 'tmdb' || source === 'rawg' || source === 'openLibrary' || source === 'anilist' || source === 'jikan' || source === 'wikidata') return source
+  if (
+    source === 'tmdb' ||
+    source === 'rawg' ||
+    source === 'openLibrary' ||
+    source === 'googleBooks' ||
+    source === 'anilist' ||
+    source === 'mangaDex' ||
+    source === 'kitsu' ||
+    source === 'jikan' ||
+    source === 'wikidata'
+  ) {
+    return source
+  }
   return undefined
+}
+
+function readRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {}
 }
 
 function optionalString(value: unknown) {
   const text = typeof value === 'string' ? value.trim() : ''
   return text || undefined
+}
+
+function uniqueStrings(values: unknown[]) {
+  const seen = new Set<string>()
+  const results: string[] = []
+  for (const value of values) {
+    const text = optionalString(value)
+    if (!text) continue
+    const key = normalizeCatalogSearchText(text)
+    if (!key || seen.has(key)) continue
+    seen.add(key)
+    results.push(text)
+  }
+  return results
 }
 
 function parseFirstYear(value?: string) {

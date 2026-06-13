@@ -17,6 +17,7 @@ Fill `workers/catalog-proxy/.dev.vars` locally. It is ignored by git and should 
 npx wrangler login
 npm run worker:secret:tmdb
 npm run worker:secret:rawg
+npm run worker:secret:google-books
 npm run worker:deploy
 ```
 
@@ -26,9 +27,9 @@ After deploy, set this public GitHub Actions variable for the Pages build:
 VITE_CATALOG_PROXY_URL=https://nexo-catalog-proxy.<your-subdomain>.workers.dev
 ```
 
-Do not add TMDB or RAWG keys to GitHub variables or Vite env vars.
+Do not add TMDB, RAWG, or Google Books keys to GitHub variables or Vite env vars.
 
-The Worker can be deployed before secrets exist; TMDB and RAWG searches simply return no proxy results until those secrets are configured.
+The Worker can be deployed before secrets exist; TMDB, RAWG, and Google Books searches simply return no proxy results until those secrets are configured. MangaDex, AniList, Jikan, Open Library, and Wikidata do not need secrets.
 
 ## Endpoints
 

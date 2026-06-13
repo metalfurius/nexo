@@ -41,7 +41,10 @@ export interface ExternalRefs {
   tmdbId?: string
   rawgId?: string
   openLibraryKey?: string
+  googleBooksId?: string
   anilistId?: string
+  mangaDexId?: string
+  kitsuId?: string
   malId?: string
   wikidataId?: string
   sourceUrl?: string
@@ -84,12 +87,13 @@ export interface ExternalCandidate {
   id: string
   title: string
   type: ItemType
-  source: 'tmdb' | 'rawg' | 'openLibrary' | 'anilist' | 'jikan' | 'wikidata'
+  source: 'tmdb' | 'rawg' | 'openLibrary' | 'googleBooks' | 'anilist' | 'mangaDex' | 'kitsu' | 'jikan' | 'wikidata'
   sourceId: string
   overview?: string
   posterUrl?: string
   releaseYear?: number
   genres: string[]
+  searchAliases?: string[]
   externalRefs: ExternalRefs
   createdAt: string
 }

@@ -31,6 +31,14 @@ function jikanPayload(data: unknown[]) {
   return { data }
 }
 
+function mangaDexPayload(data: unknown[]) {
+  return { data }
+}
+
+function kitsuPayload(data: unknown[]) {
+  return { data }
+}
+
 describe('external search', () => {
   afterEach(() => {
     vi.unstubAllEnvs()
@@ -94,6 +102,119 @@ describe('external search', () => {
         source: 'jikan',
         title: "Omniscient Reader's Viewpoint",
         type: 'manhwa',
+      }),
+    )
+  })
+
+  it('uses MangaDex localized aliases for manhwa searches', async () => {
+    mockCatalogFetch((url) => {
+      if (url.hostname === 'graphql.anilist.co') return aniListPayload([])
+      if (url.hostname === 'api.mangadex.org') {
+        return mangaDexPayload([
+          {
+            id: '81057c75-09da-4f48-a22d-0cba875477cf',
+            attributes: {
+              title: { en: 'Painter of the Night' },
+              altTitles: [{ es: 'Pintor Nocturno' }, { ko: '야화첩' }],
+              originalLanguage: 'ko',
+              year: 2019,
+              description: { en: 'Historical BL manhwa.' },
+              tags: [{ attributes: { name: { en: 'Drama' } } }],
+            },
+            relationships: [
+              {
+                type: 'cover_art',
+                attributes: { fileName: 'cover.jpg' },
+              },
+            ],
+          },
+        ])
+      }
+      return jikanPayload([])
+    })
+
+    const results = await searchExternalSources('Pintor nocturno', 'manhwa')
+
+    expect(results[0]).toEqual(
+      expect.objectContaining({
+        externalRefs: expect.objectContaining({ mangaDexId: '81057c75-09da-4f48-a22d-0cba875477cf' }),
+        searchAliases: expect.arrayContaining(['Pintor Nocturno']),
+        source: 'mangaDex',
+        title: 'Pintor Nocturno',
+        type: 'manhwa',
+      }),
+    )
+  })
+
+  it('uses Kitsu localized titles when other manga providers miss a Spanish alias', async () => {
+    mockCatalogFetch((url) => {
+      if (url.hostname === 'graphql.anilist.co') return aniListPayload([])
+      if (url.hostname === 'api.mangadex.org') return mangaDexPayload([])
+      if (url.hostname === 'kitsu.io') {
+        return kitsuPayload([
+          {
+            id: '12345',
+            attributes: {
+              canonicalTitle: 'The Remarried Empress',
+              titles: {
+                en_us: 'The Remarried Empress',
+                es_es: 'La emperatriz divorciada',
+                ko_kr: '재혼 황후',
+              },
+              subtype: 'manhwa',
+              startDate: '2019-10-24',
+              synopsis: 'A remarried empress story.',
+              posterImage: { small: 'https://media.kitsu.io/manga/poster_images/12345/small.jpg' },
+              slug: 'the-remarried-empress',
+            },
+          },
+        ])
+      }
+      return jikanPayload([])
+    })
+
+    const results = await searchExternalSources('La emperatriz divorciada', 'manhwa')
+
+    expect(results[0]).toEqual(
+      expect.objectContaining({
+        externalRefs: expect.objectContaining({ kitsuId: '12345' }),
+        searchAliases: expect.arrayContaining(['La emperatriz divorciada']),
+        source: 'kitsu',
+        title: 'La emperatriz divorciada',
+        type: 'manhwa',
+      }),
+    )
+  })
+
+  it('uses Jikan title synonyms for compact manga aliases', async () => {
+    mockCatalogFetch((url) => {
+      if (url.hostname === 'graphql.anilist.co') return aniListPayload([])
+      if (url.hostname === 'api.mangadex.org') return mangaDexPayload([])
+      if (url.hostname === 'kitsu.io') return kitsuPayload([])
+      return jikanPayload([
+        {
+          mal_id: 116312,
+          title: '19 Tian',
+          type: 'Manga',
+          titles: [
+            { type: 'Default', title: '19 Tian' },
+            { type: 'Synonym', title: '19 Days' },
+          ],
+          published: { prop: { from: { year: 2014 } } },
+          images: { jpg: { image_url: 'https://cdn.myanimelist.net/images/manga/2/116312.jpg' } },
+          genres: [{ name: 'Comedy' }],
+          url: 'https://myanimelist.net/manga/116312/19_Tian',
+        },
+      ])
+    })
+
+    const results = await searchExternalSources('19days', 'manga')
+
+    expect(results[0]).toEqual(
+      expect.objectContaining({
+        searchAliases: expect.arrayContaining(['19 Days']),
+        source: 'jikan',
+        title: '19 Tian',
       }),
     )
   })

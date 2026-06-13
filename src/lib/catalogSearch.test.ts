@@ -44,9 +44,9 @@ describe('catalog search relevance', () => {
 
     expect(chitraResults).toHaveLength(3)
     expect(chitraResults[0].title).toBe('Chitra')
-    expect(starResults).toHaveLength(3)
+    expect(starResults).toHaveLength(2)
     expect(starResults[0].title).toBe('A Wish Upon a Star')
-    expect(scoreCatalogSearchCandidate('A wish upon a star', starResults[2])).toBeLessThan(
+    expect(scoreCatalogSearchCandidate('A wish upon a star', starResults[1])).toBeLessThan(
       scoreCatalogSearchCandidate('A wish upon a star', starResults[0]),
     )
   })
@@ -91,6 +91,22 @@ describe('catalog search relevance', () => {
     )
 
     expect(ranked[0].title).toBe('Your Ultimate Love Rival')
+  })
+
+  it('uses provider aliases without requiring curated catalog entries', () => {
+    const ranked = rankCatalogSearchCandidates(
+      [
+        candidate('Night School', 'manga', 'jikan'),
+        {
+          ...candidate('Painter of the Night', 'manhwa', 'mangaDex'),
+          searchAliases: ['Pintor Nocturno', 'Yahwacheop'],
+        },
+      ],
+      'Pintor nocturno',
+      'manhwa',
+    )
+
+    expect(ranked[0].title).toBe('Painter of the Night')
   })
 
   it('does not count type-only matches as search hits', () => {
@@ -146,8 +162,8 @@ describe('catalog search relevance', () => {
 
 function candidate(
   title: string,
-  type: 'anime' | 'book' | 'manga' | 'manhwa' | 'movie',
-  source: 'anilist' | 'jikan' | 'nexo' | 'openLibrary' | 'tmdb',
+  type: 'anime' | 'book' | 'game' | 'manga' | 'manhwa' | 'movie',
+  source: 'anilist' | 'googleBooks' | 'jikan' | 'kitsu' | 'mangaDex' | 'nexo' | 'openLibrary' | 'tmdb',
   externalRefs = {},
 ) {
   return {
