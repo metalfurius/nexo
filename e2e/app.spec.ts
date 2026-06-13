@@ -383,6 +383,110 @@ async function mockFrierenCatalog(page: Page) {
       },
     })
   })
+
+  await page.route('https://api.jikan.moe/v4/**', async (route) => {
+    await route.fulfill({ contentType: 'application/json', json: { data: [] } })
+  })
+}
+
+async function mockAnimeMangaCatalog(page: Page) {
+  await page.route('https://graphql.anilist.co', async (route) => {
+    const body = route.request().postDataJSON() as { variables?: { search?: string; type?: string } } | undefined
+    const search = body?.variables?.search?.toLowerCase() ?? ''
+    const type = body?.variables?.type
+
+    if (type === 'MANGA' && search.includes('iruma')) {
+      await route.fulfill({
+        contentType: 'application/json',
+        json: {
+          data: {
+            Page: {
+              media: [
+                {
+                  id: 99324,
+                  title: {
+                    english: 'Welcome to Demon School! Iruma-kun',
+                    romaji: 'Mairimashita! Iruma-kun',
+                    native: '魔入りました！入間くん',
+                  },
+                  description: 'Iruma llega a una escuela de demonios con energia de comedia fantastica.',
+                  format: 'MANGA',
+                  countryOfOrigin: 'JP',
+                  genres: ['Comedy', 'Fantasy'],
+                  startDate: { year: 2017 },
+                  coverImage: { medium: 'https://img.anili.st/media/99324.jpg' },
+                },
+              ],
+            },
+          },
+        },
+      })
+      return
+    }
+
+    if (type === 'ANIME' && search.includes('isekai')) {
+      await route.fulfill({
+        contentType: 'application/json',
+        json: {
+          data: {
+            Page: {
+              media: [
+                {
+                  id: 197824,
+                  title: {
+                    english: 'Farming Life in Another World 2',
+                    romaji: 'Isekai Nonbiri Nouka 2',
+                    native: '異世界のんびり農家２',
+                  },
+                  description: 'Nueva temporada de vida rural tranquila en otro mundo.',
+                  format: 'TV',
+                  countryOfOrigin: 'JP',
+                  genres: ['Fantasy', 'Slice of Life'],
+                  startDate: { year: 2026 },
+                  coverImage: { medium: 'https://img.anili.st/media/197824.jpg' },
+                },
+              ],
+            },
+          },
+        },
+      })
+      return
+    }
+
+    await route.fulfill({
+      contentType: 'application/json',
+      json: { data: { Page: { media: [] } } },
+    })
+  })
+
+  await page.route('https://api.jikan.moe/v4/**', async (route) => {
+    const url = new URL(route.request().url())
+    const search = url.searchParams.get('q')?.toLowerCase() ?? ''
+
+    if (url.pathname === '/v4/manga' && search.includes('omniscient')) {
+      await route.fulfill({
+        contentType: 'application/json',
+        json: {
+          data: [
+            {
+              mal_id: 132214,
+              title: "Omniscient Reader's Viewpoint",
+              title_english: "Omniscient Reader's Viewpoint",
+              synopsis: 'Apocalipsis literario y supervivencia desde el punto de vista del lector.',
+              type: 'Manhwa',
+              published: { prop: { from: { year: 2020 } } },
+              images: { jpg: { image_url: 'https://cdn.myanimelist.net/images/manga/1/132214.jpg' } },
+              genres: [{ name: 'Action' }, { name: 'Fantasy' }],
+              url: 'https://myanimelist.net/manga/132214/Omniscient_Readers_Viewpoint',
+            },
+          ],
+        },
+      })
+      return
+    }
+
+    await route.fulfill({ contentType: 'application/json', json: { data: [] } })
+  })
 }
 
 async function openApp(page: Page) {
@@ -1009,6 +1113,35 @@ test('library saves Frieren from external search without candidate permission no
   await expect(savedEditor.getByRole('textbox', { name: 'Progreso' })).toHaveValue('Episodio 4')
   await expect(savedEditor.getByRole('group', { name: 'Rating' })).toContainText('8/10')
   await expect(savedEditor.getByLabel('Notas')).toHaveValue('Mucho mas tranquila de lo que esperaba.')
+})
+
+test('library and explorer find current anime manga and manhwa through free sources', async ({ page }) => {
+  await mockAnimeMangaCatalog(page)
+  await openApp(page)
+
+  await page.getByLabel('Buscar obra para guardar').fill('Omniscient reader')
+  await page.getByLabel('Tipo de obra para buscar').selectOption('manhwa')
+  await page.getByRole('button', { name: 'Buscar obra' }).click()
+  await expect(page.getByLabel('Resultados para guardar')).toContainText("Omniscient Reader's Viewpoint")
+  await expect(page.getByLabel('Resultados para guardar')).toContainText('Jikan')
+  await page.getByLabel('Resultados para guardar').getByRole('button', { name: 'Guardar' }).click()
+  await expect(page.getByRole('status').filter({ hasText: "Omniscient Reader's Viewpoint guardado en Biblioteca" })).toBeVisible()
+  await expect(page.getByTestId('library-grid')).toContainText("Omniscient Reader's Viewpoint")
+
+  await page.getByRole('button', { name: 'Explorador', exact: true }).click()
+  await openExplorerTools(page)
+  await page.getByLabel('Tipo de busqueda en explorador').selectOption('manga')
+  await page.getByLabel('Buscar en explorador').fill('Iruma-kun')
+  await page.getByRole('button', { name: 'Buscar' }).click()
+  await expect(page.getByTestId('candidate-spotlight')).toContainText('Welcome to Demon School! Iruma-kun')
+  await expect(page.getByTestId('candidate-spotlight')).toContainText('AniList')
+
+  await openExplorerTools(page)
+  await page.getByLabel('Tipo de busqueda en explorador').selectOption('anime')
+  await page.getByLabel('Buscar en explorador').fill('Isekai Nonbiri Nouka 2')
+  await page.getByRole('button', { name: 'Buscar' }).click()
+  await expect(page.getByTestId('candidate-spotlight')).toContainText('Farming Life in Another World 2')
+  await expect(page.getByTestId('candidate-spotlight')).toContainText('AniList')
 })
 
 test('library toasts float without shifting the page', async ({ page }) => {

@@ -34,6 +34,7 @@ export const discoverySourceLabels: Record<DiscoveryCandidate['source'], string>
   rawg: 'RAWG',
   openLibrary: 'Open Library',
   anilist: 'AniList',
+  jikan: 'Jikan',
   wikidata: 'Wikidata',
   prompt: 'Explorador',
 }

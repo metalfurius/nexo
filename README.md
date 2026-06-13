@@ -38,7 +38,7 @@ Bootstrap the first admin manually from Firebase Console or Admin SDK by setting
 
 Firebase Functions are optional for a future Blaze-backed upgrade. The low-cost production path uses the public Nexo catalog plus browser-callable providers, and routes secret-backed providers through a tiny Cloudflare Worker:
 
-- Open Library, AniList and Wikidata work without keys.
+- Open Library, AniList, Jikan and Wikidata work without keys.
 - TMDB improves movies/series through the Worker secret `TMDB_READ_TOKEN`.
 - RAWG improves games through the Worker secret `RAWG_API_KEY`.
 - The frontend only receives `VITE_CATALOG_PROXY_URL`, which is safe to expose.

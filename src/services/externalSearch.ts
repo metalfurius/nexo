@@ -42,6 +42,13 @@ export const externalSourceCredits: ExternalSourceCredit[] = [
     url: 'https://anilist.co/',
   },
   {
+    detail: 'Respaldo abierto de MyAnimeList para anime, manga y manhwa sin clave de API.',
+    id: 'jikan',
+    label: 'Jikan',
+    requiresKey: false,
+    url: 'https://jikan.moe/',
+  },
+  {
     detail: 'Fallback abierto para juegos y obras dificiles de encontrar.',
     id: 'wikidata',
     label: 'Wikidata',
@@ -54,8 +61,8 @@ export async function searchExternalSources(searchQuery: string, type: string): 
   const query = searchQuery.trim()
   if (query.length < 2) return []
 
-  const proxyCandidates = await searchCatalogProxy(query, type)
-  if (proxyCandidates) return uniqueExternalCandidates(proxyCandidates).slice(0, 24)
+  const proxyCandidates = await searchCatalogProxy(query, type).catch(() => undefined)
+  if (proxyCandidates?.length) return uniqueExternalCandidates(proxyCandidates).slice(0, 24)
 
   const groups = await Promise.allSettled(getSearchTasks(query, type))
   return uniqueExternalCandidates(groups.flatMap((group) => (group.status === 'fulfilled' ? group.value : []))).slice(0, 24)
@@ -81,14 +88,22 @@ export async function discoverExternalCandidate(
 function getSearchTasks(query: string, type: string): Array<Promise<ExternalCandidate[]>> {
   if (type === 'book') return [searchOpenLibrary(query)]
   if (type === 'game') return [searchWikidataGames(query)]
-  if (type === 'anime' || type === 'manga' || type === 'manhwa') return [searchAniList(query, type)]
-  if (type === 'animeManga') return [searchAniList(query, 'anime'), searchAniList(query, 'manga')]
-  if (type === 'watch') return [searchAniList(query, 'anime'), searchAniList(query, 'manga')]
+  if (type === 'anime') return [searchAniList(query, 'anime'), searchJikan(query, 'anime')]
+  if (type === 'manga') return [searchAniList(query, 'manga', 'manga'), searchJikan(query, 'manga')]
+  if (type === 'manhwa') return [searchAniList(query, 'manga', 'manhwa'), searchJikan(query, 'manhwa')]
+  if (type === 'animeManga') {
+    return [searchAniList(query, 'anime'), searchAniList(query, 'manga', 'allManga'), searchJikan(query, 'anime'), searchJikan(query, 'allManga')]
+  }
+  if (type === 'watch') {
+    return [searchAniList(query, 'anime'), searchAniList(query, 'manga', 'allManga'), searchJikan(query, 'anime'), searchJikan(query, 'allManga')]
+  }
   if (type === 'any') {
     return [
       searchOpenLibrary(query),
       searchAniList(query, 'anime'),
-      searchAniList(query, 'manga'),
+      searchAniList(query, 'manga', 'allManga'),
+      searchJikan(query, 'anime'),
+      searchJikan(query, 'allManga'),
       searchWikidataGames(query),
     ]
   }
@@ -254,7 +269,8 @@ async function searchWikidataGames(query: string): Promise<ExternalCandidate[]> 
 
 async function searchAniList(
   query: string,
-  requestedType: 'anime' | 'manga' | 'manhwa',
+  requestedType: 'anime' | 'manga',
+  requestedFilter: 'anime' | 'manga' | 'manhwa' | 'allManga' = requestedType,
 ): Promise<ExternalCandidate[]> {
   const graphql = {
     query: `
@@ -265,6 +281,7 @@ async function searchAniList(
             title { romaji english native }
             description(asHtml: false)
             format
+            countryOfOrigin
             genres
             startDate { year }
             coverImage { medium }
@@ -286,29 +303,104 @@ async function searchAniList(
   if (!response.ok) return []
   const payload = (await response.json()) as { data?: { Page?: { media?: Array<Record<string, unknown>> } } }
 
-  return (payload.data?.Page?.media ?? []).map((entry) => {
-    const title = entry.title as Record<string, string | undefined>
-    const format = String(entry.format ?? '').toLowerCase()
-    const inferredType = requestedType === 'anime' ? 'anime' : format.includes('manhwa') ? 'manhwa' : 'manga'
-    const startDate = entry.startDate as { year?: number } | undefined
-    const coverImage = entry.coverImage as { medium?: string } | undefined
-    return {
-      id: `anilist-${entry.id}`,
-      title: title.english ?? title.romaji ?? title.native ?? 'Sin titulo',
-      type: inferredType,
-      source: 'anilist',
-      sourceId: String(entry.id),
-      overview: optionalString(entry.description),
-      posterUrl: coverImage?.medium,
-      releaseYear: startDate?.year,
-      genres: Array.isArray(entry.genres) ? entry.genres.map(String) : [],
-      externalRefs: {
-        anilistId: String(entry.id),
-        sourceUrl: `https://anilist.co/${inferredType === 'anime' ? 'anime' : 'manga'}/${entry.id}`,
-      },
-      createdAt: nowIso(),
-    } satisfies ExternalCandidate
-  })
+  return (payload.data?.Page?.media ?? [])
+    .map((entry) => {
+      const inferredType = inferAniListType(requestedType, entry)
+      return { entry, inferredType }
+    })
+    .filter(({ inferredType }) => matchesAnimeMangaFilter(inferredType, requestedFilter))
+    .map(({ entry, inferredType }) => {
+      const title = entry.title as Record<string, string | undefined>
+      const startDate = entry.startDate as { year?: number } | undefined
+      const coverImage = entry.coverImage as { medium?: string } | undefined
+      return {
+        id: `anilist-${entry.id}`,
+        title: title.english ?? title.romaji ?? title.native ?? 'Sin titulo',
+        type: inferredType,
+        source: 'anilist',
+        sourceId: String(entry.id),
+        overview: optionalString(entry.description),
+        posterUrl: coverImage?.medium,
+        releaseYear: startDate?.year,
+        genres: Array.isArray(entry.genres) ? entry.genres.map(String) : [],
+        externalRefs: {
+          anilistId: String(entry.id),
+          sourceUrl: `https://anilist.co/${inferredType === 'anime' ? 'anime' : 'manga'}/${entry.id}`,
+        },
+        createdAt: nowIso(),
+      } satisfies ExternalCandidate
+    })
+}
+
+async function searchJikan(
+  query: string,
+  requestedFilter: 'anime' | 'manga' | 'manhwa' | 'allManga',
+): Promise<ExternalCandidate[]> {
+  const endpoint = requestedFilter === 'anime' ? 'anime' : 'manga'
+  const url = new URL(`https://api.jikan.moe/v4/${endpoint}`)
+  url.searchParams.set('q', query)
+  url.searchParams.set('limit', '8')
+  url.searchParams.set('sfw', 'true')
+
+  const response = await fetch(url, { headers: { accept: 'application/json' } })
+  if (!response.ok) return []
+  const payload = (await response.json()) as { data?: Array<Record<string, unknown>> }
+
+  return (payload.data ?? [])
+    .map((entry) => {
+      const inferredType = inferJikanType(endpoint, entry)
+      return { entry, inferredType }
+    })
+    .filter(({ inferredType }) => matchesAnimeMangaFilter(inferredType, requestedFilter))
+    .map(({ entry, inferredType }) => {
+      const id = String(entry.mal_id ?? '')
+      const images = entry.images as { jpg?: { image_url?: string } } | undefined
+      return {
+        id: `jikan-${id}`,
+        title: optionalString(entry.title_english) ?? optionalString(entry.title) ?? 'Sin titulo',
+        type: inferredType,
+        source: 'jikan',
+        sourceId: id,
+        overview: optionalString(entry.synopsis),
+        posterUrl: optionalString(images?.jpg?.image_url),
+        releaseYear: readJikanReleaseYear(entry),
+        genres: Array.isArray(entry.genres)
+          ? entry.genres.flatMap((genre) => (genre && typeof genre === 'object' && 'name' in genre ? String(genre.name) : [])).slice(0, 8)
+          : [],
+        externalRefs: {
+          malId: id,
+          sourceUrl: optionalString(entry.url) ?? `https://myanimelist.net/${inferredType === 'anime' ? 'anime' : 'manga'}/${id}`,
+        },
+        createdAt: nowIso(),
+      } satisfies ExternalCandidate
+    })
+    .filter((candidate) => Boolean(candidate.sourceId))
+}
+
+function inferAniListType(requestedType: 'anime' | 'manga', entry: Record<string, unknown>): ExternalCandidate['type'] {
+  if (requestedType === 'anime') return 'anime'
+  const format = String(entry.format ?? '').toLowerCase()
+  const countryOfOrigin = String(entry.countryOfOrigin ?? '').toUpperCase()
+  if (countryOfOrigin === 'KR' || format.includes('manhwa')) return 'manhwa'
+  return 'manga'
+}
+
+function inferJikanType(endpoint: 'anime' | 'manga', entry: Record<string, unknown>): ExternalCandidate['type'] {
+  if (endpoint === 'anime') return 'anime'
+  const type = String(entry.type ?? '').toLowerCase()
+  return type.includes('manhwa') ? 'manhwa' : 'manga'
+}
+
+function matchesAnimeMangaFilter(type: ExternalCandidate['type'], requestedFilter: 'anime' | 'manga' | 'manhwa' | 'allManga') {
+  if (requestedFilter === 'allManga') return type === 'manga' || type === 'manhwa'
+  return type === requestedFilter
+}
+
+function readJikanReleaseYear(entry: Record<string, unknown>) {
+  if (typeof entry.year === 'number') return entry.year
+  const published = entry.published as { prop?: { from?: { year?: number } } } | undefined
+  const aired = entry.aired as { prop?: { from?: { year?: number } } } | undefined
+  return published?.prop?.from?.year ?? aired?.prop?.from?.year
 }
 
 function uniqueExternalCandidates(candidates: ExternalCandidate[]) {
@@ -365,7 +457,7 @@ function normalizeProxyType(type: unknown): ExternalCandidate['type'] {
 }
 
 function normalizeProxySource(source: unknown): ExternalCandidate['source'] | undefined {
-  if (source === 'tmdb' || source === 'rawg' || source === 'openLibrary' || source === 'anilist' || source === 'wikidata') return source
+  if (source === 'tmdb' || source === 'rawg' || source === 'openLibrary' || source === 'anilist' || source === 'jikan' || source === 'wikidata') return source
   return undefined
 }
 

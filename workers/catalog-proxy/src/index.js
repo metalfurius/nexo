@@ -34,7 +34,7 @@ const DEFAULT_ALLOWED_ORIGINS = [
   'http://127.0.0.1:5173',
 ]
 const CACHE_LANGUAGE = 'es-ES'
-const PROVIDER_VERSION = '2026-06-06-v2'
+const PROVIDER_VERSION = '2026-06-13-v1'
 const POSITIVE_TTL_SECONDS = 86_400
 const EMPTY_TTL_SECONDS = 900
 const DISCOVER_TTL_SECONDS = 900
@@ -150,9 +150,12 @@ async function searchProviders(query, type, env) {
   }
   if (type === 'watch' || type === 'anime' || type === 'animeManga' || type === 'any') {
     tasks.push(searchAniList(query, 'anime'))
+    tasks.push(searchJikan(query, 'anime'))
   }
   if (type === 'watch' || type === 'manga' || type === 'manhwa' || type === 'animeManga' || type === 'any') {
-    tasks.push(searchAniList(query, type === 'anime' ? 'anime' : 'manga', type))
+    const mangaFilter = type === 'manga' || type === 'manhwa' ? type : 'allManga'
+    tasks.push(searchAniList(query, 'manga', mangaFilter))
+    tasks.push(searchJikan(query, mangaFilter))
   }
   if (type === 'book' || type === 'any') {
     tasks.push(searchOpenLibrary(query))
@@ -324,6 +327,7 @@ async function searchAniList(query, requestedType, requestedFilter = requestedTy
             title { romaji english native }
             description(asHtml: false)
             format
+            countryOfOrigin
             genres
             startDate { year }
             coverImage { medium }
@@ -347,11 +351,10 @@ async function searchAniList(query, requestedType, requestedFilter = requestedTy
   const payload = await response.json()
   return (payload.data?.Page?.media ?? [])
     .map((entry) => {
-      const format = String(entry.format || '').toLowerCase()
-      const inferredType = requestedType === 'anime' ? 'anime' : format.includes('manhwa') ? 'manhwa' : 'manga'
+      const inferredType = inferAniListType(requestedType, entry)
       return { entry, inferredType }
     })
-    .filter(({ inferredType }) => requestedFilter !== 'manhwa' || inferredType === 'manhwa')
+    .filter(({ inferredType }) => matchesAnimeMangaFilter(inferredType, requestedFilter))
     .map(({ entry, inferredType }) => {
       const title = entry.title || {}
       return {
@@ -371,6 +374,71 @@ async function searchAniList(query, requestedType, requestedFilter = requestedTy
         createdAt: new Date().toISOString(),
       }
     })
+}
+
+async function searchJikan(query, requestedFilter) {
+  const endpoint = requestedFilter === 'anime' ? 'anime' : 'manga'
+  const url = new URL(`https://api.jikan.moe/v4/${endpoint}`)
+  url.searchParams.set('q', query)
+  url.searchParams.set('limit', '8')
+  url.searchParams.set('sfw', 'true')
+
+  const response = await fetch(url, { headers: { accept: 'application/json' } })
+  if (!response.ok) return []
+
+  const payload = await response.json()
+  return (payload.data ?? [])
+    .map((entry) => {
+      const inferredType = inferJikanType(endpoint, entry)
+      return { entry, inferredType }
+    })
+    .filter(({ inferredType }) => matchesAnimeMangaFilter(inferredType, requestedFilter))
+    .map(({ entry, inferredType }) => {
+      const id = String(entry.mal_id || '')
+      return {
+        id: `jikan-${id}`,
+        title: optionalString(entry.title_english) || optionalString(entry.title) || 'Sin titulo',
+        type: inferredType,
+        source: 'jikan',
+        sourceId: id,
+        overview: optionalString(entry.synopsis),
+        posterUrl: optionalString(entry.images?.jpg?.image_url),
+        releaseYear: readJikanReleaseYear(entry),
+        genres: Array.isArray(entry.genres)
+          ? entry.genres.map((genre) => String(genre.name || '')).filter(Boolean).slice(0, 8)
+          : [],
+        externalRefs: {
+          malId: id,
+          sourceUrl: optionalString(entry.url) || `https://myanimelist.net/${inferredType === 'anime' ? 'anime' : 'manga'}/${id}`,
+        },
+        createdAt: new Date().toISOString(),
+      }
+    })
+    .filter((candidate) => Boolean(candidate.sourceId))
+}
+
+function inferAniListType(requestedType, entry) {
+  if (requestedType === 'anime') return 'anime'
+  const format = String(entry.format || '').toLowerCase()
+  const countryOfOrigin = String(entry.countryOfOrigin || '').toUpperCase()
+  if (countryOfOrigin === 'KR' || format.includes('manhwa')) return 'manhwa'
+  return 'manga'
+}
+
+function inferJikanType(endpoint, entry) {
+  if (endpoint === 'anime') return 'anime'
+  const type = String(entry.type || '').toLowerCase()
+  return type.includes('manhwa') ? 'manhwa' : 'manga'
+}
+
+function matchesAnimeMangaFilter(type, requestedFilter) {
+  if (requestedFilter === 'allManga') return type === 'manga' || type === 'manhwa'
+  return type === requestedFilter
+}
+
+function readJikanReleaseYear(entry) {
+  if (typeof entry.year === 'number') return entry.year
+  return entry.published?.prop?.from?.year || entry.aired?.prop?.from?.year
 }
 
 async function searchWikidataGames(query) {

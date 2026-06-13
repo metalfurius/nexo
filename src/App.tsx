@@ -11124,6 +11124,7 @@ function matchesCandidateExternalRef(candidate: DiscoveryCandidate, item: ListIt
     return Boolean(candidate.externalRefs.openLibraryKey && item.externalRefs.openLibraryKey === candidate.externalRefs.openLibraryKey)
   }
   if (candidate.source === 'anilist') return Boolean(candidate.externalRefs.anilistId && item.externalRefs.anilistId === candidate.externalRefs.anilistId)
+  if (candidate.source === 'jikan') return Boolean(candidate.externalRefs.malId && item.externalRefs.malId === candidate.externalRefs.malId)
   if (candidate.source === 'wikidata') return Boolean(candidate.externalRefs.wikidataId && item.externalRefs.wikidataId === candidate.externalRefs.wikidataId)
   return false
 }
