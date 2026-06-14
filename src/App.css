@@ -5468,7 +5468,8 @@ body.dialog-scroll-locked {
 }
 
 .service-import-progress-state,
-.service-import-complete {
+.service-import-complete,
+.service-import-error {
   background: color-mix(in srgb, var(--surface) 70%, transparent);
   border: 1px solid var(--border);
   border-radius: 8px;

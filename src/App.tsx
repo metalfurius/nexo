@@ -8900,6 +8900,7 @@ function ImportTab({
 
     const itemsToImport = importPreviewItemsToListItems(previewItemsToImport)
     const rollbackPlan = getLibraryImportRollbackPlan({ items: itemsToImport }, library.items, library.settings)
+    setServiceImportUndo(rollbackPlan)
     setServiceImportDialogPhase('applying')
     setServiceImportApplyProgress({ current: 0, total: itemsToImport.length })
     setServiceImportMessage(`Importando 0/${itemsToImport.length} desde ${serviceImportPreview.sourceLabel}...`)
@@ -8911,7 +8912,6 @@ function ImportTab({
         setServiceImportMessage(`Importando ${current}/${itemsToImport.length} desde ${serviceImportPreview.sourceLabel}...`)
       }
 
-      setServiceImportUndo(rollbackPlan)
       setServiceImportDialogPhase('complete')
       setServiceImportMessage(`Importadas ${itemsToImport.length} entradas desde ${serviceImportPreview.sourceLabel}`)
       setStatus(`Importadas ${itemsToImport.length} entradas desde ${serviceImportPreview.sourceLabel}`)
@@ -8923,7 +8923,8 @@ function ImportTab({
       })
     } catch (reason) {
       setServiceImportDialogPhase('error')
-      setServiceImportMessage(reason instanceof Error ? reason.message : 'No se pudo aplicar la importacion.')
+      const errorMessage = reason instanceof Error ? reason.message : 'No se pudo aplicar la importacion.'
+      setServiceImportMessage(`${errorMessage} Puedes deshacer cualquier cambio aplicado.`)
     }
   }
 
@@ -9248,7 +9249,17 @@ function ServiceImportDialog({
         )}
 
         {phase === 'error' && (
-          <FeedbackMessage tone="danger">{message ?? 'No se pudo preparar la importacion.'}</FeedbackMessage>
+          <div className="service-import-error">
+            <FeedbackMessage tone="danger">{message ?? 'No se pudo preparar la importacion.'}</FeedbackMessage>
+            {onUndo && (
+              <div className="action-row end">
+                <button className="secondary-button" type="button" onClick={onUndo}>
+                  <RotateCcw size={16} />
+                  Deshacer importacion
+                </button>
+              </div>
+            )}
+          </div>
         )}
 
         {phase === 'complete' && (
