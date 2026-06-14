@@ -341,6 +341,10 @@ export function importPreviewItemsToListItems(items: ImportPreviewItem[], import
   return items.map((item) => importedDraftToListItem(item.draft, importedAt))
 }
 
+export function getImportPreviewNewItems(preview: ImportPreview): ImportPreviewItem[] {
+  return preview.items.filter((item) => !item.duplicateOfId)
+}
+
 function importedDraftToListItem(draft: ImportedLibraryItemDraft, importedAt: string): ListItem {
   const importNotes = uniqueValues([
     `Importado desde ${importSourceLabels[draft.sourceId]}`,
