@@ -101,6 +101,65 @@ describe('library backup schema', () => {
     })
   })
 
+  it('preserves structured progress and related references when parsing backups', () => {
+    const parsed = parseLibraryImportPayload(
+      createLibraryExportPayload(
+        [
+          {
+            ...baseItem,
+            progressCurrent: 3,
+            progressTotal: 12,
+            progressUnit: 'episodes',
+            publicSnapshot: {
+              id: 'anime-cyberpunk-edgerunners',
+              title: 'Cyberpunk: Edgerunners',
+              type: 'anime',
+              progressTotal: 10,
+              progressUnit: 'episodes',
+              genres: [],
+              tags: [],
+              moodTags: [],
+              externalRefs: {},
+              relatedItems: [
+                {
+                  title: 'Cyberpunk 2077',
+                  type: 'game',
+                  relation: 'source',
+                  source: 'rawg',
+                  sourceId: '41494',
+                },
+              ],
+              canonicalKey: 'anime:cyberpunk edgerunners',
+              updatedAt: '2026-01-01T00:00:00.000Z',
+            },
+            relatedItems: [
+              {
+                title: 'Cyberpunk 2077',
+                type: 'game',
+                relation: 'source',
+                source: 'rawg',
+                sourceId: '41494',
+              },
+            ],
+          },
+        ],
+        undefined,
+        '2026-01-02T00:00:00.000Z',
+      ),
+      '2026-01-03T00:00:00.000Z',
+    )
+
+    expect(parsed.items[0]).toEqual(
+      expect.objectContaining({
+        progressCurrent: 3,
+        progressTotal: 12,
+        progressUnit: 'episodes',
+      }),
+    )
+    expect(parsed.items[0].relatedItems?.[0]).toEqual(expect.objectContaining({ relation: 'source', title: 'Cyberpunk 2077' }))
+    expect(parsed.items[0].publicSnapshot?.relatedItems?.[0]).toEqual(expect.objectContaining({ sourceId: '41494' }))
+  })
+
   it('keeps a library card density preference from exported settings', () => {
     const parsed = parseLibraryImportPayload(
       createLibraryExportPayload(

@@ -10601,7 +10601,7 @@ button:active:not(:disabled),
 .editor-progress-panel .editor-progress-fields {
   align-items: start;
   gap: 10px;
-  grid-template-columns: minmax(430px, 1fr) minmax(168px, 0.42fr) minmax(128px, 0.34fr);
+  grid-template-columns: minmax(390px, 1fr) minmax(168px, 0.38fr) minmax(270px, 0.56fr);
 }
 
 .editor-progress-panel .editor-progress-fields label {
@@ -10810,12 +10810,235 @@ button:active:not(:disabled),
   opacity: 0.38;
 }
 
+.progress-control {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.progress-control-heading {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.progress-control-heading span {
+  color: var(--text-strong);
+  font-size: 12px;
+  font-weight: 850;
+  line-height: 1.2;
+}
+
+.progress-control-heading strong {
+  color: var(--accent-dark);
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.progress-stepper-row {
+  align-items: center;
+  background: color-mix(in srgb, var(--surface-muted) 54%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
+  border-radius: 8px;
+  display: grid;
+  gap: 3px;
+  grid-template-columns: 32px minmax(0, 1fr) auto minmax(0, 1fr) 32px;
+  min-height: 42px;
+  padding: 3px;
+}
+
+.progress-stepper-row label,
+.progress-detail-row label {
+  display: block;
+  margin: 0;
+  min-width: 0;
+}
+
+.progress-stepper-row input,
+.progress-detail-row input,
+.progress-detail-row select {
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  border-radius: 7px;
+  color: var(--text-strong);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  height: 32px;
+  min-width: 0;
+  padding: 0 8px;
+  width: 100%;
+}
+
+.progress-step-button {
+  align-items: center;
+  aspect-ratio: 1;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  color: var(--muted);
+  cursor: pointer;
+  display: inline-flex;
+  justify-content: center;
+  min-height: 32px;
+  padding: 0;
+  transition:
+    background var(--motion-fast) ease,
+    border-color var(--motion-fast) ease,
+    color var(--motion-fast) ease,
+    transform var(--motion-fast) var(--motion-ease);
+  width: 100%;
+}
+
+.progress-step-button:hover:not(:disabled),
+.progress-step-button:focus-visible:not(:disabled) {
+  background: var(--surface);
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
+  color: var(--text-strong);
+  outline: 0;
+  transform: translateY(-1px);
+}
+
+.progress-step-button:disabled {
+  cursor: default;
+  opacity: 0.38;
+}
+
+.progress-total-divider {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.progress-detail-row {
+  display: grid;
+  gap: 4px;
+  grid-template-columns: minmax(96px, 0.44fr) minmax(0, 1fr);
+}
+
 .editor-notes-field {
   min-width: 0;
 }
 
 .editor-notes-field textarea {
   min-height: 68px;
+}
+
+.related-items-panel {
+  background: color-mix(in srgb, var(--surface) 92%, var(--surface-raised));
+  border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.related-items-heading {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.related-items-heading h3 {
+  color: var(--text-strong);
+  font-size: 16px;
+  line-height: 1.2;
+  margin: 2px 0 0;
+}
+
+.related-items-heading strong {
+  align-items: center;
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--border));
+  border-radius: 999px;
+  color: var(--accent-dark);
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 900;
+  justify-content: center;
+  min-height: 28px;
+  min-width: 28px;
+  padding: 0 9px;
+}
+
+.related-items-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.related-item-card {
+  background: color-mix(in srgb, var(--surface-muted) 54%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  border-radius: 8px;
+  color: inherit;
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 10px;
+  text-decoration: none;
+  transition:
+    background var(--motion-fast) ease,
+    border-color var(--motion-fast) ease,
+    transform var(--motion-fast) var(--motion-ease);
+}
+
+.related-item-card:hover,
+.related-item-card:focus-visible {
+  background: var(--surface);
+  border-color: color-mix(in srgb, var(--accent) 36%, var(--border));
+  outline: 0;
+  transform: translateY(-1px);
+}
+
+.related-relation {
+  color: var(--accent-dark);
+  font-size: 10.5px;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.related-title {
+  align-items: center;
+  color: var(--text-strong);
+  display: flex;
+  gap: 7px;
+  min-width: 0;
+}
+
+.related-title svg {
+  color: var(--accent);
+  flex: 0 0 auto;
+}
+
+.related-title strong {
+  display: block;
+  font-size: 13px;
+  line-height: 1.25;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.related-item-card small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 750;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .item-editor > .panel-heading {
@@ -14004,11 +14227,19 @@ textarea:focus-visible {
 
   .item-editor .editor-progress-panel .editor-progress-fields {
     gap: 8px;
-    grid-template-columns: minmax(0, 1fr) minmax(104px, 0.42fr);
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .item-editor .editor-progress-panel .status-control {
     grid-column: 1 / -1;
+  }
+
+  .item-editor .progress-detail-row {
+    grid-template-columns: minmax(92px, 0.48fr) minmax(0, 1fr);
+  }
+
+  .item-editor .related-items-grid {
+    grid-template-columns: 1fr;
   }
 
   .item-editor .status-chip-row {

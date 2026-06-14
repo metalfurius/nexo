@@ -10,8 +10,11 @@ import {
   type ItemStatus,
   type ItemType,
   type ListItem,
+  type ProgressUnit,
   type PublicCatalogSnapshot,
   type RecommendationPreferences,
+  type RelatedItemKind,
+  type RelatedItemRef,
   type UserSettings,
   nowIso,
 } from '../domain/types'
@@ -124,6 +127,7 @@ function cloneListItem(item: ListItem): ListItem {
     genres: [...item.genres],
     ...(item.importNotes ? { importNotes: [...item.importNotes] } : {}),
     moodTags: [...item.moodTags],
+    ...(item.relatedItems ? { relatedItems: cloneRelatedItems(item.relatedItems) } : {}),
     ...(item.publicSnapshot
       ? {
           publicSnapshot: {
@@ -131,6 +135,7 @@ function cloneListItem(item: ListItem): ListItem {
             externalRefs: { ...item.publicSnapshot.externalRefs },
             genres: [...item.publicSnapshot.genres],
             moodTags: [...item.publicSnapshot.moodTags],
+            ...(item.publicSnapshot.relatedItems ? { relatedItems: cloneRelatedItems(item.publicSnapshot.relatedItems) } : {}),
             tags: [...item.publicSnapshot.tags],
           },
         }
@@ -138,6 +143,13 @@ function cloneListItem(item: ListItem): ListItem {
     tags: [...item.tags],
     weights: { ...item.weights },
   }
+}
+
+function cloneRelatedItems(items: RelatedItemRef[]): RelatedItemRef[] {
+  return items.map((item) => ({
+    ...item,
+    ...(item.externalRefs ? { externalRefs: { ...item.externalRefs } } : {}),
+  }))
 }
 
 function cloneUserSettingsSnapshot(settings: UserSettings): UserSettings {
@@ -166,6 +178,9 @@ function normalizeListItem(value: unknown, index: number, importedAt: string): L
     durationMinHours: optionalNumber(item.durationMinHours),
     durationMaxHours: optionalNumber(item.durationMaxHours),
     progress: optionalString(item.progress),
+    progressCurrent: optionalNumber(item.progressCurrent),
+    progressTotal: optionalNumber(item.progressTotal),
+    progressUnit: readProgressUnit(item.progressUnit),
     genres: stringList(item.genres),
     tags: stringList(item.tags),
     moodTags: stringList(item.moodTags),
@@ -176,6 +191,7 @@ function normalizeListItem(value: unknown, index: number, importedAt: string): L
     importNotes: stringList(item.importNotes),
     externalRefs: normalizeExternalRefs(item.externalRefs),
     posterUrl: optionalString(item.posterUrl),
+    relatedItems: normalizeRelatedItems(item.relatedItems),
     publicItemId: optionalString(item.publicItemId),
     publicSnapshot: normalizePublicSnapshot(item.publicSnapshot),
     createdAt,
@@ -270,6 +286,31 @@ function normalizeExternalRefs(value: unknown): ExternalRefs | undefined {
   }
 }
 
+function normalizeRelatedItems(value: unknown): RelatedItemRef[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  const items = value.flatMap((entry) => {
+    const item = asOptionalRecord(entry)
+    if (!item) return []
+
+    const title = optionalString(item.title)
+    const type = typeof item.type === 'string' && ITEM_TYPES.includes(item.type as ItemType) ? (item.type as ItemType) : undefined
+    if (!title || !type) return []
+
+    return [{
+      title,
+      type,
+      relation: readRelatedItemKind(item.relation),
+      source: readRelatedItemSource(item.source),
+      sourceId: optionalString(item.sourceId),
+      posterUrl: optionalString(item.posterUrl),
+      releaseYear: optionalNumber(item.releaseYear),
+      externalRefs: normalizeExternalRefs(item.externalRefs),
+    } satisfies RelatedItemRef]
+  })
+
+  return items.length ? items : undefined
+}
+
 function normalizePublicSnapshot(value: unknown): PublicCatalogSnapshot | undefined {
   const snapshot = asOptionalRecord(value)
   if (!snapshot) return undefined
@@ -284,12 +325,15 @@ function normalizePublicSnapshot(value: unknown): PublicCatalogSnapshot | undefi
     type,
     description: optionalString(snapshot.description),
     releaseYear: optionalNumber(snapshot.releaseYear),
+    progressTotal: optionalNumber(snapshot.progressTotal),
+    progressUnit: readProgressUnit(snapshot.progressUnit),
     genres: stringList(snapshot.genres),
     tags: stringList(snapshot.tags),
     moodTags: stringList(snapshot.moodTags),
     searchAliases: stringList(snapshot.searchAliases),
     externalRefs: normalizeExternalRefs(snapshot.externalRefs) ?? {},
     posterUrl: optionalString(snapshot.posterUrl),
+    relatedItems: normalizeRelatedItems(snapshot.relatedItems),
     canonicalKey: optionalString(snapshot.canonicalKey) ?? `${type}:${slugify(title)}`,
     updatedAt: optionalString(snapshot.updatedAt) ?? nowIso(),
   }
@@ -303,6 +347,57 @@ function readItemType(value: unknown, message: string): ItemType {
 function readItemStatus(value: unknown, message: string): ItemStatus {
   if (typeof value === 'string' && ITEM_STATUSES.includes(value as ItemStatus)) return value as ItemStatus
   throw new Error(message)
+}
+
+function readProgressUnit(value: unknown): ProgressUnit | undefined {
+  if (
+    value === 'episodes' ||
+    value === 'chapters' ||
+    value === 'pages' ||
+    value === 'hours' ||
+    value === 'volumes' ||
+    value === 'percent' ||
+    value === 'items'
+  ) {
+    return value
+  }
+  return undefined
+}
+
+function readRelatedItemKind(value: unknown): RelatedItemKind {
+  if (
+    value === 'sequel' ||
+    value === 'prequel' ||
+    value === 'source' ||
+    value === 'adaptation' ||
+    value === 'side_story' ||
+    value === 'spin_off' ||
+    value === 'alternative' ||
+    value === 'summary' ||
+    value === 'character' ||
+    value === 'other'
+  ) {
+    return value
+  }
+  return 'other'
+}
+
+function readRelatedItemSource(value: unknown): RelatedItemRef['source'] {
+  if (
+    value === 'tmdb' ||
+    value === 'rawg' ||
+    value === 'openLibrary' ||
+    value === 'googleBooks' ||
+    value === 'anilist' ||
+    value === 'mangaDex' ||
+    value === 'kitsu' ||
+    value === 'jikan' ||
+    value === 'wikidata' ||
+    value === 'nexo'
+  ) {
+    return value
+  }
+  return undefined
 }
 
 function readExplorerDefaultType(value: unknown): ExplorerSearchType {

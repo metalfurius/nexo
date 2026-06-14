@@ -30,6 +30,7 @@ import {
   LockKeyhole,
   LogIn,
   LogOut,
+  Minus,
   MoreHorizontal,
   Moon,
   Palette,
@@ -59,6 +60,7 @@ import {
   DEFAULT_RECOMMENDATION_PREFERENCES,
   DEFAULT_SETTINGS,
   DEFAULT_WEIGHTS,
+  PROGRESS_UNITS,
   THEME_MODES,
   type ExternalCandidate,
   ITEM_STATUSES,
@@ -74,7 +76,10 @@ import {
   type LibraryCardsPerRow,
   type LibraryViewMode,
   type ListItem,
+  type ProgressUnit,
   type PublicCatalogItem,
+  type RelatedItemKind,
+  type RelatedItemRef,
   type RecommendationPreferences,
   type RecommendationResult,
   type ThemeMode,
@@ -158,12 +163,15 @@ import {
 } from './lib/libraryInsights'
 import {
   formatDateLabel,
+  formatProgress,
+  getDefaultProgressUnit,
   getItemSubtitle,
   getPersonalEditorReadiness,
   isItemInCooldown,
   itemSourceLabels,
   itemStatusLabels as statusLabels,
   itemTypeLabels as typeLabels,
+  progressUnitLabels,
 } from './lib/libraryItemInsights'
 import {
   formatRecentRecommendationTime,
@@ -223,6 +231,21 @@ const librarySortLabels: Record<LibrarySortMode, string> = {
 }
 
 const libraryCardsPerRowOptions: LibraryCardsPerRow[] = [4, 5, 6]
+
+const progressUnitOptions: ProgressUnit[] = [...PROGRESS_UNITS]
+
+const relatedItemKindLabels: Record<RelatedItemKind, string> = {
+  adaptation: 'Adaptacion',
+  alternative: 'Alternativa',
+  character: 'Personaje',
+  other: 'Relacionada',
+  prequel: 'Precuela',
+  sequel: 'Secuela',
+  side_story: 'Historia lateral',
+  source: 'Origen',
+  spin_off: 'Spin-off',
+  summary: 'Resumen',
+}
 
 const libraryCatalogSearchTypes: Array<{ id: ExplorerSearchType; label: string }> = [
   { id: 'any', label: 'Todo' },
@@ -12169,8 +12192,207 @@ function RatingControl({ onChange, value }: { onChange: (value: number | undefin
   )
 }
 
+interface ProgressControlPatch {
+  progress?: string
+  progressCurrent?: number
+  progressTotal?: number
+  progressUnit?: ProgressUnit
+}
+
+function ProgressControl({
+  current,
+  freeText,
+  itemType,
+  onChange,
+  total,
+  unit,
+}: {
+  current?: number
+  freeText?: string
+  itemType: ItemType
+  onChange: (patch: ProgressControlPatch) => void
+  total?: number
+  unit?: ProgressUnit
+}) {
+  const resolvedUnit = unit ?? getDefaultProgressUnit(itemType)
+  const currentValue = normalizeOptionalNumber(current) ?? 0
+  const totalValue = normalizeOptionalNumber(total)
+  const progressSummary = formatProgress({
+    progress: freeText,
+    progressCurrent: current,
+    progressTotal: total,
+    progressUnit: resolvedUnit,
+    type: itemType,
+  })
+  const step = resolvedUnit === 'hours' ? 0.5 : 1
+  const max = totalValue ?? (resolvedUnit === 'percent' ? 100 : undefined)
+
+  function setCurrent(nextValue: number) {
+    onChange({
+      progressCurrent: clampProgressValue(nextValue, max),
+      progressUnit: resolvedUnit,
+    })
+  }
+
+  function setTotal(nextValue?: number) {
+    const nextTotal = normalizeOptionalNumber(nextValue)
+    onChange({
+      progressCurrent: current === undefined || nextTotal === undefined ? current : clampProgressValue(current, nextTotal),
+      progressTotal: nextTotal,
+      progressUnit: nextTotal !== undefined || current !== undefined ? resolvedUnit : unit,
+    })
+  }
+
+  return (
+    <div className="progress-control" role="group" aria-label="Progreso">
+      <div className="progress-control-heading">
+        <span>Progreso</span>
+        <strong>{progressSummary ?? 'Sin progreso'}</strong>
+      </div>
+      <div className="progress-stepper-row">
+        <button
+          aria-label="Reducir progreso"
+          className="progress-step-button"
+          disabled={currentValue <= 0}
+          type="button"
+          onClick={() => setCurrent(currentValue - step)}
+          title="Reducir progreso"
+        >
+          <Minus size={14} />
+        </button>
+        <label>
+          <span className="sr-only">Actual</span>
+          <input
+            aria-label="Progreso actual"
+            min="0"
+            max={max}
+            step={step}
+            type="number"
+            value={current ?? ''}
+            onChange={(event) => {
+              const nextValue = readNumberInput(event.target.value)
+              onChange({
+                progressCurrent: nextValue === undefined ? undefined : clampProgressValue(nextValue, max),
+                progressUnit: nextValue !== undefined || totalValue !== undefined ? resolvedUnit : unit,
+              })
+            }}
+          />
+        </label>
+        <span aria-hidden="true" className="progress-total-divider">/</span>
+        <label>
+          <span className="sr-only">Total</span>
+          <input
+            aria-label="Progreso total"
+            min="0"
+            step={step}
+            type="number"
+            value={total ?? ''}
+            onChange={(event) => setTotal(readNumberInput(event.target.value))}
+          />
+        </label>
+        <button
+          aria-label="Aumentar progreso"
+          className="progress-step-button"
+          disabled={max !== undefined && currentValue >= max}
+          type="button"
+          onClick={() => setCurrent(currentValue + step)}
+          title="Aumentar progreso"
+        >
+          <Plus size={14} />
+        </button>
+      </div>
+      <div className="progress-detail-row">
+        <label>
+          <span className="sr-only">Unidad de progreso</span>
+          <select
+            aria-label="Unidad de progreso"
+            value={resolvedUnit}
+            onChange={(event) => onChange({ progressUnit: event.target.value as ProgressUnit })}
+          >
+            {progressUnitOptions.map((option) => (
+              <option key={option} value={option}>
+                {progressUnitLabels[option].plural}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <span className="sr-only">Detalle de progreso</span>
+          <input
+            aria-label="Detalle de progreso"
+            placeholder="detalle opcional"
+            value={freeText ?? ''}
+            onChange={(event) => onChange({ progress: event.target.value || undefined })}
+          />
+        </label>
+      </div>
+    </div>
+  )
+}
+
 function formatRatingValue(value: number) {
   return Number.isInteger(value) ? String(value) : value.toFixed(1)
+}
+
+function normalizeOptionalNumber(value: unknown) {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined
+}
+
+function readNumberInput(value: string) {
+  if (!value.trim()) return undefined
+  const parsed = Number(value)
+  return normalizeOptionalNumber(parsed)
+}
+
+function clampProgressValue(value: number, max?: number) {
+  const clamped = Math.max(0, max === undefined ? value : Math.min(value, max))
+  return Math.round(clamped * 100) / 100
+}
+
+function RelatedItemsPanel({ items }: { items?: RelatedItemRef[] }) {
+  const visibleItems = (items ?? []).filter((item) => item.title.trim()).slice(0, 8)
+  if (!visibleItems.length) return null
+
+  return (
+    <section className="related-items-panel" aria-label="Obras relacionadas">
+      <div className="related-items-heading">
+        <div>
+          <span className="eyebrow">Relacionadas</span>
+          <h3>Origenes y continuaciones</h3>
+        </div>
+        <strong>{visibleItems.length}</strong>
+      </div>
+      <div className="related-items-grid">
+        {visibleItems.map((item, index) => {
+          const Icon = typeIcons[item.type]
+          const sourceUrl = item.externalRefs?.sourceUrl
+          const content = (
+            <>
+              <span className="related-relation">{relatedItemKindLabels[item.relation]}</span>
+              <span className="related-title">
+                <Icon size={15} />
+                <strong>{item.title}</strong>
+              </span>
+              <small>
+                {typeLabels[item.type]}
+                {item.releaseYear ? ` / ${item.releaseYear}` : ''}
+              </small>
+            </>
+          )
+
+          return sourceUrl ? (
+            <a className="related-item-card" href={sourceUrl} key={`${item.relation}-${item.title}-${index}`} rel="noreferrer" target="_blank">
+              {content}
+            </a>
+          ) : (
+            <article className="related-item-card" key={`${item.relation}-${item.title}-${index}`}>
+              {content}
+            </article>
+          )
+        })}
+      </div>
+    </section>
+  )
 }
 
 function ActionMenu({
@@ -12574,8 +12796,12 @@ function ItemEditor({
   const editorHeroStyle = getPosterBackplateStyle(draft.posterUrl)
   const editorSummaryText =
     draft.notes?.trim() || draft.publicSnapshot?.description?.trim() || `${typeLabels[draft.type]} en tu biblioteca personal.`
+  const progressSummary = formatProgress({
+    ...draft,
+    progressUnit: draft.progressUnit ?? getDefaultProgressUnit(draft.type),
+  })
   const personalProgressSummary =
-    draft.progress?.trim() || (draft.notes?.trim() ? 'Notas personales guardadas.' : 'Estado, nota y notas personales.')
+    progressSummary || (draft.notes?.trim() ? 'Notas personales guardadas.' : 'Estado, nota y notas personales.')
   const heroSignals = uniqueValues([...selectedGenres, ...selectedTags]).slice(0, 4)
   const readiness = getPersonalEditorReadiness({
     ...draft,
@@ -12609,10 +12835,19 @@ function ItemEditor({
     const priorityWeight = Number(draft.weights.priority)
     const surpriseWeight = Number(draft.weights.surprise)
     const challengeWeight = Number(draft.weights.challenge)
+    const progressCurrent = normalizeOptionalNumber(draft.progressCurrent)
+    const progressTotal = normalizeOptionalNumber(draft.progressTotal)
+    const progressUnit = progressCurrent !== undefined || progressTotal !== undefined
+      ? draft.progressUnit ?? getDefaultProgressUnit(draft.type)
+      : undefined
 
     return {
       ...draft,
       id: draft.id.startsWith('manual-') && draft.title ? `${draft.type}-${slugify(draft.title)}` : draft.id,
+      progress: draft.progress?.trim() || undefined,
+      progressCurrent,
+      progressTotal,
+      progressUnit,
       tags: splitList(draft.tagsText),
       genres: splitList(draft.genresText),
       moodTags: splitList(draft.moodText),
@@ -12778,8 +13013,6 @@ function ItemEditor({
           </div>
         </div>
 
-        {isMetadataLocked && <LockedMetadataSummary item={draft} />}
-
         <section className={canEditTitleInPrimary ? 'editor-section editor-progress-panel has-title-field' : 'editor-section editor-progress-panel'}>
           <div className="editor-progress-heading">
             <div>
@@ -12797,16 +13030,22 @@ function ItemEditor({
           <div className="form-grid editor-progress-fields">
             <StatusControl value={draft.status} onChange={(status) => update('status', status)} />
             <RatingControl value={draft.rating} onChange={(rating) => update('rating', rating)} />
-            <label>
-              Progreso
-              <input value={draft.progress ?? ''} onChange={(event) => update('progress', event.target.value || undefined)} />
-            </label>
+            <ProgressControl
+              current={draft.progressCurrent}
+              freeText={draft.progress}
+              itemType={draft.type}
+              total={draft.progressTotal}
+              unit={draft.progressUnit}
+              onChange={(patch) => setDraft((current) => ({ ...current, ...patch }))}
+            />
           </div>
           <label className="editor-notes-field">
             Notas
             <textarea value={draft.notes ?? ''} onChange={(event) => update('notes', event.target.value)} />
           </label>
         </section>
+
+        <RelatedItemsPanel items={draft.relatedItems} />
 
         <details className="editor-advanced-panel" data-close-on-outside>
           <summary>
@@ -13853,56 +14092,6 @@ function PresetChipGroup({
         })}
       </div>
     </div>
-  )
-}
-
-function LockedMetadataSummary({ item }: { item: ListItem }) {
-  const externalRefs = getExternalRefEntries(item.externalRefs)
-  const lockedGenres = item.genres.slice(0, 4)
-  const lockedTags = item.tags.filter((tag) => tag !== item.type).slice(0, 4)
-  const releaseYear = item.publicSnapshot?.releaseYear
-
-  return (
-    <section className="locked-metadata-panel" aria-label="Metadatos protegidos">
-      <div className="locked-metadata-heading">
-        <span>
-          <LockKeyhole size={16} />
-        </span>
-        <div>
-          <h3>Metadatos protegidos</h3>
-          <p>Titulo, tipo, portada, generos y referencias vienen de la fuente. Aqui solo cambias tu progreso.</p>
-        </div>
-      </div>
-      <div className="locked-metadata-facts">
-        <span>
-          <strong>Fuente</strong>
-          {itemSourceLabels[item.source]}
-        </span>
-        <span>
-          <strong>Tipo</strong>
-          {typeLabels[item.type]}
-        </span>
-        {releaseYear && (
-          <span>
-            <strong>Ano</strong>
-            {releaseYear}
-          </span>
-        )}
-        {externalRefs.length > 0 && (
-          <span>
-            <strong>Refs</strong>
-            {externalRefs.length}
-          </span>
-        )}
-      </div>
-      {(lockedGenres.length > 0 || lockedTags.length > 0) && (
-        <div className="tag-row locked-metadata-tags">
-          {uniqueValues([...lockedGenres, ...lockedTags]).slice(0, 6).map((signal) => (
-            <span key={signal}>{signal}</span>
-          ))}
-        </div>
-      )}
-    </section>
   )
 }
 

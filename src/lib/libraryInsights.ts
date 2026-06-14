@@ -1,5 +1,5 @@
 import type { DiscoveryCandidate, ListItem } from '../domain/types'
-import { formatDuration, itemSourceLabels, itemTypeLabels } from './libraryItemInsights'
+import { formatDuration, formatProgress, itemSourceLabels, itemTypeLabels } from './libraryItemInsights'
 import { uniqueValues } from './strings'
 
 export type LibraryLaunchAction = 'add' | 'edit-taxonomy' | 'open-dice' | 'open-explorer'
@@ -288,7 +288,7 @@ export function getLibraryFocusItems(items: ListItem[]) {
 }
 
 export function getLibraryFocusReason(item: ListItem) {
-  if (item.status === 'in_progress') return item.progress || 'Ya empezada, pide cierre'
+  if (item.status === 'in_progress') return formatProgress(item) || 'Ya empezada, pide cierre'
   if (item.status === 'paused') return 'Pausada, lista para retomar'
   if (item.weights.priority >= 1.15) return 'Alta prioridad'
   if (item.weights.surprise >= 0.75) return 'Buena candidata sorpresa'

@@ -24,10 +24,21 @@ describe('parsePublicCatalogSeed', () => {
             title: 'Outer Wilds',
             type: 'game',
             releaseYear: 2019,
+            progressTotal: 20,
+            progressUnit: 'hours',
             genres: ['Exploracion', 'Misterio'],
             tags: ['indie'],
             searchAliases: ['Outer Wilds Ventures'],
             externalRefs: { wikidataId: 'Q65058922' },
+            relatedItems: [
+              {
+                title: 'Outer Wilds: Echoes of the Eye',
+                type: 'game',
+                relation: 'sequel',
+                source: 'rawg',
+                sourceId: 'outer-wilds-echoes-of-the-eye',
+              },
+            ],
           },
         ],
       },
@@ -48,6 +59,9 @@ describe('parsePublicCatalogSeed', () => {
     expect(result.items[0].searchAliases).toEqual(['Outer Wilds Ventures'])
     expect(result.items[0].searchTokens).toEqual(expect.arrayContaining(['outer', 'wilds', 'ventures', 'game', '2019']))
     expect(result.items[0].externalRefs.wikidataId).toBe('Q65058922')
+    expect(result.items[0].progressTotal).toBe(20)
+    expect(result.items[0].progressUnit).toBe('hours')
+    expect(result.items[0].relatedItems?.[0]).toEqual(expect.objectContaining({ relation: 'sequel' }))
   })
 
   it('reports duplicates and invalid entries', () => {

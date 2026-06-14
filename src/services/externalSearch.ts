@@ -1,4 +1,4 @@
-import type { ExternalCandidate } from '../domain/types'
+import type { ExternalCandidate, ItemType, ProgressUnit, RelatedItemKind, RelatedItemRef } from '../domain/types'
 import { nowIso } from '../domain/types'
 import { compactCatalogSearchText, normalizeCatalogSearchText, rankCatalogSearchCandidates } from '../lib/catalogSearch'
 
@@ -248,7 +248,7 @@ async function searchOpenLibrary(query: string): Promise<ExternalCandidate[]> {
   const url = new URL('https://openlibrary.org/search.json')
   url.searchParams.set('q', query)
   url.searchParams.set('limit', '8')
-  url.searchParams.set('fields', 'key,title,author_name,first_publish_year,cover_i,subject')
+  url.searchParams.set('fields', 'key,title,author_name,first_publish_year,cover_i,subject,number_of_pages_median')
 
   const response = await fetch(url)
   if (!response.ok) return []
@@ -265,6 +265,8 @@ async function searchOpenLibrary(query: string): Promise<ExternalCandidate[]> {
       sourceId: String(entry.key),
       posterUrl: entry.cover_i ? `https://covers.openlibrary.org/b/id/${entry.cover_i}-M.jpg` : undefined,
       releaseYear: typeof entry.first_publish_year === 'number' ? entry.first_publish_year : undefined,
+      progressTotal: typeof entry.number_of_pages_median === 'number' ? entry.number_of_pages_median : undefined,
+      progressUnit: typeof entry.number_of_pages_median === 'number' ? 'pages' : undefined,
       genres: Array.isArray(entry.subject) ? entry.subject.map(String).slice(0, 5) : [],
       externalRefs: {
         openLibraryKey: String(entry.key),
@@ -326,9 +328,28 @@ async function searchAniList(
             description(asHtml: false)
             format
             countryOfOrigin
+            episodes
+            chapters
+            volumes
             genres
             startDate { year }
             coverImage { medium }
+            siteUrl
+            relations {
+              edges {
+                relationType
+                node {
+                  id
+                  type
+                  format
+                  countryOfOrigin
+                  title { romaji english native }
+                  startDate { year }
+                  coverImage { medium }
+                  siteUrl
+                }
+              }
+            }
           }
         }
       }
@@ -358,6 +379,7 @@ async function searchAniList(
       const startDate = entry.startDate as { year?: number } | undefined
       const coverImage = entry.coverImage as { medium?: string } | undefined
       const aliases = uniqueStrings([title.english, title.romaji, title.native])
+      const progressMeta = readAniListProgressMeta(inferredType, entry)
       return {
         id: `anilist-${entry.id}`,
         title: title.english ?? title.romaji ?? title.native ?? 'Sin titulo',
@@ -367,12 +389,15 @@ async function searchAniList(
         overview: optionalString(entry.description),
         posterUrl: coverImage?.medium,
         releaseYear: startDate?.year,
+        progressTotal: progressMeta?.total,
+        progressUnit: progressMeta?.unit,
         genres: Array.isArray(entry.genres) ? entry.genres.map(String) : [],
         searchAliases: aliases,
         externalRefs: {
           anilistId: String(entry.id),
-          sourceUrl: `https://anilist.co/${inferredType === 'anime' ? 'anime' : 'manga'}/${entry.id}`,
+          sourceUrl: optionalString(entry.siteUrl) ?? `https://anilist.co/${inferredType === 'anime' ? 'anime' : 'manga'}/${entry.id}`,
         },
+        relatedItems: readAniListRelations(entry),
         createdAt: nowIso(),
       } satisfies ExternalCandidate
     })
@@ -402,6 +427,7 @@ async function searchJikan(
       const id = String(entry.mal_id ?? '')
       const images = entry.images as { jpg?: { image_url?: string } } | undefined
       const aliases = readJikanTitleAliases(entry)
+      const progressMeta = readJikanProgressMeta(inferredType, entry)
       return {
         id: `jikan-${id}`,
         title: optionalString(entry.title_english) ?? optionalString(entry.title) ?? 'Sin titulo',
@@ -411,6 +437,8 @@ async function searchJikan(
         overview: optionalString(entry.synopsis),
         posterUrl: optionalString(images?.jpg?.image_url),
         releaseYear: readJikanReleaseYear(entry),
+        progressTotal: progressMeta?.total,
+        progressUnit: progressMeta?.unit,
         genres: Array.isArray(entry.genres)
           ? entry.genres
               .flatMap((genre) => {
@@ -536,7 +564,11 @@ async function searchKitsuManga(
 }
 
 function inferAniListType(requestedType: 'anime' | 'manga', entry: Record<string, unknown>): ExternalCandidate['type'] {
-  if (requestedType === 'anime') return 'anime'
+  return inferAniListMediaType(requestedType === 'anime' ? 'ANIME' : 'MANGA', entry)
+}
+
+function inferAniListMediaType(mediaType: unknown, entry: Record<string, unknown>): ItemType {
+  if (mediaType === 'ANIME') return 'anime'
   const format = String(entry.format ?? '').toLowerCase()
   const countryOfOrigin = String(entry.countryOfOrigin ?? '').toUpperCase()
   if (countryOfOrigin === 'KR' || format.includes('manhwa')) return 'manhwa'
@@ -572,6 +604,96 @@ function readJikanReleaseYear(entry: Record<string, unknown>) {
   const published = entry.published as { prop?: { from?: { year?: number } } } | undefined
   const aired = entry.aired as { prop?: { from?: { year?: number } } } | undefined
   return published?.prop?.from?.year ?? aired?.prop?.from?.year
+}
+
+function readAniListProgressMeta(type: ItemType, entry: Record<string, unknown>): { total: number; unit: ProgressUnit } | undefined {
+  if (type === 'anime') return readProgressMeta(entry.episodes, 'episodes')
+  return readProgressMeta(entry.chapters, 'chapters') ?? readProgressMeta(entry.volumes, 'volumes')
+}
+
+function readJikanProgressMeta(type: ItemType, entry: Record<string, unknown>): { total: number; unit: ProgressUnit } | undefined {
+  if (type === 'anime') return readProgressMeta(entry.episodes, 'episodes')
+  return readProgressMeta(entry.chapters, 'chapters') ?? readProgressMeta(entry.volumes, 'volumes')
+}
+
+function readProgressMeta(value: unknown, unit: ProgressUnit) {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? { total: value, unit } : undefined
+}
+
+function readAniListRelations(entry: Record<string, unknown>): RelatedItemRef[] | undefined {
+  const edges = Array.isArray(entry.relations && readRecord(entry.relations).edges)
+    ? (readRecord(entry.relations).edges as unknown[])
+    : []
+  const relatedItems = edges.flatMap((edge) => {
+    const edgeRecord = readRecord(edge)
+    const node = readRecord(edgeRecord.node)
+    const titleRecord = readRecord(node.title)
+    const title = optionalString(titleRecord.english) ?? optionalString(titleRecord.romaji) ?? optionalString(titleRecord.native)
+    const id = readSourceId(node.id)
+    if (!title || !id) return []
+
+    const type = inferAniListMediaType(node.type, node)
+    const startDate = readRecord(node.startDate)
+    const coverImage = readRecord(node.coverImage)
+    return [{
+      title,
+      type,
+      relation: mapAniListRelationKind(edgeRecord.relationType),
+      source: 'anilist',
+      sourceId: id,
+      posterUrl: optionalString(coverImage.medium),
+      releaseYear: typeof startDate.year === 'number' ? startDate.year : undefined,
+      externalRefs: {
+        anilistId: id,
+        sourceUrl: optionalString(node.siteUrl) ?? `https://anilist.co/${type === 'anime' ? 'anime' : 'manga'}/${id}`,
+      },
+    } satisfies RelatedItemRef]
+  })
+
+  return uniqueRelatedItems(relatedItems).slice(0, 12)
+}
+
+function mapAniListRelationKind(value: unknown): RelatedItemKind {
+  switch (String(value ?? '').toUpperCase()) {
+    case 'ADAPTATION':
+      return 'adaptation'
+    case 'ALTERNATIVE':
+      return 'alternative'
+    case 'CHARACTER':
+      return 'character'
+    case 'PREQUEL':
+      return 'prequel'
+    case 'SEQUEL':
+      return 'sequel'
+    case 'SIDE_STORY':
+      return 'side_story'
+    case 'SOURCE':
+    case 'PARENT':
+      return 'source'
+    case 'SPIN_OFF':
+      return 'spin_off'
+    case 'SUMMARY':
+      return 'summary'
+    default:
+      return 'other'
+  }
+}
+
+function uniqueRelatedItems(items: RelatedItemRef[]) {
+  const seen = new Set<string>()
+  const results: RelatedItemRef[] = []
+  for (const item of items) {
+    const key = `${item.source ?? ''}:${item.sourceId ?? ''}:${normalizeCatalogSearchText(item.title)}:${item.relation}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    results.push(item)
+  }
+  return results
+}
+
+function readSourceId(value: unknown) {
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value)
+  return optionalString(value)
 }
 
 function readJikanTitleAliases(entry: Record<string, unknown>) {
@@ -712,15 +834,39 @@ function normalizeProxyCandidate(value: unknown): ExternalCandidate[] {
       overview: optionalString(candidate.overview),
       posterUrl: optionalString(candidate.posterUrl),
       releaseYear: typeof candidate.releaseYear === 'number' ? candidate.releaseYear : undefined,
+      progressTotal: typeof candidate.progressTotal === 'number' ? candidate.progressTotal : undefined,
+      progressUnit: normalizeProgressUnit(candidate.progressUnit),
       genres: Array.isArray(candidate.genres) ? candidate.genres.map(String).filter(Boolean).slice(0, 8) : [],
       searchAliases: Array.isArray(candidate.searchAliases) ? candidate.searchAliases.map(String).filter(Boolean).slice(0, 24) : undefined,
       externalRefs:
         candidate.externalRefs && typeof candidate.externalRefs === 'object' && !Array.isArray(candidate.externalRefs)
           ? candidate.externalRefs
           : {},
+      relatedItems: Array.isArray(candidate.relatedItems) ? normalizeRelatedItems(candidate.relatedItems) : undefined,
       createdAt: optionalString(candidate.createdAt) ?? nowIso(),
     },
   ]
+}
+
+function normalizeRelatedItems(values: unknown[]): RelatedItemRef[] {
+  return values.flatMap((value) => {
+    const item = readRecord(value)
+    const title = optionalString(item.title)
+    if (!title) return []
+
+    const source = normalizeProxySource(item.source)
+    const externalRefs = readRecord(item.externalRefs)
+    return [{
+      title,
+      type: normalizeProxyType(item.type),
+      relation: normalizeRelatedItemKind(item.relation),
+      source: source ?? (item.source === 'nexo' ? 'nexo' : undefined),
+      sourceId: optionalString(item.sourceId),
+      posterUrl: optionalString(item.posterUrl),
+      releaseYear: typeof item.releaseYear === 'number' ? item.releaseYear : undefined,
+      externalRefs: Object.keys(externalRefs).length ? (externalRefs as RelatedItemRef['externalRefs']) : undefined,
+    } satisfies RelatedItemRef]
+  })
 }
 
 function normalizeProxyType(type: unknown): ExternalCandidate['type'] {
@@ -755,6 +901,33 @@ function normalizeProxySource(source: unknown): ExternalCandidate['source'] | un
     return source
   }
   return undefined
+}
+
+function normalizeProgressUnit(unit: unknown): ProgressUnit | undefined {
+  return unit === 'episodes' ||
+    unit === 'chapters' ||
+    unit === 'pages' ||
+    unit === 'hours' ||
+    unit === 'volumes' ||
+    unit === 'percent' ||
+    unit === 'items'
+    ? unit
+    : undefined
+}
+
+function normalizeRelatedItemKind(kind: unknown): RelatedItemKind {
+  return kind === 'sequel' ||
+    kind === 'prequel' ||
+    kind === 'source' ||
+    kind === 'adaptation' ||
+    kind === 'side_story' ||
+    kind === 'spin_off' ||
+    kind === 'alternative' ||
+    kind === 'summary' ||
+    kind === 'character' ||
+    kind === 'other'
+    ? kind
+    : 'other'
 }
 
 function readRecord(value: unknown): Record<string, unknown> {

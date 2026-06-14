@@ -508,14 +508,17 @@ export function useLibrary(user?: SignedInUserProfile | null) {
       title: candidate.title,
       type: candidate.type,
       status: 'wishlist',
+      progressCurrent: candidate.progressTotal ? 0 : undefined,
+      progressTotal: candidate.progressTotal,
+      progressUnit: candidate.progressUnit,
       genres: candidate.genres,
       tags: uniqueValues([candidate.type, candidate.source, ...candidate.genres]),
       moodTags: [],
       weights: DEFAULT_WEIGHTS,
-      notes: candidate.overview,
       source: 'external',
       externalRefs: candidate.externalRefs,
       posterUrl: candidate.posterUrl,
+      relatedItems: cloneRelatedItems(candidate.relatedItems),
       createdAt: nowIso(),
       updatedAt: nowIso(),
     }
@@ -572,9 +575,12 @@ function preserveLockedCatalogFields(incoming: ListItem, existing?: ListItem): L
     id: existing.id,
     importNotes: existing.importNotes,
     posterUrl: existing.posterUrl,
+    progressTotal: existing.progressTotal,
+    progressUnit: existing.progressUnit,
     publicItemId: existing.publicItemId,
     publicSnapshot: existing.publicSnapshot,
     rawText: existing.rawText,
+    relatedItems: cloneRelatedItems(existing.relatedItems),
     source: existing.source,
     tags: existing.tags,
     title: existing.title,
@@ -588,6 +594,13 @@ function preserveLockedCatalogFields(incoming: ListItem, existing?: ListItem): L
 
 function cloneExternalRefs(refs?: ExternalRefs): ExternalRefs | undefined {
   return refs ? { ...refs } : refs
+}
+
+function cloneRelatedItems(items?: ListItem['relatedItems']): ListItem['relatedItems'] {
+  return items?.map((item) => ({
+    ...item,
+    ...(item.externalRefs ? { externalRefs: { ...item.externalRefs } } : {}),
+  }))
 }
 
 function limitActivityEntries(entries: ActivityEntry[]) {
