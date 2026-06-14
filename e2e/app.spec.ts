@@ -3488,7 +3488,7 @@ test('settings show pending changes before saving preferences', async ({ page })
   await expect(page.getByRole('button', { name: 'Guardado', exact: true })).toBeDisabled()
   await expect(page.getByTestId('settings-roles-drawer')).toBeVisible()
   await expect(page.getByTestId('settings-private-data-drawer')).toBeVisible()
-  await expect(page.getByTestId('settings-private-data-drawer')).toContainText('Importar servicios')
+  await expect(page.getByTestId('settings-private-data-drawer')).toContainText('Backup JSON')
   await expect(page.getByTestId('settings-beta-drawer')).toBeVisible()
   await expect(page.getByTestId('settings-roles-drawer')).not.toHaveAttribute('open', '')
   await expect(page.getByTestId('settings-private-data-drawer')).not.toHaveAttribute('open', '')
@@ -3504,7 +3504,7 @@ test('settings show pending changes before saving preferences', async ({ page })
   await expect(page.getByTestId('settings-confidence')).toContainText('Entradas')
   await openSettingsDrawer(page, 'settings-private-data-drawer')
   await expect(page.getByRole('heading', { name: 'Datos privados' })).toBeVisible()
-  await expect(page.getByTestId('service-import-section')).toContainText('AniList')
+  await expect(page.getByTestId('settings-private-data-drawer')).not.toContainText('Importar desde servicios')
   await expect(page.getByLabel('Estado de datos privados')).toContainText('7')
   await expect(page.getByTestId('private-data-health')).toContainText('Salud de datos')
   await expect(page.getByTestId('private-data-health')).toContainText('Taxonomia')
@@ -3820,10 +3820,40 @@ test('settings can import backup entries without applying included settings', as
   await expect(page.getByTestId('library-grid')).not.toContainText('Settings Skip Probe')
 })
 
-test('settings service import visible selection only selects rendered preview rows', async ({ page }) => {
+test('import tab is addressable and grouped with settings utilities', async ({ page }) => {
+  await page.goto('/?tab=import')
+  await expect(page).toHaveURL(/tab=import/)
+  await expect(page.getByRole('heading', { name: 'Importar bibliotecas' })).toBeVisible()
+  const utilityNav = page.locator('.tabbar-group.utility')
+  await expect(utilityNav.getByRole('button', { name: 'Importar' })).toBeVisible()
+  await expect(utilityNav.getByRole('button', { name: 'Ajustes' })).toBeVisible()
+  await expect(page.getByTestId('settings-private-data-drawer')).toHaveCount(0)
+})
+
+test('import tab shows a dedicated loading dialog while reading AniList', async ({ page }) => {
+  await page.route('https://graphql.anilist.co', async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    await route.fulfill({
+      contentType: 'application/json',
+      json: { data: { MediaListCollection: { lists: [] } } },
+    })
+  })
+
   await openApp(page)
-  await page.getByRole('button', { name: 'Ajustes', exact: true }).click()
-  await openSettingsDrawer(page, 'settings-private-data-drawer')
+  await page.getByRole('button', { name: 'Importar', exact: true }).click()
+  await page.getByLabel('Usuario o URL publica').first().fill('fran')
+  await page.getByRole('button', { name: 'Leer perfil' }).first().click()
+
+  const dialog = page.getByRole('dialog', { name: 'AniList' })
+  await expect(dialog).toContainText('Leyendo perfil de AniList')
+  await expect(dialog.getByRole('button', { name: 'Cancelar' })).toBeVisible()
+})
+
+test('import tab imports every new valid row beyond the rendered preview', async ({ page }) => {
+  await openApp(page)
+  await page.getByRole('button', { name: 'Importar', exact: true }).click()
+  await expect(page).toHaveURL(/tab=import/)
+  await expect(page.getByTestId('import-tab')).toContainText('AniList')
   const rows = Array.from({ length: 85 }, (_, index) => {
     const rowNumber = String(index + 1).padStart(3, '0')
     return `${9000 + index},Service Visible Probe ${rowNumber},Test Author,,0,read,,2026,`
@@ -3838,18 +3868,23 @@ test('settings service import visible selection only selects rendered preview ro
   })
 
   const preview = page.getByLabel('Preview de importacion Goodreads')
-  await expect(preview).toContainText('85 entradas revisadas')
-  await expect(preview.getByText('80 seleccionadas')).toBeVisible()
-  await expect(page.locator('.service-import-row')).toHaveCount(80)
+  await expect(preview).toContainText('85')
+  await expect(preview.getByText('85 seleccionadas')).toBeVisible()
+  await expect(page.locator('.service-import-table-row')).toHaveCount(80)
   await expect(page.getByText('Mostrando 80 de 85')).toBeVisible()
   await preview.getByRole('button', { name: 'Limpiar' }).click()
   await expect(preview.getByText('0 seleccionadas')).toBeVisible()
-  await preview.getByRole('button', { name: 'Seleccionar nuevas visibles' }).click()
-  await expect(preview.getByText('80 seleccionadas')).toBeVisible()
+  await preview.getByRole('button', { name: 'Seleccionar todas nuevas' }).click()
+  await expect(preview.getByText('85 seleccionadas')).toBeVisible()
   await expect(page.getByText('Service Visible Probe 081')).toHaveCount(0)
   await preview.getByRole('button', { name: 'Mostrar mas' }).click()
-  await expect(page.locator('.service-import-row')).toHaveCount(85)
-  await expect(page.locator('.service-import-row input:checked')).toHaveCount(80)
+  await expect(page.locator('.service-import-table-row')).toHaveCount(85)
+  await expect(page.locator('.service-import-table-row input:checked')).toHaveCount(85)
+  await preview.getByRole('button', { name: 'Importar todo' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Goodreads' })
+  await expect(dialog).toContainText('Importadas 85 entradas desde Goodreads')
+  await dialog.getByRole('button', { name: 'Ver Biblioteca' }).click()
+  await expect(page.getByTestId('library-grid')).toContainText('Service Visible Probe 085')
 })
 
 test('explorer searches public catalog and saves to private library', async ({ page }) => {

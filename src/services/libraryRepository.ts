@@ -385,7 +385,7 @@ function normalizeActivityEntry(id: string, data: Record<string, unknown>): Acti
 }
 
 function normalizeActivityTab(tab: unknown): ActivityEntry['tab'] {
-  return tab === 'library' || tab === 'dice' || tab === 'explorer' || tab === 'settings' || tab === 'curation'
+  return tab === 'library' || tab === 'dice' || tab === 'explorer' || tab === 'import' || tab === 'settings' || tab === 'curation'
     ? tab
     : 'library'
 }

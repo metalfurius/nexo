@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_WEIGHTS, type ImportedLibraryItemDraft, type ListItem } from '../domain/types'
 import {
   buildImportPreview,
+  getImportPreviewNewItems,
   importAniListLibrary,
   importGoodreadsCsv,
   importLetterboxdZip,
@@ -215,7 +216,7 @@ describe('library importers', () => {
     )
   })
 
-  it('previews duplicates by external refs before import and keeps only new rows selected by callers', () => {
+  it('previews duplicates by external refs before import and exposes all new rows for import-all', () => {
     const result = parseGoodreadsCsv(
       [
         'Book Id,Title,Author,ISBN13,My Rating,Exclusive Shelf,Bookshelves,Original Publication Year,My Review',
@@ -225,7 +226,7 @@ describe('library importers', () => {
     )
 
     const preview = buildImportPreview(result, [currentItem])
-    const newItems = preview.items.filter((item) => !item.duplicateOfId)
+    const newItems = getImportPreviewNewItems(preview)
     const listItems = importPreviewItemsToListItems(newItems, '2026-06-13T00:00:00.000Z')
 
     expect(preview).toEqual(
@@ -236,6 +237,7 @@ describe('library importers', () => {
       }),
     )
     expect(preview.items[0]).toEqual(expect.objectContaining({ duplicateOfId: 'book-left-hand', duplicateReason: 'externalRefs' }))
+    expect(newItems).toEqual([expect.objectContaining({ draft: expect.objectContaining({ title: 'A Psalm for the Wild-Built' }) })])
     expect(listItems).toHaveLength(1)
     expect(listItems[0]).toEqual(
       expect.objectContaining({
@@ -245,6 +247,20 @@ describe('library importers', () => {
         importNotes: expect.arrayContaining(['Importado desde Goodreads', 'Ano: 2021']),
       }),
     )
+  })
+
+  it('keeps every new valid preview row selectable even beyond the render page size', () => {
+    const rows = Array.from({ length: 85 }, (_, index) => {
+      const rowNumber = String(index + 1).padStart(3, '0')
+      return `${9000 + index},Service Import All Probe ${rowNumber},Test Author,,0,read,,2026,`
+    })
+    const result = parseGoodreadsCsv(
+      ['Book Id,Title,Author,ISBN13,My Rating,Exclusive Shelf,Bookshelves,Original Publication Year,My Review', ...rows].join('\n'),
+    )
+    const preview = buildImportPreview(result, [])
+
+    expect(preview.items).toHaveLength(85)
+    expect(getImportPreviewNewItems(preview)).toHaveLength(85)
   })
 
   it('does not match title duplicates across different known years', () => {
