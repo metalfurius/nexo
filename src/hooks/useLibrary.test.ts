@@ -260,6 +260,44 @@ describe('useLibrary', () => {
     expect(repositoryMock.saveActivityEntry).toHaveBeenCalledWith(restoredEntry)
   })
 
+  it('keeps activity permission errors out of the primary library error', async () => {
+    const permissionError = Object.assign(new Error('Missing or insufficient permissions.'), {
+      code: 'permission-denied',
+    })
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+
+    repositoryMock.subscribeActivityEntries.mockImplementation((_onEntries: (entries: unknown[]) => void, onError: (error: Error) => void) => {
+      onError(permissionError)
+      return vi.fn()
+    })
+    repositoryMock.saveActivityEntry.mockRejectedValueOnce(permissionError)
+
+    try {
+      const user = {
+        uid: 'user-1',
+        email: null,
+        displayName: null,
+      }
+      const { result } = renderHook(() => useLibrary(user))
+
+      await waitFor(() => expect(repositoryMock.subscribeActivityEntries).toHaveBeenCalled())
+
+      await act(async () => {
+        await result.current.recordActivity({
+          detail: 'Cambio de pestana',
+          label: 'Navegacion',
+          tab: 'settings',
+          tone: 'info',
+        })
+      })
+
+      expect(result.current.error).toBeUndefined()
+      expect(consoleWarn).not.toHaveBeenCalled()
+    } finally {
+      consoleWarn.mockRestore()
+    }
+  })
+
   it('does not requeue discovery candidates already saved by the user', async () => {
     const user = {
       uid: 'user-1',
