@@ -137,7 +137,7 @@ export function useLibrary(user?: SignedInUserProfile | null) {
       (reason) => {
         setRemoteItems([])
         setRemoteUserId(userId)
-        setError(reason.message)
+        setError(getSyncErrorMessage(reason, 'No se pudo cargar la biblioteca.'))
       },
     )
   }, [repository, userId])
@@ -150,25 +150,30 @@ export function useLibrary(user?: SignedInUserProfile | null) {
     const unsubscribers = [
       repository.subscribeUserProfile(
         (profile) => setProfileRole({ role: profile?.role ?? 'user', userId }),
-        (reason) => setError(reason.message),
+        (reason) => setError(getSyncErrorMessage(reason, 'No se pudo cargar el perfil.')),
       ),
       repository.subscribeSettings(
         (remoteSettings) => setSettings(mergeSettings(remoteSettings)),
-        (reason) => setError(reason.message),
+        (reason) => setError(getSyncErrorMessage(reason, 'No se pudieron cargar los ajustes.')),
       ),
       repository.subscribeDiscoveryCandidates(
         (nextCandidates) => setDiscoveryCandidates((current) => mergeCandidates(nextCandidates, current)),
-        (reason) => setError(reason.message),
+        (reason) => setError(getSyncErrorMessage(reason, 'No se pudo cargar la cola de exploracion.')),
       ),
       repository.subscribeActivityEntries(
         (nextEntries) => setActivityEntries(nextEntries),
-        (reason) => setError(reason.message),
+        (reason) => {
+          setActivityEntries([])
+          if (!isPermissionDeniedError(reason)) {
+            setError(getSyncErrorMessage(reason, 'No se pudo cargar la actividad reciente.'))
+          }
+        },
       ),
     ]
 
     void repository
       .ensureUserProfile(toUserProfileSeed(user))
-      .catch((reason) => setError(reason instanceof Error ? reason.message : 'No se pudo actualizar el perfil.'))
+      .catch((reason) => setError(getSyncErrorMessage(reason, 'No se pudo actualizar el perfil.')))
 
     return () => unsubscribers.forEach((unsubscribe) => unsubscribe())
   }, [repository, user, userId])
@@ -180,7 +185,7 @@ export function useLibrary(user?: SignedInUserProfile | null) {
 
     return repository.subscribeUserProfiles(
       (profiles) => setUserProfiles(profiles),
-      (reason) => setError(reason.message),
+      (reason) => setError(getSyncErrorMessage(reason, 'No se pudieron cargar los perfiles.')),
     )
   }, [repository, userId, userRole])
 
@@ -466,7 +471,9 @@ export function useLibrary(user?: SignedInUserProfile | null) {
       try {
         await repository.saveActivityEntry(activityEntry)
       } catch (reason) {
-        console.warn(reason instanceof Error ? reason.message : 'No se pudo guardar la actividad reciente.')
+        if (!isPermissionDeniedError(reason)) {
+          console.warn(reason instanceof Error ? reason.message : 'No se pudo guardar la actividad reciente.')
+        }
       }
     }
   }
@@ -657,6 +664,21 @@ function readLibraryViewMode(value: unknown): LibraryViewMode {
 
 function readLibraryCardsPerRow(value: unknown): LibraryCardsPerRow {
   return value === 4 || value === 5 || value === 6 ? value : DEFAULT_SETTINGS.libraryCardsPerRow
+}
+
+function getSyncErrorMessage(reason: unknown, fallback: string) {
+  if (isPermissionDeniedError(reason)) {
+    return 'No se pudo sincronizar Firebase. Revisa que las reglas de Firestore esten desplegadas.'
+  }
+
+  return reason instanceof Error && reason.message ? reason.message : fallback
+}
+
+function isPermissionDeniedError(reason: unknown) {
+  const code = typeof (reason as { code?: unknown })?.code === 'string' ? (reason as { code: string }).code : undefined
+  const message = reason instanceof Error ? reason.message : typeof reason === 'string' ? reason : ''
+
+  return code === 'permission-denied' || message.includes('Missing or insufficient permissions')
 }
 
 function demoExternalCandidates(query: string, type: string): ExternalCandidate[] {

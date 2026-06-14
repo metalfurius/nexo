@@ -9736,17 +9736,17 @@ function SettingsTab({
           <summary>
             <span>
               <strong>Datos privados</strong>
-              <small>{library.items.length} entradas / {queuedDiscoveryCount} en cola</small>
+              <small>Importar servicios / {library.items.length} entradas</small>
             </span>
-            <em>JSON v1</em>
+            <em>Importar</em>
           </summary>
           <div className="settings-drawer-body">
           <div className="panel-heading compact">
             <div>
               <h2>Datos privados</h2>
-              <p className="muted-line">Backup y estado de tu biblioteca personal.</p>
+              <p className="muted-line">Importar servicios, backup y estado de tu biblioteca personal.</p>
             </div>
-            <span className="mode-pill">JSON v1</span>
+            <span className="mode-pill">Importar / JSON</span>
           </div>
           <div className="data-health-grid" aria-label="Estado de datos privados">
             <div>

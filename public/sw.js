@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'nexo-v1.0.0'
+const CACHE_VERSION = 'nexo-v1.0.1'
 const APP_SHELL = ['/', '/manifest.webmanifest', '/favicon.svg', '/icons/nexo.svg']
 
 self.addEventListener('install', (event) => {
