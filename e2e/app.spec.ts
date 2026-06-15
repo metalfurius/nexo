@@ -356,6 +356,20 @@ async function mockFrierenCatalog(page: Page) {
     posterUrl: 'https://img.anili.st/media/154587.jpg',
     releaseYear: 2023,
     genres: ['Animacion', 'Aventura', 'Drama'],
+    progressTotal: 28,
+    progressUnit: 'episodes',
+    relatedItems: [
+      {
+        relation: 'source',
+        title: "Frieren: Beyond Journey's End",
+        type: 'manga',
+        posterUrl: 'https://img.anili.st/media/118586.jpg',
+        releaseYear: 2020,
+        externalRefs: {
+          sourceUrl: 'https://anilist.co/manga/118586',
+        },
+      },
+    ],
     externalRefs: {
       anilistId: '154587',
       sourceUrl: 'https://anilist.co/anime/154587',
@@ -392,9 +406,32 @@ async function mockFrierenCatalog(page: Page) {
                 },
                 description: frierenResult.overview,
                 format: 'TV',
+                episodes: 28,
                 genres: frierenResult.genres,
                 startDate: { year: 2023 },
                 coverImage: { medium: frierenResult.posterUrl },
+                siteUrl: 'https://anilist.co/anime/154587',
+                relations: {
+                  edges: [
+                    {
+                      relationType: 'SOURCE',
+                      node: {
+                        id: 118586,
+                        type: 'MANGA',
+                        format: 'MANGA',
+                        countryOfOrigin: 'JP',
+                        title: {
+                          english: "Frieren: Beyond Journey's End",
+                          romaji: 'Sousou no Frieren',
+                          native: 'Sousou no Frieren',
+                        },
+                        startDate: { year: 2020 },
+                        coverImage: { medium: 'https://img.anili.st/media/118586.jpg' },
+                        siteUrl: 'https://anilist.co/manga/118586',
+                      },
+                    },
+                  ],
+                },
               },
             ],
           },
@@ -1211,10 +1248,14 @@ test('library saves Frieren from external search without candidate permission no
   await expect(editor.getByLabel('Tipo')).toHaveCount(0)
   await expect(editor.getByLabel('Poster o portada')).toHaveCount(0)
   await expect(editor.getByLabel('Generos', { exact: true })).toHaveCount(0)
+  await expect(editor.getByRole('group', { name: 'Progreso' })).toContainText('0/28 episodios')
+  await expect(editor.getByLabel('Obras relacionadas')).toContainText("Frieren: Beyond Journey's End")
+  await expect(editor.getByLabel('Obras relacionadas').locator('img')).toHaveCount(1)
 
   await editor.getByRole('button', { name: 'Cambiar estado a En progreso' }).click()
   await editor.getByRole('textbox', { name: 'Progreso' }).fill('Episodio 4')
   await editor.getByRole('button', { name: 'Puntuar 4 estrellas (8/10)' }).click()
+  await openEditorAdvanced(editor)
   await editor.getByLabel('Notas').fill('Mucho mas tranquila de lo que esperaba.')
   await editor.getByRole('button', { name: 'Cerrar', exact: true }).click()
 
@@ -1224,6 +1265,7 @@ test('library saves Frieren from external search without candidate permission no
   await expect(savedEditor.getByRole('button', { name: 'Cambiar estado a En progreso' })).toHaveAttribute('aria-pressed', 'true')
   await expect(savedEditor.getByRole('textbox', { name: 'Progreso' })).toHaveValue('Episodio 4')
   await expect(savedEditor.getByRole('group', { name: 'Rating' })).toContainText('8/10')
+  await openEditorAdvanced(savedEditor)
   await expect(savedEditor.getByLabel('Notas')).toHaveValue('Mucho mas tranquila de lo que esperaba.')
 })
 
@@ -1452,7 +1494,6 @@ test('library and weighted dice work in demo mode', async ({ page }) => {
     const progressPanel = editor.querySelector('.editor-progress-panel')?.getBoundingClientRect()
     const progressControls = Array.from(editor.querySelectorAll('.editor-progress-fields > *')).map((field) => field.getBoundingClientRect())
     const statusControl = editor.querySelector('.status-control')?.getBoundingClientRect()
-    const notesField = editor.querySelector('.editor-notes-field textarea')?.getBoundingClientRect()
     const advancedPanel = editor.querySelector('.editor-advanced-panel')?.getBoundingClientRect()
     const statusButtons = Array.from(editor.querySelectorAll('.status-chip-button')).map((button) => {
       const rect = button.getBoundingClientRect()
@@ -1474,10 +1515,11 @@ test('library and weighted dice work in demo mode', async ({ page }) => {
     return {
       actionTop: actionRow?.top ?? 0,
       actionAfterAdvanced: Boolean(actionRow && advancedPanel && actionRow.top >= advancedPanel.bottom - 1),
-      actionAfterNotes: Boolean(actionRow && notesField && actionRow.top >= notesField.bottom + 8),
+      actionAfterProgress: Boolean(actionRow && progressPanel && actionRow.top >= progressPanel.bottom + 8),
       actionPosition: actionRowElement ? getComputedStyle(actionRowElement).position : '',
       backgroundAlpha,
       backgroundColor,
+      editorHasHorizontalOverflow: editor.scrollWidth > editor.clientWidth + 1,
       editorAnimationName: editorStyle.animationName,
       editorOpacity: Number(editorStyle.opacity),
       headingHeight: heading?.height ?? 0,
@@ -1498,6 +1540,7 @@ test('library and weighted dice work in demo mode', async ({ page }) => {
   })
   expect(editorShellMetrics.backgroundAlpha).toBe(1)
   expect(editorShellMetrics.backgroundColor).not.toContain('rgba')
+  expect(editorShellMetrics.editorHasHorizontalOverflow).toBe(false)
   expect(editorShellMetrics.editorOpacity).toBe(1)
   expect(editorShellMetrics.headingHeight).toBeLessThanOrEqual(60)
   expect(editorShellMetrics.headingCopyVisible).toBe(false)
@@ -1517,7 +1560,7 @@ test('library and weighted dice work in demo mode', async ({ page }) => {
     expect(editorShellMetrics.editorAnimationName).toContain('modal-enter-solid')
     expect(editorShellMetrics.actionPosition).toBe('static')
     expect(editorShellMetrics.actionAfterAdvanced).toBe(true)
-    expect(editorShellMetrics.actionAfterNotes).toBe(true)
+    expect(editorShellMetrics.actionAfterProgress).toBe(true)
     expect(editorShellMetrics.progressPanelHeight).toBeLessThanOrEqual(460)
     expect(editorShellMetrics.statusButtonMinWidth).toBeGreaterThanOrEqual(54)
     expect(new Set(editorShellMetrics.progressControlTops).size).toBeGreaterThanOrEqual(2)
@@ -1642,12 +1685,14 @@ test('library and weighted dice work in demo mode', async ({ page }) => {
   await page.getByRole('button', { name: 'Afinar ficha recomendada' }).click()
   const diceEditor = page.getByRole('dialog', { name: 'Entrada' })
   await expect(diceEditor.getByTestId('personal-readiness')).toContainText('Preparacion')
+  await openEditorAdvanced(diceEditor)
   await diceEditor.getByLabel('Notas').fill('Afinada desde el dado.')
   await diceEditor.getByRole('button', { name: 'Cerrar', exact: true }).click()
   await expect(page.getByText(/afinada desde el dado\./)).toBeVisible()
   await expect(page.getByTestId('recent-rolls')).toContainText('Ahora mismo')
   await page.getByTestId('recent-rolls').getByRole('button', { name: /Afinar tirada reciente/ }).click()
   const recentEditor = page.getByRole('dialog', { name: 'Entrada' })
+  await openEditorAdvanced(recentEditor)
   await expect(recentEditor.getByLabel('Notas')).toHaveValue('Afinada desde el dado.')
   await recentEditor.getByRole('textbox', { name: 'Progreso' }).fill('Revisada desde historial.')
   await recentEditor.getByRole('button', { name: 'Cerrar', exact: true }).click()
@@ -1769,6 +1814,7 @@ test('library review session celebrates completed queues', async ({ page }) => {
   await page.getByTestId('library-review-queue').getByRole('button', { name: 'Completar ficha' }).click()
   const reviewEditor = page.getByRole('dialog', { name: 'Entrada' })
   await expect(reviewEditor.locator('#item-editor-title')).toHaveText('Repaso Final')
+  await openEditorAdvanced(reviewEditor)
   await reviewEditor.getByLabel('Notas').fill('Contexto suficiente para cerrar este repaso.')
   await reviewEditor.getByRole('button', { name: 'Cerrar', exact: true }).click()
 
@@ -1798,6 +1844,7 @@ test('library empty search can create a prefilled item', async ({ page }) => {
 
   const searchDraftEditor = page.getByRole('dialog', { name: 'Entrada' })
   await expect(searchDraftEditor.getByLabel('Titulo')).toHaveValue('Manual sombra')
+  await openEditorAdvanced(searchDraftEditor)
   await searchDraftEditor.getByLabel('Notas').fill('Creada desde una busqueda vacia.')
   await searchDraftEditor.getByRole('button', { name: 'Cerrar', exact: true }).click()
 
@@ -3158,6 +3205,7 @@ test('quick search can create a prefilled item through the pending-change guard'
 
   const createdEditor = page.getByRole('dialog', { name: 'Entrada' })
   await expect(createdEditor.getByLabel('Titulo')).toHaveValue('Manual global')
+  await openEditorAdvanced(createdEditor)
   await createdEditor.getByLabel('Notas').fill('Creada desde busqueda rapida global.')
   await createdEditor.getByRole('button', { name: 'Cerrar', exact: true }).click()
   await expect(page.getByText('Manual global guardada en Biblioteca')).toBeVisible()
@@ -3979,6 +4027,7 @@ test('explorer searches public catalog and saves to private library', async ({ p
   await page.getByRole('button', { name: 'Afinar ficha guardada Odisea' }).click()
   const savedEditor = page.getByRole('dialog', { name: 'Entrada' })
   await expect(savedEditor.getByLabel('Titulo')).toHaveCount(0)
+  await openEditorAdvanced(savedEditor)
   await savedEditor.getByLabel('Notas').fill('Afinada desde Explorador.')
   await savedEditor.getByRole('button', { name: 'Cerrar', exact: true }).click()
   await expect(page.getByText('Odisea afinada en Biblioteca.')).toBeVisible()
@@ -4075,6 +4124,8 @@ test('library editor explains private copies from the Nexo catalog', async ({ pa
   await page.getByLabel('Tipo de busqueda en explorador').selectOption('book')
   await page.getByLabel('Buscar en explorador').fill('Odisea')
   await page.getByRole('button', { name: 'Buscar' }).click()
+  await openExplorerFilters(page)
+  await page.getByRole('button', { name: /Nexo/ }).click()
 
   const nexoSpotlight = page.getByTestId('candidate-spotlight')
   await expect(nexoSpotlight).toContainText('Nexo')

@@ -5593,15 +5593,19 @@ export function RelatedItemsPanel({ items }: { items?: RelatedItemRef[] }) {
           const sourceUrl = item.externalRefs?.sourceUrl
           const content = (
             <>
-              <span className="related-relation">{relatedItemKindLabels[item.relation]}</span>
-              <span className="related-title">
-                <Icon size={15} />
-                <strong>{item.title}</strong>
+              <span className={item.posterUrl ? 'related-poster has-poster' : 'related-poster'}>
+                {item.posterUrl ? <img alt="" loading="lazy" src={item.posterUrl} /> : <Icon size={18} />}
               </span>
-              <small>
-                {typeLabels[item.type]}
-                {item.releaseYear ? ` / ${item.releaseYear}` : ''}
-              </small>
+              <span className="related-copy">
+                <span className="related-relation">{relatedItemKindLabels[item.relation]}</span>
+                <span className="related-title">
+                  <strong>{item.title}</strong>
+                </span>
+                <small>
+                  {typeLabels[item.type]}
+                  {item.releaseYear ? ` / ${item.releaseYear}` : ''}
+                </small>
+              </span>
             </>
           )
 
@@ -6264,13 +6268,8 @@ export function ItemEditor({
               onChange={(patch) => setDraft((current) => ({ ...current, ...patch }))}
             />
           </div>
-          <label className="editor-notes-field">
-            Notas
-            <textarea value={draft.notes ?? ''} onChange={(event) => update('notes', event.target.value)} />
-          </label>
+          <RelatedItemsPanel items={draft.relatedItems} />
         </section>
-
-        <RelatedItemsPanel items={draft.relatedItems} />
 
         <details className="editor-advanced-panel" data-close-on-outside>
           <summary>
@@ -6443,6 +6442,13 @@ export function ItemEditor({
                   />
                 </label>
               </div>
+            </section>
+            <section className="editor-section editor-notes-section">
+              <h3>Notas</h3>
+              <label className="editor-notes-field">
+                <span className="sr-only">Notas</span>
+                <textarea value={draft.notes ?? ''} onChange={(event) => update('notes', event.target.value)} />
+              </label>
             </section>
             <section className="editor-section">
               <h3>Tono</h3>

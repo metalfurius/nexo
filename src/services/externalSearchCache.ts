@@ -3,6 +3,7 @@ import { normalizeKey } from '../lib/strings'
 
 const databaseName = 'nexo-external-search'
 const databaseVersion = 1
+const cacheSchemaVersion = 'v2'
 const searchStoreName = 'searches'
 const cacheTtlMs = 7 * 24 * 60 * 60 * 1000
 
@@ -24,7 +25,7 @@ export interface ExternalSearchCacheHit {
 let databasePromise: Promise<IDBDatabase | undefined> | undefined
 
 export function createExternalSearchCacheKey(query: string, type: string) {
-  return `${type || 'any'}:${normalizeKey(query)}`
+  return `${cacheSchemaVersion}:${type || 'any'}:${normalizeKey(query)}`
 }
 
 export function createExternalSearchCacheEntry(
