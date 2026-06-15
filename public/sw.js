@@ -53,14 +53,19 @@ self.addEventListener('fetch', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
-  const targetUrl = event.notification.data?.url || '/'
+  const targetUrl = new URL(event.notification.data?.url || '/', self.location.origin).href
 
   event.waitUntil(
     self.clients
       .matchAll({ includeUncontrolled: true, type: 'window' })
       .then((clients) => {
         const focusedClient = clients.find((client) => 'focus' in client)
-        if (focusedClient) return focusedClient.focus()
+        if (focusedClient) {
+          if ('navigate' in focusedClient && focusedClient.url !== targetUrl) {
+            return focusedClient.navigate(targetUrl).then((client) => client?.focus() ?? focusedClient.focus())
+          }
+          return focusedClient.focus()
+        }
         return self.clients.openWindow(targetUrl)
       }),
   )

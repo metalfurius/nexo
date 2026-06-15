@@ -120,11 +120,16 @@ export function useLibrary(user?: SignedInUserProfile | null) {
     setSyncSlices((current) => ({ ...current, [sliceId]: snapshotState }))
   }, [])
 
-  const trackRepositoryWrite = useCallback((promise: Promise<void>, fallback: string) => {
+  const trackRepositoryWrite = useCallback(async (promise: Promise<void>, fallback: string) => {
     setLocalPendingWriteCount((current) => current + 1)
-    void promise
-      .catch((reason) => setError(reason instanceof Error ? reason.message : fallback))
-      .finally(() => setLocalPendingWriteCount((current) => Math.max(0, current - 1)))
+    try {
+      await promise
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : fallback)
+      throw reason
+    } finally {
+      setLocalPendingWriteCount((current) => Math.max(0, current - 1))
+    }
   }, [])
 
   useEffect(() => {
@@ -265,7 +270,7 @@ export function useLibrary(user?: SignedInUserProfile | null) {
     if (repository) {
       setRemoteItems((current) => upsertItem(current, normalized))
       if (userId) setRemoteUserId(userId)
-      trackRepositoryWrite(repository.saveItem(normalized), 'No se pudo guardar la ficha.')
+      return trackRepositoryWrite(repository.saveItem(normalized), 'No se pudo guardar la ficha.')
     } else {
       setDemoLibrary((current) => upsertItem(current, normalized))
     }
@@ -274,7 +279,7 @@ export function useLibrary(user?: SignedInUserProfile | null) {
   async function deleteItem(id: string) {
     if (repository) {
       setRemoteItems((current) => current.filter((item) => item.id !== id))
-      trackRepositoryWrite(repository.deleteItem(id), 'No se pudo eliminar la ficha.')
+      return trackRepositoryWrite(repository.deleteItem(id), 'No se pudo eliminar la ficha.')
     } else {
       setDemoLibrary((current) => current.filter((item) => item.id !== id))
     }
@@ -283,7 +288,7 @@ export function useLibrary(user?: SignedInUserProfile | null) {
   async function deleteAllItems() {
     if (repository) {
       setRemoteItems([])
-      trackRepositoryWrite(repository.deleteAllItems(), 'No se pudieron borrar las entradas privadas.')
+      return trackRepositoryWrite(repository.deleteAllItems(), 'No se pudieron borrar las entradas privadas.')
     } else {
       setDemoLibrary([])
     }
@@ -294,7 +299,7 @@ export function useLibrary(user?: SignedInUserProfile | null) {
       setRemoteItems((current) =>
         current.map((item) => (item.id === id ? { ...item, status, updatedAt: nowIso() } : item)),
       )
-      trackRepositoryWrite(repository.setStatus(id, status), 'No se pudo actualizar el estado.')
+      return trackRepositoryWrite(repository.setStatus(id, status), 'No se pudo actualizar el estado.')
     } else {
       setDemoLibrary((current) =>
         current.map((item) => (item.id === id ? { ...item, status, updatedAt: nowIso() } : item)),
@@ -313,7 +318,7 @@ export function useLibrary(user?: SignedInUserProfile | null) {
             : item,
         ),
       )
-      trackRepositoryWrite(repository.snoozeRecommendation(id), 'No se pudo pausar la recomendacion.')
+      return trackRepositoryWrite(repository.snoozeRecommendation(id), 'No se pudo pausar la recomendacion.')
     } else {
       setDemoLibrary((current) =>
         current.map((item) =>
@@ -332,7 +337,7 @@ export function useLibrary(user?: SignedInUserProfile | null) {
           item.id === id ? { ...item, recommendationCooldownUntil: undefined, updatedAt: nowIso() } : item,
         ),
       )
-      trackRepositoryWrite(repository.reactivateRecommendation(id), 'No se pudo reactivar la recomendacion.')
+      return trackRepositoryWrite(repository.reactivateRecommendation(id), 'No se pudo reactivar la recomendacion.')
     } else {
       setDemoLibrary((current) =>
         current.map((item) =>
@@ -356,7 +361,7 @@ export function useLibrary(user?: SignedInUserProfile | null) {
           return nextItem
         }),
       )
-      trackRepositoryWrite(repository.setRecommendationCooldown(id, cooldownUntil), 'No se pudo actualizar el cooldown.')
+      return trackRepositoryWrite(repository.setRecommendationCooldown(id, cooldownUntil), 'No se pudo actualizar el cooldown.')
     } else {
       setDemoLibrary((current) =>
         current.map((item) => {
@@ -381,7 +386,7 @@ export function useLibrary(user?: SignedInUserProfile | null) {
           item.id === itemId ? { ...item, lastRecommendedAt: recommendedAt, updatedAt: recommendedAt } : item,
         ),
       )
-      trackRepositoryWrite(repository.recordRecommendation(itemId, reasons), 'No se pudo guardar la recomendacion.')
+      return trackRepositoryWrite(repository.recordRecommendation(itemId, reasons), 'No se pudo guardar la recomendacion.')
     } else {
       setDemoLibrary((current) =>
         current.map((item) =>
@@ -424,7 +429,7 @@ export function useLibrary(user?: SignedInUserProfile | null) {
   async function saveSettings(nextSettings: Partial<UserSettings>) {
     const merged = mergeSettings({ ...settings, ...nextSettings })
     setSettings(merged)
-    if (repository) trackRepositoryWrite(repository.saveSettings(nextSettings), 'No se pudieron guardar los ajustes.')
+    if (repository) return trackRepositoryWrite(repository.saveSettings(nextSettings), 'No se pudieron guardar los ajustes.')
   }
 
   async function queueDiscoveryCandidates(candidates: DiscoveryCandidate[]) {
@@ -439,7 +444,7 @@ export function useLibrary(user?: SignedInUserProfile | null) {
     )
     setDiscoveryCandidates((current) => mergeCandidates(normalized, current))
     if (repository) {
-      trackRepositoryWrite(
+      await trackRepositoryWrite(
         Promise.all(candidatesToPersist.map((candidate) => repository.saveDiscoveryCandidate(candidate))).then(() => undefined),
         'No se pudo persistir la cola de exploracion.',
       )
@@ -457,7 +462,7 @@ export function useLibrary(user?: SignedInUserProfile | null) {
       ),
     )
     if (repository) {
-      trackRepositoryWrite(repository.dismissDiscoveryCandidate(candidateId), 'No se pudo persistir el descarte.')
+      return trackRepositoryWrite(repository.dismissDiscoveryCandidate(candidateId), 'No se pudo persistir el descarte.')
     }
   }
 
@@ -473,7 +478,7 @@ export function useLibrary(user?: SignedInUserProfile | null) {
       }),
     )
     if (repository) {
-      trackRepositoryWrite(repository.restoreDiscoveryCandidate(candidateId), 'No se pudo restaurar el hallazgo.')
+      return trackRepositoryWrite(repository.restoreDiscoveryCandidate(candidateId), 'No se pudo restaurar el hallazgo.')
     }
   }
 
@@ -488,7 +493,7 @@ export function useLibrary(user?: SignedInUserProfile | null) {
       ),
     )
     if (repository && persistDiscoveryCandidate) {
-      trackRepositoryWrite(
+      await trackRepositoryWrite(
         repository.markDiscoveryCandidateSaved(candidate.id, item.id),
         'No se pudo persistir el estado del candidato.',
       )
@@ -572,14 +577,14 @@ export function useLibrary(user?: SignedInUserProfile | null) {
   async function clearActivityEntries() {
     setActivityEntries([])
     if (repository) {
-      trackRepositoryWrite(repository.clearActivityEntries(), 'No se pudo limpiar la actividad reciente.')
+      return trackRepositoryWrite(repository.clearActivityEntries(), 'No se pudo limpiar la actividad reciente.')
     }
   }
 
   async function restoreActivityEntries(entries: ActivityEntry[]) {
     setActivityEntries((current) => mergeActivityEntries(entries, current))
     if (repository) {
-      trackRepositoryWrite(
+      return trackRepositoryWrite(
         Promise.all(entries.map((entry) => repository.saveActivityEntry(entry))).then(() => undefined),
         'No se pudo restaurar la actividad reciente.',
       )

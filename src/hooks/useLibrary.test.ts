@@ -246,13 +246,19 @@ describe('useLibrary', () => {
       email: null,
       displayName: null,
     }
-    repositoryMock.saveItem.mockReturnValue(new Promise(() => undefined))
+    let resolveWrite: (() => void) | undefined
+    repositoryMock.saveItem.mockReturnValue(
+      new Promise<void>((resolve) => {
+        resolveWrite = resolve
+      }),
+    )
     const { result } = renderHook(() => useLibrary(user))
 
     await waitFor(() => expect(repositoryMock.subscribeItems).toHaveBeenCalled())
 
-    await act(async () => {
-      await result.current.saveItem({
+    let savePromise: Promise<void> | undefined
+    act(() => {
+      savePromise = result.current.saveItem({
         id: 'movie-arrival',
         title: 'Arrival',
         type: 'movie',
@@ -270,6 +276,78 @@ describe('useLibrary', () => {
     expect(result.current.items).toEqual([expect.objectContaining({ id: 'movie-arrival', title: 'Arrival' })])
     expect(result.current.syncState.hasPendingWrites).toBe(true)
     expect(result.current.syncState.pendingWriteCount).toBe(1)
+
+    await act(async () => {
+      resolveWrite?.()
+      await savePromise
+    })
+
+    expect(result.current.syncState.pendingWriteCount).toBe(0)
+  })
+
+  it('waits for repository item writes and propagates failures to callers', async () => {
+    const user = {
+      uid: 'user-1',
+      email: null,
+      displayName: null,
+    }
+    let resolveWrite: (() => void) | undefined
+    repositoryMock.saveItem.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        resolveWrite = resolve
+      }),
+    )
+    const { result } = renderHook(() => useLibrary(user))
+
+    await waitFor(() => expect(repositoryMock.subscribeItems).toHaveBeenCalled())
+
+    const item: ListItem = {
+      id: 'movie-arrival',
+      title: 'Arrival',
+      type: 'movie',
+      status: 'in_progress',
+      genres: ['sci-fi'],
+      tags: ['sci-fi'],
+      moodTags: [],
+      weights: { priority: 1, surprise: 0.35, challenge: 0.5 },
+      source: 'manual',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    }
+    let savePromise: Promise<void> | undefined
+    act(() => {
+      savePromise = result.current.saveItem(item)
+    })
+    let settled = false
+    void savePromise?.then(() => {
+      settled = true
+    })
+
+    await Promise.resolve()
+
+    expect(settled).toBe(false)
+
+    await act(async () => {
+      resolveWrite?.()
+      await savePromise
+    })
+
+    expect(settled).toBe(true)
+
+    const failure = new Error('network down')
+    repositoryMock.saveItem.mockRejectedValueOnce(failure)
+
+    let caught: unknown
+    await act(async () => {
+      try {
+        await result.current.saveItem({ ...item, id: 'movie-failure' })
+      } catch (reason) {
+        caught = reason
+      }
+    })
+
+    expect(caught).toBe(failure)
+    expect(result.current.syncState.error).toBe('network down')
   })
 
   it('records and clears recent activity for signed-in users', async () => {

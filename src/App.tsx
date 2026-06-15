@@ -238,7 +238,7 @@ function App() {
     if (nextTheme === theme) return
 
     setTheme(nextTheme)
-    void library.saveSettings({ theme: nextTheme })
+    void library.saveSettings({ theme: nextTheme }).catch(() => undefined)
   }
 
   async function promptInstallPwa() {
