@@ -88,6 +88,7 @@ const manifest = await readJson<{
   id?: string
   name?: string
   scope?: string
+  screenshots?: Array<{ form_factor?: string; src?: string }>
   shortcuts?: Array<{ name?: string; url?: string }>
   start_url?: string
 }>('public/manifest.webmanifest')
@@ -101,13 +102,27 @@ check(
   'Manifest must include the maskable Nexo SVG icon.',
 )
 check(
+  manifest.icons?.some((icon) => icon.src === '/icons/nexo-192.png') &&
+    manifest.icons?.some((icon) => icon.src === '/icons/nexo-512.png') &&
+    manifest.icons?.some((icon) => icon.src === '/icons/nexo-maskable-512.png' && icon.purpose?.includes('maskable')),
+  'Manifest must include raster and maskable PNG icons.',
+)
+check(
+  manifest.screenshots?.some((screenshot) => screenshot.src === '/screenshots/nexo-wide.png' && screenshot.form_factor === 'wide') &&
+    manifest.screenshots?.some((screenshot) => screenshot.src === '/screenshots/nexo-narrow.png' && screenshot.form_factor === 'narrow'),
+  'Manifest must include wide and narrow screenshots.',
+)
+check(
   manifest.shortcuts?.some((shortcut) => shortcut.url === '/?tab=dice') &&
-    manifest.shortcuts?.some((shortcut) => shortcut.url === '/?tab=explorer'),
-  'Manifest must include dice and explorer shortcuts.',
+    manifest.shortcuts?.some((shortcut) => shortcut.url === '/?tab=explorer') &&
+    manifest.shortcuts?.some((shortcut) => shortcut.url === '/?tab=import'),
+  'Manifest must include dice, explorer and import shortcuts.',
 )
 
 const serviceWorker = await readText('public/sw.js')
 check(serviceWorker.includes("'/manifest.webmanifest'"), 'Service worker should cache the manifest.')
+check(serviceWorker.includes("'/icons/nexo-192.png'"), 'Service worker should cache raster icons.')
+check(serviceWorker.includes("'/screenshots/nexo-wide.png'"), 'Service worker should cache screenshots.')
 check(serviceWorker.includes('request.mode === \'navigate\''), 'Service worker should handle navigation requests.')
 check(serviceWorker.includes('/assets/'), 'Service worker should cache built assets.')
 check(serviceWorker.includes('NEXO_SKIP_WAITING'), 'Service worker should support user-triggered updates.')

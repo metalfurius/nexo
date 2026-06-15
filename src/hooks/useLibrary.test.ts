@@ -63,6 +63,26 @@ const candidate: DiscoveryCandidate = {
 describe('useLibrary', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    for (const method of [
+      'archivePublicItem',
+      'deleteAllItems',
+      'deleteItem',
+      'dismissDiscoveryCandidate',
+      'markDiscoveryCandidateSaved',
+      'recordRecommendation',
+      'replacePublicItem',
+      'restoreDiscoveryCandidate',
+      'restorePublicItem',
+      'reactivateRecommendation',
+      'saveItem',
+      'saveSettings',
+      'setRecommendationCooldown',
+      'setStatus',
+      'snoozeRecommendation',
+      'upsertPublicItem',
+    ] as const) {
+      repositoryMock[method].mockResolvedValue(undefined)
+    }
     repositoryMock.ensureUserProfile.mockResolvedValue(undefined)
     repositoryMock.clearActivityEntries.mockResolvedValue(undefined)
     repositoryMock.saveActivityEntry.mockResolvedValue(undefined)
@@ -194,6 +214,62 @@ describe('useLibrary', () => {
       'game-outer-wilds',
       '2026-06-04T12:00:00.000Z',
     )
+  })
+
+  it('exposes snapshot sync metadata for signed-in libraries', async () => {
+    const user = {
+      uid: 'user-1',
+      email: null,
+      displayName: null,
+    }
+    repositoryMock.subscribeItems.mockImplementation((onItems: (items: unknown[], state?: unknown) => void) => {
+      onItems([], { fromCache: true, hasPendingWrites: true, pendingWriteCount: 2 })
+      return vi.fn()
+    })
+    const { result } = renderHook(() => useLibrary(user))
+
+    await waitFor(() => expect(result.current.syncState.fromCache).toBe(true))
+
+    expect(result.current.syncState).toEqual(
+      expect.objectContaining({
+        fromCache: true,
+        hasPendingWrites: true,
+        pendingWriteCount: 2,
+        remote: true,
+      }),
+    )
+  })
+
+  it('shows optimistic saved items while Firestore writes are still pending', async () => {
+    const user = {
+      uid: 'user-1',
+      email: null,
+      displayName: null,
+    }
+    repositoryMock.saveItem.mockReturnValue(new Promise(() => undefined))
+    const { result } = renderHook(() => useLibrary(user))
+
+    await waitFor(() => expect(repositoryMock.subscribeItems).toHaveBeenCalled())
+
+    await act(async () => {
+      await result.current.saveItem({
+        id: 'movie-arrival',
+        title: 'Arrival',
+        type: 'movie',
+        status: 'in_progress',
+        genres: ['sci-fi'],
+        tags: ['sci-fi'],
+        moodTags: [],
+        weights: { priority: 1, surprise: 0.35, challenge: 0.5 },
+        source: 'manual',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      })
+    })
+
+    expect(result.current.items).toEqual([expect.objectContaining({ id: 'movie-arrival', title: 'Arrival' })])
+    expect(result.current.syncState.hasPendingWrites).toBe(true)
+    expect(result.current.syncState.pendingWriteCount).toBe(1)
   })
 
   it('records and clears recent activity for signed-in users', async () => {

@@ -1,5 +1,15 @@
-const CACHE_VERSION = 'nexo-v1.0.1'
-const APP_SHELL = ['/', '/manifest.webmanifest', '/favicon.svg', '/icons/nexo.svg']
+const CACHE_VERSION = 'nexo-v1.1.0'
+const APP_SHELL = [
+  '/',
+  '/manifest.webmanifest',
+  '/favicon.svg',
+  '/icons/nexo.svg',
+  '/icons/nexo-192.png',
+  '/icons/nexo-512.png',
+  '/icons/nexo-maskable-512.png',
+  '/screenshots/nexo-wide.png',
+  '/screenshots/nexo-narrow.png',
+]
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -39,6 +49,21 @@ self.addEventListener('fetch', (event) => {
   if (url.pathname.startsWith('/assets/') || APP_SHELL.includes(url.pathname)) {
     event.respondWith(staleWhileRevalidate(request))
   }
+})
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  const targetUrl = event.notification.data?.url || '/'
+
+  event.waitUntil(
+    self.clients
+      .matchAll({ includeUncontrolled: true, type: 'window' })
+      .then((clients) => {
+        const focusedClient = clients.find((client) => 'focus' in client)
+        if (focusedClient) return focusedClient.focus()
+        return self.clients.openWindow(targetUrl)
+      }),
+  )
 })
 
 async function networkFirst(request, fallbackPath) {

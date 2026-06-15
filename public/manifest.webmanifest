@@ -17,6 +17,40 @@
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/nexo-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/nexo-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/nexo-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/nexo-wide.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Biblioteca Nexo"
+    },
+    {
+      "src": "/screenshots/nexo-narrow.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Nexo movil"
     }
   ],
   "shortcuts": [
@@ -32,6 +66,13 @@
       "short_name": "Explorar",
       "description": "Buscar catalogo Nexo y fuentes externas.",
       "url": "/?tab=explorer",
+      "icons": [{ "src": "/icons/nexo.svg", "sizes": "any", "type": "image/svg+xml" }]
+    },
+    {
+      "name": "Importar",
+      "short_name": "Importar",
+      "description": "Traer bibliotecas externas.",
+      "url": "/?tab=import",
       "icons": [{ "src": "/icons/nexo.svg", "sizes": "any", "type": "image/svg+xml" }]
     }
   ]

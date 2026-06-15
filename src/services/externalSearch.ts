@@ -1,6 +1,7 @@
 import type { ExternalCandidate, ItemType, ProgressUnit, RelatedItemKind, RelatedItemRef } from '../domain/types'
 import { nowIso } from '../domain/types'
 import { compactCatalogSearchText, normalizeCatalogSearchText, rankCatalogSearchCandidates } from '../lib/catalogSearch'
+import { readExternalSearchCache, writeExternalSearchCache } from './externalSearchCache'
 
 export interface ExternalSourceCredit {
   detail: string
@@ -83,15 +84,28 @@ export async function searchExternalSources(searchQuery: string, type: string): 
   const query = searchQuery.trim()
   if (query.length < 2) return []
 
+  const cached = await readExternalSearchCache(query, type).catch(() => undefined)
+  if (cached?.state === 'fresh') return cached.entry.results
+
   const proxyCandidates = await searchCatalogProxy(query, type).catch(() => undefined)
-  if (proxyCandidates?.length) return rankCatalogSearchCandidates(uniqueExternalCandidates(proxyCandidates), query, type).slice(0, 24)
+  if (proxyCandidates?.length) {
+    const results = rankCatalogSearchCandidates(uniqueExternalCandidates(proxyCandidates), query, type).slice(0, 24)
+    void writeExternalSearchCache(query, type, results).catch(() => undefined)
+    return results
+  }
 
   const groups = await Promise.allSettled(getSearchTasks(query, type))
-  return rankCatalogSearchCandidates(
+  const results = rankCatalogSearchCandidates(
     uniqueExternalCandidates(groups.flatMap((group) => (group.status === 'fulfilled' ? group.value : []))),
     query,
     type,
   ).slice(0, 24)
+  if (results.length) {
+    void writeExternalSearchCache(query, type, results).catch(() => undefined)
+    return results
+  }
+
+  return cached?.state === 'stale' && isLikelyOffline() ? cached.entry.results : results
 }
 
 export async function discoverExternalCandidate(
@@ -228,6 +242,10 @@ function createDiscoverySeed() {
 
 function hasPoster(candidate: ExternalCandidate) {
   return Boolean(candidate.posterUrl?.trim())
+}
+
+function isLikelyOffline() {
+  return typeof navigator !== 'undefined' && 'onLine' in navigator && !navigator.onLine
 }
 
 function pickSeeded<T>(values: T[], seed: string) {

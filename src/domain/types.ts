@@ -279,6 +279,16 @@ export interface UserSettings {
   libraryCardsPerRow: LibraryCardsPerRow
 }
 
+export interface LibrarySyncState {
+  error?: string
+  fromCache: boolean
+  hasPendingWrites: boolean
+  lastSyncedAt?: string
+  offlinePersistenceEnabled: boolean
+  pendingWriteCount: number
+  remote: boolean
+}
+
 export interface UserProfile {
   uid: string
   role: UserRole
