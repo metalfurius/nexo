@@ -346,6 +346,7 @@ async function mockEmptyAnimeMangaProviders(page: Page) {
 }
 
 async function mockFrierenCatalog(page: Page) {
+  const tinyPoster = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 60"><rect width="40" height="60" fill="#4fd1c5"/><path d="M8 42 18 28l6 8 5-6 5 12z" fill="#0f172a"/></svg>'
   const frierenResult = {
     id: 'anilist-154587',
     title: 'Frieren: Tras finalizar el viaje',
@@ -442,6 +443,10 @@ async function mockFrierenCatalog(page: Page) {
 
   await page.route('https://api.jikan.moe/v4/**', async (route) => {
     await route.fulfill({ contentType: 'application/json', json: { data: [] } })
+  })
+
+  await page.route('https://img.anili.st/media/**', async (route) => {
+    await route.fulfill({ body: tinyPoster, contentType: 'image/svg+xml' })
   })
 }
 

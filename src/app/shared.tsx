@@ -5593,9 +5593,7 @@ export function RelatedItemsPanel({ items }: { items?: RelatedItemRef[] }) {
           const sourceUrl = item.externalRefs?.sourceUrl
           const content = (
             <>
-              <span className={item.posterUrl ? 'related-poster has-poster' : 'related-poster'}>
-                {item.posterUrl ? <img alt="" loading="lazy" src={item.posterUrl} /> : <Icon size={18} />}
-              </span>
+              <RelatedItemPoster Icon={Icon} item={item} />
               <span className="related-copy">
                 <span className="related-relation">{relatedItemKindLabels[item.relation]}</span>
                 <span className="related-title">
@@ -5621,6 +5619,21 @@ export function RelatedItemsPanel({ items }: { items?: RelatedItemRef[] }) {
         })}
       </div>
     </section>
+  )
+}
+
+function RelatedItemPoster({ Icon, item }: { Icon: LucideIcon; item: RelatedItemRef }) {
+  const [failedPosterUrl, setFailedPosterUrl] = useState<string | undefined>()
+  const shouldShowPoster = Boolean(item.posterUrl && failedPosterUrl !== item.posterUrl)
+
+  return (
+    <span className={shouldShowPoster ? 'related-poster has-poster' : 'related-poster'}>
+      {shouldShowPoster ? (
+        <img alt="" loading="lazy" src={item.posterUrl} onError={() => setFailedPosterUrl(item.posterUrl)} />
+      ) : (
+        <Icon size={18} />
+      )}
+    </span>
   )
 }
 
