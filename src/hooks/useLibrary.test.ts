@@ -285,6 +285,63 @@ describe('useLibrary', () => {
     expect(result.current.syncState.pendingWriteCount).toBe(0)
   })
 
+  it('does not double-count local pending writes already reported by snapshot metadata', async () => {
+    const user = {
+      uid: 'user-1',
+      email: null,
+      displayName: null,
+    }
+    const item: ListItem = {
+      id: 'movie-arrival',
+      title: 'Arrival',
+      type: 'movie',
+      status: 'in_progress',
+      genres: ['sci-fi'],
+      tags: ['sci-fi'],
+      moodTags: [],
+      weights: { priority: 1, surprise: 0.35, challenge: 0.5 },
+      source: 'manual',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    }
+    let emitItems: ((items: ListItem[], state: { fromCache: boolean; hasPendingWrites: boolean; pendingWriteCount: number }) => void) | undefined
+    let resolveWrite: (() => void) | undefined
+    repositoryMock.subscribeItems.mockImplementation((onItems: (items: unknown[], state?: unknown) => void) => {
+      emitItems = onItems as typeof emitItems
+      onItems([], { fromCache: false, hasPendingWrites: false, pendingWriteCount: 0 })
+      return vi.fn()
+    })
+    repositoryMock.saveItem.mockReturnValue(
+      new Promise<void>((resolve) => {
+        resolveWrite = resolve
+      }),
+    )
+    const { result } = renderHook(() => useLibrary(user))
+
+    await waitFor(() => expect(repositoryMock.subscribeItems).toHaveBeenCalled())
+
+    let savePromise: Promise<void> | undefined
+    act(() => {
+      savePromise = result.current.saveItem(item)
+    })
+
+    expect(result.current.syncState.pendingWriteCount).toBe(1)
+
+    act(() => {
+      emitItems?.([item], { fromCache: false, hasPendingWrites: true, pendingWriteCount: 1 })
+    })
+
+    expect(result.current.syncState.pendingWriteCount).toBe(1)
+
+    await act(async () => {
+      resolveWrite?.()
+      await savePromise
+      emitItems?.([item], { fromCache: false, hasPendingWrites: false, pendingWriteCount: 0 })
+    })
+
+    expect(result.current.syncState.pendingWriteCount).toBe(0)
+  })
+
   it('waits for repository item writes and propagates failures to callers', async () => {
     const user = {
       uid: 'user-1',

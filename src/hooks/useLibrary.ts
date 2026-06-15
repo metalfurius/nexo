@@ -103,7 +103,7 @@ export function useLibrary(user?: SignedInUserProfile | null) {
   const isModerator = userRole === 'admin' || userRole === 'moderator'
   const remoteSyncStates = Object.values(syncSlices)
   const remotePendingWriteCount = remoteSyncStates.reduce((total, state) => total + state.pendingWriteCount, 0)
-  const pendingWriteCount = remotePendingWriteCount + localPendingWriteCount
+  const pendingWriteCount = Math.max(remotePendingWriteCount, localPendingWriteCount)
   const syncFromCache = remoteSyncStates.some((state) => state.fromCache)
   const syncState: LibrarySyncState = {
     error: activeError,

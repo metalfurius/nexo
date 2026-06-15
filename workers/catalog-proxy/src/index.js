@@ -225,8 +225,8 @@ async function searchTmdb(query, env, requestedType = 'watch') {
       return entry.media_type === 'movie' || entry.media_type === 'tv'
     })
 
-  const detailed = await Promise.all(baseEntries.slice(0, 8).map((entry) => tmdbEntryToCandidate(entry, token)))
-  return detailed.filter(Boolean)
+  const detailed = await Promise.allSettled(baseEntries.slice(0, 8).map((entry) => tmdbEntryToCandidate(entry, token)))
+  return detailed.flatMap((result) => (result.status === 'fulfilled' && result.value ? [result.value] : []))
 }
 
 async function tmdbEntryToCandidate(entry, token) {
