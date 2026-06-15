@@ -20,10 +20,25 @@ export const ITEM_STATUSES = [
 
 export const USER_ROLES = ['user', 'moderator', 'admin'] as const
 export const THEME_MODES = ['dark', 'light', 'rose', 'forest', 'ocean', 'mint', 'aurora'] as const
+export const PROGRESS_UNITS = ['episodes', 'chapters', 'pages', 'hours', 'volumes', 'percent', 'items'] as const
+export const RELATED_ITEM_KINDS = [
+  'sequel',
+  'prequel',
+  'source',
+  'adaptation',
+  'side_story',
+  'spin_off',
+  'alternative',
+  'summary',
+  'character',
+  'other',
+] as const
 
 export type ItemType = (typeof ITEM_TYPES)[number]
 export type ItemStatus = (typeof ITEM_STATUSES)[number]
 export type UserRole = (typeof USER_ROLES)[number]
+export type ProgressUnit = (typeof PROGRESS_UNITS)[number]
+export type RelatedItemKind = (typeof RELATED_ITEM_KINDS)[number]
 
 export type EnergyLevel = 'low' | 'medium' | 'high'
 export type IntensityLevel = 'soft' | 'balanced' | 'intense'
@@ -37,6 +52,16 @@ export type DiscoveryStatus = 'queued' | 'saved' | 'dismissed'
 export type ActivityTab = 'library' | 'dice' | 'explorer' | 'import' | 'settings' | 'curation'
 export type ActivityTone = 'info' | 'success' | 'danger' | 'loading'
 export type ImportSourceId = 'anilist' | 'myanimelist' | 'letterboxd' | 'goodreads'
+export type ExternalSource =
+  | 'tmdb'
+  | 'rawg'
+  | 'openLibrary'
+  | 'googleBooks'
+  | 'anilist'
+  | 'mangaDex'
+  | 'kitsu'
+  | 'jikan'
+  | 'wikidata'
 
 export interface ExternalRefs {
   tmdbId?: string
@@ -54,6 +79,17 @@ export interface ExternalRefs {
   sourceUrl?: string
 }
 
+export interface RelatedItemRef {
+  title: string
+  type: ItemType
+  relation: RelatedItemKind
+  source?: ExternalSource | 'nexo'
+  sourceId?: string
+  posterUrl?: string
+  releaseYear?: number
+  externalRefs?: ExternalRefs
+}
+
 export interface ImportedLibraryItemDraft {
   sourceId: ImportSourceId
   sourceItemId: string
@@ -62,6 +98,9 @@ export interface ImportedLibraryItemDraft {
   status: ItemStatus
   rating?: number
   progress?: string
+  progressCurrent?: number
+  progressTotal?: number
+  progressUnit?: ProgressUnit
   genres: string[]
   tags: string[]
   moodTags: string[]
@@ -70,6 +109,7 @@ export interface ImportedLibraryItemDraft {
   importNotes?: string[]
   externalRefs?: ExternalRefs
   posterUrl?: string
+  relatedItems?: RelatedItemRef[]
   releaseYear?: number
 }
 
@@ -116,6 +156,9 @@ export interface ListItem {
   durationMinHours?: number
   durationMaxHours?: number
   progress?: string
+  progressCurrent?: number
+  progressTotal?: number
+  progressUnit?: ProgressUnit
   genres: string[]
   tags: string[]
   moodTags: string[]
@@ -126,6 +169,7 @@ export interface ListItem {
   importNotes?: string[]
   externalRefs?: ExternalRefs
   posterUrl?: string
+  relatedItems?: RelatedItemRef[]
   publicItemId?: string
   publicSnapshot?: PublicCatalogSnapshot
   createdAt: string
@@ -138,14 +182,17 @@ export interface ExternalCandidate {
   id: string
   title: string
   type: ItemType
-  source: 'tmdb' | 'rawg' | 'openLibrary' | 'googleBooks' | 'anilist' | 'mangaDex' | 'kitsu' | 'jikan' | 'wikidata'
+  source: ExternalSource
   sourceId: string
   overview?: string
   posterUrl?: string
   releaseYear?: number
+  progressTotal?: number
+  progressUnit?: ProgressUnit
   genres: string[]
   searchAliases?: string[]
   externalRefs: ExternalRefs
+  relatedItems?: RelatedItemRef[]
   createdAt: string
 }
 
@@ -155,12 +202,15 @@ export interface PublicCatalogItem {
   type: ItemType
   description?: string
   releaseYear?: number
+  progressTotal?: number
+  progressUnit?: ProgressUnit
   genres: string[]
   tags: string[]
   moodTags: string[]
   searchAliases?: string[]
   externalRefs: ExternalRefs
   posterUrl?: string
+  relatedItems?: RelatedItemRef[]
   searchTokens: string[]
   canonicalKey: string
   createdAt: string
@@ -177,12 +227,15 @@ export type PublicCatalogSnapshot = Pick<
   | 'type'
   | 'description'
   | 'releaseYear'
+  | 'progressTotal'
+  | 'progressUnit'
   | 'genres'
   | 'tags'
   | 'moodTags'
   | 'searchAliases'
   | 'externalRefs'
   | 'posterUrl'
+  | 'relatedItems'
   | 'canonicalKey'
   | 'updatedAt'
 >
@@ -198,10 +251,13 @@ export interface DiscoveryCandidate {
   overview?: string
   posterUrl?: string
   releaseYear?: number
+  progressTotal?: number
+  progressUnit?: ProgressUnit
   genres: string[]
   tags: string[]
   moodTags: string[]
   externalRefs: ExternalRefs
+  relatedItems?: RelatedItemRef[]
   publicItemId?: string
   publicSnapshot?: PublicCatalogSnapshot
   savedItemId?: string
@@ -221,6 +277,16 @@ export interface UserSettings {
   explorerDefaultType: ExplorerSearchType
   libraryViewMode: LibraryViewMode
   libraryCardsPerRow: LibraryCardsPerRow
+}
+
+export interface LibrarySyncState {
+  error?: string
+  fromCache: boolean
+  hasPendingWrites: boolean
+  lastSyncedAt?: string
+  offlinePersistenceEnabled: boolean
+  pendingWriteCount: number
+  remote: boolean
 }
 
 export interface UserProfile {

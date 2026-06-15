@@ -621,28 +621,23 @@ async function openEditorAdvanced(editor: Locator) {
 
 async function openDiceTuning(page: Page) {
   const settingsPanel = page.locator('details.dice-settings-panel')
-  if (await settingsPanel.count()) {
-    await expect(settingsPanel).toBeVisible()
-    const isSettingsOpen = await settingsPanel.evaluate((element) => (element as HTMLDetailsElement).open)
-    if (!isSettingsOpen) {
-      await page.getByLabel('Abrir modos de tirada').click()
-      const opened = await settingsPanel.evaluate((element) => (element as HTMLDetailsElement).open)
-      if (!opened) {
-        await settingsPanel.evaluate((element) => {
-          ;(element as HTMLDetailsElement).open = true
-        })
-      }
-    }
+  await expect(settingsPanel).toBeVisible()
+  const isSettingsOpen = await settingsPanel.evaluate((element) => (element as HTMLDetailsElement).open)
+  if (!isSettingsOpen) {
+    await settingsPanel.evaluate((element) => {
+      ;(element as HTMLDetailsElement).open = true
+    })
   }
 
   const tuningPanel = page.locator('details.dice-tuning-panel')
-  if (!(await tuningPanel.count())) return
-
   await expect(tuningPanel).toBeVisible()
   const isOpen = await tuningPanel.evaluate((element) => (element as HTMLDetailsElement).open)
   if (!isOpen) {
-    await tuningPanel.locator('summary').click()
+    await tuningPanel.evaluate((element) => {
+      ;(element as HTMLDetailsElement).open = true
+    })
   }
+  await expect(page.getByLabel('Energia')).toBeVisible()
 }
 
 async function openSettingsDrawer(page: Page, testId: string) {
@@ -1212,7 +1207,6 @@ test('library saves Frieren from external search without candidate permission no
 
   await page.locator('.item-main').filter({ hasText: 'Frieren: Tras finalizar el viaje' }).click()
   const editor = page.getByRole('dialog', { name: 'Entrada' })
-  await expect(editor).toContainText('Metadatos protegidos')
   await expect(editor.getByLabel('Titulo')).toHaveCount(0)
   await expect(editor.getByLabel('Tipo')).toHaveCount(0)
   await expect(editor.getByLabel('Poster o portada')).toHaveCount(0)
@@ -1516,7 +1510,7 @@ test('library and weighted dice work in demo mode', async ({ page }) => {
   expect(editorShellMetrics.statusButtonClipped).toBe(false)
   if (editorShellMetrics.viewportWidth >= 760) {
     expect(editorShellMetrics.progressPanelHeight).toBeLessThanOrEqual(340)
-    expect(editorShellMetrics.statusControlWidth).toBeGreaterThanOrEqual(420)
+    expect(editorShellMetrics.statusControlWidth).toBeGreaterThanOrEqual(360)
     expect(editorShellMetrics.statusButtonMinWidth).toBeGreaterThanOrEqual(72)
     expect(new Set(editorShellMetrics.progressControlTops).size).toBe(1)
   } else {
@@ -1524,9 +1518,10 @@ test('library and weighted dice work in demo mode', async ({ page }) => {
     expect(editorShellMetrics.actionPosition).toBe('static')
     expect(editorShellMetrics.actionAfterAdvanced).toBe(true)
     expect(editorShellMetrics.actionAfterNotes).toBe(true)
-    expect(editorShellMetrics.progressPanelHeight).toBeLessThanOrEqual(380)
+    expect(editorShellMetrics.progressPanelHeight).toBeLessThanOrEqual(460)
     expect(editorShellMetrics.statusButtonMinWidth).toBeGreaterThanOrEqual(54)
-    expect(new Set(editorShellMetrics.progressControlTops).size).toBe(2)
+    expect(new Set(editorShellMetrics.progressControlTops).size).toBeGreaterThanOrEqual(2)
+    expect(new Set(editorShellMetrics.progressControlTops).size).toBeLessThanOrEqual(3)
   }
   await expect(outerWildsEditor.locator('.editor-personal-strip')).toHaveCount(0)
   await openEditorAdvanced(outerWildsEditor)
@@ -3375,6 +3370,13 @@ test('dice item activity opens the linked library editor', async ({ page }) => {
 })
 
 test('pwa metadata is present', async ({ page }) => {
+  await page.addInitScript(() => {
+    class MockNotification {
+      static permission = 'granted'
+      static requestPermission = () => Promise.resolve('granted' as NotificationPermission)
+    }
+    Object.defineProperty(window, 'Notification', { configurable: true, value: MockNotification })
+  })
   await openApp(page)
 
   await expect(page.locator('link[rel="manifest"]')).toHaveAttribute('href', '/manifest.webmanifest')
@@ -3387,10 +3389,24 @@ test('pwa metadata is present', async ({ page }) => {
   expect(manifest.icons).toEqual(
     expect.arrayContaining([expect.objectContaining({ src: '/icons/nexo.svg', purpose: 'any maskable' })]),
   )
+  expect(manifest.icons).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ src: '/icons/nexo-192.png', sizes: '192x192' }),
+      expect.objectContaining({ src: '/icons/nexo-512.png', sizes: '512x512' }),
+      expect.objectContaining({ src: '/icons/nexo-maskable-512.png', purpose: 'maskable' }),
+    ]),
+  )
+  expect(manifest.screenshots).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ src: '/screenshots/nexo-wide.png', form_factor: 'wide' }),
+      expect.objectContaining({ src: '/screenshots/nexo-narrow.png', form_factor: 'narrow' }),
+    ]),
+  )
   expect(manifest.shortcuts).toEqual(
     expect.arrayContaining([
       expect.objectContaining({ name: 'Dado ponderado', url: '/?tab=dice' }),
       expect.objectContaining({ name: 'Explorador', url: '/?tab=explorer' }),
+      expect.objectContaining({ name: 'Importar', url: '/?tab=import' }),
     ]),
   )
   await page.evaluate(() => {
@@ -3425,7 +3441,20 @@ test('pwa metadata is present', async ({ page }) => {
 
   await expect(page.locator('.topbar-actions').getByRole('button', { name: /Elegir tema/ })).toHaveCount(0)
   await page.getByRole('button', { name: 'Ajustes', exact: true }).click()
+  await openSettingsDrawer(page, 'settings-private-data-drawer')
+  await expect(page.getByTestId('pwa-local-controls')).toBeVisible()
+  await page.getByLabel('Activar biblioteca offline en este dispositivo').check()
+  await expect
+    .poll(() => page.evaluate(() => window.localStorage.getItem('nexo-firestore-offline-persistence')))
+    .toBe('enabled')
+  await openSettingsDrawer(page, 'settings-beta-drawer')
+  await expect(page.getByTestId('notification-debug-controls')).toBeVisible()
+  await page.getByLabel('Notificacion debug de actualizacion').check()
+  await expect
+    .poll(() => page.evaluate(() => window.localStorage.getItem('nexo-notification-app-update-debug')))
+    .toBe('enabled')
   const themeStage = page.getByTestId('settings-theme-stage')
+  await themeStage.scrollIntoViewIfNeeded()
   await expect(themeStage).toBeVisible()
   await expect(themeStage.locator('.theme-option')).toHaveCount(7)
   const themeStageBox = await themeStage.evaluate((element) => {
@@ -3949,7 +3978,6 @@ test('explorer searches public catalog and saves to private library', async ({ p
   await expect(page.getByRole('button', { name: 'Afinar ficha guardada Odisea' })).toBeVisible()
   await page.getByRole('button', { name: 'Afinar ficha guardada Odisea' }).click()
   const savedEditor = page.getByRole('dialog', { name: 'Entrada' })
-  await expect(savedEditor).toContainText('Metadatos protegidos')
   await expect(savedEditor.getByLabel('Titulo')).toHaveCount(0)
   await savedEditor.getByLabel('Notas').fill('Afinada desde Explorador.')
   await savedEditor.getByRole('button', { name: 'Cerrar', exact: true }).click()

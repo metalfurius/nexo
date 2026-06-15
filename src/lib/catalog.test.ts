@@ -33,8 +33,18 @@ describe('catalog helpers', () => {
         title: 'Odisea',
         type: 'book',
         description: 'Viaje y regreso.',
+        progressTotal: 320,
+        progressUnit: 'pages',
         genres: ['clasico'],
         tags: ['epico'],
+        relatedItems: [
+          {
+            title: 'Odisea adaptada',
+            type: 'movie',
+            relation: 'adaptation',
+            source: 'nexo',
+          },
+        ],
       },
       'moderator-1',
     )
@@ -47,6 +57,11 @@ describe('catalog helpers', () => {
     expect(libraryItem.publicItemId).toBe('book-odisea')
     expect(libraryItem.publicSnapshot?.title).toBe('Odisea')
     expect(libraryItem.publicSnapshot?.searchAliases).toEqual([])
+    expect(libraryItem.notes).toBeUndefined()
+    expect(libraryItem.progressCurrent).toBe(0)
+    expect(libraryItem.progressTotal).toBe(320)
+    expect(libraryItem.progressUnit).toBe('pages')
+    expect(libraryItem.relatedItems?.[0]).toEqual(expect.objectContaining({ relation: 'adaptation', title: 'Odisea adaptada' }))
     expect(libraryItem.status).toBe('wishlist')
   })
 

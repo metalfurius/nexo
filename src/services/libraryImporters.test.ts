@@ -328,6 +328,7 @@ describe('library importers', () => {
                     type: 'ANIME',
                     format: 'TV',
                     siteUrl: 'https://anilist.co/anime/21',
+                    episodes: 1000,
                     title: { userPreferred: 'One Piece' },
                     startDate: { year: 1999 },
                     coverImage: { large: 'https://img.anili.st/media/21.jpg' },
@@ -363,7 +364,15 @@ describe('library importers', () => {
 
     expect(result.drafts).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ title: 'One Piece', type: 'anime', status: 'in_progress', rating: 8.6 }),
+        expect.objectContaining({
+          title: 'One Piece',
+          type: 'anime',
+          status: 'in_progress',
+          rating: 8.6,
+          progressCurrent: 7,
+          progressTotal: 1000,
+          progressUnit: 'episodes',
+        }),
         expect.objectContaining({ title: 'Omniscient Reader', type: 'manhwa', status: 'wishlist' }),
       ]),
     )
@@ -384,6 +393,7 @@ describe('library importers', () => {
                   mal_id: 5114,
                   title: 'Fullmetal Alchemist: Brotherhood',
                   type: 'TV',
+                  episodes: 64,
                   year: 2009,
                   url: 'https://myanimelist.net/anime/5114',
                   images: { jpg: { image_url: 'https://cdn.myanimelist.net/images/anime/1208/94745.jpg' } },
@@ -418,7 +428,14 @@ describe('library importers', () => {
     expect(result.warnings[0]).toEqual(expect.objectContaining({ code: 'partial' }))
     expect(result.drafts).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ title: 'Fullmetal Alchemist: Brotherhood', type: 'anime', status: 'in_progress' }),
+        expect.objectContaining({
+          title: 'Fullmetal Alchemist: Brotherhood',
+          type: 'anime',
+          status: 'in_progress',
+          progressCurrent: 3,
+          progressTotal: 64,
+          progressUnit: 'episodes',
+        }),
         expect.objectContaining({ title: "Omniscient Reader's Viewpoint", type: 'manhwa', status: 'wishlist', releaseYear: 2020 }),
       ]),
     )

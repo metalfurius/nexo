@@ -323,9 +323,28 @@ describe('external search', () => {
             title: { english: 'Farming Life in Another World 2', romaji: 'Isekai Nonbiri Nouka 2' },
             format: 'TV',
             countryOfOrigin: 'JP',
+            episodes: 12,
             genres: ['Fantasy', 'Slice of Life'],
             startDate: { year: 2026 },
             coverImage: { medium: 'https://img.anili.st/media/197824.jpg' },
+            siteUrl: 'https://anilist.co/anime/197824',
+            relations: {
+              edges: [
+                {
+                  relationType: 'PREQUEL',
+                  node: {
+                    id: 146850,
+                    type: 'ANIME',
+                    format: 'TV',
+                    countryOfOrigin: 'JP',
+                    title: { english: 'Farming Life in Another World', romaji: 'Isekai Nonbiri Nouka' },
+                    startDate: { year: 2023 },
+                    coverImage: { medium: 'https://img.anili.st/media/146850.jpg' },
+                    siteUrl: 'https://anilist.co/anime/146850',
+                  },
+                },
+              ],
+            },
           },
         ])
       }
@@ -339,6 +358,15 @@ describe('external search', () => {
         source: 'anilist',
         title: 'Farming Life in Another World 2',
         type: 'anime',
+        progressTotal: 12,
+        progressUnit: 'episodes',
+        relatedItems: [
+          expect.objectContaining({
+            relation: 'prequel',
+            title: 'Farming Life in Another World',
+            type: 'anime',
+          }),
+        ],
       }),
     )
   })
@@ -370,6 +398,73 @@ describe('external search', () => {
         source: 'jikan',
         title: 'Welcome to Demon School! Iruma-kun',
         type: 'manga',
+      }),
+    )
+  })
+
+  it('keeps proxy progress metadata and related references for non-AniList sources', async () => {
+    vi.stubEnv('VITE_CATALOG_PROXY_URL', 'https://catalog-proxy.example')
+    mockCatalogFetch((url) => {
+      if (url.hostname === 'catalog-proxy.example') {
+        return {
+          results: [
+            {
+              id: 'tmdb-movie-603',
+              title: 'The Matrix',
+              type: 'movie',
+              source: 'tmdb',
+              sourceId: '603',
+              progressTotal: 2.3,
+              progressUnit: 'hours',
+              genres: ['Ciencia ficcion'],
+              externalRefs: {
+                tmdbId: '603',
+                wikidataId: 'Q83495',
+                sourceUrl: 'https://www.themoviedb.org/movie/603',
+              },
+              relatedItems: [
+                {
+                  title: 'The Matrix Reloaded',
+                  type: 'movie',
+                  relation: 'sequel',
+                  source: 'tmdb',
+                  sourceId: '604',
+                  externalRefs: {
+                    tmdbId: '604',
+                    sourceUrl: 'https://www.themoviedb.org/movie/604',
+                  },
+                },
+                {
+                  title: 'Neuromancer',
+                  type: 'book',
+                  relation: 'source',
+                  source: 'wikidata',
+                  sourceId: 'Q174596',
+                  externalRefs: {
+                    wikidataId: 'Q174596',
+                    sourceUrl: 'https://www.wikidata.org/wiki/Q174596',
+                  },
+                },
+              ],
+              createdAt: '2026-06-14T00:00:00.000Z',
+            },
+          ],
+        }
+      }
+      return jikanPayload([])
+    })
+
+    const results = await searchExternalSources('matrix', 'movie')
+
+    expect(results[0]).toEqual(
+      expect.objectContaining({
+        source: 'tmdb',
+        progressTotal: 2.3,
+        progressUnit: 'hours',
+        relatedItems: [
+          expect.objectContaining({ relation: 'sequel', source: 'tmdb', title: 'The Matrix Reloaded' }),
+          expect.objectContaining({ relation: 'source', source: 'wikidata', title: 'Neuromancer', type: 'book' }),
+        ],
       }),
     )
   })

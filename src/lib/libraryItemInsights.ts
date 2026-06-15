@@ -1,4 +1,4 @@
-import type { ItemStatus, ItemType, ListItem } from '../domain/types'
+import type { ItemStatus, ItemType, ListItem, ProgressUnit } from '../domain/types'
 import { uniqueValues } from './strings'
 
 export interface ItemPulseMetric {
@@ -53,9 +53,20 @@ export const itemSourceLabels: Record<ListItem['source'], string> = {
   public: 'Catalogo Nexo',
 }
 
+export const progressUnitLabels: Record<ProgressUnit, { plural: string; short: string; singular: string }> = {
+  chapters: { plural: 'capitulos', short: 'cap.', singular: 'capitulo' },
+  episodes: { plural: 'episodios', short: 'ep.', singular: 'episodio' },
+  hours: { plural: 'horas', short: 'h', singular: 'hora' },
+  items: { plural: 'partes', short: 'partes', singular: 'parte' },
+  pages: { plural: 'paginas', short: 'pags.', singular: 'pagina' },
+  percent: { plural: '%', short: '%', singular: '%' },
+  volumes: { plural: 'volumenes', short: 'vol.', singular: 'volumen' },
+}
+
 export function getItemSubtitle(item: ListItem) {
   const parts = [itemTypeLabels[item.type]]
-  if (item.progress) parts.push(item.progress)
+  const progress = formatProgress(item)
+  if (progress) parts.push(progress)
   if (item.durationMinHours || item.durationMaxHours) parts.push(formatDuration(item))
   if (item.publicItemId) parts.push('Nexo')
   return parts.join(' / ')
@@ -103,7 +114,7 @@ export function getItemPulseSummary(item: ListItem, now = Date.now()): ItemPulse
   if (item.status === 'in_progress') {
     return {
       label: 'Continuar',
-      value: item.progress?.trim() || 'En curso',
+      value: formatProgress(item) || 'En curso',
     }
   }
   if (item.status === 'paused') {
@@ -126,7 +137,20 @@ export function getWeightMeterValue(value: number) {
 export function getPersonalEditorReadiness(
   item: Pick<
     ListItem,
-    'durationMaxHours' | 'genres' | 'moodTags' | 'notes' | 'posterUrl' | 'progress' | 'rating' | 'tags' | 'title' | 'weights'
+    | 'durationMaxHours'
+    | 'genres'
+    | 'moodTags'
+    | 'notes'
+    | 'posterUrl'
+    | 'progress'
+    | 'progressCurrent'
+    | 'progressTotal'
+    | 'progressUnit'
+    | 'rating'
+    | 'tags'
+    | 'title'
+    | 'type'
+    | 'weights'
   >,
 ): PersonalEditorReadiness {
   const taxonomyCount = item.genres.length + item.tags.length + item.moodTags.length
@@ -137,7 +161,7 @@ export function getPersonalEditorReadiness(
     {
       done:
         Boolean(item.notes?.trim()) ||
-        Boolean(item.progress?.trim()) ||
+        Boolean(formatProgress(item)) ||
         typeof item.rating === 'number' ||
         Boolean(item.durationMaxHours) ||
         Boolean(item.posterUrl?.trim()),
@@ -182,7 +206,8 @@ export function getItemSignals(item: ListItem, now = Date.now()): Array<{ label:
 }
 
 export function getItemEffortSignal(item: ListItem) {
-  if (item.progress?.trim()) return item.progress
+  const progress = formatProgress(item)
+  if (progress) return progress
   if (item.durationMinHours || item.durationMaxHours) return formatDuration(item)
   if (item.weights.priority >= 1.15) return 'Alta prioridad'
   if (item.weights.surprise >= 0.75) return 'Sorpresa alta'
@@ -195,6 +220,35 @@ export function formatDuration(item: Pick<ListItem, 'durationMaxHours' | 'durati
     return `${item.durationMinHours}-${item.durationMaxHours}h`
   }
   return `${item.durationMaxHours ?? item.durationMinHours}h`
+}
+
+export function formatProgress(
+  item: Pick<ListItem, 'progress' | 'progressCurrent' | 'progressTotal' | 'progressUnit' | 'type'>,
+) {
+  const unit = item.progressUnit ?? getDefaultProgressUnit(item.type)
+  const current = readProgressNumber(item.progressCurrent)
+  const total = readProgressNumber(item.progressTotal)
+  const freeText = item.progress?.trim()
+
+  if (unit === 'percent' && current !== undefined) return `${current}%`
+  if (current !== undefined && total !== undefined) return `${current}/${total} ${progressUnitLabels[unit].plural}`
+  if (total !== undefined) return `0/${total} ${progressUnitLabels[unit].plural}`
+  if (current !== undefined) {
+    const unitLabel = current === 1 ? progressUnitLabels[unit].singular : progressUnitLabels[unit].plural
+    return `${current} ${unitLabel}`
+  }
+  return freeText || undefined
+}
+
+export function getDefaultProgressUnit(type: ItemType): ProgressUnit {
+  if (type === 'anime' || type === 'series') return 'episodes'
+  if (type === 'book') return 'pages'
+  if (type === 'manga' || type === 'manhwa' || type === 'comic') return 'chapters'
+  return 'hours'
+}
+
+function readProgressNumber(value: number | undefined) {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined
 }
 
 export function formatDateLabel(value: string) {

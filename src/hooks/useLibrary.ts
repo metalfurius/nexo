@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
   type ExternalRefs,
   type ActivityEntry,
@@ -9,6 +9,7 @@ import {
   type DiscoveryCandidate,
   type ExternalCandidate,
   type ItemStatus,
+  type LibrarySyncState,
   type LibraryCardsPerRow,
   type LibraryViewMode,
   type ListItem,
@@ -31,8 +32,8 @@ import {
 import { rankCatalogSearchCandidates, scoreCatalogSearchCandidate } from '../lib/catalogSearch'
 import { slugify, uniqueValues } from '../lib/strings'
 import { isFirebaseConfigured } from '../services/firebaseConfig'
-import { searchExternalSources } from '../services/externalSearch'
-import type { LibraryRepository } from '../services/libraryRepository'
+import { isFirestoreOfflinePersistenceEnabled } from '../services/devicePreferences'
+import type { LibraryRepository, RepositorySnapshotState } from '../services/libraryRepository'
 
 interface SignedInUserProfile {
   uid: string
@@ -70,6 +71,7 @@ const demoUserProfiles: UserProfile[] = [
 
 type ActivityDraft = Omit<ActivityEntry, 'createdAt' | 'id'>
 const activityEntryLimit = 25
+type SyncSliceId = 'items' | 'settings' | 'discovery' | 'activity' | 'profile' | 'profiles'
 interface SaveDiscoveryOptions {
   persistDiscoveryCandidate?: boolean
 }
@@ -87,6 +89,9 @@ export function useLibrary(user?: SignedInUserProfile | null) {
   const [profileRole, setProfileRole] = useState<{ role: UserRole; userId?: string }>({ role: 'user' })
   const [userProfiles, setUserProfiles] = useState<UserProfile[]>(demoUserProfiles)
   const [demoLibrary, setDemoLibrary] = useState<ListItem[]>(demoItems)
+  const [syncSlices, setSyncSlices] = useState<Partial<Record<SyncSliceId, RepositorySnapshotState>>>({})
+  const [localPendingWriteCount, setLocalPendingWriteCount] = useState(0)
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | undefined>()
   const [error, setError] = useState<string | undefined>()
   const expectsRemote = Boolean(isFirebaseConfigured && userId)
   const repositoryLoading = Boolean(expectsRemote && repositoryState.userId !== userId)
@@ -96,10 +101,54 @@ export function useLibrary(user?: SignedInUserProfile | null) {
   const activeError = expectsRemote ? error : undefined
   const userRole = expectsRemote ? (profileRole.userId === userId ? profileRole.role : 'user') : 'admin'
   const isModerator = userRole === 'admin' || userRole === 'moderator'
+  const remoteSyncStates = Object.values(syncSlices)
+  const remotePendingWriteCount = remoteSyncStates.reduce((total, state) => total + state.pendingWriteCount, 0)
+  const pendingWriteCount = Math.max(remotePendingWriteCount, localPendingWriteCount)
+  const syncFromCache = remoteSyncStates.some((state) => state.fromCache)
+  const syncState: LibrarySyncState = {
+    error: activeError,
+    fromCache: Boolean(expectsRemote && syncFromCache),
+    hasPendingWrites: Boolean(expectsRemote && pendingWriteCount > 0),
+    lastSyncedAt,
+    offlinePersistenceEnabled: isFirestoreOfflinePersistenceEnabled(),
+    pendingWriteCount: expectsRemote ? pendingWriteCount : 0,
+    remote: expectsRemote,
+  }
+
+  const updateSyncSlice = useCallback((sliceId: SyncSliceId, snapshotState?: RepositorySnapshotState) => {
+    if (!snapshotState) return
+    setSyncSlices((current) => ({ ...current, [sliceId]: snapshotState }))
+  }, [])
+
+  const trackRepositoryWrite = useCallback(async (promise: Promise<void>, fallback: string) => {
+    setLocalPendingWriteCount((current) => current + 1)
+    try {
+      await promise
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : fallback)
+      throw reason
+    } finally {
+      setLocalPendingWriteCount((current) => Math.max(0, current - 1))
+    }
+  }, [])
+
+  useEffect(() => {
+    if (expectsRemote && remoteSyncStates.length > 0 && !syncFromCache && pendingWriteCount === 0 && !activeError) {
+      const timeoutId = window.setTimeout(() => setLastSyncedAt(nowIso()), 0)
+      return () => window.clearTimeout(timeoutId)
+    }
+
+    return undefined
+  }, [activeError, expectsRemote, pendingWriteCount, remoteSyncStates.length, syncFromCache])
 
   useEffect(() => {
     if (!userId || !isFirebaseConfigured) {
-      return undefined
+      const timeoutId = window.setTimeout(() => {
+        setSyncSlices({})
+        setLocalPendingWriteCount(0)
+        setLastSyncedAt(undefined)
+      }, 0)
+      return () => window.clearTimeout(timeoutId)
     }
 
     let disposed = false
@@ -112,6 +161,9 @@ export function useLibrary(user?: SignedInUserProfile | null) {
         setDiscoveryCandidates([])
         setActivityEntries([])
         setProfileRole({ role: 'user', userId })
+        setSyncSlices({})
+        setLocalPendingWriteCount(0)
+        setLastSyncedAt(undefined)
         setRepositoryState({ repository: createFirestoreRepository(userId), userId })
       })
       .catch((reason) => {
@@ -129,9 +181,10 @@ export function useLibrary(user?: SignedInUserProfile | null) {
     if (!repository || !userId) return undefined
 
     return repository.subscribeItems(
-      (nextItems) => {
+      (nextItems, snapshotState) => {
         setRemoteItems(nextItems)
         setRemoteUserId(userId)
+        updateSyncSlice('items', snapshotState)
         setError(undefined)
       },
       (reason) => {
@@ -140,7 +193,7 @@ export function useLibrary(user?: SignedInUserProfile | null) {
         setError(getSyncErrorMessage(reason, 'No se pudo cargar la biblioteca.'))
       },
     )
-  }, [repository, userId])
+  }, [repository, updateSyncSlice, userId])
 
   useEffect(() => {
     if (!repository || !userId || !user) {
@@ -149,19 +202,31 @@ export function useLibrary(user?: SignedInUserProfile | null) {
 
     const unsubscribers = [
       repository.subscribeUserProfile(
-        (profile) => setProfileRole({ role: profile?.role ?? 'user', userId }),
+        (profile, snapshotState) => {
+          setProfileRole({ role: profile?.role ?? 'user', userId })
+          updateSyncSlice('profile', snapshotState)
+        },
         (reason) => setError(getSyncErrorMessage(reason, 'No se pudo cargar el perfil.')),
       ),
       repository.subscribeSettings(
-        (remoteSettings) => setSettings(mergeSettings(remoteSettings)),
+        (remoteSettings, snapshotState) => {
+          setSettings(mergeSettings(remoteSettings))
+          updateSyncSlice('settings', snapshotState)
+        },
         (reason) => setError(getSyncErrorMessage(reason, 'No se pudieron cargar los ajustes.')),
       ),
       repository.subscribeDiscoveryCandidates(
-        (nextCandidates) => setDiscoveryCandidates((current) => mergeCandidates(nextCandidates, current)),
+        (nextCandidates, snapshotState) => {
+          setDiscoveryCandidates((current) => mergeCandidates(nextCandidates, current))
+          updateSyncSlice('discovery', snapshotState)
+        },
         (reason) => setError(getSyncErrorMessage(reason, 'No se pudo cargar la cola de exploracion.')),
       ),
       repository.subscribeActivityEntries(
-        (nextEntries) => setActivityEntries(nextEntries),
+        (nextEntries, snapshotState) => {
+          setActivityEntries(nextEntries)
+          updateSyncSlice('activity', snapshotState)
+        },
         (reason) => {
           setActivityEntries([])
           if (!isPermissionDeniedError(reason)) {
@@ -176,7 +241,7 @@ export function useLibrary(user?: SignedInUserProfile | null) {
       .catch((reason) => setError(getSyncErrorMessage(reason, 'No se pudo actualizar el perfil.')))
 
     return () => unsubscribers.forEach((unsubscribe) => unsubscribe())
-  }, [repository, user, userId])
+  }, [repository, updateSyncSlice, user, userId])
 
   useEffect(() => {
     if (!repository || !userId || userRole !== 'admin') {
@@ -184,10 +249,13 @@ export function useLibrary(user?: SignedInUserProfile | null) {
     }
 
     return repository.subscribeUserProfiles(
-      (profiles) => setUserProfiles(profiles),
+      (profiles, snapshotState) => {
+        setUserProfiles(profiles)
+        updateSyncSlice('profiles', snapshotState)
+      },
       (reason) => setError(getSyncErrorMessage(reason, 'No se pudieron cargar los perfiles.')),
     )
-  }, [repository, userId, userRole])
+  }, [repository, updateSyncSlice, userId, userRole])
 
   async function saveItem(item: ListItem) {
     const existingItem = items.find((currentItem) => currentItem.id === item.id)
@@ -200,7 +268,9 @@ export function useLibrary(user?: SignedInUserProfile | null) {
       updatedAt: nowIso(),
     }
     if (repository) {
-      await repository.saveItem(normalized)
+      setRemoteItems((current) => upsertItem(current, normalized))
+      if (userId) setRemoteUserId(userId)
+      return trackRepositoryWrite(repository.saveItem(normalized), 'No se pudo guardar la ficha.')
     } else {
       setDemoLibrary((current) => upsertItem(current, normalized))
     }
@@ -208,7 +278,8 @@ export function useLibrary(user?: SignedInUserProfile | null) {
 
   async function deleteItem(id: string) {
     if (repository) {
-      await repository.deleteItem(id)
+      setRemoteItems((current) => current.filter((item) => item.id !== id))
+      return trackRepositoryWrite(repository.deleteItem(id), 'No se pudo eliminar la ficha.')
     } else {
       setDemoLibrary((current) => current.filter((item) => item.id !== id))
     }
@@ -216,7 +287,8 @@ export function useLibrary(user?: SignedInUserProfile | null) {
 
   async function deleteAllItems() {
     if (repository) {
-      await repository.deleteAllItems()
+      setRemoteItems([])
+      return trackRepositoryWrite(repository.deleteAllItems(), 'No se pudieron borrar las entradas privadas.')
     } else {
       setDemoLibrary([])
     }
@@ -224,7 +296,10 @@ export function useLibrary(user?: SignedInUserProfile | null) {
 
   async function setStatus(id: string, status: ItemStatus) {
     if (repository) {
-      await repository.setStatus(id, status)
+      setRemoteItems((current) =>
+        current.map((item) => (item.id === id ? { ...item, status, updatedAt: nowIso() } : item)),
+      )
+      return trackRepositoryWrite(repository.setStatus(id, status), 'No se pudo actualizar el estado.')
     } else {
       setDemoLibrary((current) =>
         current.map((item) => (item.id === id ? { ...item, status, updatedAt: nowIso() } : item)),
@@ -236,7 +311,14 @@ export function useLibrary(user?: SignedInUserProfile | null) {
     const tomorrow = new Date()
     tomorrow.setDate(tomorrow.getDate() + 1)
     if (repository) {
-      await repository.snoozeRecommendation(id)
+      setRemoteItems((current) =>
+        current.map((item) =>
+          item.id === id
+            ? { ...item, recommendationCooldownUntil: tomorrow.toISOString(), updatedAt: nowIso() }
+            : item,
+        ),
+      )
+      return trackRepositoryWrite(repository.snoozeRecommendation(id), 'No se pudo pausar la recomendacion.')
     } else {
       setDemoLibrary((current) =>
         current.map((item) =>
@@ -250,7 +332,12 @@ export function useLibrary(user?: SignedInUserProfile | null) {
 
   async function reactivateRecommendation(id: string) {
     if (repository) {
-      await repository.reactivateRecommendation(id)
+      setRemoteItems((current) =>
+        current.map((item) =>
+          item.id === id ? { ...item, recommendationCooldownUntil: undefined, updatedAt: nowIso() } : item,
+        ),
+      )
+      return trackRepositoryWrite(repository.reactivateRecommendation(id), 'No se pudo reactivar la recomendacion.')
     } else {
       setDemoLibrary((current) =>
         current.map((item) =>
@@ -262,7 +349,19 @@ export function useLibrary(user?: SignedInUserProfile | null) {
 
   async function setRecommendationCooldown(id: string, cooldownUntil?: string) {
     if (repository) {
-      await repository.setRecommendationCooldown(id, cooldownUntil)
+      setRemoteItems((current) =>
+        current.map((item) => {
+          if (item.id !== id) return item
+          const nextItem = { ...item, updatedAt: nowIso() }
+          if (cooldownUntil) {
+            nextItem.recommendationCooldownUntil = cooldownUntil
+          } else {
+            delete nextItem.recommendationCooldownUntil
+          }
+          return nextItem
+        }),
+      )
+      return trackRepositoryWrite(repository.setRecommendationCooldown(id, cooldownUntil), 'No se pudo actualizar el cooldown.')
     } else {
       setDemoLibrary((current) =>
         current.map((item) => {
@@ -282,7 +381,12 @@ export function useLibrary(user?: SignedInUserProfile | null) {
   async function recordRecommendation(itemId: string, reasons: string[]) {
     const recommendedAt = nowIso()
     if (repository) {
-      await repository.recordRecommendation(itemId, reasons)
+      setRemoteItems((current) =>
+        current.map((item) =>
+          item.id === itemId ? { ...item, lastRecommendedAt: recommendedAt, updatedAt: recommendedAt } : item,
+        ),
+      )
+      return trackRepositoryWrite(repository.recordRecommendation(itemId, reasons), 'No se pudo guardar la recomendacion.')
     } else {
       setDemoLibrary((current) =>
         current.map((item) =>
@@ -294,6 +398,7 @@ export function useLibrary(user?: SignedInUserProfile | null) {
 
   async function searchExternal(query: string, type: string): Promise<ExternalCandidate[]> {
     if (repository) return repository.searchExternal(query, type)
+    const { searchExternalSources } = await import('../services/externalSearch')
     const candidates = await searchExternalSources(query, type)
     return candidates.length ? candidates : demoExternalCandidates(query, type)
   }
@@ -324,7 +429,7 @@ export function useLibrary(user?: SignedInUserProfile | null) {
   async function saveSettings(nextSettings: Partial<UserSettings>) {
     const merged = mergeSettings({ ...settings, ...nextSettings })
     setSettings(merged)
-    if (repository) await repository.saveSettings(nextSettings)
+    if (repository) return trackRepositoryWrite(repository.saveSettings(nextSettings), 'No se pudieron guardar los ajustes.')
   }
 
   async function queueDiscoveryCandidates(candidates: DiscoveryCandidate[]) {
@@ -339,12 +444,10 @@ export function useLibrary(user?: SignedInUserProfile | null) {
     )
     setDiscoveryCandidates((current) => mergeCandidates(normalized, current))
     if (repository) {
-      try {
-        await Promise.all(candidatesToPersist.map((candidate) => repository.saveDiscoveryCandidate(candidate)))
-      } catch (reason) {
-        setError(reason instanceof Error ? reason.message : 'No se pudo persistir la cola de exploracion.')
-        throw reason
-      }
+      await trackRepositoryWrite(
+        Promise.all(candidatesToPersist.map((candidate) => repository.saveDiscoveryCandidate(candidate))).then(() => undefined),
+        'No se pudo persistir la cola de exploracion.',
+      )
     }
     return candidatesToPersist.length
   }
@@ -359,11 +462,7 @@ export function useLibrary(user?: SignedInUserProfile | null) {
       ),
     )
     if (repository) {
-      try {
-        await repository.dismissDiscoveryCandidate(candidateId)
-      } catch (reason) {
-        setError(reason instanceof Error ? reason.message : 'No se pudo persistir el descarte.')
-      }
+      return trackRepositoryWrite(repository.dismissDiscoveryCandidate(candidateId), 'No se pudo persistir el descarte.')
     }
   }
 
@@ -379,11 +478,7 @@ export function useLibrary(user?: SignedInUserProfile | null) {
       }),
     )
     if (repository) {
-      try {
-        await repository.restoreDiscoveryCandidate(candidateId)
-      } catch (reason) {
-        setError(reason instanceof Error ? reason.message : 'No se pudo restaurar el hallazgo.')
-      }
+      return trackRepositoryWrite(repository.restoreDiscoveryCandidate(candidateId), 'No se pudo restaurar el hallazgo.')
     }
   }
 
@@ -398,11 +493,10 @@ export function useLibrary(user?: SignedInUserProfile | null) {
       ),
     )
     if (repository && persistDiscoveryCandidate) {
-      try {
-        await repository.markDiscoveryCandidateSaved(candidate.id, item.id)
-      } catch (reason) {
-        setError(reason instanceof Error ? reason.message : 'No se pudo persistir el estado del candidato.')
-      }
+      await trackRepositoryWrite(
+        repository.markDiscoveryCandidateSaved(candidate.id, item.id),
+        'No se pudo persistir el estado del candidato.',
+      )
     }
     return item
   }
@@ -468,37 +562,32 @@ export function useLibrary(user?: SignedInUserProfile | null) {
     setActivityEntries((current) => limitActivityEntries([activityEntry, ...current]))
 
     if (repository) {
-      try {
-        await repository.saveActivityEntry(activityEntry)
-      } catch (reason) {
-        if (!isPermissionDeniedError(reason)) {
-          console.warn(reason instanceof Error ? reason.message : 'No se pudo guardar la actividad reciente.')
-        }
-      }
+      setLocalPendingWriteCount((current) => current + 1)
+      void repository
+        .saveActivityEntry(activityEntry)
+        .catch((reason) => {
+          if (!isPermissionDeniedError(reason)) {
+            setError(reason instanceof Error ? reason.message : 'No se pudo guardar la actividad reciente.')
+          }
+        })
+        .finally(() => setLocalPendingWriteCount((current) => Math.max(0, current - 1)))
     }
   }
 
   async function clearActivityEntries() {
     setActivityEntries([])
     if (repository) {
-      try {
-        await repository.clearActivityEntries()
-      } catch (reason) {
-        setError(reason instanceof Error ? reason.message : 'No se pudo limpiar la actividad reciente.')
-      }
+      return trackRepositoryWrite(repository.clearActivityEntries(), 'No se pudo limpiar la actividad reciente.')
     }
   }
 
   async function restoreActivityEntries(entries: ActivityEntry[]) {
     setActivityEntries((current) => mergeActivityEntries(entries, current))
     if (repository) {
-      try {
-        for (const entry of entries) {
-          await repository.saveActivityEntry(entry)
-        }
-      } catch (reason) {
-        setError(reason instanceof Error ? reason.message : 'No se pudo restaurar la actividad reciente.')
-      }
+      return trackRepositoryWrite(
+        Promise.all(entries.map((entry) => repository.saveActivityEntry(entry))).then(() => undefined),
+        'No se pudo restaurar la actividad reciente.',
+      )
     }
   }
 
@@ -508,14 +597,17 @@ export function useLibrary(user?: SignedInUserProfile | null) {
       title: candidate.title,
       type: candidate.type,
       status: 'wishlist',
+      progressCurrent: candidate.progressTotal ? 0 : undefined,
+      progressTotal: candidate.progressTotal,
+      progressUnit: candidate.progressUnit,
       genres: candidate.genres,
       tags: uniqueValues([candidate.type, candidate.source, ...candidate.genres]),
       moodTags: [],
       weights: DEFAULT_WEIGHTS,
-      notes: candidate.overview,
       source: 'external',
       externalRefs: candidate.externalRefs,
       posterUrl: candidate.posterUrl,
+      relatedItems: cloneRelatedItems(candidate.relatedItems),
       createdAt: nowIso(),
       updatedAt: nowIso(),
     }
@@ -531,6 +623,7 @@ export function useLibrary(user?: SignedInUserProfile | null) {
     isModerator,
     loading,
     error: activeError,
+    syncState,
     saveItem,
     deleteItem,
     deleteAllItems,
@@ -572,9 +665,12 @@ function preserveLockedCatalogFields(incoming: ListItem, existing?: ListItem): L
     id: existing.id,
     importNotes: existing.importNotes,
     posterUrl: existing.posterUrl,
+    progressTotal: existing.progressTotal,
+    progressUnit: existing.progressUnit,
     publicItemId: existing.publicItemId,
     publicSnapshot: existing.publicSnapshot,
     rawText: existing.rawText,
+    relatedItems: cloneRelatedItems(existing.relatedItems),
     source: existing.source,
     tags: existing.tags,
     title: existing.title,
@@ -588,6 +684,13 @@ function preserveLockedCatalogFields(incoming: ListItem, existing?: ListItem): L
 
 function cloneExternalRefs(refs?: ExternalRefs): ExternalRefs | undefined {
   return refs ? { ...refs } : refs
+}
+
+function cloneRelatedItems(items?: ListItem['relatedItems']): ListItem['relatedItems'] {
+  return items?.map((item) => ({
+    ...item,
+    ...(item.externalRefs ? { externalRefs: { ...item.externalRefs } } : {}),
+  }))
 }
 
 function limitActivityEntries(entries: ActivityEntry[]) {

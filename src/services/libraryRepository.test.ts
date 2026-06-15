@@ -72,8 +72,8 @@ describe('createFirestoreRepository', () => {
   it('subscribes to the signed-in user item collection', () => {
     const unsubscribe = vi.fn()
     const onItems = vi.fn()
-    mocks.onSnapshot.mockImplementation((source, onNext) => {
-      onNext({ docs: [{ data: () => item }] })
+    mocks.onSnapshot.mockImplementation((source, options, onNext) => {
+      onNext({ docs: [{ data: () => item }], metadata: { fromCache: false, hasPendingWrites: false } })
       return unsubscribe
     })
 
@@ -84,11 +84,44 @@ describe('createFirestoreRepository', () => {
       expect.objectContaining({
         collectionRef: expect.objectContaining({ path: 'users/user-1/items' }),
       }),
+      { includeMetadataChanges: true },
       expect.any(Function),
       expect.any(Function),
     )
-    expect(onItems).toHaveBeenCalledWith([item])
+    expect(onItems).toHaveBeenCalledWith([item], {
+      fromCache: false,
+      hasPendingWrites: false,
+      pendingWriteCount: 0,
+    })
     expect(result).toBe(unsubscribe)
+  })
+
+  it('reports Firestore snapshot metadata for offline and pending writes', () => {
+    const onItems = vi.fn()
+    mocks.onSnapshot.mockImplementation((source, options, onNext) => {
+      onNext({
+        docs: [
+          {
+            data: () => item,
+            metadata: { hasPendingWrites: true },
+          },
+        ],
+        metadata: { fromCache: true, hasPendingWrites: true },
+      })
+      return vi.fn()
+    })
+
+    const repository = createFirestoreRepository('user-1')
+    repository?.subscribeItems(onItems, vi.fn())
+
+    expect(onItems).toHaveBeenCalledWith(
+      [item],
+      {
+        fromCache: true,
+        hasPendingWrites: true,
+        pendingWriteCount: 1,
+      },
+    )
   })
 
   it('writes item mutations under the signed-in user', async () => {
@@ -216,7 +249,7 @@ describe('createFirestoreRepository', () => {
   it('subscribes to the current user profile role', () => {
     const unsubscribe = vi.fn()
     const onProfile = vi.fn()
-    mocks.onSnapshot.mockImplementation((source, onNext) => {
+    mocks.onSnapshot.mockImplementation((source, options, onNext) => {
       onNext({
         exists: () => true,
         data: () => ({
@@ -225,6 +258,7 @@ describe('createFirestoreRepository', () => {
           createdAt: '2026-01-01T00:00:00.000Z',
           updatedAt: '2026-01-01T00:00:00.000Z',
         }),
+        metadata: { fromCache: false, hasPendingWrites: false },
       })
       return unsubscribe
     })
@@ -234,17 +268,22 @@ describe('createFirestoreRepository', () => {
 
     expect(mocks.onSnapshot).toHaveBeenCalledWith(
       expect.objectContaining({ path: 'users/user-1' }),
+      { includeMetadataChanges: true },
       expect.any(Function),
       expect.any(Function),
     )
-    expect(onProfile).toHaveBeenCalledWith(expect.objectContaining({ role: 'admin', uid: 'user-1' }))
+    expect(onProfile).toHaveBeenCalledWith(expect.objectContaining({ role: 'admin', uid: 'user-1' }), {
+      fromCache: false,
+      hasPendingWrites: false,
+      pendingWriteCount: 0,
+    })
     expect(result).toBe(unsubscribe)
   })
 
   it('subscribes to user profiles and updates roles for admins', async () => {
     const unsubscribe = vi.fn()
     const onProfiles = vi.fn()
-    mocks.onSnapshot.mockImplementation((source, onNext) => {
+    mocks.onSnapshot.mockImplementation((source, options, onNext) => {
       onNext({
         docs: [
           {
@@ -257,6 +296,7 @@ describe('createFirestoreRepository', () => {
             }),
           },
         ],
+        metadata: { fromCache: false, hasPendingWrites: false },
       })
       return unsubscribe
     })
@@ -269,12 +309,18 @@ describe('createFirestoreRepository', () => {
       expect.objectContaining({
         collectionRef: expect.objectContaining({ path: 'users' }),
       }),
+      { includeMetadataChanges: true },
       expect.any(Function),
       expect.any(Function),
     )
-    expect(onProfiles).toHaveBeenCalledWith([
-      expect.objectContaining({ email: 'user@example.com', role: 'user', uid: 'user-2' }),
-    ])
+    expect(onProfiles).toHaveBeenCalledWith(
+      [expect.objectContaining({ email: 'user@example.com', role: 'user', uid: 'user-2' })],
+      {
+        fromCache: false,
+        hasPendingWrites: false,
+        pendingWriteCount: 0,
+      },
+    )
     expect(mocks.setDoc).toHaveBeenCalledWith(
       expect.objectContaining({ path: 'users/user-2' }),
       expect.objectContaining({ role: 'moderator' }),
@@ -329,7 +375,7 @@ describe('createFirestoreRepository', () => {
       createdAt: '2026-01-01T00:00:00.000Z',
     }
     const entryRef = { path: 'users/user-1/activityEntries/activity-1' }
-    mocks.onSnapshot.mockImplementation((source, onNext) => {
+    mocks.onSnapshot.mockImplementation((source, options, onNext) => {
       onNext({
         docs: [
           {
@@ -337,6 +383,7 @@ describe('createFirestoreRepository', () => {
             data: () => activityEntry,
           },
         ],
+        metadata: { fromCache: false, hasPendingWrites: false },
       })
       return unsubscribe
     })
@@ -351,10 +398,15 @@ describe('createFirestoreRepository', () => {
       expect.objectContaining({
         collectionRef: expect.objectContaining({ path: 'users/user-1/activityEntries' }),
       }),
+      { includeMetadataChanges: true },
       expect.any(Function),
       expect.any(Function),
     )
-    expect(onEntries).toHaveBeenCalledWith([activityEntry])
+    expect(onEntries).toHaveBeenCalledWith([activityEntry], {
+      fromCache: false,
+      hasPendingWrites: false,
+      pendingWriteCount: 0,
+    })
     expect(mocks.setDoc).toHaveBeenCalledWith(
       expect.objectContaining({ path: 'users/user-1/activityEntries/activity-1' }),
       expect.objectContaining({ label: 'Ficha guardada', tab: 'library', target: activityEntry.target }),

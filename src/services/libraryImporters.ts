@@ -13,6 +13,7 @@ import {
   type ItemStatus,
   type ItemType,
   type ListItem,
+  type ProgressUnit,
   nowIso,
 } from '../domain/types'
 import { normalizeKey, slugify, uniqueValues } from '../lib/strings'
@@ -359,6 +360,9 @@ function importedDraftToListItem(draft: ImportedLibraryItemDraft, importedAt: st
     status: draft.status,
     rating: draft.rating,
     progress: draft.progress,
+    progressCurrent: draft.progressCurrent,
+    progressTotal: draft.progressTotal,
+    progressUnit: draft.progressUnit,
     genres: uniqueValues(draft.genres),
     tags: uniqueValues(draft.tags.length ? draft.tags : [importSourceLabels[draft.sourceId]]),
     moodTags: uniqueValues(draft.moodTags),
@@ -369,6 +373,7 @@ function importedDraftToListItem(draft: ImportedLibraryItemDraft, importedAt: st
     importNotes,
     externalRefs: compactRefs(draft.externalRefs),
     posterUrl: draft.posterUrl,
+    relatedItems: draft.relatedItems,
     createdAt: importedAt,
     updatedAt: importedAt,
   }
@@ -399,6 +404,9 @@ async function fetchAniListCollection(
               format
               countryOfOrigin
               siteUrl
+              episodes
+              chapters
+              volumes
               title {
                 romaji
                 english
@@ -470,6 +478,7 @@ function anilistEntryToDraft(entry?: UnknownRecord): ImportedLibraryItemDraft | 
   const malId = readString(media?.idMal)
   const format = readString(media?.format)
   const releaseYear = readNumber(asRecord(media?.startDate)?.year)
+  const progressMeta = anilistProgressMeta(entry?.progress, media, type)
 
   return {
     sourceId: 'anilist',
@@ -479,6 +488,9 @@ function anilistEntryToDraft(entry?: UnknownRecord): ImportedLibraryItemDraft | 
     status: anilistStatusToItemStatus(readString(entry?.status)),
     rating: normalizeTenPointRating(readNumber(entry?.score), 100),
     progress: readProgress(entry?.progress, type),
+    progressCurrent: progressMeta?.current,
+    progressTotal: progressMeta?.total,
+    progressUnit: progressMeta?.unit,
     genres: stringList(media?.genres),
     tags: uniqueValues(['AniList', format, type]),
     moodTags: [],
@@ -558,6 +570,7 @@ function jikanEntryToDraft(entry: UnknownRecord | undefined, listKind: 'animelis
   const themes = readJikanNamedList(media?.themes)
   const demographics = readJikanNamedList(media?.demographics)
   const published = asRecord(media?.published)
+  const progressMeta = jikanStructuredProgress(entry, media, listKind)
 
   return {
     sourceId: 'myanimelist',
@@ -567,6 +580,9 @@ function jikanEntryToDraft(entry: UnknownRecord | undefined, listKind: 'animelis
     status: malStatusToItemStatus(readString(entry?.status), listKind),
     rating: normalizeTenPointRating(readNumber(entry?.score), 10),
     progress: jikanProgress(entry, media, listKind),
+    progressCurrent: progressMeta?.current,
+    progressTotal: progressMeta?.total,
+    progressUnit: progressMeta?.unit,
     genres: uniqueValues([...genres, ...demographics]),
     tags: uniqueValues(['MyAnimeList', ...themes, type]),
     moodTags: [],
@@ -815,11 +831,42 @@ function jikanProgress(entry: UnknownRecord | undefined, media: UnknownRecord | 
   return total ? `${current}/${total} ${unit}` : `${current} ${unit}`
 }
 
+function jikanStructuredProgress(entry: UnknownRecord | undefined, media: UnknownRecord | undefined, listKind: 'animelist' | 'mangalist') {
+  const current = readNumber(entry?.episodes_watched) ?? readNumber(entry?.chapters_read) ?? readNumber(entry?.volumes_read)
+  const unit: ProgressUnit = listKind === 'animelist' ? 'episodes' : readNumber(entry?.volumes_read) && !readNumber(entry?.chapters_read) ? 'volumes' : 'chapters'
+  const total = unit === 'episodes'
+    ? readNumber(media?.episodes)
+    : unit === 'volumes'
+      ? readNumber(media?.volumes)
+      : readNumber(media?.chapters) ?? readNumber(media?.volumes)
+
+  if (!current && !total) return undefined
+  return { current, total, unit }
+}
+
 function readProgress(value: unknown, type: ItemType) {
   const progress = readNumber(value)
   if (!progress) return undefined
   const unit = type === 'anime' ? 'episodios' : 'capitulos'
   return `${progress} ${unit}`
+}
+
+function anilistProgressMeta(value: unknown, media: UnknownRecord | undefined, type: ItemType) {
+  const current = readNumber(value)
+  const unit: ProgressUnit =
+    type === 'anime'
+      ? 'episodes'
+      : readNumber(media?.volumes) && !readNumber(media?.chapters)
+        ? 'volumes'
+        : 'chapters'
+  const total = unit === 'episodes'
+    ? readNumber(media?.episodes)
+    : unit === 'volumes'
+      ? readNumber(media?.volumes)
+      : readNumber(media?.chapters) ?? readNumber(media?.volumes)
+
+  if (!current && !total) return undefined
+  return { current, total, unit }
 }
 
 function readJikanNamedList(value: unknown) {

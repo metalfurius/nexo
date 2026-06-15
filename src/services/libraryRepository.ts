@@ -32,8 +32,17 @@ import { normalizeKey } from '../lib/strings'
 import { searchExternalSources } from './externalSearch'
 import { getFirebaseServices } from './firebaseDb'
 
+export interface RepositorySnapshotState {
+  fromCache: boolean
+  hasPendingWrites: boolean
+  pendingWriteCount: number
+}
+
 export interface LibraryRepository {
-  subscribeItems: (onItems: (items: ListItem[]) => void, onError: (error: Error) => void) => () => void
+  subscribeItems: (
+    onItems: (items: ListItem[], snapshotState: RepositorySnapshotState) => void,
+    onError: (error: Error) => void,
+  ) => () => void
   saveItem: (item: ListItem) => Promise<void>
   deleteItem: (id: string) => Promise<void>
   deleteAllItems: () => Promise<void>
@@ -45,10 +54,13 @@ export interface LibraryRepository {
   searchExternal: (query: string, type: string) => Promise<ExternalCandidate[]>
   listPublicCatalog: () => Promise<PublicCatalogItem[]>
   searchPublicCatalog: (query: string, type?: string) => Promise<PublicCatalogItem[]>
-  subscribeSettings: (onSettings: (settings: Partial<UserSettings>) => void, onError: (error: Error) => void) => () => void
+  subscribeSettings: (
+    onSettings: (settings: Partial<UserSettings>, snapshotState: RepositorySnapshotState) => void,
+    onError: (error: Error) => void,
+  ) => () => void
   saveSettings: (settings: Partial<UserSettings>) => Promise<void>
   subscribeDiscoveryCandidates: (
-    onCandidates: (candidates: DiscoveryCandidate[]) => void,
+    onCandidates: (candidates: DiscoveryCandidate[], snapshotState: RepositorySnapshotState) => void,
     onError: (error: Error) => void,
   ) => () => void
   saveDiscoveryCandidate: (candidate: DiscoveryCandidate) => Promise<void>
@@ -56,14 +68,23 @@ export interface LibraryRepository {
   restoreDiscoveryCandidate: (candidateId: string) => Promise<void>
   markDiscoveryCandidateSaved: (candidateId: string, savedItemId: string) => Promise<void>
   ensureUserProfile: (profile: Partial<UserProfile>) => Promise<void>
-  subscribeUserProfile: (onProfile: (profile: UserProfile | undefined) => void, onError: (error: Error) => void) => () => void
-  subscribeUserProfiles: (onProfiles: (profiles: UserProfile[]) => void, onError: (error: Error) => void) => () => void
+  subscribeUserProfile: (
+    onProfile: (profile: UserProfile | undefined, snapshotState: RepositorySnapshotState) => void,
+    onError: (error: Error) => void,
+  ) => () => void
+  subscribeUserProfiles: (
+    onProfiles: (profiles: UserProfile[], snapshotState: RepositorySnapshotState) => void,
+    onError: (error: Error) => void,
+  ) => () => void
   updateUserRole: (targetUserId: string, role: UserRole) => Promise<void>
   upsertPublicItem: (item: Partial<PublicCatalogItem> & Pick<PublicCatalogItem, 'title' | 'type'>) => Promise<PublicCatalogItem>
   replacePublicItem: (item: PublicCatalogItem) => Promise<PublicCatalogItem>
   archivePublicItem: (id: string) => Promise<void>
   restorePublicItem: (id: string) => Promise<void>
-  subscribeActivityEntries: (onEntries: (entries: ActivityEntry[]) => void, onError: (error: Error) => void) => () => void
+  subscribeActivityEntries: (
+    onEntries: (entries: ActivityEntry[], snapshotState: RepositorySnapshotState) => void,
+    onError: (error: Error) => void,
+  ) => () => void
   saveActivityEntry: (entry: ActivityEntry) => Promise<void>
   clearActivityEntries: () => Promise<void>
 }
@@ -87,8 +108,9 @@ export function createFirestoreRepository(userId: string): LibraryRepository | u
       const itemsQuery = query(itemCollection, orderBy('updatedAt', 'desc'))
       return onSnapshot(
         itemsQuery,
+        { includeMetadataChanges: true },
         (snapshot) => {
-          onItems(snapshot.docs.map((itemDoc) => itemDoc.data() as ListItem))
+          onItems(snapshot.docs.map((itemDoc) => itemDoc.data() as ListItem), readQuerySnapshotState(snapshot))
         },
         (error) => onError(error),
       )
@@ -198,7 +220,8 @@ export function createFirestoreRepository(userId: string): LibraryRepository | u
     subscribeSettings(onSettings, onError) {
       return onSnapshot(
         settingsDocument,
-        (snapshot) => onSettings(snapshot.exists() ? (snapshot.data() as Partial<UserSettings>) : {}),
+        { includeMetadataChanges: true },
+        (snapshot) => onSettings(snapshot.exists() ? (snapshot.data() as Partial<UserSettings>) : {}, readDocumentSnapshotState(snapshot)),
         (error) => onError(error),
       )
     },
@@ -216,7 +239,12 @@ export function createFirestoreRepository(userId: string): LibraryRepository | u
       const candidatesQuery = query(discoveryCandidateCollection, orderBy('updatedAt', 'desc'))
       return onSnapshot(
         candidatesQuery,
-        (snapshot) => onCandidates(snapshot.docs.map((candidateDoc) => candidateDoc.data() as DiscoveryCandidate)),
+        { includeMetadataChanges: true },
+        (snapshot) =>
+          onCandidates(
+            snapshot.docs.map((candidateDoc) => candidateDoc.data() as DiscoveryCandidate),
+            readQuerySnapshotState(snapshot),
+          ),
         (error) => onError(error),
       )
     },
@@ -294,7 +322,12 @@ export function createFirestoreRepository(userId: string): LibraryRepository | u
     subscribeUserProfile(onProfile, onError) {
       return onSnapshot(
         userProfileDocument,
-        (snapshot) => onProfile(snapshot.exists() ? normalizeUserProfile(userId, snapshot.data()) : undefined),
+        { includeMetadataChanges: true },
+        (snapshot) =>
+          onProfile(
+            snapshot.exists() ? normalizeUserProfile(userId, snapshot.data()) : undefined,
+            readDocumentSnapshotState(snapshot),
+          ),
         (error) => onError(error),
       )
     },
@@ -302,7 +335,12 @@ export function createFirestoreRepository(userId: string): LibraryRepository | u
       const profilesQuery = query(userProfileCollection, orderBy('updatedAt', 'desc'))
       return onSnapshot(
         profilesQuery,
-        (snapshot) => onProfiles(snapshot.docs.map((profileDoc) => normalizeUserProfile(profileDoc.id, profileDoc.data()))),
+        { includeMetadataChanges: true },
+        (snapshot) =>
+          onProfiles(
+            snapshot.docs.map((profileDoc) => normalizeUserProfile(profileDoc.id, profileDoc.data())),
+            readQuerySnapshotState(snapshot),
+          ),
         (error) => onError(error),
       )
     },
@@ -352,7 +390,12 @@ export function createFirestoreRepository(userId: string): LibraryRepository | u
       const activityQuery = query(activityEntryCollection, orderBy('createdAt', 'desc'), firestoreLimit(25))
       return onSnapshot(
         activityQuery,
-        (snapshot) => onEntries(snapshot.docs.map((entryDoc) => normalizeActivityEntry(entryDoc.id, entryDoc.data()))),
+        { includeMetadataChanges: true },
+        (snapshot) =>
+          onEntries(
+            snapshot.docs.map((entryDoc) => normalizeActivityEntry(entryDoc.id, entryDoc.data())),
+            readQuerySnapshotState(snapshot),
+          ),
         (error) => onError(error),
       )
     },
@@ -369,6 +412,30 @@ export function createFirestoreRepository(userId: string): LibraryRepository | u
         await batch.commit()
       }
     },
+  }
+}
+
+function readQuerySnapshotState(snapshot: {
+  docs?: Array<{ metadata?: { hasPendingWrites?: boolean } }>
+  metadata?: { fromCache?: boolean; hasPendingWrites?: boolean }
+}): RepositorySnapshotState {
+  const metadata = snapshot.metadata
+  const pendingDocs = snapshot.docs?.filter((entry) => Boolean(entry.metadata?.hasPendingWrites)).length ?? 0
+  return {
+    fromCache: Boolean(metadata?.fromCache),
+    hasPendingWrites: Boolean(metadata?.hasPendingWrites || pendingDocs > 0),
+    pendingWriteCount: pendingDocs || (metadata?.hasPendingWrites ? 1 : 0),
+  }
+}
+
+function readDocumentSnapshotState(snapshot: {
+  metadata?: { fromCache?: boolean; hasPendingWrites?: boolean }
+}): RepositorySnapshotState {
+  const metadata = snapshot.metadata
+  return {
+    fromCache: Boolean(metadata?.fromCache),
+    hasPendingWrites: Boolean(metadata?.hasPendingWrites),
+    pendingWriteCount: metadata?.hasPendingWrites ? 1 : 0,
   }
 }
 

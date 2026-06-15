@@ -53,12 +53,14 @@ describe('library item insights', () => {
         item({
           durationMinHours: 2,
           durationMaxHours: 6,
-          progress: 'Cap. 4',
+          progressCurrent: 0,
+          progressTotal: 12,
+          progressUnit: 'episodes',
           publicItemId: 'public-1',
           type: 'series',
         }),
       ),
-    ).toBe('Series / Cap. 4 / 2-6h / Nexo')
+    ).toBe('Series / 0/12 episodios / 2-6h / Nexo')
     expect(
       getVisibleItemChips(
         item({
@@ -80,9 +82,9 @@ describe('library item insights', () => {
         now,
       ),
     ).toEqual({ label: 'Dado', value: 'Cooldown' })
-    expect(getItemPulseSummary(item({ status: 'in_progress', progress: 'Acto 2' }), now)).toEqual({
+    expect(getItemPulseSummary(item({ status: 'in_progress', progressCurrent: 6, progressTotal: 12, progressUnit: 'episodes', type: 'anime' }), now)).toEqual({
       label: 'Continuar',
-      value: 'Acto 2',
+      value: '6/12 episodios',
     })
     expect(getItemPulseSummary(item({ weights: { priority: 1.2 } }), now)).toEqual({ label: 'Dado', value: 'Alta prioridad' })
 
@@ -107,7 +109,11 @@ describe('library item insights', () => {
       notes: undefined,
       posterUrl: undefined,
       progress: undefined,
+      progressCurrent: undefined,
+      progressTotal: undefined,
+      progressUnit: undefined,
       rating: undefined,
+      type: 'book' as const,
     }
     expect(getPersonalEditorReadiness(draft)).toMatchObject({
       detail: 'Completa identidad para que la ficha sea mas facil de buscar y recomendar.',
@@ -121,7 +127,9 @@ describe('library item insights', () => {
         ...draft,
         title: 'Lista',
         genres: ['Drama'],
-        notes: 'Notas',
+        progressCurrent: 42,
+        progressTotal: 300,
+        progressUnit: 'pages',
         weights: { priority: 1, challenge: 0, surprise: 0 },
       }),
     ).toMatchObject({
@@ -140,6 +148,7 @@ describe('library item insights', () => {
     expect(formatRelativeShortTime('2026-06-03T09:00:00.000Z', now)).toBe('3h')
     expect(formatRelativeShortTime('2026-06-01T12:00:00.000Z', now)).toBe('2d')
     expect(getItemEffortSignal(item({ progress: 'Mitad' }))).toBe('Mitad')
+    expect(getItemEffortSignal(item({ progressCurrent: 2, progressTotal: 10, progressUnit: 'chapters', type: 'manga' }))).toBe('2/10 capitulos')
     expect(getItemEffortSignal(item({ durationMaxHours: 8, progress: undefined }))).toBe('8h')
     expect(getItemEffortSignal(item({ weights: { surprise: 0.8 }, progress: undefined }))).toBe('Sorpresa alta')
 
