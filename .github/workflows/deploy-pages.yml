@@ -76,6 +76,10 @@ jobs:
         run: npm run build:functions
 
       - name: E2E smoke
+        env:
+          VITE_CATALOG_PROXY_URL: http://127.0.0.1:5174/catalog-proxy
+          VITE_DEMO_MODE: 'true'
+          VITE_USE_FIREBASE_EMULATORS: 'true'
         run: npm run test:e2e
 
       - name: Release file readiness
