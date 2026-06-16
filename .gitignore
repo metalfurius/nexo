@@ -20,6 +20,7 @@ seed/*.json
 .firebaserc
 *.local
 workers/**/.dev.vars
+workers/**/.wrangler
 
 # Editor directories and files
 .vscode/*

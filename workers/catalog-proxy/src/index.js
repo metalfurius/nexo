@@ -34,7 +34,7 @@ const DEFAULT_ALLOWED_ORIGINS = [
   'http://127.0.0.1:5173',
 ]
 const CACHE_LANGUAGE = 'es-ES'
-const PROVIDER_VERSION = '2026-06-14-v13'
+const PROVIDER_VERSION = '2026-06-16-v19'
 const POSITIVE_TTL_SECONDS = 86_400
 const EMPTY_TTL_SECONDS = 900
 const DISCOVER_TTL_SECONDS = 900
@@ -246,6 +246,9 @@ async function tmdbEntryToCandidate(entry, token) {
   const tmdbRelatedItems = (tmdbMediaType === 'movie'
     ? await readTmdbMovieRelatedItems(detail, entry, token).catch(() => [])
     : readTmdbSeriesRelatedItems(detail, entry))
+  const anilistRelatedItems = tmdbMediaType === 'tv'
+    ? await readAniListRelatedItemsForTmdbSeries(detail, entry).catch(() => [])
+    : []
   const wikidataRelatedItems = await searchWikidataRelatedItems({
     releaseYear,
     title: String(detail?.title || detail?.name || entry.title || entry.name || ''),
@@ -254,7 +257,7 @@ async function tmdbEntryToCandidate(entry, token) {
   }).catch(() => [])
   const progressMeta = tmdbMediaType === 'movie'
     ? readProgressMeta(roundRuntimeHours(detail?.runtime), 'hours')
-    : readProgressMeta(detail?.number_of_episodes, 'episodes')
+    : readProgressMeta(readTmdbSeriesEpisodeTotal(detail), 'episodes')
 
   return {
     id: `tmdb-${entry.media_type}-${id}`,
@@ -273,7 +276,7 @@ async function tmdbEntryToCandidate(entry, token) {
       wikidataId,
       sourceUrl: `https://www.themoviedb.org/${entry.media_type}/${id}`,
     },
-    relatedItems: uniqueRelatedItems([...tmdbRelatedItems, ...wikidataRelatedItems]).slice(0, 12),
+    relatedItems: uniqueRelatedItems([...tmdbRelatedItems, ...anilistRelatedItems, ...wikidataRelatedItems]).slice(0, 12),
     createdAt: new Date().toISOString(),
   }
 }
@@ -324,12 +327,12 @@ function readTmdbSeriesRelatedItems(detail, entry) {
   if (currentSeasonCount <= 1 || !Array.isArray(detail?.seasons)) return []
 
   return detail.seasons
-    .filter((season) => typeof season.season_number === 'number' && season.season_number > 0)
+    .filter((season) => typeof season.season_number === 'number' && season.season_number > 1)
     .slice(0, 12)
     .map((season) => ({
       title: optionalString(season.name) || `${detail?.name || entry.name || 'Serie'} temporada ${season.season_number}`,
       type: 'series',
-      relation: season.season_number === 1 ? 'source' : 'sequel',
+      relation: 'sequel',
       source: 'tmdb',
       sourceId: `${entry.id}-season-${season.season_number}`,
       posterUrl: season.poster_path ? `https://image.tmdb.org/t/p/w342${season.poster_path}` : undefined,
@@ -339,6 +342,74 @@ function readTmdbSeriesRelatedItems(detail, entry) {
         sourceUrl: `https://www.themoviedb.org/tv/${entry.id}/season/${season.season_number}`,
       },
     }))
+}
+
+function readTmdbSeriesEpisodeTotal(detail) {
+  if (typeof detail?.number_of_episodes === 'number' && Number.isFinite(detail.number_of_episodes) && detail.number_of_episodes > 0) {
+    return detail.number_of_episodes
+  }
+  if (!Array.isArray(detail?.seasons)) return undefined
+
+  const total = detail.seasons
+    .filter((season) => typeof season?.season_number === 'number' && season.season_number > 0)
+    .reduce((sum, season) => {
+      const episodeCount = typeof season.episode_count === 'number' && Number.isFinite(season.episode_count) ? season.episode_count : 0
+      return sum + Math.max(0, episodeCount)
+    }, 0)
+  return total > 0 ? total : undefined
+}
+
+async function readAniListRelatedItemsForTmdbSeries(detail, entry) {
+  if (!isTmdbLikelyAnimatedSeries(detail, entry)) return []
+
+  const title = optionalString(detail?.name) || optionalString(entry.name)
+  if (!title) return []
+
+  const candidates = await searchAniList(title, 'anime')
+  const matchedCandidate = pickMatchingAniListCandidate(candidates, title)
+  if (Array.isArray(matchedCandidate?.relatedItems) && matchedCandidate.relatedItems.length) return matchedCandidate.relatedItems
+
+  const jikanCandidates = await searchJikan(title, 'anime')
+  const matchedJikanCandidate = pickMatchingJikanCandidate(jikanCandidates, title)
+  return readJikanCandidateRelatedItems(matchedJikanCandidate)
+}
+
+function isTmdbLikelyAnimatedSeries(detail, entry) {
+  const genreIds = new Set([
+    ...(Array.isArray(entry?.genre_ids) ? entry.genre_ids.map(Number) : []),
+    ...(Array.isArray(detail?.genres) ? detail.genres.map((genre) => Number(genre?.id)) : []),
+  ])
+  if (genreIds.has(16)) return true
+
+  return Array.isArray(detail?.genres)
+    && detail.genres.some((genre) => normalizeSearchText(genre?.name).includes('animacion') || normalizeSearchText(genre?.name).includes('animation'))
+}
+
+function pickMatchingAniListCandidate(candidates, title) {
+  const titleText = normalizeSearchText(title)
+  const titleCompact = compactSearchText(title)
+  return candidates.find((candidate) => {
+    const aliases = [candidate.title, ...(Array.isArray(candidate.searchAliases) ? candidate.searchAliases : [])]
+    return aliases.some((alias) => normalizeSearchText(alias) === titleText || compactSearchText(alias) === titleCompact)
+  })
+}
+
+function pickMatchingJikanCandidate(candidates, title) {
+  const titleText = normalizeSearchText(title)
+  const titleCompact = compactSearchText(title)
+  return candidates.find((candidate) => {
+    const aliases = [candidate.title, ...(Array.isArray(candidate.searchAliases) ? candidate.searchAliases : [])]
+    return aliases.some((alias) => normalizeSearchText(alias) === titleText || compactSearchText(alias) === titleCompact)
+  })
+}
+
+async function readJikanCandidateRelatedItems(candidate) {
+  if (!candidate) return []
+  if (Array.isArray(candidate.relatedItems) && candidate.relatedItems.length) return candidate.relatedItems
+  if (candidate.source !== 'jikan' || !candidate.sourceId) return []
+
+  const endpoint = candidate.type === 'anime' ? 'anime' : 'manga'
+  return readJikanRelations(candidate.sourceId, endpoint).catch(() => [])
 }
 
 async function searchRawg(query, env) {
@@ -599,7 +670,7 @@ async function searchAniList(query, requestedType, requestedFilter = requestedTy
           anilistId: String(entry.id),
           sourceUrl: optionalString(entry.siteUrl) || `https://anilist.co/${inferredType === 'anime' ? 'anime' : 'manga'}/${entry.id}`,
         },
-        relatedItems: readAniListRelations(entry),
+        relatedItems: readAniListRelations(entry, inferredType),
         createdAt: new Date().toISOString(),
       }
     })
@@ -616,13 +687,16 @@ async function searchJikan(query, requestedFilter) {
   if (!response.ok) return []
 
   const payload = await response.json()
-  return (payload.data ?? [])
+  const entries = (payload.data ?? [])
     .map((entry) => {
       const inferredType = inferJikanType(endpoint, entry)
       return { entry, inferredType }
     })
     .filter(({ inferredType }) => matchesAnimeMangaFilter(inferredType, requestedFilter))
-    .map(({ entry, inferredType }) => {
+    .filter(({ entry }) => Boolean(entry?.mal_id))
+    .slice(0, 8)
+
+  return Promise.all(entries.map(async ({ entry, inferredType }, index) => {
       const id = String(entry.mal_id || '')
       const aliases = readJikanTitleAliases(entry)
       const progressMeta = readJikanProgressMeta(inferredType, entry)
@@ -645,10 +719,135 @@ async function searchJikan(query, requestedFilter) {
           malId: id,
           sourceUrl: optionalString(entry.url) || `https://myanimelist.net/${inferredType === 'anime' ? 'anime' : 'manga'}/${id}`,
         },
+        relatedItems: index < 4 ? await readJikanRelations(id, endpoint).catch(() => []) : undefined,
         createdAt: new Date().toISOString(),
       }
+    }))
+}
+
+async function readJikanRelations(id, endpoint) {
+  const url = new URL(`https://api.jikan.moe/v4/${endpoint}/${id}/relations`)
+  const response = await fetch(url, { headers: { accept: 'application/json' } })
+  if (!response.ok) return []
+
+  const payload = await response.json()
+  const sortedRelationEntries = (Array.isArray(payload.data) ? payload.data : [])
+    .flatMap((group) => {
+      const relation = mapJikanRelationKind(group?.relation)
+      return (Array.isArray(group?.entry) ? group.entry : []).flatMap((entry) => {
+        const itemType = normalizeJikanRelatedType(entry?.type)
+        const sourceId = readSourceId(entry?.mal_id)
+        const title = optionalString(entry?.name)
+        if (!itemType || !sourceId || !title) return []
+        return [{
+          title,
+          type: itemType,
+          relation: relation === 'adaptation' ? mapCrossTypeAdaptationRelation(endpointToItemType(endpoint), itemType) : relation,
+          source: 'jikan',
+          sourceId,
+          externalRefs: {
+            malId: sourceId,
+            sourceUrl: optionalString(entry?.url) || `https://myanimelist.net/${itemType === 'anime' ? 'anime' : 'manga'}/${sourceId}`,
+          },
+        }]
+      })
     })
-    .filter((candidate) => Boolean(candidate.sourceId))
+    .filter((entry) => entry.sourceId !== String(id))
+    .sort(compareJikanRelationPriority)
+  const importantRelationEntries = sortedRelationEntries.filter((entry) => jikanRelationPriority(entry.relation) === 0)
+  const relationEntries = (importantRelationEntries.length ? importantRelationEntries : sortedRelationEntries).slice(0, 6)
+
+  return uniqueRelatedItems(await hydrateJikanRelatedDetails(relationEntries)).slice(0, 12)
+}
+
+async function hydrateJikanRelatedDetails(entries) {
+  const results = []
+  for (const entry of entries) {
+    results.push(await fetchJikanRelatedDetail(entry).catch(() => entry))
+  }
+  return results
+}
+
+function compareJikanRelationPriority(left, right) {
+  return jikanRelationPriority(left.relation) - jikanRelationPriority(right.relation)
+}
+
+function jikanRelationPriority(relation) {
+  if (relation === 'sequel' || relation === 'prequel' || relation === 'source' || relation === 'adaptation') return 0
+  if (relation === 'spin_off' || relation === 'side_story') return 1
+  if (relation === 'summary') return 2
+  return 3
+}
+
+async function fetchJikanRelatedDetail(entry) {
+  const endpoint = entry.type === 'anime' ? 'anime' : 'manga'
+  const url = new URL(`https://api.jikan.moe/v4/${endpoint}/${entry.sourceId}`)
+  const response = await fetch(url, { headers: { accept: 'application/json' } })
+  if (!response.ok) return fetchJikanRelatedSearchDetail(entry).catch(() => entry)
+
+  const payload = await response.json()
+  const detail = payload.data || {}
+  const hydrated = hydrateJikanRelatedEntry(entry, detail)
+  if (hydrated.posterUrl) return hydrated
+  return fetchJikanRelatedSearchDetail(hydrated).catch(() => hydrated)
+}
+
+async function fetchJikanRelatedSearchDetail(entry) {
+  const endpoint = entry.type === 'anime' ? 'anime' : 'manga'
+  const url = new URL(`https://api.jikan.moe/v4/${endpoint}`)
+  url.searchParams.set('q', entry.title)
+  url.searchParams.set('limit', '3')
+  url.searchParams.set('sfw', 'true')
+
+  const response = await fetch(url, { headers: { accept: 'application/json' } })
+  if (!response.ok) return entry
+
+  const payload = await response.json()
+  const candidates = Array.isArray(payload.data) ? payload.data : []
+  const detail = candidates.find((candidate) => String(candidate?.mal_id || '') === String(entry.sourceId)) || candidates[0]
+  return detail ? hydrateJikanRelatedEntry(entry, detail) : entry
+}
+
+function hydrateJikanRelatedEntry(entry, detail) {
+  return {
+    ...entry,
+    posterUrl: optionalString(detail.images?.jpg?.image_url) || entry.posterUrl,
+    releaseYear: readJikanReleaseYear(detail) || entry.releaseYear,
+  }
+}
+
+function mapJikanRelationKind(value) {
+  const relation = normalizeSearchText(value)
+  if (relation.includes('sequel')) return 'sequel'
+  if (relation.includes('prequel')) return 'prequel'
+  if (relation.includes('adaptation')) return 'adaptation'
+  if (relation.includes('side')) return 'side_story'
+  if (relation.includes('spin')) return 'spin_off'
+  if (relation.includes('alternative')) return 'alternative'
+  if (relation.includes('summary')) return 'summary'
+  if (relation.includes('character')) return 'character'
+  if (relation.includes('parent')) return 'source'
+  return 'other'
+}
+
+function normalizeJikanRelatedType(value) {
+  const type = normalizeSearchText(value)
+  if (type === 'anime') return 'anime'
+  if (type === 'manga') return 'manga'
+  return undefined
+}
+
+function endpointToItemType(endpoint) {
+  return endpoint === 'anime' ? 'anime' : 'manga'
+}
+
+function mapCrossTypeAdaptationRelation(currentType, relatedType) {
+  if (isSourceMedium(relatedType) && !isSourceMedium(currentType)) return 'source'
+  return 'adaptation'
+}
+
+function isSourceMedium(type) {
+  return type === 'book' || type === 'manga' || type === 'manhwa' || type === 'comic'
 }
 
 async function searchMangaDex(query, requestedFilter) {
@@ -810,7 +1009,7 @@ function readProgressMeta(value, unit) {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? { total: value, unit } : undefined
 }
 
-function readAniListRelations(entry) {
+function readAniListRelations(entry, currentType) {
   const edges = Array.isArray(entry.relations?.edges) ? entry.relations.edges : []
   const relatedItems = edges.flatMap((edge) => {
     const node = edge?.node || {}
@@ -819,10 +1018,11 @@ function readAniListRelations(entry) {
     if (!title || !id) return []
 
     const type = inferAniListMediaType(node.type, node)
+    const relation = mapAniListRelationKind(edge?.relationType)
     return [{
       title,
       type,
-      relation: mapAniListRelationKind(edge?.relationType),
+      relation: relation === 'adaptation' ? mapCrossTypeAdaptationRelation(currentType, type) : relation,
       source: 'anilist',
       sourceId: id,
       posterUrl: optionalString(node.coverImage?.medium),

@@ -2,6 +2,22 @@ import { readFile } from 'node:fs/promises'
 import AxeBuilder from '@axe-core/playwright'
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
+test.beforeEach(async ({ page }) => {
+  await page.route('**/catalog-proxy/search**', async (route) => {
+    await route.fulfill({
+      contentType: 'application/json',
+      json: { results: [] },
+    })
+  })
+
+  await page.route('**/catalog-proxy/discover**', async (route) => {
+    await route.fulfill({
+      contentType: 'application/json',
+      json: { result: null },
+    })
+  })
+})
+
 async function expectFocusWithin(scope: Locator) {
   const hasFocusWithin = await scope.evaluate((element) => element.contains(document.activeElement))
   expect(hasFocusWithin).toBe(true)
@@ -450,16 +466,112 @@ async function mockFrierenCatalog(page: Page) {
   })
 }
 
+async function mockSoloLevelingSeriesCatalog(page: Page) {
+  const soloLevelingResult = {
+    id: 'tmdb-tv-127532',
+    title: 'Solo Leveling',
+    type: 'series',
+    source: 'tmdb',
+    sourceId: '127532',
+    overview: 'They say whatever does not kill you makes you stronger.',
+    posterUrl: 'https://image.tmdb.org/t/p/w342/solo-leveling.jpg',
+    releaseYear: 2024,
+    progressTotal: 25,
+    progressUnit: 'episodes',
+    genres: ['Animacion', 'Accion y aventura', 'Sci-Fi y fantasia'],
+    externalRefs: {
+      tmdbId: '127532',
+      sourceUrl: 'https://www.themoviedb.org/tv/127532',
+    },
+    createdAt: '2026-06-16T00:00:00.000Z',
+  }
+
+  await page.route('**/catalog-proxy/search**', async (route) => {
+    const url = new URL(route.request().url())
+    if (url.searchParams.get('q')?.toLowerCase() === 'solo leveling') {
+      await route.fulfill({
+        contentType: 'application/json',
+        headers: { 'x-nexo-cache': 'hit' },
+        json: { results: [soloLevelingResult] },
+      })
+      return
+    }
+    await route.fallback()
+  })
+
+  await page.route('https://graphql.anilist.co', async (route) => {
+    await route.fulfill({
+      contentType: 'application/json',
+      json: {
+        data: {
+          Page: {
+            media: [
+              {
+                id: 151807,
+                title: {
+                  english: 'Solo Leveling',
+                  romaji: 'Ore dake Level Up na Ken',
+                },
+                description: 'A hunter levels up alone.',
+                format: 'TV',
+                episodes: 12,
+                genres: ['Action'],
+                startDate: { year: 2024 },
+                coverImage: { medium: 'https://img.anili.st/media/151807.jpg' },
+                siteUrl: 'https://anilist.co/anime/151807',
+                relations: {
+                  edges: [
+                    {
+                      relationType: 'ADAPTATION',
+                      node: {
+                        id: 105398,
+                        type: 'MANGA',
+                        format: 'MANGA',
+                        countryOfOrigin: 'KR',
+                        title: {
+                          english: 'Solo Leveling',
+                          romaji: 'Na Honjaman Level Up',
+                        },
+                        startDate: { year: 2018 },
+                        coverImage: { medium: 'https://img.anili.st/media/105398.jpg' },
+                        siteUrl: 'https://anilist.co/manga/105398',
+                      },
+                    },
+                    {
+                      relationType: 'SEQUEL',
+                      node: {
+                        id: 176496,
+                        type: 'ANIME',
+                        format: 'TV',
+                        title: {
+                          english: 'Solo Leveling Season 2 -Arise from the Shadow-',
+                        },
+                        startDate: { year: 2025 },
+                        coverImage: { medium: 'https://img.anili.st/media/176496.jpg' },
+                        siteUrl: 'https://anilist.co/anime/176496',
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        },
+      },
+    })
+  })
+}
+
 async function mockPaginatedCatalog(page: Page) {
   const firstResults = Array.from({ length: 10 }, (_, index) => paginationCandidate(index + 1))
   const secondResults = Array.from({ length: 9 }, (_, index) =>
     paginationCandidate(101 + index, `Second Pagination ${String(index + 1).padStart(2, '0')}`),
   )
 
-  await page.route('**/search**', async (route) => {
+  await page.route('**/catalog-proxy/search**', async (route) => {
     const url = new URL(route.request().url())
     const query = url.searchParams.get('q')?.toLowerCase()
-    if (url.pathname === '/search' && query === 'pagination probe') {
+    if (query === 'pagination probe') {
       await route.fulfill({
         contentType: 'application/json',
         headers: { 'x-nexo-cache': 'hit' },
@@ -467,7 +579,7 @@ async function mockPaginatedCatalog(page: Page) {
       })
       return
     }
-    if (url.pathname === '/search' && query === 'second pagination') {
+    if (query === 'second pagination') {
       await route.fulfill({
         contentType: 'application/json',
         headers: { 'x-nexo-cache': 'hit' },
@@ -1272,6 +1384,38 @@ test('library saves Frieren from external search without candidate permission no
   await expect(savedEditor.getByRole('group', { name: 'Rating' })).toContainText('8/10')
   await openEditorAdvanced(savedEditor)
   await expect(savedEditor.getByLabel('Notas')).toHaveValue('Mucho mas tranquila de lo que esperaba.')
+})
+
+test('library saves Solo Leveling series with default episodes and related references', async ({ page }) => {
+  await mockSoloLevelingSeriesCatalog(page)
+
+  await page.goto('/')
+  await page.getByLabel('Buscar obra para guardar').fill('Solo Leveling')
+  await page.getByLabel('Tipo de obra para buscar').selectOption('watch')
+  await page.getByRole('button', { name: 'Buscar obra' }).click()
+
+  await expect(page.getByLabel('Resultados para guardar')).toContainText('Solo Leveling')
+  await expect(page.getByLabel('Resultados para guardar')).toContainText('TMDB')
+  await page.getByRole('button', { name: 'Guardar' }).click()
+
+  await expect(page.getByRole('status').filter({ hasText: 'Solo Leveling guardado en Biblioteca' })).toBeVisible()
+  await page.locator('.item-main').filter({ hasText: 'Solo Leveling' }).click()
+
+  const editor = page.getByRole('dialog', { name: 'Entrada' })
+  await expect(editor.getByRole('group', { name: 'Progreso' })).toContainText('0/25 episodios')
+  await expect(editor.getByLabel('Obras relacionadas')).toContainText('Solo Leveling Season 2 -Arise from the Shadow-')
+  await expect(editor.getByLabel('Obras relacionadas')).toContainText('Origen')
+  await expect(editor.getByLabel('Obras relacionadas')).toContainText('Secuela')
+  await expect(editor.getByLabel('Obras relacionadas').locator('img')).toHaveCount(2)
+
+  const editorMetrics = await editor.evaluate((dialog) => ({
+    horizontalOverflow: dialog.scrollWidth > dialog.clientWidth + 1,
+    progressText: dialog.querySelector('.progress-control-heading')?.textContent?.trim() ?? '',
+    relatedText: dialog.querySelector('.related-items-panel')?.textContent?.trim() ?? '',
+  }))
+  expect(editorMetrics.horizontalOverflow).toBe(false)
+  expect(editorMetrics.progressText).toContain('0/25 episodios')
+  expect(editorMetrics.relatedText).toContain('Solo Leveling')
 })
 
 test('library catalog search paginates results and saves from page two', async ({ page }) => {

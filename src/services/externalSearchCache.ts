@@ -2,8 +2,8 @@ import type { ExternalCandidate } from '../domain/types'
 import { normalizeKey } from '../lib/strings'
 
 const databaseName = 'nexo-external-search'
-const databaseVersion = 2
-const cacheSchemaVersion = 'v2'
+const databaseVersion = 7
+const cacheSchemaVersion = 'v7'
 const searchStoreName = 'searches'
 const cacheTtlMs = 7 * 24 * 60 * 60 * 1000
 
