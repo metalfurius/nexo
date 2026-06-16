@@ -261,6 +261,140 @@ describe('external search', () => {
     )
   })
 
+  it('adds Jikan related sequel and source references with posters', async () => {
+    mockCatalogFetch((url) => {
+      if (url.hostname === 'graphql.anilist.co') return aniListPayload([])
+      if (url.hostname === 'api.jikan.moe' && url.pathname === '/v4/anime') {
+        return jikanPayload([
+          {
+            mal_id: 52299,
+            title: 'Ore dake Level Up na Ken',
+            title_english: 'Solo Leveling',
+            type: 'TV',
+            episodes: 12,
+            year: 2024,
+            images: { jpg: { image_url: 'https://cdn.myanimelist.net/images/anime/solo-leveling.jpg' } },
+            genres: [{ name: 'Action' }],
+            url: 'https://myanimelist.net/anime/52299/Ore_dake_Level_Up_na_Ken',
+          },
+        ])
+      }
+      if (url.hostname === 'api.jikan.moe' && url.pathname === '/v4/anime/52299/relations') {
+        return {
+          data: [
+            {
+              relation: 'Sequel',
+              entry: [
+                {
+                  mal_id: 58567,
+                  name: 'Solo Leveling Season 2: Arise from the Shadow',
+                  type: 'anime',
+                  url: 'https://myanimelist.net/anime/58567/Solo_Leveling_Season_2',
+                },
+              ],
+            },
+            {
+              relation: 'Adaptation',
+              entry: [
+                {
+                  mal_id: 121496,
+                  name: 'Solo Leveling',
+                  type: 'manga',
+                  url: 'https://myanimelist.net/manga/121496/Solo_Leveling',
+                },
+              ],
+            },
+          ],
+        }
+      }
+      if (url.hostname === 'api.jikan.moe' && url.pathname === '/v4/anime/58567') {
+        return { data: { images: { jpg: { image_url: 'https://cdn.myanimelist.net/images/anime/season-2.jpg' } }, year: 2025 } }
+      }
+      if (url.hostname === 'api.jikan.moe' && url.pathname === '/v4/manga/121496') {
+        return {
+          data: {
+            images: { jpg: { image_url: 'https://cdn.myanimelist.net/images/manga/solo-leveling.jpg' } },
+            published: { prop: { from: { year: 2018 } } },
+          },
+        }
+      }
+      return jikanPayload([])
+    })
+
+    const results = await searchExternalSources('solo leveling', 'anime')
+
+    expect(results[0]).toEqual(
+      expect.objectContaining({
+        progressTotal: 12,
+        progressUnit: 'episodes',
+        relatedItems: expect.arrayContaining([
+          expect.objectContaining({
+            posterUrl: 'https://cdn.myanimelist.net/images/anime/season-2.jpg',
+            relation: 'sequel',
+            title: 'Solo Leveling Season 2: Arise from the Shadow',
+            type: 'anime',
+          }),
+          expect.objectContaining({
+            posterUrl: 'https://cdn.myanimelist.net/images/manga/solo-leveling.jpg',
+            relation: 'source',
+            title: 'Solo Leveling',
+            type: 'manga',
+          }),
+        ]),
+        source: 'jikan',
+        title: 'Solo Leveling',
+      }),
+    )
+  })
+
+  it('keeps cross-media adaptations as adaptations when the current item is the source medium', async () => {
+    mockCatalogFetch((url) => {
+      if (url.hostname === 'graphql.anilist.co') {
+        return aniListPayload([
+          {
+            id: 105398,
+            title: { english: 'Solo Leveling', romaji: 'Na Honjaman Level Up' },
+            description: 'A hunter levels up alone.',
+            format: 'MANGA',
+            countryOfOrigin: 'KR',
+            chapters: 200,
+            genres: ['Action'],
+            startDate: { year: 2018 },
+            coverImage: { medium: 'https://img.anili.st/media/105398.jpg' },
+            siteUrl: 'https://anilist.co/manga/105398',
+            relations: {
+              edges: [
+                {
+                  relationType: 'ADAPTATION',
+                  node: {
+                    id: 151807,
+                    type: 'ANIME',
+                    format: 'TV',
+                    title: { english: 'Solo Leveling' },
+                    startDate: { year: 2024 },
+                    coverImage: { medium: 'https://img.anili.st/media/151807.jpg' },
+                    siteUrl: 'https://anilist.co/anime/151807',
+                  },
+                },
+              ],
+            },
+          },
+        ])
+      }
+      return jikanPayload([])
+    })
+
+    const results = await searchExternalSources('solo leveling', 'manhwa')
+
+    expect(results[0]?.relatedItems?.[0]).toEqual(
+      expect.objectContaining({
+        relation: 'adaptation',
+        title: 'Solo Leveling',
+        type: 'anime',
+      }),
+    )
+  })
+
   it('drops invalid Jikan genre names', async () => {
     mockCatalogFetch((url) => {
       if (url.hostname === 'graphql.anilist.co') return aniListPayload([])
@@ -465,6 +599,107 @@ describe('external search', () => {
           expect.objectContaining({ relation: 'sequel', source: 'tmdb', title: 'The Matrix Reloaded' }),
           expect.objectContaining({ relation: 'source', source: 'wikidata', title: 'Neuromancer', type: 'book' }),
         ],
+      }),
+    )
+  })
+
+  it('enriches animated TMDB series proxy results with AniList relations in the browser', async () => {
+    vi.stubEnv('VITE_CATALOG_PROXY_URL', 'https://catalog-proxy.example')
+    mockCatalogFetch((url) => {
+      if (url.hostname === 'catalog-proxy.example') {
+        return {
+          results: [
+            {
+              id: 'tmdb-tv-127532',
+              title: 'Solo Leveling',
+              type: 'series',
+              source: 'tmdb',
+              sourceId: '127532',
+              progressTotal: 25,
+              progressUnit: 'episodes',
+              genres: ['Animacion', 'Accion y aventura'],
+              externalRefs: {
+                tmdbId: '127532',
+                sourceUrl: 'https://www.themoviedb.org/tv/127532',
+              },
+              createdAt: '2026-06-16T00:00:00.000Z',
+            },
+          ],
+        }
+      }
+      if (url.hostname === 'graphql.anilist.co') {
+        return aniListPayload([
+          {
+            id: 151807,
+            title: {
+              english: 'Solo Leveling',
+              romaji: 'Ore dake Level Up na Ken',
+            },
+            description: 'A hunter levels up alone.',
+            format: 'TV',
+            episodes: 12,
+            genres: ['Action'],
+            startDate: { year: 2024 },
+            coverImage: { medium: 'https://img.anili.st/media/151807.jpg' },
+            siteUrl: 'https://anilist.co/anime/151807',
+            relations: {
+              edges: [
+                {
+                  relationType: 'ADAPTATION',
+                  node: {
+                    id: 105398,
+                    type: 'MANGA',
+                    format: 'MANGA',
+                    countryOfOrigin: 'KR',
+                    title: { english: 'Solo Leveling', romaji: 'Na Honjaman Level Up' },
+                    startDate: { year: 2018 },
+                    coverImage: { medium: 'https://img.anili.st/media/105398.jpg' },
+                    siteUrl: 'https://anilist.co/manga/105398',
+                  },
+                },
+                {
+                  relationType: 'SEQUEL',
+                  node: {
+                    id: 176496,
+                    type: 'ANIME',
+                    format: 'TV',
+                    title: { english: 'Solo Leveling Season 2 -Arise from the Shadow-' },
+                    startDate: { year: 2025 },
+                    coverImage: { medium: 'https://img.anili.st/media/176496.jpg' },
+                    siteUrl: 'https://anilist.co/anime/176496',
+                  },
+                },
+              ],
+            },
+          },
+        ])
+      }
+      return jikanPayload([])
+    })
+
+    const results = await searchExternalSources('solo leveling', 'series')
+
+    expect(results[0]).toEqual(
+      expect.objectContaining({
+        progressTotal: 25,
+        progressUnit: 'episodes',
+        relatedItems: expect.arrayContaining([
+          expect.objectContaining({
+            posterUrl: 'https://img.anili.st/media/105398.jpg',
+            relation: 'source',
+            title: 'Solo Leveling',
+            type: 'manhwa',
+          }),
+          expect.objectContaining({
+            posterUrl: 'https://img.anili.st/media/176496.jpg',
+            relation: 'sequel',
+            title: 'Solo Leveling Season 2 -Arise from the Shadow-',
+            type: 'anime',
+          }),
+        ]),
+        source: 'tmdb',
+        title: 'Solo Leveling',
+        type: 'series',
       }),
     )
   })

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildPublicCatalogItem,
   discoveryToListItem,
+  externalCandidateToDiscovery,
   publicItemToDiscovery,
   shouldPreserveDiscoveryDecision,
 } from './catalog'
@@ -63,6 +64,42 @@ describe('catalog helpers', () => {
     expect(libraryItem.progressUnit).toBe('pages')
     expect(libraryItem.relatedItems?.[0]).toEqual(expect.objectContaining({ relation: 'adaptation', title: 'Odisea adaptada' }))
     expect(libraryItem.status).toBe('wishlist')
+  })
+
+  it('copies external series progress totals and related references into a private library item', () => {
+    const candidate = externalCandidateToDiscovery({
+      id: 'tmdb-tv-127532',
+      title: 'Solo Leveling',
+      type: 'series',
+      source: 'tmdb',
+      sourceId: '127532',
+      progressTotal: 25,
+      progressUnit: 'episodes',
+      genres: ['Animacion', 'Accion y aventura'],
+      externalRefs: {
+        tmdbId: '127532',
+        sourceUrl: 'https://www.themoviedb.org/tv/127532',
+      },
+      relatedItems: [
+        {
+          title: 'Solo Leveling Season 2',
+          type: 'series',
+          relation: 'sequel',
+          source: 'tmdb',
+          sourceId: '127532-season-2',
+          posterUrl: 'https://image.tmdb.org/t/p/w342/season-2.jpg',
+        },
+      ],
+      createdAt: '2026-01-01T00:00:00.000Z',
+    })
+
+    const libraryItem = discoveryToListItem(candidate)
+
+    expect(libraryItem.source).toBe('external')
+    expect(libraryItem.progressCurrent).toBe(0)
+    expect(libraryItem.progressTotal).toBe(25)
+    expect(libraryItem.progressUnit).toBe('episodes')
+    expect(libraryItem.relatedItems?.[0]).toEqual(expect.objectContaining({ relation: 'sequel', title: 'Solo Leveling Season 2' }))
   })
 
   it('keeps resolved discovery decisions when the same result is queued again', () => {
