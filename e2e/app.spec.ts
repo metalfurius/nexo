@@ -467,6 +467,7 @@ async function mockFrierenCatalog(page: Page) {
 }
 
 async function mockSoloLevelingSeriesCatalog(page: Page) {
+  const tinyPoster = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 60"><rect width="40" height="60" fill="#4f46e5"/><circle cx="20" cy="24" r="10" fill="#e0f2fe"/><path d="M8 50h24L24 34l-6 8-4-5z" fill="#22d3ee"/></svg>'
   const soloLevelingResult = {
     id: 'tmdb-tv-127532',
     title: 'Solo Leveling',
@@ -559,6 +560,14 @@ async function mockSoloLevelingSeriesCatalog(page: Page) {
         },
       },
     })
+  })
+
+  await page.route('https://img.anili.st/media/**', async (route) => {
+    await route.fulfill({ body: tinyPoster, contentType: 'image/svg+xml' })
+  })
+
+  await page.route('https://image.tmdb.org/t/p/**', async (route) => {
+    await route.fulfill({ body: tinyPoster, contentType: 'image/svg+xml' })
   })
 }
 
