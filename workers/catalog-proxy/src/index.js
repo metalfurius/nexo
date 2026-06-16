@@ -371,7 +371,7 @@ async function readAniListRelatedItemsForTmdbSeries(detail, entry) {
 
   const jikanCandidates = await searchJikan(title, 'anime')
   const matchedJikanCandidate = pickMatchingJikanCandidate(jikanCandidates, title)
-  return Array.isArray(matchedJikanCandidate?.relatedItems) ? matchedJikanCandidate.relatedItems : []
+  return readJikanCandidateRelatedItems(matchedJikanCandidate)
 }
 
 function isTmdbLikelyAnimatedSeries(detail, entry) {
@@ -401,6 +401,15 @@ function pickMatchingJikanCandidate(candidates, title) {
     const aliases = [candidate.title, ...(Array.isArray(candidate.searchAliases) ? candidate.searchAliases : [])]
     return aliases.some((alias) => normalizeSearchText(alias) === titleText || compactSearchText(alias) === titleCompact)
   })
+}
+
+async function readJikanCandidateRelatedItems(candidate) {
+  if (!candidate) return []
+  if (Array.isArray(candidate.relatedItems) && candidate.relatedItems.length) return candidate.relatedItems
+  if (candidate.source !== 'jikan' || !candidate.sourceId) return []
+
+  const endpoint = candidate.type === 'anime' ? 'anime' : 'manga'
+  return readJikanRelations(candidate.sourceId, endpoint).catch(() => [])
 }
 
 async function searchRawg(query, env) {

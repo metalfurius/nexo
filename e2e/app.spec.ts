@@ -2,6 +2,22 @@ import { readFile } from 'node:fs/promises'
 import AxeBuilder from '@axe-core/playwright'
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
+test.beforeEach(async ({ page }) => {
+  await page.route('**/catalog-proxy/search**', async (route) => {
+    await route.fulfill({
+      contentType: 'application/json',
+      json: { results: [] },
+    })
+  })
+
+  await page.route('**/catalog-proxy/discover**', async (route) => {
+    await route.fulfill({
+      contentType: 'application/json',
+      json: { result: null },
+    })
+  })
+})
+
 async function expectFocusWithin(scope: Locator) {
   const hasFocusWithin = await scope.evaluate((element) => element.contains(document.activeElement))
   expect(hasFocusWithin).toBe(true)
@@ -470,9 +486,9 @@ async function mockSoloLevelingSeriesCatalog(page: Page) {
     createdAt: '2026-06-16T00:00:00.000Z',
   }
 
-  await page.route('**/search**', async (route) => {
+  await page.route('**/catalog-proxy/search**', async (route) => {
     const url = new URL(route.request().url())
-    if (url.pathname === '/search' && url.searchParams.get('q')?.toLowerCase() === 'solo leveling') {
+    if (url.searchParams.get('q')?.toLowerCase() === 'solo leveling') {
       await route.fulfill({
         contentType: 'application/json',
         headers: { 'x-nexo-cache': 'hit' },
@@ -552,10 +568,10 @@ async function mockPaginatedCatalog(page: Page) {
     paginationCandidate(101 + index, `Second Pagination ${String(index + 1).padStart(2, '0')}`),
   )
 
-  await page.route('**/search**', async (route) => {
+  await page.route('**/catalog-proxy/search**', async (route) => {
     const url = new URL(route.request().url())
     const query = url.searchParams.get('q')?.toLowerCase()
-    if (url.pathname === '/search' && query === 'pagination probe') {
+    if (query === 'pagination probe') {
       await route.fulfill({
         contentType: 'application/json',
         headers: { 'x-nexo-cache': 'hit' },
@@ -563,7 +579,7 @@ async function mockPaginatedCatalog(page: Page) {
       })
       return
     }
-    if (url.pathname === '/search' && query === 'second pagination') {
+    if (query === 'second pagination') {
       await route.fulfill({
         contentType: 'application/json',
         headers: { 'x-nexo-cache': 'hit' },

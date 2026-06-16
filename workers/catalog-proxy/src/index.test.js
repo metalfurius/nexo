@@ -83,6 +83,17 @@ describe('catalog proxy worker', () => {
         if (url.hostname === 'api.jikan.moe' && url.pathname === '/v4/anime') {
           return jsonResponse({
             data: [
+              ...Array.from({ length: 4 }, (_, index) => ({
+                mal_id: 9000 + index,
+                title: `Distractor ${index + 1}`,
+                title_english: `Distractor ${index + 1}`,
+                type: 'TV',
+                episodes: 12,
+                year: 2024,
+                images: { jpg: { image_url: `https://cdn.myanimelist.net/images/anime/distractor-${index + 1}.jpg` } },
+                genres: [{ name: 'Action' }],
+                url: `https://myanimelist.net/anime/${9000 + index}/Distractor_${index + 1}`,
+              })),
               {
                 mal_id: 52299,
                 title: 'Ore dake Level Up na Ken',
@@ -125,6 +136,10 @@ describe('catalog proxy worker', () => {
               },
             ],
           })
+        }
+
+        if (url.hostname === 'api.jikan.moe' && /^\/v4\/anime\/\d+\/relations$/.test(url.pathname)) {
+          return jsonResponse({ data: [] })
         }
 
         if (url.hostname === 'api.jikan.moe' && url.pathname === '/v4/anime/58567') {
