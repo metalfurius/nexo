@@ -2,7 +2,7 @@ import type { ExternalCandidate } from '../domain/types'
 import { normalizeKey } from '../lib/strings'
 
 const databaseName = 'nexo-external-search'
-const databaseVersion = 1
+const databaseVersion = 2
 const cacheSchemaVersion = 'v2'
 const searchStoreName = 'searches'
 const cacheTtlMs = 7 * 24 * 60 * 60 * 1000
@@ -84,6 +84,8 @@ function openDatabase() {
       const database = request.result
       if (!database.objectStoreNames.contains(searchStoreName)) {
         database.createObjectStore(searchStoreName, { keyPath: 'key' })
+      } else {
+        request.transaction?.objectStore(searchStoreName).clear()
       }
     }
     request.onsuccess = () => resolve(request.result)
