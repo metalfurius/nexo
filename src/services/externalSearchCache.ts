@@ -2,7 +2,8 @@ import type { ExternalCandidate } from '../domain/types'
 import { normalizeKey } from '../lib/strings'
 
 const databaseName = 'nexo-external-search'
-const databaseVersion = 1
+const databaseVersion = 2
+const cacheSchemaVersion = 'v2'
 const searchStoreName = 'searches'
 const cacheTtlMs = 7 * 24 * 60 * 60 * 1000
 
@@ -24,7 +25,7 @@ export interface ExternalSearchCacheHit {
 let databasePromise: Promise<IDBDatabase | undefined> | undefined
 
 export function createExternalSearchCacheKey(query: string, type: string) {
-  return `${type || 'any'}:${normalizeKey(query)}`
+  return `${cacheSchemaVersion}:${type || 'any'}:${normalizeKey(query)}`
 }
 
 export function createExternalSearchCacheEntry(
@@ -78,14 +79,32 @@ function openDatabase() {
   if (typeof indexedDB === 'undefined') return Promise.resolve(undefined)
   databasePromise ??= new Promise<IDBDatabase | undefined>((resolve) => {
     const request = indexedDB.open(databaseName, databaseVersion)
-    request.onerror = () => resolve(undefined)
+    let settled = false
+    const resolveOnce = (database?: IDBDatabase) => {
+      if (settled) {
+        database?.close()
+        return
+      }
+      settled = true
+      resolve(database)
+    }
+    request.onerror = () => {
+      databasePromise = undefined
+      resolveOnce(undefined)
+    }
+    request.onblocked = () => {
+      databasePromise = undefined
+      resolveOnce(undefined)
+    }
     request.onupgradeneeded = () => {
       const database = request.result
       if (!database.objectStoreNames.contains(searchStoreName)) {
         database.createObjectStore(searchStoreName, { keyPath: 'key' })
+      } else {
+        request.transaction?.objectStore(searchStoreName).clear()
       }
     }
-    request.onsuccess = () => resolve(request.result)
+    request.onsuccess = () => resolveOnce(request.result)
   })
   return databasePromise
 }
