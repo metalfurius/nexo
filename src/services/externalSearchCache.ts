@@ -79,7 +79,23 @@ function openDatabase() {
   if (typeof indexedDB === 'undefined') return Promise.resolve(undefined)
   databasePromise ??= new Promise<IDBDatabase | undefined>((resolve) => {
     const request = indexedDB.open(databaseName, databaseVersion)
-    request.onerror = () => resolve(undefined)
+    let settled = false
+    const resolveOnce = (database?: IDBDatabase) => {
+      if (settled) {
+        database?.close()
+        return
+      }
+      settled = true
+      resolve(database)
+    }
+    request.onerror = () => {
+      databasePromise = undefined
+      resolveOnce(undefined)
+    }
+    request.onblocked = () => {
+      databasePromise = undefined
+      resolveOnce(undefined)
+    }
     request.onupgradeneeded = () => {
       const database = request.result
       if (!database.objectStoreNames.contains(searchStoreName)) {
@@ -88,7 +104,7 @@ function openDatabase() {
         request.transaction?.objectStore(searchStoreName).clear()
       }
     }
-    request.onsuccess = () => resolve(request.result)
+    request.onsuccess = () => resolveOnce(request.result)
   })
   return databasePromise
 }

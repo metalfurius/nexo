@@ -5631,7 +5631,7 @@ function RelatedItemPoster({ Icon, item }: { Icon: LucideIcon; item: RelatedItem
       {shouldShowPoster ? (
         <img alt="" loading="lazy" src={item.posterUrl} onError={() => setFailedPosterUrl(item.posterUrl)} />
       ) : (
-        <Icon size={18} />
+        <Icon aria-hidden="true" focusable="false" size={18} />
       )}
     </span>
   )
