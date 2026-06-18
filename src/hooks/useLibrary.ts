@@ -607,7 +607,6 @@ export function useLibrary(user?: SignedInUserProfile | null) {
       source: 'external',
       externalRefs: candidate.externalRefs,
       posterUrl: candidate.posterUrl,
-      relatedItems: cloneRelatedItems(candidate.relatedItems),
       createdAt: nowIso(),
       updatedAt: nowIso(),
     }
@@ -670,7 +669,6 @@ function preserveLockedCatalogFields(incoming: ListItem, existing?: ListItem): L
     publicItemId: existing.publicItemId,
     publicSnapshot: existing.publicSnapshot,
     rawText: existing.rawText,
-    relatedItems: cloneRelatedItems(existing.relatedItems),
     source: existing.source,
     tags: existing.tags,
     title: existing.title,
@@ -684,13 +682,6 @@ function preserveLockedCatalogFields(incoming: ListItem, existing?: ListItem): L
 
 function cloneExternalRefs(refs?: ExternalRefs): ExternalRefs | undefined {
   return refs ? { ...refs } : refs
-}
-
-function cloneRelatedItems(items?: ListItem['relatedItems']): ListItem['relatedItems'] {
-  return items?.map((item) => ({
-    ...item,
-    ...(item.externalRefs ? { externalRefs: { ...item.externalRefs } } : {}),
-  }))
 }
 
 function limitActivityEntries(entries: ActivityEntry[]) {

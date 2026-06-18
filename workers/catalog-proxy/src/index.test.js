@@ -8,12 +8,16 @@ function jsonResponse(payload) {
   })
 }
 
+function fetchedUrls() {
+  return vi.mocked(fetch).mock.calls.map(([input]) => new URL(input instanceof Request ? input.url : String(input)))
+}
+
 describe('catalog proxy worker', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
   })
 
-  it('enriches TMDB series with episode totals and related seasons/anime references', async () => {
+  it('returns TMDB series episode totals without related references', async () => {
     const cachePut = vi.fn(async () => undefined)
     vi.stubGlobal('caches', {
       default: {
@@ -109,67 +113,6 @@ describe('catalog proxy worker', () => {
           })
         }
 
-        if (url.hostname === 'api.jikan.moe' && url.pathname === '/v4/anime/52299/relations') {
-          return jsonResponse({
-            data: [
-              {
-                relation: 'Sequel',
-                entry: [
-                  {
-                    mal_id: 58567,
-                    name: 'Solo Leveling Season 2: Arise from the Shadow',
-                    type: 'anime',
-                    url: 'https://myanimelist.net/anime/58567/Solo_Leveling_Season_2',
-                  },
-                ],
-              },
-              {
-                relation: 'Adaptation',
-                entry: [
-                  {
-                    mal_id: 121496,
-                    name: 'Solo Leveling',
-                    type: 'manga',
-                    url: 'https://myanimelist.net/manga/121496/Solo_Leveling',
-                  },
-                ],
-              },
-            ],
-          })
-        }
-
-        if (url.hostname === 'api.jikan.moe' && /^\/v4\/anime\/\d+\/relations$/.test(url.pathname)) {
-          return jsonResponse({ data: [] })
-        }
-
-        if (url.hostname === 'api.jikan.moe' && url.pathname === '/v4/anime/58567') {
-          return jsonResponse({
-            data: {
-              images: { jpg: { image_url: 'https://cdn.myanimelist.net/images/anime/season-2.jpg' } },
-              year: 2025,
-            },
-          })
-        }
-
-        if (url.hostname === 'api.jikan.moe' && url.pathname === '/v4/manga/121496') {
-          return jsonResponse({
-            data: {
-              images: { jpg: { image_url: 'https://cdn.myanimelist.net/images/manga/solo-leveling.jpg' } },
-              published: { prop: { from: { year: 2018 } } },
-            },
-          })
-        }
-
-        if (url.hostname === 'www.wikidata.org') {
-          return jsonResponse({
-            entities: {
-              Q115787130: {
-                claims: {},
-              },
-            },
-          })
-        }
-
         throw new Error(`Unexpected fetch: ${url.href}`)
       }),
     )
@@ -189,37 +132,17 @@ describe('catalog proxy worker', () => {
       expect.objectContaining({
         progressTotal: 25,
         progressUnit: 'episodes',
-        relatedItems: expect.arrayContaining([
-          expect.objectContaining({
-            relation: 'sequel',
-            source: 'tmdb',
-            title: 'Solo Leveling Season 2',
-            type: 'series',
-          }),
-          expect.objectContaining({
-            relation: 'source',
-            posterUrl: 'https://cdn.myanimelist.net/images/manga/solo-leveling.jpg',
-            source: 'jikan',
-            title: 'Solo Leveling',
-            type: 'manga',
-          }),
-          expect.objectContaining({
-            relation: 'sequel',
-            posterUrl: 'https://cdn.myanimelist.net/images/anime/season-2.jpg',
-            source: 'jikan',
-            title: 'Solo Leveling Season 2: Arise from the Shadow',
-            type: 'anime',
-          }),
-        ]),
         source: 'tmdb',
         title: 'Solo Leveling',
         type: 'series',
       }),
     )
+    expect('relatedItems' in payload.results[0]).toBe(false)
+    expect(fetchedUrls().some((url) => url.hostname === 'graphql.anilist.co' || url.hostname === 'api.jikan.moe' || url.hostname === 'www.wikidata.org')).toBe(false)
     expect(cachePut.mock.calls[0]?.[0].url).toContain('v=2026-06-16-v19')
   })
 
-  it('keeps AniList anime adaptations as adaptations for manga source entries', async () => {
+  it('ignores AniList relations for manga source entries', async () => {
     vi.stubGlobal('caches', {
       default: {
         match: vi.fn(async () => undefined),
@@ -288,12 +211,15 @@ describe('catalog proxy worker', () => {
     )
     const payload = await response.json()
 
-    expect(payload.results[0]?.relatedItems?.[0]).toEqual(
+    expect(payload.results[0]).toEqual(
       expect.objectContaining({
-        relation: 'adaptation',
+        progressTotal: 200,
         title: 'Solo Leveling',
-        type: 'anime',
+        type: 'manhwa',
       }),
     )
+    expect('relatedItems' in payload.results[0]).toBe(false)
+    const aniListCall = vi.mocked(fetch).mock.calls.find(([input]) => String(input).includes('graphql.anilist.co'))
+    expect(String(aniListCall?.[1]?.body ?? '')).not.toContain('relations')
   })
 })

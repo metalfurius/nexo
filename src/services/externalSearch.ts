@@ -1,4 +1,4 @@
-import type { ExternalCandidate, ItemType, ProgressUnit, RelatedItemKind, RelatedItemRef } from '../domain/types'
+import type { ExternalCandidate, ItemType, ProgressUnit } from '../domain/types'
 import { nowIso } from '../domain/types'
 import { compactCatalogSearchText, normalizeCatalogSearchText, rankCatalogSearchCandidates } from '../lib/catalogSearch'
 import { readExternalSearchCache, writeExternalSearchCache } from './externalSearchCache'
@@ -203,41 +203,7 @@ async function searchCatalogProxy(query: string, type: string): Promise<External
 
   const payload = (await response.json()) as { results?: unknown }
   if (!Array.isArray(payload.results)) return []
-  return enrichProxyCandidates(payload.results.flatMap(normalizeProxyCandidate))
-}
-
-async function enrichProxyCandidates(candidates: ExternalCandidate[]): Promise<ExternalCandidate[]> {
-  return Promise.all(candidates.map((candidate, index) => (index < 8 ? enrichProxyCandidate(candidate) : candidate)))
-}
-
-async function enrichProxyCandidate(candidate: ExternalCandidate): Promise<ExternalCandidate> {
-  if (candidate.source !== 'tmdb' || candidate.type !== 'series' || !isLikelyAnimatedExternalCandidate(candidate)) return candidate
-
-  const aniListCandidates = await searchAniList(candidate.title, 'anime').catch(() => [])
-  const matchedCandidate = pickMatchingExternalCandidate(aniListCandidates, candidate.title)
-  if (!matchedCandidate?.relatedItems?.length) return candidate
-
-  const relatedItems = uniqueRelatedItems([...(candidate.relatedItems ?? []), ...matchedCandidate.relatedItems]).slice(0, 12)
-  return {
-    ...candidate,
-    relatedItems,
-  }
-}
-
-function isLikelyAnimatedExternalCandidate(candidate: ExternalCandidate) {
-  return candidate.genres.some((genre) => {
-    const normalized = normalizeCatalogSearchText(genre)
-    return normalized.includes('animacion') || normalized.includes('animation') || normalized.includes('anime')
-  })
-}
-
-function pickMatchingExternalCandidate(candidates: ExternalCandidate[], title: string) {
-  const titleText = normalizeCatalogSearchText(title)
-  const titleCompact = compactCatalogSearchText(title)
-  return candidates.find((candidate) => {
-    const aliases = [candidate.title, ...(candidate.searchAliases ?? [])]
-    return aliases.some((alias) => normalizeCatalogSearchText(alias) === titleText || compactCatalogSearchText(alias) === titleCompact)
-  })
+  return payload.results.flatMap(normalizeProxyCandidate)
 }
 
 function getDiscoverQueries(type: ExternalDiscoverType, duration: ExternalDiscoverDuration, seed: string) {
@@ -387,21 +353,6 @@ async function searchAniList(
             startDate { year }
             coverImage { medium }
             siteUrl
-            relations {
-              edges {
-                relationType
-                node {
-                  id
-                  type
-                  format
-                  countryOfOrigin
-                  title { romaji english native }
-                  startDate { year }
-                  coverImage { medium }
-                  siteUrl
-                }
-              }
-            }
           }
         }
       }
@@ -449,7 +400,6 @@ async function searchAniList(
           anilistId: String(entry.id),
           sourceUrl: optionalString(entry.siteUrl) ?? `https://anilist.co/${inferredType === 'anime' ? 'anime' : 'manga'}/${entry.id}`,
         },
-        relatedItems: readAniListRelations(entry, inferredType),
         createdAt: nowIso(),
       } satisfies ExternalCandidate
     })
@@ -478,7 +428,7 @@ async function searchJikan(
     .filter(({ entry }) => Boolean(entry.mal_id))
     .slice(0, 8)
 
-  return Promise.all(entries.map(async ({ entry, inferredType }, index) => {
+  return entries.map(({ entry, inferredType }) => {
       const id = String(entry.mal_id ?? '')
       const images = entry.images as { jpg?: { image_url?: string } } | undefined
       const aliases = readJikanTitleAliases(entry)
@@ -508,10 +458,9 @@ async function searchJikan(
           malId: id,
           sourceUrl: optionalString(entry.url) ?? `https://myanimelist.net/${inferredType === 'anime' ? 'anime' : 'manga'}/${id}`,
         },
-        relatedItems: index < 4 ? await readJikanRelations(id, endpoint).catch(() => []) : undefined,
         createdAt: nowIso(),
       } satisfies ExternalCandidate
-    }))
+    })
 }
 
 async function searchMangaDex(
@@ -661,135 +610,6 @@ function readJikanReleaseYear(entry: Record<string, unknown>) {
   return published?.prop?.from?.year ?? aired?.prop?.from?.year
 }
 
-async function readJikanRelations(id: string, endpoint: 'anime' | 'manga'): Promise<RelatedItemRef[]> {
-  const url = new URL(`https://api.jikan.moe/v4/${endpoint}/${id}/relations`)
-  const response = await fetch(url, { headers: { accept: 'application/json' } })
-  if (!response.ok) return []
-
-  const payload = (await response.json()) as { data?: unknown[] }
-  const sortedRelationEntries = (Array.isArray(payload.data) ? payload.data : [])
-    .flatMap((groupValue) => {
-      const group = readRecord(groupValue)
-      const relation = mapJikanRelationKind(group.relation)
-      return (Array.isArray(group.entry) ? group.entry : []).flatMap((entryValue) => {
-        const entry = readRecord(entryValue)
-        const itemType = normalizeJikanRelatedType(entry.type)
-        const sourceId = readSourceId(entry.mal_id)
-        const title = optionalString(entry.name)
-        if (!itemType || !sourceId || !title) return []
-
-        return [{
-          title,
-          type: itemType,
-          relation: relation === 'adaptation' ? mapCrossTypeAdaptationRelation(endpointToJikanItemType(endpoint), itemType) : relation,
-          source: 'jikan',
-          sourceId,
-          externalRefs: {
-            malId: sourceId,
-            sourceUrl: optionalString(entry.url) ?? `https://myanimelist.net/${itemType === 'anime' ? 'anime' : 'manga'}/${sourceId}`,
-          },
-        } satisfies RelatedItemRef]
-      })
-    })
-    .filter((entry) => entry.sourceId !== id)
-    .sort(compareJikanRelationPriority)
-  const importantRelationEntries = sortedRelationEntries.filter((entry) => jikanRelationPriority(entry.relation) === 0)
-  const relationEntries = (importantRelationEntries.length ? importantRelationEntries : sortedRelationEntries).slice(0, 6)
-
-  return uniqueRelatedItems(await hydrateJikanRelatedDetails(relationEntries)).slice(0, 12)
-}
-
-async function hydrateJikanRelatedDetails(entries: RelatedItemRef[]) {
-  const results: RelatedItemRef[] = []
-  for (const entry of entries) {
-    results.push(await fetchJikanRelatedDetail(entry).catch(() => entry))
-  }
-  return results
-}
-
-function compareJikanRelationPriority(left: RelatedItemRef, right: RelatedItemRef) {
-  return jikanRelationPriority(left.relation) - jikanRelationPriority(right.relation)
-}
-
-function jikanRelationPriority(relation: RelatedItemKind) {
-  if (relation === 'sequel' || relation === 'prequel' || relation === 'source' || relation === 'adaptation') return 0
-  if (relation === 'spin_off' || relation === 'side_story') return 1
-  if (relation === 'summary') return 2
-  return 3
-}
-
-async function fetchJikanRelatedDetail(entry: RelatedItemRef): Promise<RelatedItemRef> {
-  const endpoint = entry.type === 'anime' ? 'anime' : 'manga'
-  const url = new URL(`https://api.jikan.moe/v4/${endpoint}/${entry.sourceId}`)
-  const response = await fetch(url, { headers: { accept: 'application/json' } })
-  if (!response.ok) return fetchJikanRelatedSearchDetail(entry).catch(() => entry)
-
-  const payload = (await response.json()) as { data?: unknown }
-  const detail = readRecord(payload.data)
-  const hydrated = hydrateJikanRelatedEntry(entry, detail)
-  if (hydrated.posterUrl) return hydrated
-  return fetchJikanRelatedSearchDetail(hydrated).catch(() => hydrated)
-}
-
-async function fetchJikanRelatedSearchDetail(entry: RelatedItemRef): Promise<RelatedItemRef> {
-  const endpoint = entry.type === 'anime' ? 'anime' : 'manga'
-  const url = new URL(`https://api.jikan.moe/v4/${endpoint}`)
-  url.searchParams.set('q', entry.title)
-  url.searchParams.set('limit', '3')
-  url.searchParams.set('sfw', 'true')
-
-  const response = await fetch(url, { headers: { accept: 'application/json' } })
-  if (!response.ok) return entry
-
-  const payload = (await response.json()) as { data?: unknown[] }
-  const candidates = Array.isArray(payload.data) ? payload.data.map(readRecord) : []
-  const detail = candidates.find((candidate) => String(candidate.mal_id ?? '') === String(entry.sourceId)) ?? candidates[0]
-  return detail ? hydrateJikanRelatedEntry(entry, detail) : entry
-}
-
-function hydrateJikanRelatedEntry(entry: RelatedItemRef, detail: Record<string, unknown>): RelatedItemRef {
-  const images = readRecord(readRecord(detail.images).jpg)
-  return {
-    ...entry,
-    posterUrl: optionalString(images.image_url) ?? entry.posterUrl,
-    releaseYear: readJikanReleaseYear(detail) ?? entry.releaseYear,
-  }
-}
-
-function mapJikanRelationKind(value: unknown): RelatedItemKind {
-  const relation = normalizeCatalogSearchText(value)
-  if (relation.includes('sequel')) return 'sequel'
-  if (relation.includes('prequel')) return 'prequel'
-  if (relation.includes('adaptation')) return 'adaptation'
-  if (relation.includes('side')) return 'side_story'
-  if (relation.includes('spin')) return 'spin_off'
-  if (relation.includes('alternative')) return 'alternative'
-  if (relation.includes('summary')) return 'summary'
-  if (relation.includes('character')) return 'character'
-  if (relation.includes('parent')) return 'source'
-  return 'other'
-}
-
-function normalizeJikanRelatedType(value: unknown): ItemType | undefined {
-  const type = normalizeCatalogSearchText(value)
-  if (type === 'anime') return 'anime'
-  if (type === 'manga') return 'manga'
-  return undefined
-}
-
-function endpointToJikanItemType(endpoint: 'anime' | 'manga'): ItemType {
-  return endpoint === 'anime' ? 'anime' : 'manga'
-}
-
-function mapCrossTypeAdaptationRelation(currentType: ItemType, relatedType: ItemType): RelatedItemKind {
-  if (isSourceMedium(relatedType) && !isSourceMedium(currentType)) return 'source'
-  return 'adaptation'
-}
-
-function isSourceMedium(type: ItemType) {
-  return type === 'book' || type === 'manga' || type === 'manhwa' || type === 'comic'
-}
-
 function readAniListProgressMeta(type: ItemType, entry: Record<string, unknown>): { total: number; unit: ProgressUnit } | undefined {
   if (type === 'anime') return readProgressMeta(entry.episodes, 'episodes')
   return readProgressMeta(entry.chapters, 'chapters') ?? readProgressMeta(entry.volumes, 'volumes')
@@ -802,83 +622,6 @@ function readJikanProgressMeta(type: ItemType, entry: Record<string, unknown>): 
 
 function readProgressMeta(value: unknown, unit: ProgressUnit) {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? { total: value, unit } : undefined
-}
-
-function readAniListRelations(entry: Record<string, unknown>, currentType: ItemType): RelatedItemRef[] | undefined {
-  const edges = Array.isArray(entry.relations && readRecord(entry.relations).edges)
-    ? (readRecord(entry.relations).edges as unknown[])
-    : []
-  const relatedItems = edges.flatMap((edge) => {
-    const edgeRecord = readRecord(edge)
-    const node = readRecord(edgeRecord.node)
-    const titleRecord = readRecord(node.title)
-    const title = optionalString(titleRecord.english) ?? optionalString(titleRecord.romaji) ?? optionalString(titleRecord.native)
-    const id = readSourceId(node.id)
-    if (!title || !id) return []
-
-    const type = inferAniListMediaType(node.type, node)
-    const startDate = readRecord(node.startDate)
-    const coverImage = readRecord(node.coverImage)
-    const relation = mapAniListRelationKind(edgeRecord.relationType)
-    return [{
-      title,
-      type,
-      relation: relation === 'adaptation' ? mapCrossTypeAdaptationRelation(currentType, type) : relation,
-      source: 'anilist',
-      sourceId: id,
-      posterUrl: optionalString(coverImage.medium),
-      releaseYear: typeof startDate.year === 'number' ? startDate.year : undefined,
-      externalRefs: {
-        anilistId: id,
-        sourceUrl: optionalString(node.siteUrl) ?? `https://anilist.co/${type === 'anime' ? 'anime' : 'manga'}/${id}`,
-      },
-    } satisfies RelatedItemRef]
-  })
-
-  return uniqueRelatedItems(relatedItems).slice(0, 12)
-}
-
-function mapAniListRelationKind(value: unknown): RelatedItemKind {
-  switch (String(value ?? '').toUpperCase()) {
-    case 'ADAPTATION':
-      return 'adaptation'
-    case 'ALTERNATIVE':
-      return 'alternative'
-    case 'CHARACTER':
-      return 'character'
-    case 'PREQUEL':
-      return 'prequel'
-    case 'SEQUEL':
-      return 'sequel'
-    case 'SIDE_STORY':
-      return 'side_story'
-    case 'SOURCE':
-    case 'PARENT':
-      return 'source'
-    case 'SPIN_OFF':
-      return 'spin_off'
-    case 'SUMMARY':
-      return 'summary'
-    default:
-      return 'other'
-  }
-}
-
-function uniqueRelatedItems(items: RelatedItemRef[]) {
-  const seen = new Set<string>()
-  const results: RelatedItemRef[] = []
-  for (const item of items) {
-    const key = `${item.source ?? ''}:${item.sourceId ?? ''}:${normalizeCatalogSearchText(item.title)}:${item.relation}`
-    if (seen.has(key)) continue
-    seen.add(key)
-    results.push(item)
-  }
-  return results
-}
-
-function readSourceId(value: unknown) {
-  if (typeof value === 'number' && Number.isFinite(value)) return String(value)
-  return optionalString(value)
 }
 
 function readJikanTitleAliases(entry: Record<string, unknown>) {
@@ -1027,31 +770,9 @@ function normalizeProxyCandidate(value: unknown): ExternalCandidate[] {
         candidate.externalRefs && typeof candidate.externalRefs === 'object' && !Array.isArray(candidate.externalRefs)
           ? candidate.externalRefs
           : {},
-      relatedItems: Array.isArray(candidate.relatedItems) ? normalizeRelatedItems(candidate.relatedItems) : undefined,
       createdAt: optionalString(candidate.createdAt) ?? nowIso(),
     },
   ]
-}
-
-function normalizeRelatedItems(values: unknown[]): RelatedItemRef[] {
-  return values.flatMap((value) => {
-    const item = readRecord(value)
-    const title = optionalString(item.title)
-    if (!title) return []
-
-    const source = normalizeProxySource(item.source)
-    const externalRefs = readRecord(item.externalRefs)
-    return [{
-      title,
-      type: normalizeProxyType(item.type),
-      relation: normalizeRelatedItemKind(item.relation),
-      source: source ?? (item.source === 'nexo' ? 'nexo' : undefined),
-      sourceId: optionalString(item.sourceId),
-      posterUrl: optionalString(item.posterUrl),
-      releaseYear: typeof item.releaseYear === 'number' ? item.releaseYear : undefined,
-      externalRefs: Object.keys(externalRefs).length ? (externalRefs as RelatedItemRef['externalRefs']) : undefined,
-    } satisfies RelatedItemRef]
-  })
 }
 
 function normalizeProxyType(type: unknown): ExternalCandidate['type'] {
@@ -1098,21 +819,6 @@ function normalizeProgressUnit(unit: unknown): ProgressUnit | undefined {
     unit === 'items'
     ? unit
     : undefined
-}
-
-function normalizeRelatedItemKind(kind: unknown): RelatedItemKind {
-  return kind === 'sequel' ||
-    kind === 'prequel' ||
-    kind === 'source' ||
-    kind === 'adaptation' ||
-    kind === 'side_story' ||
-    kind === 'spin_off' ||
-    kind === 'alternative' ||
-    kind === 'summary' ||
-    kind === 'character' ||
-    kind === 'other'
-    ? kind
-    : 'other'
 }
 
 function readRecord(value: unknown): Record<string, unknown> {

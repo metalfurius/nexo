@@ -4,8 +4,6 @@ import {
   type ItemType,
   type ProgressUnit,
   type PublicCatalogItem,
-  type RelatedItemKind,
-  type RelatedItemRef,
 } from '../domain/types'
 import { buildPublicCatalogItem, createCanonicalKey } from './catalog'
 import { uniqueValues } from './strings'
@@ -32,7 +30,6 @@ export interface PublicCatalogSeedEntry {
   searchAliases?: string[]
   externalRefs?: ExternalRefs
   posterUrl?: string
-  relatedItems?: RelatedItemRef[]
   archivedAt?: string
 }
 
@@ -194,7 +191,6 @@ function normalizeSeedEntry(value: unknown, index: number, errors: string[]): Pu
     searchAliases: readStringArray(value.searchAliases, `items[${index}].searchAliases`, errors),
     externalRefs: readExternalRefs(value.externalRefs, `items[${index}].externalRefs`, errors),
     posterUrl: readString(value.posterUrl),
-    relatedItems: readRelatedItems(value.relatedItems, `items[${index}].relatedItems`, errors),
     archivedAt: readString(value.archivedAt),
   }
 }
@@ -221,39 +217,6 @@ function readExternalRefs(value: unknown, path: string, errors: string[]): Exter
     wikidataId: readString(value.wikidataId),
     sourceUrl: readString(value.sourceUrl),
   }
-}
-
-function readRelatedItems(value: unknown, path: string, errors: string[]): RelatedItemRef[] | undefined {
-  if (value === undefined) return undefined
-  if (!Array.isArray(value)) {
-    errors.push(`${path} must be an array.`)
-    return undefined
-  }
-
-  const items = value.flatMap((entry, index) => {
-    if (!isRecord(entry)) {
-      errors.push(`${path}[${index}] must be an object.`)
-      return []
-    }
-    const title = readString(entry.title)
-    const type = readItemType(entry.type)
-    if (!title) errors.push(`${path}[${index}].title is required.`)
-    if (!type) errors.push(`${path}[${index}].type must be one of: ${ITEM_TYPES.join(', ')}.`)
-    if (!title || !type) return []
-
-    return [{
-      title,
-      type,
-      relation: readRelatedItemKind(entry.relation, `${path}[${index}].relation`, errors),
-      source: readRelatedItemSource(entry.source, `${path}[${index}].source`, errors),
-      sourceId: readString(entry.sourceId),
-      posterUrl: readString(entry.posterUrl),
-      releaseYear: readOptionalNumber(entry.releaseYear),
-      externalRefs: readExternalRefs(entry.externalRefs, `${path}[${index}].externalRefs`, errors),
-    } satisfies RelatedItemRef]
-  })
-
-  return items.length ? items : undefined
 }
 
 function readStringArray(value: unknown, path: string, errors: string[]) {
@@ -290,45 +253,6 @@ function readProgressUnit(value: unknown, path: string, errors: string[]): Progr
   return undefined
 }
 
-function readRelatedItemKind(value: unknown, path: string, errors: string[]): RelatedItemKind {
-  if (
-    value === 'sequel' ||
-    value === 'prequel' ||
-    value === 'source' ||
-    value === 'adaptation' ||
-    value === 'side_story' ||
-    value === 'spin_off' ||
-    value === 'alternative' ||
-    value === 'summary' ||
-    value === 'character' ||
-    value === 'other'
-  ) {
-    return value
-  }
-  if (value !== undefined) errors.push(`${path} must be a supported relation kind.`)
-  return 'other'
-}
-
-function readRelatedItemSource(value: unknown, path: string, errors: string[]): RelatedItemRef['source'] {
-  if (
-    value === undefined ||
-    value === 'tmdb' ||
-    value === 'rawg' ||
-    value === 'openLibrary' ||
-    value === 'googleBooks' ||
-    value === 'anilist' ||
-    value === 'mangaDex' ||
-    value === 'kitsu' ||
-    value === 'jikan' ||
-    value === 'wikidata' ||
-    value === 'nexo'
-  ) {
-    return value
-  }
-  errors.push(`${path} must be a supported source.`)
-  return undefined
-}
-
 function readOptionalNumber(value: unknown) {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined
 }
@@ -338,21 +262,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function clonePublicCatalogItem(item: PublicCatalogItem): PublicCatalogItem {
-  return {
+  const clonedItem = {
     ...item,
     externalRefs: { ...item.externalRefs },
     genres: [...item.genres],
     moodTags: [...item.moodTags],
-    ...(item.relatedItems
-      ? {
-          relatedItems: item.relatedItems.map((relatedItem) => ({
-            ...relatedItem,
-            ...(relatedItem.externalRefs ? { externalRefs: { ...relatedItem.externalRefs } } : {}),
-          })),
-        }
-      : {}),
     searchAliases: [...(item.searchAliases ?? [])],
     searchTokens: [...item.searchTokens],
     tags: [...item.tags],
-  }
+  } as PublicCatalogItem & { relatedItems?: unknown }
+  delete clonedItem.relatedItems
+  return clonedItem
 }

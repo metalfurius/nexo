@@ -21,24 +21,11 @@ export const ITEM_STATUSES = [
 export const USER_ROLES = ['user', 'moderator', 'admin'] as const
 export const THEME_MODES = ['dark', 'light', 'rose', 'forest', 'ocean', 'mint', 'aurora'] as const
 export const PROGRESS_UNITS = ['episodes', 'chapters', 'pages', 'hours', 'volumes', 'percent', 'items'] as const
-export const RELATED_ITEM_KINDS = [
-  'sequel',
-  'prequel',
-  'source',
-  'adaptation',
-  'side_story',
-  'spin_off',
-  'alternative',
-  'summary',
-  'character',
-  'other',
-] as const
 
 export type ItemType = (typeof ITEM_TYPES)[number]
 export type ItemStatus = (typeof ITEM_STATUSES)[number]
 export type UserRole = (typeof USER_ROLES)[number]
 export type ProgressUnit = (typeof PROGRESS_UNITS)[number]
-export type RelatedItemKind = (typeof RELATED_ITEM_KINDS)[number]
 
 export type EnergyLevel = 'low' | 'medium' | 'high'
 export type IntensityLevel = 'soft' | 'balanced' | 'intense'
@@ -79,17 +66,6 @@ export interface ExternalRefs {
   sourceUrl?: string
 }
 
-export interface RelatedItemRef {
-  title: string
-  type: ItemType
-  relation: RelatedItemKind
-  source?: ExternalSource | 'nexo'
-  sourceId?: string
-  posterUrl?: string
-  releaseYear?: number
-  externalRefs?: ExternalRefs
-}
-
 export interface ImportedLibraryItemDraft {
   sourceId: ImportSourceId
   sourceItemId: string
@@ -109,7 +85,6 @@ export interface ImportedLibraryItemDraft {
   importNotes?: string[]
   externalRefs?: ExternalRefs
   posterUrl?: string
-  relatedItems?: RelatedItemRef[]
   releaseYear?: number
 }
 
@@ -169,7 +144,6 @@ export interface ListItem {
   importNotes?: string[]
   externalRefs?: ExternalRefs
   posterUrl?: string
-  relatedItems?: RelatedItemRef[]
   publicItemId?: string
   publicSnapshot?: PublicCatalogSnapshot
   createdAt: string
@@ -192,7 +166,6 @@ export interface ExternalCandidate {
   genres: string[]
   searchAliases?: string[]
   externalRefs: ExternalRefs
-  relatedItems?: RelatedItemRef[]
   createdAt: string
 }
 
@@ -210,7 +183,6 @@ export interface PublicCatalogItem {
   searchAliases?: string[]
   externalRefs: ExternalRefs
   posterUrl?: string
-  relatedItems?: RelatedItemRef[]
   searchTokens: string[]
   canonicalKey: string
   createdAt: string
@@ -235,7 +207,6 @@ export type PublicCatalogSnapshot = Pick<
   | 'searchAliases'
   | 'externalRefs'
   | 'posterUrl'
-  | 'relatedItems'
   | 'canonicalKey'
   | 'updatedAt'
 >
@@ -257,7 +228,6 @@ export interface DiscoveryCandidate {
   tags: string[]
   moodTags: string[]
   externalRefs: ExternalRefs
-  relatedItems?: RelatedItemRef[]
   publicItemId?: string
   publicSnapshot?: PublicCatalogSnapshot
   savedItemId?: string

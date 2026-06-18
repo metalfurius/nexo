@@ -52,7 +52,6 @@ export function snapshotPublicItem(item: PublicCatalogItem): PublicCatalogSnapsh
     searchAliases: item.searchAliases ?? [],
     externalRefs: item.externalRefs,
     posterUrl: item.posterUrl,
-    relatedItems: cloneRelatedItems(item.relatedItems),
     canonicalKey: item.canonicalKey,
     updatedAt: item.updatedAt,
   }
@@ -77,7 +76,6 @@ export function publicItemToDiscovery(item: PublicCatalogItem): DiscoveryCandida
     tags: item.tags,
     moodTags: item.moodTags,
     externalRefs: item.externalRefs,
-    relatedItems: cloneRelatedItems(item.relatedItems),
     publicItemId: item.id,
     publicSnapshot: snapshotPublicItem(item),
     createdAt: timestamp,
@@ -104,7 +102,6 @@ export function externalCandidateToDiscovery(candidate: ExternalCandidate): Disc
     tags: uniqueValues([candidate.type, candidate.source, ...candidate.genres]),
     moodTags: [],
     externalRefs: candidate.externalRefs,
-    relatedItems: cloneRelatedItems(candidate.relatedItems),
     createdAt: timestamp,
     updatedAt: timestamp,
   }
@@ -146,7 +143,6 @@ export function discoveryToListItem(candidate: DiscoveryCandidate): ListItem {
     source: candidate.source === 'nexo' ? 'public' : 'external',
     externalRefs: candidate.externalRefs,
     posterUrl: candidate.posterUrl,
-    relatedItems: cloneRelatedItems(candidate.relatedItems),
     publicItemId: candidate.publicItemId,
     publicSnapshot: candidate.publicSnapshot,
     createdAt: timestamp,
@@ -195,7 +191,6 @@ export function buildPublicCatalogItem(
     searchAliases,
     externalRefs: draft.externalRefs ?? {},
     posterUrl: draft.posterUrl?.trim() || undefined,
-    relatedItems: cloneRelatedItems(draft.relatedItems),
     searchTokens: createSearchTokens({
       title: draft.title,
       type: draft.type,
@@ -211,11 +206,4 @@ export function buildPublicCatalogItem(
     updatedBy: actorId,
     archivedAt: draft.archivedAt,
   }
-}
-
-function cloneRelatedItems(items: PublicCatalogItem['relatedItems']): PublicCatalogItem['relatedItems'] {
-  return items?.map((item) => ({
-    ...item,
-    ...(item.externalRefs ? { externalRefs: { ...item.externalRefs } } : {}),
-  }))
 }

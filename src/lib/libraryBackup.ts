@@ -13,8 +13,6 @@ import {
   type ProgressUnit,
   type PublicCatalogSnapshot,
   type RecommendationPreferences,
-  type RelatedItemKind,
-  type RelatedItemRef,
   type UserSettings,
   nowIso,
 } from '../domain/types'
@@ -56,7 +54,7 @@ export function createLibraryExportPayload(
   return {
     schemaVersion: LIBRARY_EXPORT_SCHEMA_VERSION,
     exportedAt,
-    items,
+    items: items.map(cloneListItem),
     ...(settings ? { settings } : {}),
   }
 }
@@ -121,35 +119,34 @@ export function parseLibraryImportPayload(payload: unknown, importedAt = nowIso(
 }
 
 function cloneListItem(item: ListItem): ListItem {
-  return {
+  const clonedItem = {
     ...item,
     ...(item.externalRefs ? { externalRefs: { ...item.externalRefs } } : {}),
     genres: [...item.genres],
     ...(item.importNotes ? { importNotes: [...item.importNotes] } : {}),
     moodTags: [...item.moodTags],
-    ...(item.relatedItems ? { relatedItems: cloneRelatedItems(item.relatedItems) } : {}),
     ...(item.publicSnapshot
       ? {
-          publicSnapshot: {
-            ...item.publicSnapshot,
-            externalRefs: { ...item.publicSnapshot.externalRefs },
-            genres: [...item.publicSnapshot.genres],
-            moodTags: [...item.publicSnapshot.moodTags],
-            ...(item.publicSnapshot.relatedItems ? { relatedItems: cloneRelatedItems(item.publicSnapshot.relatedItems) } : {}),
-            tags: [...item.publicSnapshot.tags],
-          },
+          publicSnapshot: clonePublicSnapshot(item.publicSnapshot),
         }
       : {}),
     tags: [...item.tags],
     weights: { ...item.weights },
-  }
+  } as ListItem & { relatedItems?: unknown }
+  delete clonedItem.relatedItems
+  return clonedItem
 }
 
-function cloneRelatedItems(items: RelatedItemRef[]): RelatedItemRef[] {
-  return items.map((item) => ({
-    ...item,
-    ...(item.externalRefs ? { externalRefs: { ...item.externalRefs } } : {}),
-  }))
+function clonePublicSnapshot(snapshot: PublicCatalogSnapshot): PublicCatalogSnapshot {
+  const clonedSnapshot = {
+    ...snapshot,
+    externalRefs: { ...snapshot.externalRefs },
+    genres: [...snapshot.genres],
+    moodTags: [...snapshot.moodTags],
+    tags: [...snapshot.tags],
+  } as PublicCatalogSnapshot & { relatedItems?: unknown }
+  delete clonedSnapshot.relatedItems
+  return clonedSnapshot
 }
 
 function cloneUserSettingsSnapshot(settings: UserSettings): UserSettings {
@@ -191,7 +188,6 @@ function normalizeListItem(value: unknown, index: number, importedAt: string): L
     importNotes: stringList(item.importNotes),
     externalRefs: normalizeExternalRefs(item.externalRefs),
     posterUrl: optionalString(item.posterUrl),
-    relatedItems: normalizeRelatedItems(item.relatedItems),
     publicItemId: optionalString(item.publicItemId),
     publicSnapshot: normalizePublicSnapshot(item.publicSnapshot),
     createdAt,
@@ -286,31 +282,6 @@ function normalizeExternalRefs(value: unknown): ExternalRefs | undefined {
   }
 }
 
-function normalizeRelatedItems(value: unknown): RelatedItemRef[] | undefined {
-  if (!Array.isArray(value)) return undefined
-  const items = value.flatMap((entry) => {
-    const item = asOptionalRecord(entry)
-    if (!item) return []
-
-    const title = optionalString(item.title)
-    const type = typeof item.type === 'string' && ITEM_TYPES.includes(item.type as ItemType) ? (item.type as ItemType) : undefined
-    if (!title || !type) return []
-
-    return [{
-      title,
-      type,
-      relation: readRelatedItemKind(item.relation),
-      source: readRelatedItemSource(item.source),
-      sourceId: optionalString(item.sourceId),
-      posterUrl: optionalString(item.posterUrl),
-      releaseYear: optionalNumber(item.releaseYear),
-      externalRefs: normalizeExternalRefs(item.externalRefs),
-    } satisfies RelatedItemRef]
-  })
-
-  return items.length ? items : undefined
-}
-
 function normalizePublicSnapshot(value: unknown): PublicCatalogSnapshot | undefined {
   const snapshot = asOptionalRecord(value)
   if (!snapshot) return undefined
@@ -333,7 +304,6 @@ function normalizePublicSnapshot(value: unknown): PublicCatalogSnapshot | undefi
     searchAliases: stringList(snapshot.searchAliases),
     externalRefs: normalizeExternalRefs(snapshot.externalRefs) ?? {},
     posterUrl: optionalString(snapshot.posterUrl),
-    relatedItems: normalizeRelatedItems(snapshot.relatedItems),
     canonicalKey: optionalString(snapshot.canonicalKey) ?? `${type}:${slugify(title)}`,
     updatedAt: optionalString(snapshot.updatedAt) ?? nowIso(),
   }
@@ -358,42 +328,6 @@ function readProgressUnit(value: unknown): ProgressUnit | undefined {
     value === 'volumes' ||
     value === 'percent' ||
     value === 'items'
-  ) {
-    return value
-  }
-  return undefined
-}
-
-function readRelatedItemKind(value: unknown): RelatedItemKind {
-  if (
-    value === 'sequel' ||
-    value === 'prequel' ||
-    value === 'source' ||
-    value === 'adaptation' ||
-    value === 'side_story' ||
-    value === 'spin_off' ||
-    value === 'alternative' ||
-    value === 'summary' ||
-    value === 'character' ||
-    value === 'other'
-  ) {
-    return value
-  }
-  return 'other'
-}
-
-function readRelatedItemSource(value: unknown): RelatedItemRef['source'] {
-  if (
-    value === 'tmdb' ||
-    value === 'rawg' ||
-    value === 'openLibrary' ||
-    value === 'googleBooks' ||
-    value === 'anilist' ||
-    value === 'mangaDex' ||
-    value === 'kitsu' ||
-    value === 'jikan' ||
-    value === 'wikidata' ||
-    value === 'nexo'
   ) {
     return value
   }

@@ -101,10 +101,12 @@ describe('library backup schema', () => {
     })
   })
 
-  it('preserves structured progress and related references when parsing backups', () => {
+  it('preserves structured progress and drops legacy related references when parsing backups', () => {
     const parsed = parseLibraryImportPayload(
-      createLibraryExportPayload(
-        [
+      {
+        schemaVersion: 1,
+        exportedAt: '2026-01-02T00:00:00.000Z',
+        items: [
           {
             ...baseItem,
             progressCurrent: 3,
@@ -143,9 +145,7 @@ describe('library backup schema', () => {
             ],
           },
         ],
-        undefined,
-        '2026-01-02T00:00:00.000Z',
-      ),
+      },
       '2026-01-03T00:00:00.000Z',
     )
 
@@ -156,8 +156,8 @@ describe('library backup schema', () => {
         progressUnit: 'episodes',
       }),
     )
-    expect(parsed.items[0].relatedItems?.[0]).toEqual(expect.objectContaining({ relation: 'source', title: 'Cyberpunk 2077' }))
-    expect(parsed.items[0].publicSnapshot?.relatedItems?.[0]).toEqual(expect.objectContaining({ sourceId: '41494' }))
+    expect('relatedItems' in parsed.items[0]).toBe(false)
+    expect('relatedItems' in (parsed.items[0].publicSnapshot ?? {})).toBe(false)
   })
 
   it('keeps a library card density preference from exported settings', () => {

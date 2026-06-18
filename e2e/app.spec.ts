@@ -1375,8 +1375,8 @@ test('library saves Frieren from external search without candidate permission no
   await expect(editor.getByLabel('Poster o portada')).toHaveCount(0)
   await expect(editor.getByLabel('Generos', { exact: true })).toHaveCount(0)
   await expect(editor.getByRole('group', { name: 'Progreso' })).toContainText('0/28 episodios')
-  await expect(editor.getByLabel('Obras relacionadas')).toContainText("Frieren: Beyond Journey's End")
-  await expect(editor.getByLabel('Obras relacionadas').locator('img')).toHaveCount(1)
+  await expect(editor.getByLabel('Obras relacionadas')).toHaveCount(0)
+  await expect(editor.locator('.related-items-panel')).toHaveCount(0)
 
   await editor.getByRole('button', { name: 'Cambiar estado a En progreso' }).click()
   await editor.getByRole('textbox', { name: 'Progreso' }).fill('Episodio 4')
@@ -1395,7 +1395,7 @@ test('library saves Frieren from external search without candidate permission no
   await expect(savedEditor.getByLabel('Notas')).toHaveValue('Mucho mas tranquila de lo que esperaba.')
 })
 
-test('library saves Solo Leveling series with default episodes and related references', async ({ page }) => {
+test('library saves Solo Leveling series with default episodes and no related references', async ({ page }) => {
   await mockSoloLevelingSeriesCatalog(page)
 
   await page.goto('/')
@@ -1412,19 +1412,17 @@ test('library saves Solo Leveling series with default episodes and related refer
 
   const editor = page.getByRole('dialog', { name: 'Entrada' })
   await expect(editor.getByRole('group', { name: 'Progreso' })).toContainText('0/25 episodios')
-  await expect(editor.getByLabel('Obras relacionadas')).toContainText('Solo Leveling Season 2 -Arise from the Shadow-')
-  await expect(editor.getByLabel('Obras relacionadas')).toContainText('Origen')
-  await expect(editor.getByLabel('Obras relacionadas')).toContainText('Secuela')
-  await expect(editor.getByLabel('Obras relacionadas').locator('img')).toHaveCount(2)
+  await expect(editor.getByLabel('Obras relacionadas')).toHaveCount(0)
+  await expect(editor.locator('.related-items-panel')).toHaveCount(0)
 
   const editorMetrics = await editor.evaluate((dialog) => ({
     horizontalOverflow: dialog.scrollWidth > dialog.clientWidth + 1,
     progressText: dialog.querySelector('.progress-control-heading')?.textContent?.trim() ?? '',
-    relatedText: dialog.querySelector('.related-items-panel')?.textContent?.trim() ?? '',
+    relatedPanelCount: dialog.querySelectorAll('.related-items-panel').length,
   }))
   expect(editorMetrics.horizontalOverflow).toBe(false)
   expect(editorMetrics.progressText).toContain('0/25 episodios')
-  expect(editorMetrics.relatedText).toContain('Solo Leveling')
+  expect(editorMetrics.relatedPanelCount).toBe(0)
 })
 
 test('library catalog search paginates results and saves from page two', async ({ page }) => {

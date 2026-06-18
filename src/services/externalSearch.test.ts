@@ -39,6 +39,10 @@ function kitsuPayload(data: unknown[]) {
   return { data }
 }
 
+function fetchedUrls() {
+  return vi.mocked(fetch).mock.calls.map(([input]) => new URL(input instanceof Request ? input.url : String(input)))
+}
+
 describe('external search', () => {
   afterEach(() => {
     vi.unstubAllEnvs()
@@ -261,7 +265,7 @@ describe('external search', () => {
     )
   })
 
-  it('adds Jikan related sequel and source references with posters', async () => {
+  it('keeps Jikan progress metadata without requesting related references', async () => {
     mockCatalogFetch((url) => {
       if (url.hostname === 'graphql.anilist.co') return aniListPayload([])
       if (url.hostname === 'api.jikan.moe' && url.pathname === '/v4/anime') {
@@ -279,45 +283,6 @@ describe('external search', () => {
           },
         ])
       }
-      if (url.hostname === 'api.jikan.moe' && url.pathname === '/v4/anime/52299/relations') {
-        return {
-          data: [
-            {
-              relation: 'Sequel',
-              entry: [
-                {
-                  mal_id: 58567,
-                  name: 'Solo Leveling Season 2: Arise from the Shadow',
-                  type: 'anime',
-                  url: 'https://myanimelist.net/anime/58567/Solo_Leveling_Season_2',
-                },
-              ],
-            },
-            {
-              relation: 'Adaptation',
-              entry: [
-                {
-                  mal_id: 121496,
-                  name: 'Solo Leveling',
-                  type: 'manga',
-                  url: 'https://myanimelist.net/manga/121496/Solo_Leveling',
-                },
-              ],
-            },
-          ],
-        }
-      }
-      if (url.hostname === 'api.jikan.moe' && url.pathname === '/v4/anime/58567') {
-        return { data: { images: { jpg: { image_url: 'https://cdn.myanimelist.net/images/anime/season-2.jpg' } }, year: 2025 } }
-      }
-      if (url.hostname === 'api.jikan.moe' && url.pathname === '/v4/manga/121496') {
-        return {
-          data: {
-            images: { jpg: { image_url: 'https://cdn.myanimelist.net/images/manga/solo-leveling.jpg' } },
-            published: { prop: { from: { year: 2018 } } },
-          },
-        }
-      }
       return jikanPayload([])
     })
 
@@ -327,27 +292,15 @@ describe('external search', () => {
       expect.objectContaining({
         progressTotal: 12,
         progressUnit: 'episodes',
-        relatedItems: expect.arrayContaining([
-          expect.objectContaining({
-            posterUrl: 'https://cdn.myanimelist.net/images/anime/season-2.jpg',
-            relation: 'sequel',
-            title: 'Solo Leveling Season 2: Arise from the Shadow',
-            type: 'anime',
-          }),
-          expect.objectContaining({
-            posterUrl: 'https://cdn.myanimelist.net/images/manga/solo-leveling.jpg',
-            relation: 'source',
-            title: 'Solo Leveling',
-            type: 'manga',
-          }),
-        ]),
         source: 'jikan',
         title: 'Solo Leveling',
       }),
     )
+    expect('relatedItems' in (results[0] ?? {})).toBe(false)
+    expect(fetchedUrls().some((url) => url.pathname.includes('/relations'))).toBe(false)
   })
 
-  it('keeps cross-media adaptations as adaptations when the current item is the source medium', async () => {
+  it('ignores AniList relations while keeping source medium progress metadata', async () => {
     mockCatalogFetch((url) => {
       if (url.hostname === 'graphql.anilist.co') {
         return aniListPayload([
@@ -386,13 +339,16 @@ describe('external search', () => {
 
     const results = await searchExternalSources('solo leveling', 'manhwa')
 
-    expect(results[0]?.relatedItems?.[0]).toEqual(
+    expect(results[0]).toEqual(
       expect.objectContaining({
-        relation: 'adaptation',
+        progressTotal: 200,
         title: 'Solo Leveling',
-        type: 'anime',
+        type: 'manhwa',
       }),
     )
+    expect('relatedItems' in (results[0] ?? {})).toBe(false)
+    const aniListCall = vi.mocked(fetch).mock.calls.find(([input]) => String(input).includes('graphql.anilist.co'))
+    expect(String(aniListCall?.[1]?.body ?? '')).not.toContain('relations')
   })
 
   it('drops invalid Jikan genre names', async () => {
@@ -494,15 +450,10 @@ describe('external search', () => {
         type: 'anime',
         progressTotal: 12,
         progressUnit: 'episodes',
-        relatedItems: [
-          expect.objectContaining({
-            relation: 'prequel',
-            title: 'Farming Life in Another World',
-            type: 'anime',
-          }),
-        ],
       }),
     )
+    const candidate = results.find((result) => result.source === 'anilist')
+    expect(candidate && 'relatedItems' in candidate).toBe(false)
   })
 
   it('falls back to direct free sources when the proxy returns no candidates', async () => {
@@ -536,7 +487,7 @@ describe('external search', () => {
     )
   })
 
-  it('keeps proxy progress metadata and related references for non-AniList sources', async () => {
+  it('keeps proxy progress metadata and drops legacy related references for non-AniList sources', async () => {
     vi.stubEnv('VITE_CATALOG_PROXY_URL', 'https://catalog-proxy.example')
     mockCatalogFetch((url) => {
       if (url.hostname === 'catalog-proxy.example') {
@@ -595,15 +546,12 @@ describe('external search', () => {
         source: 'tmdb',
         progressTotal: 2.3,
         progressUnit: 'hours',
-        relatedItems: [
-          expect.objectContaining({ relation: 'sequel', source: 'tmdb', title: 'The Matrix Reloaded' }),
-          expect.objectContaining({ relation: 'source', source: 'wikidata', title: 'Neuromancer', type: 'book' }),
-        ],
       }),
     )
+    expect('relatedItems' in (results[0] ?? {})).toBe(false)
   })
 
-  it('enriches animated TMDB series proxy results with AniList relations in the browser', async () => {
+  it('does not enrich animated TMDB series proxy results with related references in the browser', async () => {
     vi.stubEnv('VITE_CATALOG_PROXY_URL', 'https://catalog-proxy.example')
     mockCatalogFetch((url) => {
       if (url.hostname === 'catalog-proxy.example') {
@@ -683,24 +631,12 @@ describe('external search', () => {
       expect.objectContaining({
         progressTotal: 25,
         progressUnit: 'episodes',
-        relatedItems: expect.arrayContaining([
-          expect.objectContaining({
-            posterUrl: 'https://img.anili.st/media/105398.jpg',
-            relation: 'source',
-            title: 'Solo Leveling',
-            type: 'manhwa',
-          }),
-          expect.objectContaining({
-            posterUrl: 'https://img.anili.st/media/176496.jpg',
-            relation: 'sequel',
-            title: 'Solo Leveling Season 2 -Arise from the Shadow-',
-            type: 'anime',
-          }),
-        ]),
         source: 'tmdb',
         title: 'Solo Leveling',
         type: 'series',
       }),
     )
+    expect('relatedItems' in (results[0] ?? {})).toBe(false)
+    expect(fetchedUrls().some((url) => url.hostname === 'graphql.anilist.co')).toBe(false)
   })
 })

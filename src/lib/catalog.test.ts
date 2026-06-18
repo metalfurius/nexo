@@ -29,7 +29,7 @@ describe('catalog helpers', () => {
 
   it('copies a public item into a private library item with a snapshot reference', () => {
     const publicItem = buildPublicCatalogItem(
-      {
+      ({
         id: 'book-odisea',
         title: 'Odisea',
         type: 'book',
@@ -46,7 +46,7 @@ describe('catalog helpers', () => {
             source: 'nexo',
           },
         ],
-      },
+      } as unknown) as Parameters<typeof buildPublicCatalogItem>[0],
       'moderator-1',
     )
 
@@ -62,11 +62,12 @@ describe('catalog helpers', () => {
     expect(libraryItem.progressCurrent).toBe(0)
     expect(libraryItem.progressTotal).toBe(320)
     expect(libraryItem.progressUnit).toBe('pages')
-    expect(libraryItem.relatedItems?.[0]).toEqual(expect.objectContaining({ relation: 'adaptation', title: 'Odisea adaptada' }))
+    expect('relatedItems' in libraryItem).toBe(false)
+    expect('relatedItems' in (libraryItem.publicSnapshot ?? {})).toBe(false)
     expect(libraryItem.status).toBe('wishlist')
   })
 
-  it('copies external series progress totals and related references into a private library item', () => {
+  it('copies external series progress totals without carrying legacy related references', () => {
     const candidate = externalCandidateToDiscovery({
       id: 'tmdb-tv-127532',
       title: 'Solo Leveling',
@@ -91,7 +92,7 @@ describe('catalog helpers', () => {
         },
       ],
       createdAt: '2026-01-01T00:00:00.000Z',
-    })
+    } as unknown as Parameters<typeof externalCandidateToDiscovery>[0])
 
     const libraryItem = discoveryToListItem(candidate)
 
@@ -99,7 +100,8 @@ describe('catalog helpers', () => {
     expect(libraryItem.progressCurrent).toBe(0)
     expect(libraryItem.progressTotal).toBe(25)
     expect(libraryItem.progressUnit).toBe('episodes')
-    expect(libraryItem.relatedItems?.[0]).toEqual(expect.objectContaining({ relation: 'sequel', title: 'Solo Leveling Season 2' }))
+    expect('relatedItems' in candidate).toBe(false)
+    expect('relatedItems' in libraryItem).toBe(false)
   })
 
   it('keeps resolved discovery decisions when the same result is queued again', () => {
