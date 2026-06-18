@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import { catalogGenrePresets, catalogMoodPresets, catalogTagPresets, type CatalogTaxonomyTemplate, catalogTaxonomyTemplates } from '../data/catalogPresets'
-import { type ActivityEntry, type ActivityTab, type ActivityTarget, type ActivityTone, DEFAULT_WEIGHTS, type DiscoveryCandidate, type DiscoveryStatus, type ExplorerSearchType, type ExternalCandidate, type ImportPreview, ITEM_STATUSES, ITEM_TYPES, type ItemStatus, type ItemType, type LibraryCardsPerRow, type LibrarySyncState, type LibraryViewMode, type ListItem, nowIso, PROGRESS_UNITS, type ProgressUnit, type PublicCatalogItem, type RecommendationPreferences, type RecommendationResult, type RelatedItemKind, type RelatedItemRef, THEME_MODES, type ThemeMode, USER_ROLES, type UserProfile, type UserRole, type UserSettings } from '../domain/types'
+import { type ActivityEntry, type ActivityTab, type ActivityTarget, type ActivityTone, DEFAULT_WEIGHTS, type DiscoveryCandidate, type DiscoveryStatus, type ExplorerSearchType, type ExternalCandidate, type ImportPreview, ITEM_STATUSES, ITEM_TYPES, type ItemStatus, type ItemType, type LibraryCardsPerRow, type LibrarySyncState, type LibraryViewMode, type ListItem, nowIso, PROGRESS_UNITS, type ProgressUnit, type PublicCatalogItem, type RecommendationPreferences, type RecommendationResult, THEME_MODES, type ThemeMode, USER_ROLES, type UserProfile, type UserRole, type UserSettings } from '../domain/types'
 import { getActivityContinuitySummary, getActivityDestinationTab } from '../lib/activityInsights'
 import { buildPublicCatalogItem } from '../lib/catalog'
 import { buildCatalogDescriptionDraft, type CatalogIssueKey, catalogIssueShortLabels, draftCatalogQualityWarnings } from '../lib/catalogInsights'
@@ -31,19 +31,6 @@ export const librarySortLabels: Record<LibrarySortMode, string> = {
 export const libraryCardsPerRowOptions: LibraryCardsPerRow[] = [4, 5, 6]
 
 export const progressUnitOptions: ProgressUnit[] = [...PROGRESS_UNITS]
-
-export const relatedItemKindLabels: Record<RelatedItemKind, string> = {
-  adaptation: 'Adaptacion',
-  alternative: 'Alternativa',
-  character: 'Personaje',
-  other: 'Relacionada',
-  prequel: 'Precuela',
-  sequel: 'Secuela',
-  side_story: 'Historia lateral',
-  source: 'Origen',
-  spin_off: 'Spin-off',
-  summary: 'Resumen',
-}
 
 export const libraryCatalogSearchTypes: Array<{ id: ExplorerSearchType; label: string }> = [
   { id: 'any', label: 'Todo' },
@@ -5574,69 +5561,6 @@ export function clampProgressValue(value: number, max?: number) {
   return Math.round(clamped * 100) / 100
 }
 
-export function RelatedItemsPanel({ items }: { items?: RelatedItemRef[] }) {
-  const visibleItems = (items ?? []).filter((item) => item.title.trim()).slice(0, 8)
-  if (!visibleItems.length) return null
-
-  return (
-    <section className="related-items-panel" aria-label="Obras relacionadas">
-      <div className="related-items-heading">
-        <div>
-          <span className="eyebrow">Relacionadas</span>
-          <h3>Origenes y continuaciones</h3>
-        </div>
-        <strong>{visibleItems.length}</strong>
-      </div>
-      <div className="related-items-grid">
-        {visibleItems.map((item, index) => {
-          const Icon = typeIcons[item.type]
-          const sourceUrl = item.externalRefs?.sourceUrl
-          const content = (
-            <>
-              <RelatedItemPoster Icon={Icon} item={item} />
-              <span className="related-copy">
-                <span className="related-relation">{relatedItemKindLabels[item.relation]}</span>
-                <span className="related-title">
-                  <strong>{item.title}</strong>
-                </span>
-                <small>
-                  {typeLabels[item.type]}
-                  {item.releaseYear ? ` / ${item.releaseYear}` : ''}
-                </small>
-              </span>
-            </>
-          )
-
-          return sourceUrl ? (
-            <a className="related-item-card" href={sourceUrl} key={`${item.relation}-${item.title}-${index}`} rel="noreferrer" target="_blank">
-              {content}
-            </a>
-          ) : (
-            <article className="related-item-card" key={`${item.relation}-${item.title}-${index}`}>
-              {content}
-            </article>
-          )
-        })}
-      </div>
-    </section>
-  )
-}
-
-function RelatedItemPoster({ Icon, item }: { Icon: LucideIcon; item: RelatedItemRef }) {
-  const [failedPosterUrl, setFailedPosterUrl] = useState<string | undefined>()
-  const shouldShowPoster = Boolean(item.posterUrl && failedPosterUrl !== item.posterUrl)
-
-  return (
-    <span className={shouldShowPoster ? 'related-poster has-poster' : 'related-poster'}>
-      {shouldShowPoster ? (
-        <img alt="" loading="lazy" src={item.posterUrl} onError={() => setFailedPosterUrl(item.posterUrl)} />
-      ) : (
-        <Icon aria-hidden="true" focusable="false" size={18} />
-      )}
-    </span>
-  )
-}
-
 export function ActionMenu({
   items,
   label,
@@ -6281,7 +6205,6 @@ export function ItemEditor({
               onChange={(patch) => setDraft((current) => ({ ...current, ...patch }))}
             />
           </div>
-          <RelatedItemsPanel items={draft.relatedItems} />
         </section>
 
         <details className="editor-advanced-panel" data-close-on-outside>

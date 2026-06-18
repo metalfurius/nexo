@@ -243,18 +243,6 @@ async function tmdbEntryToCandidate(entry, token) {
   })
   const wikidataId = optionalString(detail?.external_ids?.wikidata_id)
   const releaseYear = parseYear(detail?.release_date || detail?.first_air_date || date)
-  const tmdbRelatedItems = (tmdbMediaType === 'movie'
-    ? await readTmdbMovieRelatedItems(detail, entry, token).catch(() => [])
-    : readTmdbSeriesRelatedItems(detail, entry))
-  const anilistRelatedItems = tmdbMediaType === 'tv'
-    ? await readAniListRelatedItemsForTmdbSeries(detail, entry).catch(() => [])
-    : []
-  const wikidataRelatedItems = await searchWikidataRelatedItems({
-    releaseYear,
-    title: String(detail?.title || detail?.name || entry.title || entry.name || ''),
-    type: mediaType,
-    wikidataId,
-  }).catch(() => [])
   const progressMeta = tmdbMediaType === 'movie'
     ? readProgressMeta(roundRuntimeHours(detail?.runtime), 'hours')
     : readProgressMeta(readTmdbSeriesEpisodeTotal(detail), 'episodes')
@@ -276,7 +264,6 @@ async function tmdbEntryToCandidate(entry, token) {
       wikidataId,
       sourceUrl: `https://www.themoviedb.org/${entry.media_type}/${id}`,
     },
-    relatedItems: uniqueRelatedItems([...tmdbRelatedItems, ...anilistRelatedItems, ...wikidataRelatedItems]).slice(0, 12),
     createdAt: new Date().toISOString(),
   }
 }
@@ -296,54 +283,6 @@ async function fetchTmdbJson(path, token, params = {}) {
   return response.json()
 }
 
-async function readTmdbMovieRelatedItems(detail, entry, token) {
-  const collectionId = detail?.belongs_to_collection?.id
-  if (!collectionId) return []
-
-  const collection = await fetchTmdbJson(`/collection/${collectionId}`, token, { language: CACHE_LANGUAGE })
-  const currentDate = parseTmdbDate(detail?.release_date || entry.release_date)
-  return (collection?.parts ?? [])
-    .filter((part) => String(part.id) !== String(entry.id))
-    .map((part) => {
-      const relationDate = parseTmdbDate(part.release_date)
-      return {
-        title: String(part.title || part.name || 'Sin titulo'),
-        type: 'movie',
-        relation: inferTemporalRelation(currentDate, relationDate),
-        source: 'tmdb',
-        sourceId: String(part.id),
-        posterUrl: part.poster_path ? `https://image.tmdb.org/t/p/w342${part.poster_path}` : undefined,
-        releaseYear: parseYear(part.release_date),
-        externalRefs: {
-          tmdbId: String(part.id),
-          sourceUrl: `https://www.themoviedb.org/movie/${part.id}`,
-        },
-      }
-    })
-}
-
-function readTmdbSeriesRelatedItems(detail, entry) {
-  const currentSeasonCount = typeof detail?.number_of_seasons === 'number' ? detail.number_of_seasons : 0
-  if (currentSeasonCount <= 1 || !Array.isArray(detail?.seasons)) return []
-
-  return detail.seasons
-    .filter((season) => typeof season.season_number === 'number' && season.season_number > 1)
-    .slice(0, 12)
-    .map((season) => ({
-      title: optionalString(season.name) || `${detail?.name || entry.name || 'Serie'} temporada ${season.season_number}`,
-      type: 'series',
-      relation: 'sequel',
-      source: 'tmdb',
-      sourceId: `${entry.id}-season-${season.season_number}`,
-      posterUrl: season.poster_path ? `https://image.tmdb.org/t/p/w342${season.poster_path}` : undefined,
-      releaseYear: parseYear(season.air_date),
-      externalRefs: {
-        tmdbId: String(entry.id),
-        sourceUrl: `https://www.themoviedb.org/tv/${entry.id}/season/${season.season_number}`,
-      },
-    }))
-}
-
 function readTmdbSeriesEpisodeTotal(detail) {
   if (typeof detail?.number_of_episodes === 'number' && Number.isFinite(detail.number_of_episodes) && detail.number_of_episodes > 0) {
     return detail.number_of_episodes
@@ -359,59 +298,6 @@ function readTmdbSeriesEpisodeTotal(detail) {
   return total > 0 ? total : undefined
 }
 
-async function readAniListRelatedItemsForTmdbSeries(detail, entry) {
-  if (!isTmdbLikelyAnimatedSeries(detail, entry)) return []
-
-  const title = optionalString(detail?.name) || optionalString(entry.name)
-  if (!title) return []
-
-  const candidates = await searchAniList(title, 'anime')
-  const matchedCandidate = pickMatchingAniListCandidate(candidates, title)
-  if (Array.isArray(matchedCandidate?.relatedItems) && matchedCandidate.relatedItems.length) return matchedCandidate.relatedItems
-
-  const jikanCandidates = await searchJikan(title, 'anime')
-  const matchedJikanCandidate = pickMatchingJikanCandidate(jikanCandidates, title)
-  return readJikanCandidateRelatedItems(matchedJikanCandidate)
-}
-
-function isTmdbLikelyAnimatedSeries(detail, entry) {
-  const genreIds = new Set([
-    ...(Array.isArray(entry?.genre_ids) ? entry.genre_ids.map(Number) : []),
-    ...(Array.isArray(detail?.genres) ? detail.genres.map((genre) => Number(genre?.id)) : []),
-  ])
-  if (genreIds.has(16)) return true
-
-  return Array.isArray(detail?.genres)
-    && detail.genres.some((genre) => normalizeSearchText(genre?.name).includes('animacion') || normalizeSearchText(genre?.name).includes('animation'))
-}
-
-function pickMatchingAniListCandidate(candidates, title) {
-  const titleText = normalizeSearchText(title)
-  const titleCompact = compactSearchText(title)
-  return candidates.find((candidate) => {
-    const aliases = [candidate.title, ...(Array.isArray(candidate.searchAliases) ? candidate.searchAliases : [])]
-    return aliases.some((alias) => normalizeSearchText(alias) === titleText || compactSearchText(alias) === titleCompact)
-  })
-}
-
-function pickMatchingJikanCandidate(candidates, title) {
-  const titleText = normalizeSearchText(title)
-  const titleCompact = compactSearchText(title)
-  return candidates.find((candidate) => {
-    const aliases = [candidate.title, ...(Array.isArray(candidate.searchAliases) ? candidate.searchAliases : [])]
-    return aliases.some((alias) => normalizeSearchText(alias) === titleText || compactSearchText(alias) === titleCompact)
-  })
-}
-
-async function readJikanCandidateRelatedItems(candidate) {
-  if (!candidate) return []
-  if (Array.isArray(candidate.relatedItems) && candidate.relatedItems.length) return candidate.relatedItems
-  if (candidate.source !== 'jikan' || !candidate.sourceId) return []
-
-  const endpoint = candidate.type === 'anime' ? 'anime' : 'manga'
-  return readJikanRelations(candidate.sourceId, endpoint).catch(() => [])
-}
-
 async function searchRawg(query, env) {
   const apiKey = env.RAWG_API_KEY
   if (!apiKey) return []
@@ -425,15 +311,13 @@ async function searchRawg(query, env) {
   if (!response.ok) return []
 
   const payload = await response.json()
-  return Promise.all((payload.results ?? []).slice(0, 8).map((entry) => rawgEntryToCandidate(entry, apiKey)))
+  return (payload.results ?? []).slice(0, 8).map((entry) => rawgEntryToCandidate(entry))
 }
 
-async function rawgEntryToCandidate(entry, apiKey) {
+function rawgEntryToCandidate(entry) {
   const id = String(entry.id)
   const title = String(entry.name || 'Sin titulo')
   const releaseYear = parseYear(entry.released)
-  const rawgRelatedItems = await readRawgGameSeries(entry, apiKey).catch(() => [])
-  const wikidataRelatedItems = await searchWikidataRelatedItems({ title, type: 'game', releaseYear }).catch(() => [])
 
   return {
     id: `rawg-${id}`,
@@ -452,38 +336,8 @@ async function rawgEntryToCandidate(entry, apiKey) {
       rawgId: id,
       sourceUrl: entry.slug ? `https://rawg.io/games/${entry.slug}` : 'https://rawg.io/',
     },
-    relatedItems: uniqueRelatedItems([...rawgRelatedItems, ...wikidataRelatedItems]).slice(0, 12),
     createdAt: new Date().toISOString(),
   }
-}
-
-async function readRawgGameSeries(entry, apiKey) {
-  const url = new URL(`https://api.rawg.io/api/games/${entry.id}/game-series`)
-  url.searchParams.set('key', apiKey)
-  url.searchParams.set('page_size', '8')
-
-  const response = await fetch(url)
-  if (!response.ok) return []
-  const payload = await response.json()
-  const currentDate = parseTmdbDate(entry.released)
-  return (payload.results ?? [])
-    .filter((game) => String(game.id) !== String(entry.id))
-    .map((game) => {
-      const relationDate = parseTmdbDate(game.released)
-      return {
-        title: String(game.name || 'Sin titulo'),
-        type: 'game',
-        relation: inferTemporalRelation(currentDate, relationDate),
-        source: 'rawg',
-        sourceId: String(game.id),
-        posterUrl: optionalString(game.background_image),
-        releaseYear: parseYear(game.released),
-        externalRefs: {
-          rawgId: String(game.id),
-          sourceUrl: game.slug ? `https://rawg.io/games/${game.slug}` : 'https://rawg.io/',
-        },
-      }
-    })
 }
 
 async function searchOpenLibrary(query) {
@@ -501,10 +355,9 @@ async function searchOpenLibrary(query) {
   if (!response.ok) return []
 
   const payload = await response.json()
-  return Promise.all((payload.docs ?? []).slice(0, 8).map(async (entry) => {
+  return (payload.docs ?? []).slice(0, 8).map((entry) => {
     const authors = Array.isArray(entry.author_name) ? entry.author_name.map(String).slice(0, 2) : []
     const title = [String(entry.title || 'Sin titulo'), authors.join(', ')].filter(Boolean).join(' - ')
-    const titleOnly = String(entry.title || 'Sin titulo')
     const key = String(entry.key || '')
     const releaseYear = typeof entry.first_publish_year === 'number' ? entry.first_publish_year : undefined
     return {
@@ -522,10 +375,9 @@ async function searchOpenLibrary(query) {
         openLibraryKey: key,
         sourceUrl: `https://openlibrary.org${key}`,
       },
-      relatedItems: await searchWikidataRelatedItems({ title: titleOnly, type: 'book', releaseYear }).catch(() => []),
       createdAt: new Date().toISOString(),
     }
-  }))
+  })
 }
 
 async function searchGoogleBooks(query, env) {
@@ -553,7 +405,7 @@ async function searchGoogleBooks(query, env) {
   if (!response.ok) return []
 
   const payload = await response.json()
-  return Promise.all((payload.items ?? []).slice(0, 8).map(async (entry) => {
+  return (payload.items ?? []).slice(0, 8).map((entry) => {
     const info = entry.volumeInfo ?? {}
     const authors = Array.isArray(info.authors) ? info.authors.map(String).slice(0, 3) : []
     const titleOnly = optionalString(info.title) || 'Sin titulo'
@@ -586,10 +438,9 @@ async function searchGoogleBooks(query, env) {
         googleBooksId: id,
         sourceUrl: optionalString(info.canonicalVolumeLink) || optionalString(info.infoLink) || `https://books.google.com/books?id=${id}`,
       },
-      relatedItems: await searchWikidataRelatedItems({ title: titleOnly, type: 'book', releaseYear }).catch(() => []),
       createdAt: new Date().toISOString(),
     }
-  }))
+  })
 }
 
 async function searchAniList(query, requestedType, requestedFilter = requestedType) {
@@ -610,21 +461,6 @@ async function searchAniList(query, requestedType, requestedFilter = requestedTy
             startDate { year }
             coverImage { medium }
             siteUrl
-            relations {
-              edges {
-                relationType
-                node {
-                  id
-                  type
-                  format
-                  countryOfOrigin
-                  title { romaji english native }
-                  startDate { year }
-                  coverImage { medium }
-                  siteUrl
-                }
-              }
-            }
           }
         }
       }
@@ -670,7 +506,6 @@ async function searchAniList(query, requestedType, requestedFilter = requestedTy
           anilistId: String(entry.id),
           sourceUrl: optionalString(entry.siteUrl) || `https://anilist.co/${inferredType === 'anime' ? 'anime' : 'manga'}/${entry.id}`,
         },
-        relatedItems: readAniListRelations(entry, inferredType),
         createdAt: new Date().toISOString(),
       }
     })
@@ -696,7 +531,7 @@ async function searchJikan(query, requestedFilter) {
     .filter(({ entry }) => Boolean(entry?.mal_id))
     .slice(0, 8)
 
-  return Promise.all(entries.map(async ({ entry, inferredType }, index) => {
+  return entries.map(({ entry, inferredType }) => {
       const id = String(entry.mal_id || '')
       const aliases = readJikanTitleAliases(entry)
       const progressMeta = readJikanProgressMeta(inferredType, entry)
@@ -719,135 +554,9 @@ async function searchJikan(query, requestedFilter) {
           malId: id,
           sourceUrl: optionalString(entry.url) || `https://myanimelist.net/${inferredType === 'anime' ? 'anime' : 'manga'}/${id}`,
         },
-        relatedItems: index < 4 ? await readJikanRelations(id, endpoint).catch(() => []) : undefined,
         createdAt: new Date().toISOString(),
       }
-    }))
-}
-
-async function readJikanRelations(id, endpoint) {
-  const url = new URL(`https://api.jikan.moe/v4/${endpoint}/${id}/relations`)
-  const response = await fetch(url, { headers: { accept: 'application/json' } })
-  if (!response.ok) return []
-
-  const payload = await response.json()
-  const sortedRelationEntries = (Array.isArray(payload.data) ? payload.data : [])
-    .flatMap((group) => {
-      const relation = mapJikanRelationKind(group?.relation)
-      return (Array.isArray(group?.entry) ? group.entry : []).flatMap((entry) => {
-        const itemType = normalizeJikanRelatedType(entry?.type)
-        const sourceId = readSourceId(entry?.mal_id)
-        const title = optionalString(entry?.name)
-        if (!itemType || !sourceId || !title) return []
-        return [{
-          title,
-          type: itemType,
-          relation: relation === 'adaptation' ? mapCrossTypeAdaptationRelation(endpointToItemType(endpoint), itemType) : relation,
-          source: 'jikan',
-          sourceId,
-          externalRefs: {
-            malId: sourceId,
-            sourceUrl: optionalString(entry?.url) || `https://myanimelist.net/${itemType === 'anime' ? 'anime' : 'manga'}/${sourceId}`,
-          },
-        }]
-      })
     })
-    .filter((entry) => entry.sourceId !== String(id))
-    .sort(compareJikanRelationPriority)
-  const importantRelationEntries = sortedRelationEntries.filter((entry) => jikanRelationPriority(entry.relation) === 0)
-  const relationEntries = (importantRelationEntries.length ? importantRelationEntries : sortedRelationEntries).slice(0, 6)
-
-  return uniqueRelatedItems(await hydrateJikanRelatedDetails(relationEntries)).slice(0, 12)
-}
-
-async function hydrateJikanRelatedDetails(entries) {
-  const results = []
-  for (const entry of entries) {
-    results.push(await fetchJikanRelatedDetail(entry).catch(() => entry))
-  }
-  return results
-}
-
-function compareJikanRelationPriority(left, right) {
-  return jikanRelationPriority(left.relation) - jikanRelationPriority(right.relation)
-}
-
-function jikanRelationPriority(relation) {
-  if (relation === 'sequel' || relation === 'prequel' || relation === 'source' || relation === 'adaptation') return 0
-  if (relation === 'spin_off' || relation === 'side_story') return 1
-  if (relation === 'summary') return 2
-  return 3
-}
-
-async function fetchJikanRelatedDetail(entry) {
-  const endpoint = entry.type === 'anime' ? 'anime' : 'manga'
-  const url = new URL(`https://api.jikan.moe/v4/${endpoint}/${entry.sourceId}`)
-  const response = await fetch(url, { headers: { accept: 'application/json' } })
-  if (!response.ok) return fetchJikanRelatedSearchDetail(entry).catch(() => entry)
-
-  const payload = await response.json()
-  const detail = payload.data || {}
-  const hydrated = hydrateJikanRelatedEntry(entry, detail)
-  if (hydrated.posterUrl) return hydrated
-  return fetchJikanRelatedSearchDetail(hydrated).catch(() => hydrated)
-}
-
-async function fetchJikanRelatedSearchDetail(entry) {
-  const endpoint = entry.type === 'anime' ? 'anime' : 'manga'
-  const url = new URL(`https://api.jikan.moe/v4/${endpoint}`)
-  url.searchParams.set('q', entry.title)
-  url.searchParams.set('limit', '3')
-  url.searchParams.set('sfw', 'true')
-
-  const response = await fetch(url, { headers: { accept: 'application/json' } })
-  if (!response.ok) return entry
-
-  const payload = await response.json()
-  const candidates = Array.isArray(payload.data) ? payload.data : []
-  const detail = candidates.find((candidate) => String(candidate?.mal_id || '') === String(entry.sourceId)) || candidates[0]
-  return detail ? hydrateJikanRelatedEntry(entry, detail) : entry
-}
-
-function hydrateJikanRelatedEntry(entry, detail) {
-  return {
-    ...entry,
-    posterUrl: optionalString(detail.images?.jpg?.image_url) || entry.posterUrl,
-    releaseYear: readJikanReleaseYear(detail) || entry.releaseYear,
-  }
-}
-
-function mapJikanRelationKind(value) {
-  const relation = normalizeSearchText(value)
-  if (relation.includes('sequel')) return 'sequel'
-  if (relation.includes('prequel')) return 'prequel'
-  if (relation.includes('adaptation')) return 'adaptation'
-  if (relation.includes('side')) return 'side_story'
-  if (relation.includes('spin')) return 'spin_off'
-  if (relation.includes('alternative')) return 'alternative'
-  if (relation.includes('summary')) return 'summary'
-  if (relation.includes('character')) return 'character'
-  if (relation.includes('parent')) return 'source'
-  return 'other'
-}
-
-function normalizeJikanRelatedType(value) {
-  const type = normalizeSearchText(value)
-  if (type === 'anime') return 'anime'
-  if (type === 'manga') return 'manga'
-  return undefined
-}
-
-function endpointToItemType(endpoint) {
-  return endpoint === 'anime' ? 'anime' : 'manga'
-}
-
-function mapCrossTypeAdaptationRelation(currentType, relatedType) {
-  if (isSourceMedium(relatedType) && !isSourceMedium(currentType)) return 'source'
-  return 'adaptation'
-}
-
-function isSourceMedium(type) {
-  return type === 'book' || type === 'manga' || type === 'manhwa' || type === 'comic'
 }
 
 async function searchMangaDex(query, requestedFilter) {
@@ -1007,216 +716,6 @@ function readJikanProgressMeta(type, entry) {
 
 function readProgressMeta(value, unit) {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? { total: value, unit } : undefined
-}
-
-function readAniListRelations(entry, currentType) {
-  const edges = Array.isArray(entry.relations?.edges) ? entry.relations.edges : []
-  const relatedItems = edges.flatMap((edge) => {
-    const node = edge?.node || {}
-    const title = optionalString(node.title?.english) || optionalString(node.title?.romaji) || optionalString(node.title?.native)
-    const id = readSourceId(node.id)
-    if (!title || !id) return []
-
-    const type = inferAniListMediaType(node.type, node)
-    const relation = mapAniListRelationKind(edge?.relationType)
-    return [{
-      title,
-      type,
-      relation: relation === 'adaptation' ? mapCrossTypeAdaptationRelation(currentType, type) : relation,
-      source: 'anilist',
-      sourceId: id,
-      posterUrl: optionalString(node.coverImage?.medium),
-      releaseYear: typeof node.startDate?.year === 'number' ? node.startDate.year : undefined,
-      externalRefs: {
-        anilistId: id,
-        sourceUrl: optionalString(node.siteUrl) || `https://anilist.co/${type === 'anime' ? 'anime' : 'manga'}/${id}`,
-      },
-    }]
-  })
-
-  return uniqueRelatedItems(relatedItems).slice(0, 12)
-}
-
-function mapAniListRelationKind(value) {
-  switch (String(value || '').toUpperCase()) {
-    case 'ADAPTATION':
-      return 'adaptation'
-    case 'ALTERNATIVE':
-      return 'alternative'
-    case 'CHARACTER':
-      return 'character'
-    case 'PREQUEL':
-      return 'prequel'
-    case 'SEQUEL':
-      return 'sequel'
-    case 'SIDE_STORY':
-      return 'side_story'
-    case 'SOURCE':
-    case 'PARENT':
-      return 'source'
-    case 'SPIN_OFF':
-      return 'spin_off'
-    case 'SUMMARY':
-      return 'summary'
-    default:
-      return 'other'
-  }
-}
-
-function uniqueRelatedItems(items) {
-  const seen = new Set()
-  const results = []
-  for (const item of items) {
-    const key = `${item.source || ''}:${item.sourceId || ''}:${normalizeSearchText(item.title)}:${item.relation}`
-    if (seen.has(key)) continue
-    seen.add(key)
-    results.push(item)
-  }
-  return results
-}
-
-function readSourceId(value) {
-  if (typeof value === 'number' && Number.isFinite(value)) return String(value)
-  return optionalString(value)
-}
-
-async function searchWikidataRelatedItems({ releaseYear, title, type, wikidataId }) {
-  const entityId = wikidataId || await findWikidataEntityId(title, type, releaseYear)
-  if (!entityId) return []
-
-  const entity = await fetchWikidataEntity(entityId, 'claims')
-  const relatedTargets = [
-    ...readWikidataClaimTargets(entity, 'P144').map((id) => ({ id, relation: 'source' })),
-    ...readWikidataClaimTargets(entity, 'P4969').map((id) => ({ id, relation: 'adaptation' })),
-    ...readWikidataClaimTargets(entity, 'P156').map((id) => ({ id, relation: 'sequel' })),
-    ...readWikidataClaimTargets(entity, 'P155').map((id) => ({ id, relation: 'prequel' })),
-  ]
-  if (!relatedTargets.length) return []
-
-  const relatedEntities = await fetchWikidataEntities(relatedTargets.map((target) => target.id), 'labels|descriptions|claims')
-  return relatedTargets.flatMap((target) => {
-    const relatedEntity = relatedEntities[target.id]
-    if (!relatedEntity) return []
-    const title = readWikidataLabel(relatedEntity)
-    if (!title) return []
-
-    return [{
-      title,
-      type: inferWikidataItemType(relatedEntity),
-      relation: target.relation,
-      source: 'wikidata',
-      sourceId: target.id,
-      externalRefs: {
-        wikidataId: target.id,
-        sourceUrl: `https://www.wikidata.org/wiki/${target.id}`,
-      },
-    }]
-  })
-}
-
-async function findWikidataEntityId(title, type, releaseYear) {
-  if (!title?.trim()) return undefined
-  const url = new URL('https://www.wikidata.org/w/api.php')
-  url.searchParams.set('action', 'wbsearchentities')
-  url.searchParams.set('search', title)
-  url.searchParams.set('language', 'en')
-  url.searchParams.set('format', 'json')
-  url.searchParams.set('origin', '*')
-  url.searchParams.set('limit', '5')
-
-  const response = await fetch(url)
-  if (!response.ok) return undefined
-  const payload = await response.json()
-  const candidates = Array.isArray(payload.search) ? payload.search : []
-  return candidates
-    .map((candidate) => ({
-      id: optionalString(candidate.id),
-      score: scoreWikidataCandidate(candidate, type, releaseYear),
-    }))
-    .filter((candidate) => candidate.id && candidate.score > 0)
-    .sort((left, right) => right.score - left.score)[0]?.id
-}
-
-function scoreWikidataCandidate(candidate, type, releaseYear) {
-  const description = normalizeSearchText(candidate.description)
-  const label = normalizeSearchText(candidate.label)
-  let score = label ? 1 : 0
-  if (descriptionMatchesType(description, type)) score += 5
-  if (releaseYear && description.includes(String(releaseYear))) score += 2
-  if (type === 'movie' && description.includes('film')) score += 3
-  if (type === 'series' && description.includes('television')) score += 3
-  if (type === 'game' && description.includes('video game')) score += 3
-  if (type === 'book' && (description.includes('novel') || description.includes('book'))) score += 3
-  return score
-}
-
-async function fetchWikidataEntity(id, props) {
-  const entities = await fetchWikidataEntities([id], props)
-  return entities[id]
-}
-
-async function fetchWikidataEntities(ids, props) {
-  const uniqueIds = [...new Set(ids.filter(Boolean))].slice(0, 20)
-  if (!uniqueIds.length) return {}
-
-  const url = new URL('https://www.wikidata.org/w/api.php')
-  url.searchParams.set('action', 'wbgetentities')
-  url.searchParams.set('ids', uniqueIds.join('|'))
-  url.searchParams.set('languages', 'es|en')
-  url.searchParams.set('props', props)
-  url.searchParams.set('format', 'json')
-  url.searchParams.set('origin', '*')
-
-  const response = await fetch(url)
-  if (!response.ok) return {}
-  const payload = await response.json()
-  return payload.entities || {}
-}
-
-function readWikidataClaimTargets(entity, propertyId) {
-  const claims = entity?.claims?.[propertyId]
-  if (!Array.isArray(claims)) return []
-
-  return claims.flatMap((claim) => {
-    const id = claim?.mainsnak?.datavalue?.value?.id
-    return typeof id === 'string' ? [id] : []
-  })
-}
-
-function readWikidataLabel(entity) {
-  return optionalString(entity?.labels?.es?.value) || optionalString(entity?.labels?.en?.value)
-}
-
-function inferWikidataItemType(entity) {
-  const description = normalizeSearchText(entity?.descriptions?.en?.value || entity?.descriptions?.es?.value)
-  const instanceIds = new Set(readWikidataClaimTargets(entity, 'P31'))
-  if (instanceIds.has('Q7889') || description.includes('video game')) return 'game'
-  if (instanceIds.has('Q11424') || description.includes('film')) return 'movie'
-  if (instanceIds.has('Q5398426') || description.includes('television series') || description.includes('tv series')) return 'series'
-  if (description.includes('anime')) return 'anime'
-  if (description.includes('manga')) return 'manga'
-  if (instanceIds.has('Q571') || instanceIds.has('Q7725634') || description.includes('novel') || description.includes('book')) return 'book'
-  return 'other'
-}
-
-function descriptionMatchesType(description, type) {
-  if (type === 'movie') return description.includes('film') || description.includes('movie')
-  if (type === 'series') return description.includes('television') || description.includes('series')
-  if (type === 'game') return description.includes('video game')
-  if (type === 'book') return description.includes('novel') || description.includes('book')
-  return description.includes(type)
-}
-
-function parseTmdbDate(value) {
-  const timestamp = Date.parse(value || '')
-  return Number.isFinite(timestamp) ? timestamp : undefined
-}
-
-function inferTemporalRelation(currentDate, relationDate) {
-  if (!currentDate || !relationDate) return 'other'
-  if (relationDate > currentDate) return 'sequel'
-  if (relationDate < currentDate) return 'prequel'
-  return 'other'
 }
 
 function roundRuntimeHours(value) {

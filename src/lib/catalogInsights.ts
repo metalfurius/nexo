@@ -197,7 +197,6 @@ export function publicCatalogDraftFromCandidate(candidate: DiscoveryCandidate, t
     searchAliases: uniqueValues(snapshot?.searchAliases ?? []),
     externalRefs: snapshot?.externalRefs ?? candidate.externalRefs,
     posterUrl: candidate.posterUrl ?? snapshot?.posterUrl,
-    relatedItems: snapshot?.relatedItems ?? candidate.relatedItems,
     canonicalKey: snapshot?.canonicalKey ?? '',
     createdAt: snapshot?.updatedAt ?? candidate.createdAt,
     updatedAt: snapshot?.updatedAt ?? draft.updatedAt,

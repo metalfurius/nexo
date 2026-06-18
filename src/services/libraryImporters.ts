@@ -373,7 +373,6 @@ function importedDraftToListItem(draft: ImportedLibraryItemDraft, importedAt: st
     importNotes,
     externalRefs: compactRefs(draft.externalRefs),
     posterUrl: draft.posterUrl,
-    relatedItems: draft.relatedItems,
     createdAt: importedAt,
     updatedAt: importedAt,
   }

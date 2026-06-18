@@ -61,7 +61,7 @@ describe('parsePublicCatalogSeed', () => {
     expect(result.items[0].externalRefs.wikidataId).toBe('Q65058922')
     expect(result.items[0].progressTotal).toBe(20)
     expect(result.items[0].progressUnit).toBe('hours')
-    expect(result.items[0].relatedItems?.[0]).toEqual(expect.objectContaining({ relation: 'sequel' }))
+    expect('relatedItems' in result.items[0]).toBe(false)
   })
 
   it('reports duplicates and invalid entries', () => {
