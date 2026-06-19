@@ -21,6 +21,7 @@ const repositoryMock = vi.hoisted(() => ({
   saveItem: vi.fn(),
   saveSettings: vi.fn(),
   searchExternal: vi.fn(),
+  searchCatalog: vi.fn(),
   searchPublicCatalog: vi.fn(),
   setRecommendationCooldown: vi.fn(),
   setStatus: vi.fn(),
@@ -79,6 +80,7 @@ describe('useLibrary', () => {
       'setRecommendationCooldown',
       'setStatus',
       'snoozeRecommendation',
+      'searchCatalog',
       'upsertPublicItem',
     ] as const) {
       repositoryMock[method].mockResolvedValue(undefined)
@@ -143,6 +145,23 @@ describe('useLibrary', () => {
         title: 'Odisea',
       }),
     ])
+  })
+
+  it('delegates unified catalog search for signed-in users', async () => {
+    const user = {
+      uid: 'user-1',
+      email: null,
+      displayName: null,
+    }
+    repositoryMock.searchCatalog.mockResolvedValueOnce([candidate])
+    const { result } = renderHook(() => useLibrary(user))
+
+    await waitFor(() => expect(repositoryMock.subscribeItems).toHaveBeenCalled())
+
+    const catalogResults = await result.current.searchCatalog('Odisea', 'book')
+
+    expect(repositoryMock.searchCatalog).toHaveBeenCalledWith('Odisea', 'book')
+    expect(catalogResults).toEqual([candidate])
   })
 
   it('delegates recommendation runs to the signed-in repository', async () => {

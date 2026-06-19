@@ -3334,6 +3334,258 @@ body.dialog-scroll-locked {
   margin-bottom: 16px;
 }
 
+.catalog-public-layout {
+  align-items: start;
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 280px);
+}
+
+.catalog-public-main {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.catalog-public-hero {
+  background:
+    linear-gradient(128deg, color-mix(in srgb, var(--accent-soft) 18%, transparent), transparent 56%),
+    color-mix(in srgb, var(--surface-raised) 88%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border));
+  border-radius: 8px;
+  display: grid;
+  gap: 16px;
+  padding: 18px 20px;
+}
+
+.catalog-public-heading {
+  display: grid;
+  gap: 5px;
+}
+
+.catalog-public-heading h2 {
+  color: var(--text-strong);
+  font-size: 30px;
+  line-height: 1.18;
+  margin: 0;
+}
+
+.catalog-public-heading p {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.45;
+  margin: 0;
+  max-width: 720px;
+}
+
+.catalog-public-search {
+  align-items: stretch;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) 150px 132px;
+}
+
+.catalog-public-search select,
+.catalog-public-search button,
+.catalog-public-query {
+  min-height: 48px;
+}
+
+.catalog-public-summary {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.catalog-public-summary span {
+  background: color-mix(in srgb, var(--surface) 62%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  border-radius: 8px;
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 10px 12px;
+}
+
+.catalog-public-summary strong {
+  color: var(--text-strong);
+  font-size: 18px;
+  line-height: 1.05;
+}
+
+.catalog-public-summary small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 850;
+  line-height: 1.2;
+}
+
+.catalog-public-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+}
+
+.catalog-public-card {
+  background: var(--surface-raised);
+  border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px;
+}
+
+.catalog-public-card-main {
+  align-items: start;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  display: grid;
+  font: inherit;
+  gap: 12px;
+  grid-template-columns: 82px minmax(0, 1fr);
+  min-width: 0;
+  padding: 0;
+  text-align: left;
+}
+
+.catalog-public-card-main .cover-art {
+  aspect-ratio: 2 / 3;
+  border-radius: 7px;
+  min-height: 118px;
+  width: 82px;
+}
+
+.catalog-public-card h3 {
+  color: var(--text-strong);
+  display: -webkit-box;
+  font-size: 17px;
+  line-height: 1.2;
+  margin: 6px 0 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.catalog-public-card p {
+  color: var(--muted);
+  display: -webkit-box;
+  font-size: 12px;
+  line-height: 1.35;
+  margin: 6px 0 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.catalog-public-actions {
+  align-items: center;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 38px;
+}
+
+.catalog-public-actions .primary-button,
+.catalog-public-actions .secondary-button,
+.catalog-public-actions .icon-button {
+  min-height: 38px;
+}
+
+.catalog-public-rail {
+  display: grid;
+  gap: 12px;
+  position: sticky;
+  top: 16px;
+}
+
+.catalog-public-login-panel,
+.ad-slot {
+  background: var(--surface-raised);
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+}
+
+.catalog-public-login-panel {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.catalog-public-login-panel > svg {
+  color: var(--accent-dark);
+}
+
+.catalog-public-login-panel strong {
+  color: var(--text-strong);
+  font-size: 15px;
+  line-height: 1.2;
+}
+
+.catalog-public-login-panel p {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+  margin: 4px 0 0;
+}
+
+.catalog-public-dialog .cover-art {
+  min-height: 300px;
+}
+
+.catalog-public-dialog-note {
+  align-items: start;
+  background: color-mix(in srgb, var(--accent-soft) 62%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+  border-radius: 8px;
+  color: var(--accent-dark);
+  display: grid;
+  font-size: 12px;
+  font-weight: 780;
+  gap: 8px;
+  grid-template-columns: 16px minmax(0, 1fr);
+  line-height: 1.35;
+  padding: 10px;
+}
+
+.ad-slot {
+  align-content: center;
+  color: var(--muted);
+  display: grid;
+  gap: 7px;
+  min-height: 160px;
+  padding: 14px;
+  text-align: center;
+}
+
+.catalog-public-grid > .ad-slot {
+  grid-column: 1 / -1;
+  min-height: 96px;
+}
+
+.ad-slot span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.ad-slot strong {
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.ad-slot.placeholder {
+  background: color-mix(in srgb, var(--surface-muted) 72%, transparent);
+  border-style: dashed;
+  box-shadow: none;
+}
+
 .explorer-search.two {
   grid-template-columns: minmax(0, 1fr) 140px;
 }
@@ -12808,6 +13060,22 @@ textarea:focus-visible {
     display: block;
   }
 
+  .catalog-public-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .catalog-public-rail {
+    position: static;
+  }
+
+  .catalog-public-search {
+    grid-template-columns: minmax(0, 1fr) 132px;
+  }
+
+  .catalog-public-search .primary-button {
+    grid-column: 1 / -1;
+  }
+
   .topbar {
     min-height: auto;
     padding: 16px;
@@ -12931,6 +13199,36 @@ textarea:focus-visible {
 }
 
 @media (max-width: 760px) {
+  .catalog-public-heading h2 {
+    font-size: 24px;
+  }
+
+  .catalog-public-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .catalog-public-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .catalog-public-card-main {
+    grid-template-columns: 72px minmax(0, 1fr);
+  }
+
+  .catalog-public-card-main .cover-art {
+    min-height: 108px;
+    width: 72px;
+  }
+
+  .catalog-public-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .catalog-public-actions .icon-button {
+    justify-self: stretch;
+    width: 100%;
+  }
+
   .workspace-panel {
     padding: 14px;
   }

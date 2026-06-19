@@ -33,6 +33,7 @@ import { rankCatalogSearchCandidates, scoreCatalogSearchCandidate } from '../lib
 import { slugify, uniqueValues } from '../lib/strings'
 import { isFirebaseConfigured } from '../services/firebaseConfig'
 import { isFirestoreOfflinePersistenceEnabled } from '../services/devicePreferences'
+import { fetchPublicCatalog } from '../services/publicCatalog'
 import type { LibraryRepository, RepositorySnapshotState } from '../services/libraryRepository'
 
 interface SignedInUserProfile {
@@ -405,6 +406,10 @@ export function useLibrary(user?: SignedInUserProfile | null) {
 
   async function searchPublicCatalog(query: string, type?: string): Promise<PublicCatalogItem[]> {
     if (repository) return repository.searchPublicCatalog(query, type)
+    if (isFirebaseConfigured) {
+      const remoteCatalog = await fetchPublicCatalog(query, type ?? 'any', 24).catch(() => undefined)
+      if (remoteCatalog) return remoteCatalog
+    }
 
     const normalized = query.trim().toLowerCase()
     const matchingItems = publicCatalog
@@ -418,8 +423,31 @@ export function useLibrary(user?: SignedInUserProfile | null) {
     return rankCatalogSearchCandidates(matchingItems, query, type)
   }
 
+  async function searchCatalog(query: string, type?: string): Promise<DiscoveryCandidate[]> {
+    if (repository) return repository.searchCatalog(query, type)
+
+    const cleanedQuery = query.trim()
+    const [publicItems, externalCandidates] = await Promise.all([
+      searchPublicCatalog(cleanedQuery, type),
+      cleanedQuery.length >= 2 ? searchExternal(cleanedQuery, type ?? 'any') : Promise.resolve([]),
+    ])
+
+    return rankCatalogSearchCandidates(
+      uniqueDiscoveryCandidates([
+        ...publicItems.map(publicItemToDiscovery),
+        ...externalCandidates.map(externalCandidateToDiscovery),
+      ]),
+      cleanedQuery,
+      type,
+    ).slice(0, 24)
+  }
+
   async function listPublicCatalog(): Promise<PublicCatalogItem[]> {
     if (repository) return repository.listPublicCatalog()
+    if (isFirebaseConfigured) {
+      const remoteCatalog = await fetchPublicCatalog('', 'any', 24).catch(() => undefined)
+      if (remoteCatalog) return remoteCatalog
+    }
 
     return publicCatalog
       .filter((item) => !item.archivedAt)
@@ -632,6 +660,7 @@ export function useLibrary(user?: SignedInUserProfile | null) {
     setRecommendationCooldown,
     recordRecommendation,
     searchExternal,
+    searchCatalog,
     listPublicCatalog,
     searchPublicCatalog,
     saveSettings,
@@ -730,6 +759,14 @@ function mergeCandidates(nextCandidates: DiscoveryCandidate[], currentCandidates
     byId.set(candidate.id, mergeDiscoveryCandidate(byId.get(candidate.id), candidate))
   }
   return [...byId.values()].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+}
+
+function uniqueDiscoveryCandidates(candidates: DiscoveryCandidate[]) {
+  const byId = new Map<string, DiscoveryCandidate>()
+  for (const candidate of candidates) {
+    byId.set(`${candidate.source}:${candidate.sourceId}`, candidate)
+  }
+  return [...byId.values()]
 }
 
 function mergeSettings(settings: Partial<UserSettings>): UserSettings {

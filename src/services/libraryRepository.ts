@@ -26,11 +26,12 @@ import {
   type UserSettings,
   nowIso,
 } from '../domain/types'
-import { buildPublicCatalogItem, shouldPreserveDiscoveryDecision } from '../lib/catalog'
+import { buildPublicCatalogItem, externalCandidateToDiscovery, publicItemToDiscovery, shouldPreserveDiscoveryDecision } from '../lib/catalog'
 import { rankCatalogSearchCandidates, scoreCatalogSearchCandidate } from '../lib/catalogSearch'
 import { normalizeKey } from '../lib/strings'
 import { searchExternalSources } from './externalSearch'
 import { getFirebaseServices } from './firebaseDb'
+import { searchRemoteCatalog } from './remoteCatalog'
 
 export interface RepositorySnapshotState {
   fromCache: boolean
@@ -52,6 +53,7 @@ export interface LibraryRepository {
   setRecommendationCooldown: (id: string, cooldownUntil?: string) => Promise<void>
   recordRecommendation: (itemId: string, reasons: string[]) => Promise<void>
   searchExternal: (query: string, type: string) => Promise<ExternalCandidate[]>
+  searchCatalog: (query: string, type?: string) => Promise<DiscoveryCandidate[]>
   listPublicCatalog: () => Promise<PublicCatalogItem[]>
   searchPublicCatalog: (query: string, type?: string) => Promise<PublicCatalogItem[]>
   subscribeSettings: (
@@ -194,6 +196,26 @@ export function createFirestoreRepository(userId: string): LibraryRepository | u
     },
     async searchExternal(searchQuery, type) {
       return searchExternalClientSide(searchQuery, type)
+    },
+    async searchCatalog(searchQuery, type) {
+      const cleanedQuery = searchQuery.trim()
+      if (cleanedQuery.length >= 2) {
+        const remoteCandidates = await searchRemoteCatalog(cleanedQuery, type).catch(() => undefined)
+        if (remoteCandidates?.length) return remoteCandidates
+      }
+
+      const [publicItems, externalCandidates] = await Promise.all([
+        this.searchPublicCatalog(cleanedQuery, type),
+        cleanedQuery.length >= 2 ? this.searchExternal(cleanedQuery, type ?? 'any') : Promise.resolve([]),
+      ])
+      return rankCatalogSearchCandidates(
+        uniqueDiscoveryCandidates([
+          ...publicItems.map(publicItemToDiscovery),
+          ...externalCandidates.map(externalCandidateToDiscovery),
+        ]),
+        cleanedQuery,
+        type,
+      ).slice(0, 24)
     },
     async searchPublicCatalog(searchQuery, type) {
       const snapshot = await getDocs(collection(services.db, 'publicItems'))
@@ -511,6 +533,14 @@ function matchesSearchType(itemType: string, requestedType?: string) {
 
 async function searchExternalClientSide(searchQuery: string, type: string): Promise<ExternalCandidate[]> {
   return searchExternalSources(searchQuery, type)
+}
+
+function uniqueDiscoveryCandidates(candidates: DiscoveryCandidate[]) {
+  const byId = new Map<string, DiscoveryCandidate>()
+  for (const candidate of candidates) {
+    byId.set(`${candidate.source}:${candidate.sourceId}`, candidate)
+  }
+  return [...byId.values()]
 }
 
 function withoutUndefined<T>(value: T): T {

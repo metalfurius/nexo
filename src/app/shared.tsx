@@ -4,7 +4,7 @@ import { type ActivityEntry, type ActivityTab, type ActivityTarget, type Activit
 import { getActivityContinuitySummary, getActivityDestinationTab } from '../lib/activityInsights'
 import { buildPublicCatalogItem } from '../lib/catalog'
 import { buildCatalogDescriptionDraft, type CatalogIssueKey, catalogIssueShortLabels, draftCatalogQualityWarnings } from '../lib/catalogInsights'
-import { CATALOG_RESULTS_PAGE_SIZE, rankCatalogSearchCandidates } from '../lib/catalogSearch'
+import { CATALOG_RESULTS_PAGE_SIZE } from '../lib/catalogSearch'
 import { type DiceEligibilityBreakdown, type RecommendationSessionPlan } from '../lib/diceInsights'
 import { type CandidateDecisionBrief, discoveryStatusLabels, type ExplorerSourceFilter, discoverySourceLabels as sourceLabels } from '../lib/explorerInsights'
 import { getExternalRefEntries } from '../lib/externalRefs'
@@ -700,6 +700,7 @@ export interface ShellNavItem {
 }
 
 export const activityTabLabels: Record<AppTab, string> = {
+  catalog: 'Catalogo',
   curation: 'Curacion',
   dice: 'Dado',
   explorer: 'Explorador',
@@ -762,7 +763,7 @@ export const fallbackExplorerStarters: Array<{
 
 export const curationStarterTypes: ItemType[] = ['book', 'game', 'movie', 'series', 'anime', 'manga']
 
-export const urlAddressableTabs: AppTab[] = ['library', 'dice', 'explorer', 'import', 'settings']
+export const urlAddressableTabs: AppTab[] = ['catalog', 'library', 'dice', 'explorer', 'import', 'settings']
 
 export function explorerSearchTypeForItemType(itemType: ItemType): ExplorerSearchType {
   if (itemType === 'movie' || itemType === 'series') return 'watch'
@@ -777,7 +778,7 @@ export function readInitialAppTab(): AppTab {
   if (searchParams.get('item')) return 'library'
 
   const tab = searchParams.get('tab')
-  return urlAddressableTabs.includes(tab as AppTab) ? (tab as AppTab) : 'library'
+  return urlAddressableTabs.includes(tab as AppTab) ? (tab as AppTab) : 'catalog'
 }
 
 export function readInitialActivityFocus(): ActivityFocus | undefined {
@@ -787,7 +788,7 @@ export function readInitialActivityFocus(): ActivityFocus | undefined {
 
 export function writeAppTabToUrl(tab: AppTab, mode: 'push' | 'replace' = 'replace', focus?: ActivityFocus) {
   const url = new URL(window.location.href)
-  if (tab === 'library' || !urlAddressableTabs.includes(tab)) {
+  if (tab === 'catalog' || !urlAddressableTabs.includes(tab)) {
     url.searchParams.delete('tab')
   } else {
     url.searchParams.set('tab', tab)
@@ -1548,6 +1549,7 @@ export interface LibrarySurface {
   setRecommendationCooldown: (id: string, cooldownUntil?: string) => Promise<void>
   recordRecommendation: (itemId: string, reasons: string[]) => Promise<void>
   searchExternal: (query: string, type: string) => Promise<ExternalCandidate[]>
+  searchCatalog: (query: string, type?: string) => Promise<DiscoveryCandidate[]>
   listPublicCatalog: () => Promise<PublicCatalogItem[]>
   searchPublicCatalog: (query: string, type?: string) => Promise<PublicCatalogItem[]>
   saveSettings: (settings: Partial<UserSettings>) => Promise<void>
@@ -2854,18 +2856,7 @@ export function LibraryTab({
 
     setCatalogLoading(true)
     try {
-      const [publicItems, externalCandidates] = await Promise.all([
-        library.searchPublicCatalog(cleanedQuery, catalogType),
-        library.searchExternal(cleanedQuery, catalogType),
-      ])
-      const candidates = rankCatalogSearchCandidates(
-        uniqueDiscoveryCandidates([
-          ...publicItems.map(library.publicItemToDiscovery),
-          ...externalCandidates.map(library.externalCandidateToDiscovery),
-        ]),
-        cleanedQuery,
-        catalogType,
-      )
+      const candidates = await library.searchCatalog(cleanedQuery, catalogType)
       setCatalogCandidates(candidates)
       setCatalogStatus(
         candidates.length

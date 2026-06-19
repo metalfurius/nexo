@@ -36,7 +36,7 @@ export type LibraryCardsPerRow = 4 | 5 | 6
 export type ExplorerSearchType = ItemType | 'watch' | 'any'
 export type DiscoveryOrigin = 'publicCatalog' | 'externalSearch' | 'prompt' | 'roll'
 export type DiscoveryStatus = 'queued' | 'saved' | 'dismissed'
-export type ActivityTab = 'library' | 'dice' | 'explorer' | 'import' | 'settings' | 'curation'
+export type ActivityTab = 'catalog' | 'library' | 'dice' | 'explorer' | 'import' | 'settings' | 'curation'
 export type ActivityTone = 'info' | 'success' | 'danger' | 'loading'
 export type ImportSourceId = 'anilist' | 'myanimelist' | 'letterboxd' | 'goodreads'
 export type ExternalSource =
@@ -190,6 +190,9 @@ export interface PublicCatalogItem {
   createdBy: string
   updatedBy: string
   archivedAt?: string
+  autoIngestedAt?: string
+  demandCount?: number
+  lastDemandAt?: string
 }
 
 export type PublicCatalogSnapshot = Pick<

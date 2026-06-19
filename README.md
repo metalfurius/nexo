@@ -1,11 +1,12 @@
 # Nexo
 
-Nexo is a private media library and weighted recommendation tool for games, books, movies, series, anime, manga, manhwa and comics.
+Nexo is a public catalog plus private media library and weighted recommendation tool for games, books, movies, series, anime, manga, manhwa and comics.
 
-Version 1.0 is a soft beta behind Google login. Every signed-in user gets a private library under `users/{uid}`, while the shared Nexo catalog lives in `publicItems` and is readable by signed-in users.
+Version 1.0 opens on the public `Catalogo` tab. Visitors can explore Nexo before signing in, while every signed-in user gets a private library under `users/{uid}`. The shared Nexo catalog lives in `publicItems`.
 
 ## Core Flows
 
+- `Catalogo`: public discovery surface, public item search and login-gated personal actions.
 - `Biblioteca`: private items, status tracking, JSON import/export and personal notes.
 - `Dado`: weighted recommendation roll using time, energy, novelty and surprise preferences.
 - `Explorador`: searches the curated Nexo catalog and external providers, then queues candidates to save or dismiss.
@@ -36,14 +37,17 @@ Nexo's default production path is Spark-compatible: Auth, Firestore and GitHub P
 
 Bootstrap the first admin manually from Firebase Console or Admin SDK by setting `users/{uid}.role` to `admin`. After that, admins can manage roles by editing user profile documents, while `admin` and `moderator` users can curate `publicItems`.
 
-Firebase Functions are optional for a future Blaze-backed upgrade. The low-cost production path uses the public Nexo catalog plus browser-callable providers, and routes secret-backed providers through a tiny Cloudflare Worker:
+Firebase Functions expose the public catalog read endpoint and the authenticated `searchCatalog` callable. The low-cost production path uses the public Nexo catalog first, then browser-callable providers as fallback, and routes secret-backed providers through a tiny Cloudflare Worker:
 
 - Open Library, AniList, Jikan and Wikidata work without keys.
 - TMDB improves movies/series through the Worker secret `TMDB_READ_TOKEN`.
 - RAWG improves games through the Worker secret `RAWG_API_KEY`.
 - The frontend only receives `VITE_CATALOG_PROXY_URL`, which is safe to expose.
+- Anonymous catalog pages can use `VITE_PUBLIC_CATALOG_URL`, pointing at the `publicCatalog` HTTP Function.
+- Signed-in catalog searches can call `searchCatalog`; it rate-limits demand, deduplicates external matches and auto-seeds a small number of high-confidence entries into `publicItems`.
+- Display ad placeholders are controlled by `VITE_ADS_ENABLED`; keep it `false` until the ad account and policy review are ready.
 
-The app keeps provider credits in the `Fuentes` dialog and only stores user-selected private copies.
+The app keeps provider credits in the `Fuentes` dialog. Private library copies still live under `users/{uid}`, while public auto-seeded entries stay in `publicItems` for later moderator curation.
 
 ## Catalog Proxy
 

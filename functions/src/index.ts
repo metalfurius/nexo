@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase-admin/app'
-import { getFirestore } from 'firebase-admin/firestore'
-import { HttpsError, onCall } from 'firebase-functions/v2/https'
+import { FieldValue, getFirestore } from 'firebase-admin/firestore'
+import { HttpsError, onCall, onRequest } from 'firebase-functions/v2/https'
 import { defineSecret } from 'firebase-functions/params'
 
 initializeApp()
@@ -8,8 +8,9 @@ initializeApp()
 const tmdbToken = defineSecret('TMDB_TOKEN')
 const rawgApiKey = defineSecret('RAWG_API_KEY')
 
-type SearchType = 'watch' | 'game' | 'book' | 'anime' | 'manga' | 'manhwa' | 'any'
-type ItemType = SearchType | 'movie' | 'series' | 'comic' | 'other'
+type SearchType = 'watch' | 'game' | 'book' | 'anime' | 'manga' | 'manhwa' | 'animeManga' | 'any'
+type ItemType = 'game' | 'book' | 'movie' | 'series' | 'anime' | 'manga' | 'manhwa' | 'comic' | 'other'
+type ProgressUnit = 'episodes' | 'chapters' | 'pages' | 'hours' | 'volumes' | 'percent' | 'items'
 
 interface ExternalCandidate {
   id: string
@@ -20,7 +21,10 @@ interface ExternalCandidate {
   overview?: string
   posterUrl?: string
   releaseYear?: number
+  progressTotal?: number
+  progressUnit?: ProgressUnit
   genres: string[]
+  searchAliases?: string[]
   externalRefs: Record<string, string>
   createdAt: string
 }
@@ -31,9 +35,12 @@ interface PublicCatalogItem {
   type: ItemType
   description?: string
   releaseYear?: number
+  progressTotal?: number
+  progressUnit?: ProgressUnit
   genres: string[]
   tags: string[]
   moodTags: string[]
+  searchAliases?: string[]
   externalRefs: Record<string, string>
   posterUrl?: string
   searchTokens: string[]
@@ -43,6 +50,9 @@ interface PublicCatalogItem {
   createdBy: string
   updatedBy: string
   archivedAt?: string
+  autoIngestedAt?: string
+  demandCount?: number
+  lastDemandAt?: string
 }
 
 export const searchExternal = onCall(
@@ -63,7 +73,8 @@ export const searchExternal = onCall(
     }
 
     const candidates = await searchByType(query, type)
-    return { candidates: candidates.slice(0, 8) }
+    const ingestedItems = await ingestExternalCandidates(query, type, candidates).catch(() => [])
+    return { candidates: candidates.slice(0, 8), ingestedItems }
   },
 )
 
@@ -79,19 +90,63 @@ export const searchPublicCatalog = onCall(
 
     const query = String(request.data?.query ?? '').trim()
     const type = String(request.data?.type ?? 'any') as SearchType
-    const tokens = createSearchTokens({ title: query })
-    const snapshot = await getFirestore().collection('publicItems').limit(250).get()
-    const items = snapshot.docs
-      .map((docSnapshot) => docSnapshot.data() as PublicCatalogItem)
-      .filter((item) => !item.archivedAt)
-      .filter((item) => matchesSearchType(item.type, type))
-      .map((item) => ({ item, score: scorePublicItem(item, tokens, query) }))
-      .filter((entry) => !query || entry.score > 0)
-      .sort((left, right) => right.score - left.score || left.item.title.localeCompare(right.item.title, 'es'))
-      .slice(0, 12)
-      .map((entry) => entry.item)
+    const items = await searchPublicCatalogItems(query, type, 12)
+    await recordCatalogSearch(query, type, items.length)
 
     return { items }
+  },
+)
+
+export const searchCatalog = onCall(
+  {
+    cors: true,
+    secrets: [tmdbToken, rawgApiKey],
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('permission-denied', 'Usuario no autorizado.')
+    }
+    await assertWithinRateLimit(request.auth.uid, 'searchCatalog', 45)
+
+    const query = String(request.data?.query ?? '').trim()
+    const type = String(request.data?.type ?? 'any') as SearchType
+    if (query.length < 2) {
+      const items = await searchPublicCatalogItems(query, type, 24)
+      return { candidates: [], ingestedItems: [], items }
+    }
+
+    const [publicItems, externalCandidates] = await Promise.all([
+      searchPublicCatalogItems(query, type, 12),
+      searchByType(query, type).catch(() => []),
+    ])
+    const ingestedItems = await ingestExternalCandidates(query, type, externalCandidates).catch(() => [])
+    const items = rankPublicItems(uniquePublicItems([...publicItems, ...ingestedItems]), query, type, 24)
+    await recordCatalogSearch(query, type, items.length)
+
+    return {
+      candidates: externalCandidates.slice(0, 12),
+      ingestedItems,
+      items,
+    }
+  },
+)
+
+export const publicCatalog = onRequest(
+  {
+    cors: true,
+  },
+  async (request, response) => {
+    if (request.method !== 'GET') {
+      response.status(405).json({ error: 'method_not_allowed' })
+      return
+    }
+
+    const query = String(request.query.q ?? '').trim()
+    const type = String(request.query.type ?? 'any') as SearchType
+    const limit = Math.min(Math.max(Number(request.query.limit ?? 24) || 24, 1), 48)
+    const items = await searchPublicCatalogItems(query, type, limit)
+    response.set('cache-control', query ? 'public, max-age=300' : 'public, max-age=900')
+    response.json({ items })
   },
 )
 
@@ -155,6 +210,10 @@ async function searchByType(query: string, type: SearchType): Promise<ExternalCa
   if (type === 'game') return searchRawg(query)
   if (type === 'book') return searchOpenLibrary(query)
   if (type === 'anime' || type === 'manga' || type === 'manhwa') return searchAniList(query, type)
+  if (type === 'animeManga') {
+    const groups = await Promise.allSettled([searchAniList(query, 'anime'), searchAniList(query, 'manga')])
+    return groups.flatMap((group) => (group.status === 'fulfilled' ? group.value : []))
+  }
   if (type === 'watch') return searchTmdb(query)
 
   const groups = await Promise.allSettled([
@@ -326,8 +385,259 @@ async function searchAniList(query: string, requestedType: 'anime' | 'manga' | '
 }
 
 async function isModerator(uid: string) {
-  const snapshot = await getFirestore().collection('moderators').doc(uid).get()
-  return snapshot.exists
+  const snapshot = await getFirestore().collection('users').doc(uid).get()
+  const role = snapshot.data()?.role
+  return role === 'admin' || role === 'moderator'
+}
+
+async function searchPublicCatalogItems(query: string, type: SearchType, resultLimit: number) {
+  const tokens = createSearchTokens({ title: query })
+  const snapshot = await getFirestore().collection('publicItems').limit(250).get()
+  return snapshot.docs
+    .map((docSnapshot) => docSnapshot.data() as PublicCatalogItem)
+    .filter((item) => !item.archivedAt)
+    .filter((item) => matchesSearchType(item.type, type))
+    .map((item) => ({ item, score: scorePublicItem(item, tokens, query) }))
+    .filter((entry) => !query || entry.score > 0)
+    .sort((left, right) => right.score - left.score || left.item.title.localeCompare(right.item.title, 'es'))
+    .slice(0, resultLimit)
+    .map((entry) => entry.item)
+}
+
+async function recordCatalogSearch(query: string, type: SearchType, resultCount: number) {
+  const normalizedQuery = normalizeKey(query).slice(0, 120)
+  if (normalizedQuery.length < 2) return
+
+  const timestamp = new Date().toISOString()
+  const id = `${type}-${slugify(normalizedQuery)}`.slice(0, 140)
+  await getFirestore().collection('catalogSearches').doc(id).set(
+    {
+      count: FieldValue.increment(1),
+      lastResultCount: resultCount,
+      normalizedQuery,
+      type,
+      updatedAt: timestamp,
+      createdAt: timestamp,
+    },
+    { merge: true },
+  )
+}
+
+async function ingestExternalCandidates(query: string, type: SearchType, candidates: ExternalCandidate[]) {
+  const db = getFirestore()
+  const timestamp = new Date().toISOString()
+  const ingestable = candidates
+    .map((candidate) => ({
+      candidate,
+      score: scoreExternalCandidate(candidate, query, type),
+    }))
+    .filter((entry) => entry.score >= 30 && matchesSearchType(entry.candidate.type, type))
+    .sort((left, right) => right.score - left.score || left.candidate.title.localeCompare(right.candidate.title, 'es'))
+    .slice(0, 4)
+
+  const ingestedItems: PublicCatalogItem[] = []
+  for (const { candidate } of ingestable) {
+    const existing = await findExistingPublicItem(candidate)
+    if (existing?.data.archivedAt) continue
+
+    if (existing) {
+      const nextItem = mergeAutoIngestedPublicItem(existing.data, candidate, timestamp)
+      await existing.ref.set(
+        stripUndefined({
+          ...nextItem,
+          demandCount: FieldValue.increment(1),
+          lastDemandAt: timestamp,
+        }),
+        { merge: true },
+      )
+      ingestedItems.push(nextItem)
+      continue
+    }
+
+    const item = buildAutoIngestedPublicItem(candidate, query, timestamp)
+    await db.collection('publicItems').doc(item.id).set(
+      stripUndefined({
+        ...item,
+        demandCount: 1,
+        lastDemandAt: timestamp,
+      }),
+      { merge: true },
+    )
+    ingestedItems.push(item)
+  }
+
+  return ingestedItems
+}
+
+async function findExistingPublicItem(candidate: ExternalCandidate) {
+  const db = getFirestore()
+  const itemId = createAutoPublicItemId(candidate)
+  const directRef = db.collection('publicItems').doc(itemId)
+  const directSnapshot = await directRef.get()
+  if (directSnapshot.exists) {
+    return { data: directSnapshot.data() as PublicCatalogItem, ref: directRef }
+  }
+
+  const sourceRefKey = externalSourceRefKey(candidate.source)
+  if (sourceRefKey) {
+    const sourceSnapshot = await db
+      .collection('publicItems')
+      .where(`externalRefs.${sourceRefKey}`, '==', candidate.sourceId)
+      .limit(1)
+      .get()
+    const sourceDoc = sourceSnapshot.docs[0]
+    if (sourceDoc) return { data: sourceDoc.data() as PublicCatalogItem, ref: sourceDoc.ref }
+  }
+
+  const canonicalSnapshot = await db
+    .collection('publicItems')
+    .where('canonicalKey', '==', `${normalizeCatalogType(candidate.type)}:${normalizeKey(candidate.title)}`)
+    .limit(1)
+    .get()
+  const canonicalDoc = canonicalSnapshot.docs[0]
+  return canonicalDoc ? { data: canonicalDoc.data() as PublicCatalogItem, ref: canonicalDoc.ref } : undefined
+}
+
+function buildAutoIngestedPublicItem(candidate: ExternalCandidate, query: string, timestamp: string): PublicCatalogItem {
+  const type = normalizeCatalogType(candidate.type)
+  const genres = uniqueValues(asStringArray(candidate.genres))
+  const sourceTag = externalSourceLabel(candidate.source)
+  const tags = uniqueValues([type, sourceTag].filter(Boolean))
+  const searchAliases = uniqueValues(asStringArray(candidate.searchAliases))
+  return {
+    id: createAutoPublicItemId(candidate),
+    title: candidate.title.trim(),
+    type,
+    description: optionalString(candidate.overview),
+    releaseYear: candidate.releaseYear,
+    progressTotal: candidate.progressTotal,
+    progressUnit: normalizeProgressUnit(candidate.progressUnit),
+    genres,
+    tags,
+    moodTags: [],
+    searchAliases,
+    externalRefs: asExternalRefs({
+      ...candidate.externalRefs,
+      [externalSourceRefKey(candidate.source) ?? `${candidate.source}Id`]: candidate.sourceId,
+    }),
+    posterUrl: optionalString(candidate.posterUrl),
+    searchTokens: createSearchTokens({
+      title: candidate.title,
+      type,
+      genres,
+      tags,
+      searchAliases: uniqueValues([query, ...searchAliases]),
+      releaseYear: candidate.releaseYear,
+    }),
+    canonicalKey: `${type}:${normalizeKey(candidate.title)}`,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    createdBy: 'system:auto-ingest',
+    updatedBy: 'system:auto-ingest',
+    autoIngestedAt: timestamp,
+  }
+}
+
+function mergeAutoIngestedPublicItem(existing: PublicCatalogItem, candidate: ExternalCandidate, timestamp: string): PublicCatalogItem {
+  const type = normalizeCatalogType(existing.type || candidate.type)
+  const genres = uniqueValues([...(existing.genres ?? []), ...candidate.genres])
+  const tags = uniqueValues([...(existing.tags ?? []), type, externalSourceLabel(candidate.source)])
+  const searchAliases = uniqueValues([...(existing.searchAliases ?? []), ...(candidate.searchAliases ?? [])])
+  const externalRefs = asExternalRefs({
+    ...existing.externalRefs,
+    ...candidate.externalRefs,
+    [externalSourceRefKey(candidate.source) ?? `${candidate.source}Id`]: candidate.sourceId,
+  })
+
+  return {
+    ...existing,
+    type,
+    description: existing.description || optionalString(candidate.overview),
+    releaseYear: existing.releaseYear ?? candidate.releaseYear,
+    progressTotal: existing.progressTotal ?? candidate.progressTotal,
+    progressUnit: existing.progressUnit ?? normalizeProgressUnit(candidate.progressUnit),
+    genres,
+    tags,
+    searchAliases,
+    externalRefs,
+    posterUrl: existing.posterUrl || optionalString(candidate.posterUrl),
+    searchTokens: createSearchTokens({
+      title: existing.title,
+      type,
+      genres,
+      tags,
+      searchAliases,
+      releaseYear: existing.releaseYear ?? candidate.releaseYear,
+    }),
+    canonicalKey: existing.canonicalKey || `${type}:${normalizeKey(existing.title)}`,
+    updatedAt: timestamp,
+    updatedBy: 'system:auto-ingest',
+    lastDemandAt: timestamp,
+  }
+}
+
+function scoreExternalCandidate(candidate: ExternalCandidate, query: string, type: SearchType) {
+  const queryKey = normalizeKey(query)
+  const titleKey = normalizeKey(candidate.title)
+  const queryTokens = queryKey.split(/\s+/).filter(Boolean)
+  let score = 0
+
+  if (titleKey === queryKey) score += 80
+  if (titleKey.includes(queryKey)) score += 35
+  for (const token of queryTokens) {
+    if (titleKey.includes(token)) score += 8
+  }
+  if (matchesSearchType(candidate.type, type)) score += 15
+  if (candidate.posterUrl) score += 10
+  if (candidate.overview) score += 8
+  if (candidate.releaseYear) score += 5
+  if (candidate.genres.length) score += 4
+  if (candidate.sourceId) score += 5
+  return score
+}
+
+function rankPublicItems(items: PublicCatalogItem[], query: string, type: SearchType, resultLimit: number) {
+  const tokens = createSearchTokens({ title: query })
+  return items
+    .filter((item) => !item.archivedAt)
+    .filter((item) => matchesSearchType(item.type, type))
+    .map((item) => ({ item, score: scorePublicItem(item, tokens, query) }))
+    .filter((entry) => !query || entry.score > 0)
+    .sort((left, right) => right.score - left.score || left.item.title.localeCompare(right.item.title, 'es'))
+    .slice(0, resultLimit)
+    .map((entry) => entry.item)
+}
+
+function uniquePublicItems(items: PublicCatalogItem[]) {
+  const byKey = new Map<string, PublicCatalogItem>()
+  for (const item of items) {
+    byKey.set(item.canonicalKey || `${item.type}:${normalizeKey(item.title)}`, item)
+  }
+  return [...byKey.values()]
+}
+
+function createAutoPublicItemId(candidate: ExternalCandidate) {
+  return `${normalizeCatalogType(candidate.type)}-${candidate.source}-${slugify(candidate.sourceId || candidate.title)}`.slice(0, 120)
+}
+
+function externalSourceRefKey(source: ExternalCandidate['source']) {
+  const keys: Record<ExternalCandidate['source'], string> = {
+    anilist: 'anilistId',
+    openLibrary: 'openLibraryKey',
+    rawg: 'rawgId',
+    tmdb: 'tmdbId',
+  }
+  return keys[source]
+}
+
+function externalSourceLabel(source: ExternalCandidate['source']) {
+  const labels: Record<ExternalCandidate['source'], string> = {
+    anilist: 'AniList',
+    openLibrary: 'Open Library',
+    rawg: 'RAWG',
+    tmdb: 'TMDB',
+  }
+  return labels[source]
 }
 
 async function assertWithinRateLimit(uid: string, key: string, maxPerMinute: number) {
@@ -376,12 +686,22 @@ async function buildPublicCatalogItem(incoming: Partial<PublicCatalogItem>, uid:
     type,
     description: optionalString(incoming.description),
     releaseYear: typeof incoming.releaseYear === 'number' ? incoming.releaseYear : undefined,
+    progressTotal: typeof incoming.progressTotal === 'number' ? incoming.progressTotal : undefined,
+    progressUnit: normalizeProgressUnit(incoming.progressUnit),
     genres,
     tags,
     moodTags: uniqueValues(asStringArray(incoming.moodTags)),
+    searchAliases: uniqueValues(asStringArray(incoming.searchAliases)),
     externalRefs: asExternalRefs(incoming.externalRefs),
     posterUrl: optionalString(incoming.posterUrl),
-    searchTokens: createSearchTokens({ title, type, genres, tags, releaseYear: incoming.releaseYear }),
+    searchTokens: createSearchTokens({
+      title,
+      type,
+      genres,
+      tags,
+      searchAliases: asStringArray(incoming.searchAliases),
+      releaseYear: incoming.releaseYear,
+    }),
     canonicalKey: `${type}:${normalizeKey(title)}`,
     createdAt,
     updatedAt: new Date().toISOString(),
@@ -411,6 +731,7 @@ function createSearchTokens(value: {
   type?: string
   genres?: string[]
   tags?: string[]
+  searchAliases?: string[]
   releaseYear?: number
 }) {
   return uniqueValues(
@@ -418,6 +739,7 @@ function createSearchTokens(value: {
       value.title,
       value.type,
       value.releaseYear ? String(value.releaseYear) : undefined,
+      ...(value.searchAliases ?? []),
       ...(value.genres ?? []),
       ...(value.tags ?? []),
     ]
@@ -435,6 +757,7 @@ function normalizeCatalogType(type: string): ItemType {
 function matchesSearchType(itemType: string, requestedType: SearchType) {
   if (requestedType === 'any') return true
   if (requestedType === 'watch') return ['movie', 'series', 'anime', 'manga', 'manhwa', 'comic'].includes(itemType)
+  if (requestedType === 'animeManga') return ['anime', 'manga', 'manhwa'].includes(itemType)
   return itemType === requestedType
 }
 
@@ -454,6 +777,18 @@ function asExternalRefs(value: unknown) {
 function optionalString(value: unknown) {
   const text = typeof value === 'string' ? value.trim() : ''
   return text || undefined
+}
+
+function normalizeProgressUnit(unit: unknown): ProgressUnit | undefined {
+  return unit === 'episodes' ||
+    unit === 'chapters' ||
+    unit === 'pages' ||
+    unit === 'hours' ||
+    unit === 'volumes' ||
+    unit === 'percent' ||
+    unit === 'items'
+    ? unit
+    : undefined
 }
 
 function normalizeKey(value: string) {

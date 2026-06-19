@@ -1,14 +1,13 @@
 import { type DiscoveryCandidate, type DiscoveryStatus, type ExplorerSearchType, type ListItem, type PublicCatalogItem } from '../domain/types'
 import { promptToDiscovery } from '../lib/catalog'
 import { blankPublicCatalogItem, publicCatalogDraftFromCandidate } from '../lib/catalogInsights'
-import { rankCatalogSearchCandidates } from '../lib/catalogSearch'
 import { discoveryEmptyCopy, discoveryStatusLabels, type ExplorerSourceFilter, explorerSourceFilters, getCandidateDecisionBrief, getDiscoverySourceFilter, getExplorerDecisionState, getExplorerSourceFilterLabel, discoverySourceLabels as sourceLabels } from '../lib/explorerInsights'
 import { itemTypeLabels as typeLabels } from '../lib/libraryItemInsights'
 import { normalizeKey } from '../lib/strings'
 import { type ExternalDiscoverDuration, type ExternalDiscoverType } from '../services/externalSourceCredits'
 import { CheckCircle2, Eye, Info, Plus, Search, ShieldCheck, SlidersHorizontal, Sparkles, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { CandidateDecisionBriefView, CandidateDialog, CoverArt, DiscoveryCard, EmptyState, ItemEditor, PublicItemEditor, ToastStack, explorerDiscoverDurationOptions, explorerDiscoverTypeOptions, explorerSearchTypeForItemType, fallbackExplorerStarters, feedbackToneFromText, promptDeck, uniqueDiscoveryCandidates, type ActivityRecorder, type CompletedExplorerQueue, type ExplorerCandidateDismissRequest, type ExplorerCandidateRequest, type ExplorerCandidateSaveRequest, type ExplorerPromptCardRequest, type ExplorerSearchRequest, type ExplorerVisibleDismissRequest, type ExplorerVisibleSaveRequest, type LibrarySurface, type ToastMessage } from '../app/shared'
+import { CandidateDecisionBriefView, CandidateDialog, CoverArt, DiscoveryCard, EmptyState, ItemEditor, PublicItemEditor, ToastStack, explorerDiscoverDurationOptions, explorerDiscoverTypeOptions, explorerSearchTypeForItemType, fallbackExplorerStarters, feedbackToneFromText, promptDeck, type ActivityRecorder, type CompletedExplorerQueue, type ExplorerCandidateDismissRequest, type ExplorerCandidateRequest, type ExplorerCandidateSaveRequest, type ExplorerPromptCardRequest, type ExplorerSearchRequest, type ExplorerVisibleDismissRequest, type ExplorerVisibleSaveRequest, type LibrarySurface, type ToastMessage } from '../app/shared'
 
 export default function ExplorerTab({
   candidateDismissRequest,
@@ -184,18 +183,7 @@ export default function ExplorerTab({
 
     setLoading(true)
     try {
-      const [publicItems, externalCandidates] = await Promise.all([
-        library.searchPublicCatalog(cleanedQuery, searchType),
-        library.searchExternal(cleanedQuery, searchType),
-      ])
-      const candidates = rankCatalogSearchCandidates(
-        uniqueDiscoveryCandidates([
-          ...publicItems.map(library.publicItemToDiscovery),
-          ...externalCandidates.map(library.externalCandidateToDiscovery),
-        ]),
-        cleanedQuery,
-        searchType,
-      )
+      const candidates = await library.searchCatalog(cleanedQuery, searchType)
       const queuedCount = await library.queueDiscoveryCandidates(candidates)
       setView('queued')
       setMessage(

@@ -178,6 +178,16 @@ async function expectNoVisibleTextClipping(page: Page) {
       '.candidate-save-action strong',
       '.candidate-save-action small',
       '.candidate-primary-action',
+      '.catalog-public-heading h2',
+      '.catalog-public-heading p',
+      '.catalog-public-summary strong',
+      '.catalog-public-summary small',
+      '.catalog-public-card h3',
+      '.catalog-public-card p',
+      '.catalog-public-login-panel strong',
+      '.catalog-public-login-panel p',
+      '.ad-slot span',
+      '.ad-slot strong',
       '.role-badge',
     ].join(',')
 
@@ -767,7 +777,7 @@ async function mockAnimeMangaCatalog(page: Page) {
 
 async function openApp(page: Page) {
   await mockOpenLibraryOdisea(page)
-  await page.goto('/')
+  await page.goto('/?tab=library')
 }
 
 async function openEditorAdvanced(editor: Locator) {
@@ -822,7 +832,7 @@ async function openCurationTools(page: Page) {
 }
 
 test('library starts with a focused search-first surface', async ({ page }) => {
-  await page.goto('/')
+  await page.goto('/?tab=library')
   await expect(page.getByTestId('library-masthead')).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Biblioteca' })).toBeVisible()
   await expect(page.getByTestId('library-masthead')).toContainText('Biblioteca')
@@ -915,9 +925,20 @@ test('library starts with a focused search-first surface', async ({ page }) => {
   await expect(page.getByTestId('launch-guide')).toContainText('Plan de arranque')
   await expect(page.getByTestId('library-review-queue')).toContainText('Repaso guiado')
 })
+
+test('public catalog is the default entry surface', async ({ page }) => {
+  await page.goto('/')
+
+  await expect(page.getByRole('button', { name: 'Catalogo', exact: true })).toHaveAttribute('aria-current', 'page')
+  await expect(page.getByRole('heading', { name: 'Explora obras antes de montar tu biblioteca' })).toBeVisible()
+  await expect(page.getByLabel('Buscar en el catalogo publico')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Guardar' }).first()).toBeVisible()
+  await expect(page.getByLabel('Rail catalogo: espacio publicitario desactivado')).toContainText('Anuncio')
+})
+
 test('shell navigation keeps clear labels without responsive overflow', async ({ page }) => {
   await page.setViewportSize({ width: 1920, height: 1080 })
-  await page.goto('/')
+  await page.goto('/?tab=library')
   await expect(page.getByTestId('library-masthead')).toContainText('Biblioteca')
   await expect(page.locator('.brand-wordmark')).toHaveText('Nexo')
 
@@ -1144,7 +1165,7 @@ test('library mosaic starts as a poster-led shelf at 1920 desktop', async ({ pag
   test.skip(testInfo.project.name !== 'chromium', 'desktop geometry check')
 
   await page.setViewportSize({ width: 1920, height: 1080 })
-  await page.goto('/')
+  await page.goto('/?tab=library')
   await expectLibraryGridAnimationsSettled(page)
 
   const geometry = await page.getByTestId('library-grid').locator('.item-card').evaluateAll((cards) => {
@@ -1220,7 +1241,7 @@ test('library card density can switch between 4 5 and 6 desktop columns', async 
   test.skip(testInfo.project.name !== 'chromium', 'desktop geometry check')
 
   await page.setViewportSize({ width: 1920, height: 1080 })
-  await page.goto('/')
+  await page.goto('/?tab=library')
 
   const densitySelect = page.getByTestId('library-shelf-header').getByLabel('Tarjetas por fila')
   await expect(densitySelect).toHaveValue('4')
@@ -1264,7 +1285,7 @@ test('library card density can switch between 4 5 and 6 desktop columns', async 
 
 test('library remains one column without horizontal overflow on mobile', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
-  await page.goto('/')
+  await page.goto('/?tab=library')
 
   const geometry = await page.getByTestId('library-grid').locator('.item-card').evaluateAll((cards) => {
     const focusShelf = document.querySelector('.library-focus-shelf')?.getBoundingClientRect()
@@ -1332,7 +1353,7 @@ test('library can search a free catalog source and save directly', async ({ page
     })
   })
 
-  await page.goto('/')
+  await page.goto('/?tab=library')
   await page.getByLabel('Buscar obra para guardar').fill('Dune')
   await page.getByLabel('Tipo de obra para buscar').selectOption('book')
   await page.getByRole('button', { name: 'Buscar obra' }).click()
@@ -1355,7 +1376,7 @@ test('library can search a free catalog source and save directly', async ({ page
 test('library saves Frieren from external search without candidate permission noise', async ({ page }) => {
   await mockFrierenCatalog(page)
 
-  await page.goto('/')
+  await page.goto('/?tab=library')
   await page.getByLabel('Buscar obra para guardar').fill('Frieren')
   await page.getByLabel('Tipo de obra para buscar').selectOption('anime')
   await page.getByRole('button', { name: 'Buscar obra' }).click()
@@ -1398,7 +1419,7 @@ test('library saves Frieren from external search without candidate permission no
 test('library saves Solo Leveling series with default episodes and no related references', async ({ page }) => {
   await mockSoloLevelingSeriesCatalog(page)
 
-  await page.goto('/')
+  await page.goto('/?tab=library')
   await page.getByLabel('Buscar obra para guardar').fill('Solo Leveling')
   await page.getByLabel('Tipo de obra para buscar').selectOption('watch')
   await page.getByRole('button', { name: 'Buscar obra' }).click()
@@ -5038,10 +5059,10 @@ test('all themes keep core views legible without layout overflow', async ({ page
   }
 
   const themes = ['dark', 'light', 'rose', 'forest', 'ocean', 'mint', 'aurora']
-  const tabs = ['Biblioteca', 'Dado', 'Explorador', 'Ajustes']
+  const tabs = ['Catalogo', 'Biblioteca', 'Dado', 'Explorador', 'Ajustes']
 
   await mockOpenLibraryOdisea(page)
-  await page.goto('/')
+  await page.goto('/?tab=library')
 
   for (const theme of themes) {
     await page.evaluate((nextTheme) => {
@@ -5071,7 +5092,7 @@ test('all themes keep core views legible without layout overflow', async ({ page
 
 test('core tabs have no serious accessibility violations', async ({ page }) => {
   await openApp(page)
-  const coreTabs = ['Biblioteca', 'Dado', 'Explorador', 'Ajustes', 'Curacion']
+  const coreTabs = ['Catalogo', 'Biblioteca', 'Dado', 'Explorador', 'Ajustes', 'Curacion']
 
   for (const tab of coreTabs) {
     await page.getByRole('button', { name: tab, exact: true }).click()
