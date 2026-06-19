@@ -5,8 +5,11 @@ import { CheckCircle2, Eye, Library, LogIn, Plus, Search, Sparkles, X } from 'lu
 import { useEffect, useMemo, useState } from 'react'
 import {
   CoverArt,
+  DialogFocusReturn,
   EmptyState,
   FeedbackMessage,
+  feedbackToneFromText,
+  handleDialogKeyDown,
   libraryCatalogSearchTypes,
   type ActivityRecorder,
   type AppTab,
@@ -189,7 +192,7 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
           </div>
         </section>
 
-        {status && <FeedbackMessage tone={status.includes('No se') || status.includes('Sin resultados') ? 'info' : 'success'}>{status}</FeedbackMessage>}
+        {status && <FeedbackMessage tone={feedbackToneFromText(status)}>{status}</FeedbackMessage>}
 
         {candidates.length ? (
           <div className="catalog-public-grid" aria-label="Resultados del catalogo">
@@ -322,14 +325,13 @@ function CatalogPublicDialog({
 }) {
   return (
     <div className="modal-backdrop" role="presentation">
+      <DialogFocusReturn />
       <section
         aria-labelledby="catalog-public-dialog-title"
         aria-modal="true"
         className="detail-dialog catalog-public-dialog"
         role="dialog"
-        onKeyDown={(event) => {
-          if (event.key === 'Escape') onClose()
-        }}
+        onKeyDown={(event) => handleDialogKeyDown(event, onClose)}
       >
         <button className="icon-button dialog-close" type="button" autoFocus onClick={onClose} title="Cerrar">
           <X size={18} />

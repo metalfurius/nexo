@@ -1,4 +1,4 @@
-import type { PublicCatalogItem } from '../domain/types'
+import { ITEM_TYPES, PROGRESS_UNITS, type ItemType, type ProgressUnit, type PublicCatalogItem } from '../domain/types'
 
 export async function fetchPublicCatalog(query = '', type = 'any', limit = 24): Promise<PublicCatalogItem[] | undefined> {
   const endpoint = String(import.meta.env.VITE_PUBLIC_CATALOG_URL ?? '').trim()
@@ -25,25 +25,26 @@ export function normalizePublicCatalogItems(value: unknown): PublicCatalogItem[]
 function normalizePublicCatalogItem(value: unknown): PublicCatalogItem[] {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return []
   const item = value as Partial<PublicCatalogItem>
-  if (!item.id || !item.title || !item.type) return []
+  const type = normalizeItemType(item.type)
+  if (!item.id || !item.title || !type) return []
 
   return [
     {
       id: String(item.id),
       title: String(item.title),
-      type: item.type,
+      type,
       description: optionalString(item.description),
       releaseYear: typeof item.releaseYear === 'number' ? item.releaseYear : undefined,
       progressTotal: typeof item.progressTotal === 'number' ? item.progressTotal : undefined,
-      progressUnit: item.progressUnit,
+      progressUnit: normalizeProgressUnit(item.progressUnit),
       genres: Array.isArray(item.genres) ? item.genres.map(String).filter(Boolean) : [],
       tags: Array.isArray(item.tags) ? item.tags.map(String).filter(Boolean) : [],
       moodTags: Array.isArray(item.moodTags) ? item.moodTags.map(String).filter(Boolean) : [],
       searchAliases: Array.isArray(item.searchAliases) ? item.searchAliases.map(String).filter(Boolean) : [],
-      externalRefs: item.externalRefs && typeof item.externalRefs === 'object' && !Array.isArray(item.externalRefs) ? item.externalRefs : {},
+      externalRefs: readExternalRefs(item.externalRefs),
       posterUrl: optionalString(item.posterUrl),
       searchTokens: Array.isArray(item.searchTokens) ? item.searchTokens.map(String).filter(Boolean) : [],
-      canonicalKey: optionalString(item.canonicalKey) ?? `${item.type}:${String(item.title).toLowerCase()}`,
+      canonicalKey: optionalString(item.canonicalKey) ?? `${type}:${String(item.title).toLowerCase()}`,
       createdAt: optionalString(item.createdAt) ?? new Date().toISOString(),
       updatedAt: optionalString(item.updatedAt) ?? new Date().toISOString(),
       createdBy: optionalString(item.createdBy) ?? 'public-catalog',
@@ -54,6 +55,23 @@ function normalizePublicCatalogItem(value: unknown): PublicCatalogItem[] {
       lastDemandAt: optionalString(item.lastDemandAt),
     },
   ]
+}
+
+function normalizeItemType(type: unknown): ItemType | undefined {
+  return ITEM_TYPES.includes(type as ItemType) ? (type as ItemType) : undefined
+}
+
+function normalizeProgressUnit(unit: unknown): ProgressUnit | undefined {
+  return PROGRESS_UNITS.includes(unit as ProgressUnit) ? (unit as ProgressUnit) : undefined
+}
+
+function readExternalRefs(value: unknown) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .map(([key, entry]) => [key, String(entry ?? '').trim()])
+      .filter(([, entry]) => entry),
+  )
 }
 
 function optionalString(value: unknown) {
