@@ -201,9 +201,10 @@ export function createFirestoreRepository(userId: string): LibraryRepository | u
     },
     async searchCatalog(searchQuery, type) {
       const cleanedQuery = searchQuery.trim()
+      let remoteCandidates: DiscoveryCandidate[] | undefined
       if (cleanedQuery.length >= 2) {
-        const remoteCandidates = await searchRemoteCatalog(cleanedQuery, type).catch(() => undefined)
-        if (remoteCandidates?.length) return remoteCandidates
+        remoteCandidates = await searchRemoteCatalog(cleanedQuery, type).catch(() => undefined)
+        if (remoteCandidates?.length && !shouldEnrichRemoteCatalogCandidates(remoteCandidates)) return remoteCandidates
       }
 
       const [publicItems, externalCandidates] = await Promise.all([
@@ -215,6 +216,7 @@ export function createFirestoreRepository(userId: string): LibraryRepository | u
         : []
       return rankCatalogSearchCandidates(
         uniqueDiscoveryCandidates([
+          ...(remoteCandidates ?? []),
           ...publicItems.map(publicItemToDiscovery),
           ...ingestedItems.map(publicItemToDiscovery),
           ...externalCandidates.map(externalCandidateToDiscovery),
@@ -547,6 +549,19 @@ function uniqueDiscoveryCandidates(candidates: DiscoveryCandidate[]) {
     byId.set(`${candidate.source}:${candidate.sourceId}`, candidate)
   }
   return [...byId.values()]
+}
+
+function shouldEnrichRemoteCatalogCandidates(candidates: DiscoveryCandidate[]) {
+  return candidates.some((candidate) => shouldHaveProgressMetadata(candidate.type) && candidate.progressTotal === undefined)
+}
+
+function shouldHaveProgressMetadata(type: DiscoveryCandidate['type']) {
+  return type === 'anime' ||
+    type === 'series' ||
+    type === 'book' ||
+    type === 'manga' ||
+    type === 'manhwa' ||
+    type === 'comic'
 }
 
 async function autoIngestExternalCandidates(

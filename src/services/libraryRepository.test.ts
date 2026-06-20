@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { DEFAULT_WEIGHTS, type ListItem, type PublicCatalogItem } from '../domain/types'
+import { DEFAULT_WEIGHTS, type DiscoveryCandidate, type ListItem, type PublicCatalogItem } from '../domain/types'
 import { createFirestoreRepository } from './libraryRepository'
 
 const mocks = vi.hoisted(() => ({
@@ -635,5 +635,111 @@ describe('createFirestoreRepository', () => {
         title: 'Frieren: Beyond Journey End',
       }),
     )
+  })
+
+  it('enriches stale remote catalog matches that are missing progress metadata', async () => {
+    const repository = createFirestoreRepository('user-1')
+    const staleRemoteCandidate: DiscoveryCandidate = {
+      id: 'external-anilist-154587',
+      title: 'Frieren',
+      type: 'anime',
+      status: 'queued',
+      origin: 'externalSearch',
+      source: 'anilist',
+      sourceId: '154587',
+      genres: ['Fantasy'],
+      tags: ['anime', 'anilist'],
+      moodTags: [],
+      externalRefs: {
+        anilistId: '154587',
+      },
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    }
+    searchMocks.searchRemoteCatalog.mockResolvedValueOnce([staleRemoteCandidate])
+    searchMocks.searchExternalSources.mockResolvedValueOnce([
+      {
+        id: 'anilist-154587',
+        title: 'Frieren: Beyond Journey End',
+        type: 'anime',
+        source: 'anilist',
+        sourceId: '154587',
+        overview: 'A quiet fantasy journey.',
+        posterUrl: 'https://img.anili.st/media/154587.jpg',
+        releaseYear: 2023,
+        progressTotal: 28,
+        progressUnit: 'episodes',
+        genres: ['Fantasy', 'Adventure'],
+        searchAliases: ['Sousou no Frieren'],
+        externalRefs: {
+          anilistId: '154587',
+          sourceUrl: 'https://anilist.co/anime/154587',
+        },
+        createdAt: '2026-01-01T00:00:00.000Z',
+      },
+    ])
+    mocks.getDocs
+      .mockResolvedValueOnce({ docs: [] })
+      .mockResolvedValueOnce({ docs: [] })
+      .mockResolvedValueOnce({ docs: [] })
+
+    const results = await repository?.searchCatalog('Frieren', 'anime')
+
+    expect(searchMocks.searchExternalSources).toHaveBeenCalledWith('Frieren', 'anime')
+    expect(mocks.setDoc).toHaveBeenCalledWith(
+      expect.objectContaining({ path: 'publicItems/anime-anilist-154587' }),
+      expect.objectContaining({
+        autoIngestedAt: expect.any(String),
+        demandCount: 1,
+        progressTotal: 28,
+        progressUnit: 'episodes',
+      }),
+      { merge: true },
+    )
+    expect(results).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          progressTotal: 28,
+          progressUnit: 'episodes',
+          title: 'Frieren: Beyond Journey End',
+        }),
+      ]),
+    )
+  })
+
+  it('trusts remote catalog matches that already include progress metadata', async () => {
+    const repository = createFirestoreRepository('user-1')
+    searchMocks.searchRemoteCatalog.mockResolvedValueOnce([
+      {
+        id: 'external-anilist-154587',
+        title: 'Frieren',
+        type: 'anime',
+        status: 'queued',
+        origin: 'externalSearch',
+        source: 'anilist',
+        sourceId: '154587',
+        progressTotal: 28,
+        progressUnit: 'episodes',
+        genres: ['Fantasy'],
+        tags: ['anime', 'anilist'],
+        moodTags: [],
+        externalRefs: {
+          anilistId: '154587',
+        },
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      },
+    ] satisfies DiscoveryCandidate[])
+
+    const results = await repository?.searchCatalog('Frieren', 'anime')
+
+    expect(searchMocks.searchExternalSources).not.toHaveBeenCalled()
+    expect(mocks.getDocs).not.toHaveBeenCalled()
+    expect(results).toEqual([
+      expect.objectContaining({
+        progressTotal: 28,
+        progressUnit: 'episodes',
+      }),
+    ])
   })
 })

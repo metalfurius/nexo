@@ -12,7 +12,10 @@ export async function searchRemoteCatalog(query: string, type = 'any'): Promise<
   const searchCatalog = httpsCallable(functionsClient, 'searchCatalog')
   const result = await searchCatalog({ query, type })
   const payload = readRecord(result.data)
-  const publicItems = normalizePublicCatalogItems(payload.items)
+  const publicItems = [
+    ...normalizePublicCatalogItems(payload.items),
+    ...normalizePublicCatalogItems(payload.ingestedItems),
+  ]
   const externalCandidates = normalizeExternalCandidates(payload.candidates)
 
   return rankCatalogSearchCandidates(
