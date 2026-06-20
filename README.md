@@ -42,6 +42,7 @@ Firebase Functions expose the public catalog read endpoint and the authenticated
 - Open Library, AniList, Jikan and Wikidata work without keys.
 - TMDB improves movies/series through the Worker secret `TMDB_READ_TOKEN`.
 - RAWG improves games through the Worker secret `RAWG_API_KEY`.
+- Firebase Functions do not store TMDB/RAWG secrets; Cloudflare Worker is the only secret-backed catalog proxy.
 - The frontend only receives `VITE_CATALOG_PROXY_URL`, which is safe to expose.
 - Anonymous catalog pages can use `VITE_PUBLIC_CATALOG_URL`, pointing at the `publicCatalog` HTTP Function.
 - Signed-in catalog searches can call `searchCatalog`; it rate-limits demand, deduplicates external matches and auto-seeds a small number of high-confidence entries into `publicItems`.

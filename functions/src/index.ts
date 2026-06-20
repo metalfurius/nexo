@@ -1,12 +1,8 @@
 import { initializeApp } from 'firebase-admin/app'
 import { FieldValue, getFirestore } from 'firebase-admin/firestore'
 import { HttpsError, onCall, onRequest } from 'firebase-functions/v2/https'
-import { defineSecret } from 'firebase-functions/params'
 
 initializeApp()
-
-const tmdbToken = defineSecret('TMDB_TOKEN')
-const rawgApiKey = defineSecret('RAWG_API_KEY')
 
 type SearchType = 'watch' | 'game' | 'book' | 'anime' | 'manga' | 'manhwa' | 'animeManga' | 'any'
 type ItemType = 'game' | 'book' | 'movie' | 'series' | 'anime' | 'manga' | 'manhwa' | 'comic' | 'other'
@@ -16,7 +12,7 @@ interface ExternalCandidate {
   id: string
   title: string
   type: string
-  source: 'tmdb' | 'rawg' | 'openLibrary' | 'anilist'
+  source: 'openLibrary' | 'anilist'
   sourceId: string
   overview?: string
   posterUrl?: string
@@ -58,7 +54,6 @@ interface PublicCatalogItem {
 export const searchExternal = onCall(
   {
     cors: true,
-    secrets: [tmdbToken, rawgApiKey],
   },
   async (request) => {
     if (!request.auth) {
@@ -100,7 +95,6 @@ export const searchPublicCatalog = onCall(
 export const searchCatalog = onCall(
   {
     cors: true,
-    secrets: [tmdbToken, rawgApiKey],
   },
   async (request) => {
     if (!request.auth) {
@@ -207,96 +201,19 @@ export const archivePublicItem = onCall(
 )
 
 async function searchByType(query: string, type: SearchType): Promise<ExternalCandidate[]> {
-  if (type === 'game') return searchRawg(query)
   if (type === 'book') return searchOpenLibrary(query)
   if (type === 'anime' || type === 'manga' || type === 'manhwa') return searchAniList(query, type)
   if (type === 'animeManga') {
     const groups = await Promise.allSettled([searchAniList(query, 'anime'), searchAniList(query, 'manga')])
     return groups.flatMap((group) => (group.status === 'fulfilled' ? group.value : []))
   }
-  if (type === 'watch') return searchTmdb(query)
+  if (type === 'game' || type === 'watch') return []
 
   const groups = await Promise.allSettled([
-    searchTmdb(query),
-    searchRawg(query),
     searchOpenLibrary(query),
     searchAniList(query, 'anime'),
   ])
   return groups.flatMap((group) => (group.status === 'fulfilled' ? group.value : []))
-}
-
-async function searchTmdb(query: string): Promise<ExternalCandidate[]> {
-  const token = tmdbToken.value()
-  if (!token) return []
-  const url = new URL('https://api.themoviedb.org/3/search/multi')
-  url.searchParams.set('query', query)
-  url.searchParams.set('language', 'es-ES')
-  url.searchParams.set('include_adult', 'false')
-
-  const response = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      accept: 'application/json',
-    },
-  })
-  if (!response.ok) throw new HttpsError('unavailable', 'TMDB no respondio correctamente.')
-  const payload = (await response.json()) as { results?: Array<Record<string, unknown>> }
-  return (payload.results ?? [])
-    .filter((entry) => entry.media_type === 'movie' || entry.media_type === 'tv')
-    .map((entry) => {
-      const mediaType = entry.media_type === 'tv' ? 'series' : 'movie'
-      const title = String(entry.title ?? entry.name ?? 'Sin titulo')
-      const date = String(entry.release_date ?? entry.first_air_date ?? '')
-      return {
-        id: `tmdb-${entry.id}`,
-        title,
-        type: mediaType,
-        source: 'tmdb',
-        sourceId: String(entry.id),
-        overview: typeof entry.overview === 'string' ? entry.overview : undefined,
-        posterUrl: entry.poster_path ? `https://image.tmdb.org/t/p/w342${entry.poster_path}` : undefined,
-        releaseYear: date ? Number(date.slice(0, 4)) : undefined,
-        genres: [],
-        externalRefs: {
-          tmdbId: String(entry.id),
-          sourceUrl: `https://www.themoviedb.org/${entry.media_type}/${entry.id}`,
-        },
-        createdAt: new Date().toISOString(),
-      } satisfies ExternalCandidate
-    })
-}
-
-async function searchRawg(query: string): Promise<ExternalCandidate[]> {
-  const apiKey = rawgApiKey.value()
-  if (!apiKey) return []
-  const url = new URL('https://api.rawg.io/api/games')
-  url.searchParams.set('key', apiKey)
-  url.searchParams.set('search', query)
-  url.searchParams.set('page_size', '8')
-
-  const response = await fetch(url)
-  if (!response.ok) throw new HttpsError('unavailable', 'RAWG no respondio correctamente.')
-  const payload = (await response.json()) as { results?: Array<Record<string, unknown>> }
-
-  return (payload.results ?? []).map((entry) => ({
-    id: `rawg-${entry.id}`,
-    title: String(entry.name ?? 'Sin titulo'),
-    type: 'game',
-    source: 'rawg',
-    sourceId: String(entry.id),
-    posterUrl: typeof entry.background_image === 'string' ? entry.background_image : undefined,
-    releaseYear: typeof entry.released === 'string' ? Number(entry.released.slice(0, 4)) : undefined,
-    progressTotal: typeof entry.playtime === 'number' && entry.playtime > 0 ? entry.playtime : undefined,
-    progressUnit: typeof entry.playtime === 'number' && entry.playtime > 0 ? 'hours' : undefined,
-    genres: Array.isArray(entry.genres)
-      ? entry.genres.map((genre) => String((genre as Record<string, unknown>).name)).filter(Boolean)
-      : [],
-    externalRefs: {
-      rawgId: String(entry.id),
-      sourceUrl: `https://rawg.io/games/${entry.slug}`,
-    },
-    createdAt: new Date().toISOString(),
-  }))
 }
 
 async function searchOpenLibrary(query: string): Promise<ExternalCandidate[]> {
@@ -641,8 +558,6 @@ function externalSourceRefKey(source: ExternalCandidate['source']) {
   const keys: Record<ExternalCandidate['source'], string> = {
     anilist: 'anilistId',
     openLibrary: 'openLibraryKey',
-    rawg: 'rawgId',
-    tmdb: 'tmdbId',
   }
   return keys[source]
 }
@@ -651,8 +566,6 @@ function externalSourceLabel(source: ExternalCandidate['source']) {
   const labels: Record<ExternalCandidate['source'], string> = {
     anilist: 'AniList',
     openLibrary: 'Open Library',
-    rawg: 'RAWG',
-    tmdb: 'TMDB',
   }
   return labels[source]
 }
