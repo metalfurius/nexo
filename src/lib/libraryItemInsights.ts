@@ -23,6 +23,8 @@ export interface PersonalEditorReadiness {
   title: string
 }
 
+export type ProgressEditorMode = 'none' | 'playtime' | 'structured'
+
 export const itemTypeLabels: Record<ItemType | 'any' | 'watch', string> = {
   any: 'Todo',
   watch: 'Ver',
@@ -245,6 +247,12 @@ export function getDefaultProgressUnit(type: ItemType): ProgressUnit {
   if (type === 'book') return 'pages'
   if (type === 'manga' || type === 'manhwa' || type === 'comic') return 'chapters'
   return 'hours'
+}
+
+export function getProgressEditorMode(type: ItemType): ProgressEditorMode {
+  if (type === 'game') return 'playtime'
+  if (type === 'movie' || type === 'other') return 'none'
+  return 'structured'
 }
 
 function readProgressNumber(value: number | undefined) {

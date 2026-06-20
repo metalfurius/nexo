@@ -11106,6 +11106,10 @@ button:active:not(:disabled),
   padding: 3px;
 }
 
+.progress-stepper-row.single {
+  grid-template-columns: 32px minmax(0, 1fr) 32px;
+}
+
 .progress-stepper-row label,
 .progress-detail-row label {
   display: block;

@@ -4,6 +4,7 @@ import {
   type ExternalCandidate,
   type ItemType,
   type ListItem,
+  type ProgressUnit,
   type PublicCatalogItem,
   type PublicCatalogSnapshot,
   nowIso,
@@ -128,14 +129,18 @@ export function promptToDiscovery(title: string, type: ItemType = 'other'): Disc
 
 export function discoveryToListItem(candidate: DiscoveryCandidate): ListItem {
   const timestamp = nowIso()
+  const progressDefaults = getListItemProgressDefaults(candidate)
+  const durationMaxHours = estimateDurationMaxHours(candidate)
+
   return {
     id: `${candidate.type}-${slugify(candidate.title)}-${candidate.sourceId}`.slice(0, 120),
     title: candidate.title,
     type: candidate.type,
     status: 'wishlist',
-    progressCurrent: candidate.progressTotal ? 0 : undefined,
-    progressTotal: candidate.progressTotal,
-    progressUnit: candidate.progressUnit,
+    durationMaxHours,
+    progressCurrent: progressDefaults.progressCurrent,
+    progressTotal: progressDefaults.progressTotal,
+    progressUnit: progressDefaults.progressUnit,
     genres: uniqueValues(candidate.genres),
     tags: uniqueValues(candidate.tags.length ? candidate.tags : [candidate.type, candidate.source]),
     moodTags: uniqueValues(candidate.moodTags),
@@ -205,5 +210,56 @@ export function buildPublicCatalogItem(
     createdBy: draft.createdBy ?? actorId,
     updatedBy: actorId,
     archivedAt: draft.archivedAt,
+    autoIngestedAt: draft.autoIngestedAt,
+    demandCount: draft.demandCount,
+    lastDemandAt: draft.lastDemandAt,
   }
+}
+
+export function estimateDurationMaxHours(value: {
+  progressTotal?: number
+  progressUnit?: ProgressUnit
+  type: ItemType
+}) {
+  const total = readPositiveNumber(value.progressTotal)
+  if (total === undefined) return undefined
+
+  if (value.progressUnit === 'hours') return roundDurationHours(total)
+  if (value.progressUnit === 'episodes') return roundDurationHours(total * (value.type === 'anime' ? 0.4 : 0.75))
+  if (value.progressUnit === 'pages') return roundDurationHours(total / 45)
+  if (value.progressUnit === 'chapters') return roundDurationHours(total * 0.15)
+  if (value.progressUnit === 'volumes') return roundDurationHours(total * 1.5)
+  return undefined
+}
+
+function getListItemProgressDefaults(candidate: Pick<DiscoveryCandidate, 'progressTotal' | 'progressUnit' | 'type'>): {
+  progressCurrent?: number
+  progressTotal?: number
+  progressUnit?: ProgressUnit
+} {
+  if (candidate.type === 'game' || candidate.type === 'movie' || candidate.type === 'other') return {}
+
+  const progressTotal = readPositiveNumber(candidate.progressTotal)
+  if (progressTotal === undefined) return {}
+
+  return {
+    progressCurrent: 0,
+    progressTotal,
+    progressUnit: candidate.progressUnit ?? getDefaultCatalogProgressUnit(candidate.type),
+  }
+}
+
+function getDefaultCatalogProgressUnit(type: ItemType): ProgressUnit {
+  if (type === 'anime' || type === 'series') return 'episodes'
+  if (type === 'book') return 'pages'
+  if (type === 'manga' || type === 'manhwa' || type === 'comic') return 'chapters'
+  return 'hours'
+}
+
+function readPositiveNumber(value: number | undefined) {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined
+}
+
+function roundDurationHours(value: number) {
+  return Math.max(0.5, Math.round(value * 2) / 2)
 }

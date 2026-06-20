@@ -4,7 +4,6 @@ import {
   type ActivityEntry,
   DEFAULT_RECOMMENDATION_PREFERENCES,
   DEFAULT_SETTINGS,
-  DEFAULT_WEIGHTS,
   THEME_MODES,
   type DiscoveryCandidate,
   type ExternalCandidate,
@@ -620,24 +619,7 @@ export function useLibrary(user?: SignedInUserProfile | null) {
   }
 
   function candidateToItem(candidate: ExternalCandidate): ListItem {
-    return {
-      id: `${candidate.type}-${slugify(candidate.title)}-${candidate.sourceId}`.slice(0, 120),
-      title: candidate.title,
-      type: candidate.type,
-      status: 'wishlist',
-      progressCurrent: candidate.progressTotal ? 0 : undefined,
-      progressTotal: candidate.progressTotal,
-      progressUnit: candidate.progressUnit,
-      genres: candidate.genres,
-      tags: uniqueValues([candidate.type, candidate.source, ...candidate.genres]),
-      moodTags: [],
-      weights: DEFAULT_WEIGHTS,
-      source: 'external',
-      externalRefs: candidate.externalRefs,
-      posterUrl: candidate.posterUrl,
-      createdAt: nowIso(),
-      updatedAt: nowIso(),
-    }
+    return discoveryToListItem(externalCandidateToDiscovery(candidate))
   }
 
   return {

@@ -286,6 +286,8 @@ async function searchRawg(query: string): Promise<ExternalCandidate[]> {
     sourceId: String(entry.id),
     posterUrl: typeof entry.background_image === 'string' ? entry.background_image : undefined,
     releaseYear: typeof entry.released === 'string' ? Number(entry.released.slice(0, 4)) : undefined,
+    progressTotal: typeof entry.playtime === 'number' && entry.playtime > 0 ? entry.playtime : undefined,
+    progressUnit: typeof entry.playtime === 'number' && entry.playtime > 0 ? 'hours' : undefined,
     genres: Array.isArray(entry.genres)
       ? entry.genres.map((genre) => String((genre as Record<string, unknown>).name)).filter(Boolean)
       : [],
@@ -338,6 +340,9 @@ async function searchAniList(query: string, requestedType: 'anime' | 'manga' | '
             title { romaji english native }
             description(asHtml: false)
             format
+            episodes
+            chapters
+            volumes
             genres
             startDate { year }
             coverImage { medium }
@@ -365,6 +370,7 @@ async function searchAniList(query: string, requestedType: 'anime' | 'manga' | '
     const inferredType = requestedType === 'anime' ? 'anime' : format.includes('manhwa') ? 'manhwa' : 'manga'
     const startDate = entry.startDate as { year?: number } | undefined
     const coverImage = entry.coverImage as { medium?: string } | undefined
+    const progressMeta = readAniListProgressMeta(inferredType, entry)
     return {
       id: `anilist-${entry.id}`,
       title: title.english ?? title.romaji ?? title.native ?? 'Sin titulo',
@@ -374,6 +380,8 @@ async function searchAniList(query: string, requestedType: 'anime' | 'manga' | '
       overview: typeof entry.description === 'string' ? entry.description : undefined,
       posterUrl: coverImage?.medium,
       releaseYear: startDate?.year,
+      progressTotal: progressMeta?.total,
+      progressUnit: progressMeta?.unit,
       genres: Array.isArray(entry.genres) ? entry.genres.map(String) : [],
       externalRefs: {
         anilistId: String(entry.id),
@@ -382,6 +390,15 @@ async function searchAniList(query: string, requestedType: 'anime' | 'manga' | '
       createdAt: new Date().toISOString(),
     } satisfies ExternalCandidate
   })
+}
+
+function readAniListProgressMeta(type: ItemType, entry: Record<string, unknown>): { total: number; unit: ProgressUnit } | undefined {
+  if (type === 'anime') return readProgressMeta(entry.episodes, 'episodes')
+  return readProgressMeta(entry.chapters, 'chapters') ?? readProgressMeta(entry.volumes, 'volumes')
+}
+
+function readProgressMeta(value: unknown, unit: ProgressUnit) {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? { total: value, unit } : undefined
 }
 
 async function isModerator(uid: string) {

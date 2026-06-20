@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { initializeTestEnvironment, type RulesTestEnvironment } from '@firebase/rules-unit-testing'
-import { doc, getDoc, setDoc } from 'firebase/firestore'
+import { doc, getDoc, increment, setDoc } from 'firebase/firestore'
 
 const maybeDescribe = process.env.FIRESTORE_EMULATOR_HOST ? describe : describe.skip
 
@@ -75,6 +75,47 @@ maybeDescribe('firestore.rules emulator', () => {
 
     await expect(getDoc(doc(ownerDb, 'publicItems', 'book-odisea'))).resolves.toBeTruthy()
     await expect(setDoc(doc(ownerDb, 'publicItems', 'book-odisea'), { title: 'Nope' })).rejects.toThrow()
+  })
+
+  it('allows signed-in users to auto-ingest public catalog items but only bump demand later', async () => {
+    const ownerDb = env.authenticatedContext('owner').firestore()
+    const itemRef = doc(ownerDb, 'publicItems', 'anime-anilist-154587')
+    const timestamp = '2026-06-20T12:00:00.000Z'
+
+    await expect(
+      setDoc(itemRef, {
+        id: 'anime-anilist-154587',
+        title: 'Frieren: Beyond Journey End',
+        type: 'anime',
+        description: 'A quiet fantasy journey.',
+        releaseYear: 2023,
+        progressTotal: 28,
+        progressUnit: 'episodes',
+        genres: ['Fantasy'],
+        tags: ['anime', 'AniList'],
+        moodTags: [],
+        searchAliases: ['Frieren'],
+        externalRefs: {
+          anilistId: '154587',
+          sourceUrl: 'https://anilist.co/anime/154587',
+        },
+        posterUrl: 'https://img.anili.st/media/154587.jpg',
+        searchTokens: ['frieren', 'anime'],
+        canonicalKey: 'anime:frieren beyond journey end',
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        createdBy: 'owner',
+        updatedBy: 'owner',
+        autoIngestedAt: timestamp,
+        demandCount: 1,
+        lastDemandAt: timestamp,
+      }),
+    ).resolves.toBeUndefined()
+
+    await expect(
+      setDoc(itemRef, { demandCount: increment(1), lastDemandAt: '2026-06-20T12:01:00.000Z' }, { merge: true }),
+    ).resolves.toBeUndefined()
+    await expect(setDoc(itemRef, { title: 'Nope' }, { merge: true })).rejects.toThrow()
   })
 
   it('blocks anonymous public catalog reads', async () => {

@@ -9,19 +9,34 @@ const mocks = vi.hoisted(() => ({
   deleteDoc: vi.fn(),
   getDoc: vi.fn(),
   getDocs: vi.fn(),
+  increment: vi.fn(),
   limit: vi.fn(),
   onSnapshot: vi.fn(),
   setDoc: vi.fn(),
+  where: vi.fn(),
 }))
 
 const firebaseServices = vi.hoisted(() => ({
   db: { name: 'db' },
 }))
 
+const searchMocks = vi.hoisted(() => ({
+  searchExternalSources: vi.fn(),
+  searchRemoteCatalog: vi.fn(),
+}))
+
 const sdkPath = vi.hoisted(() => (args: unknown[]) => args.slice(1).map(String).join('/'))
 
 vi.mock('./firebaseDb', () => ({
   getFirebaseServices: vi.fn(() => firebaseServices),
+}))
+
+vi.mock('./externalSearch', () => ({
+  searchExternalSources: searchMocks.searchExternalSources,
+}))
+
+vi.mock('./remoteCatalog', () => ({
+  searchRemoteCatalog: searchMocks.searchRemoteCatalog,
 }))
 
 vi.mock('firebase/firestore', () => ({
@@ -32,11 +47,13 @@ vi.mock('firebase/firestore', () => ({
   doc: vi.fn((...args: unknown[]) => ({ kind: 'doc', path: sdkPath(args) })),
   getDoc: mocks.getDoc,
   getDocs: mocks.getDocs,
+  increment: mocks.increment,
   limit: mocks.limit,
   onSnapshot: mocks.onSnapshot,
   orderBy: vi.fn((field: string, direction: string) => ({ direction, field })),
   query: vi.fn((collectionRef: unknown, ...constraints: unknown[]) => ({ collectionRef, constraints })),
   setDoc: mocks.setDoc,
+  where: mocks.where,
   writeBatch: vi.fn(() => ({
     commit: mocks.batchCommit,
     delete: mocks.batchDelete,
@@ -65,8 +82,12 @@ describe('createFirestoreRepository', () => {
     mocks.deleteDoc.mockResolvedValue(undefined)
     mocks.getDoc.mockResolvedValue({ exists: () => false })
     mocks.getDocs.mockResolvedValue({ docs: [] })
+    mocks.increment.mockImplementation((value: number) => ({ kind: 'increment', value }))
     mocks.limit.mockImplementation((count: number) => ({ count, kind: 'limit' }))
     mocks.setDoc.mockResolvedValue(undefined)
+    mocks.where.mockImplementation((field: string, operator: string, value: unknown) => ({ field, kind: 'where', operator, value }))
+    searchMocks.searchExternalSources.mockResolvedValue([])
+    searchMocks.searchRemoteCatalog.mockResolvedValue(undefined)
   })
 
   it('subscribes to the signed-in user item collection', () => {
@@ -558,6 +579,61 @@ describe('createFirestoreRepository', () => {
       4,
       expect.objectContaining({ path: 'publicItems/movie-arrival' }),
       expect.objectContaining({ title: 'Arrival', updatedBy: 'user-1' }),
+    )
+  })
+
+  it('auto-ingests strong external catalog matches for signed-in searches', async () => {
+    const repository = createFirestoreRepository('user-1')
+    searchMocks.searchExternalSources.mockResolvedValueOnce([
+      {
+        id: 'anilist-154587',
+        title: 'Frieren: Beyond Journey End',
+        type: 'anime',
+        source: 'anilist',
+        sourceId: '154587',
+        overview: 'A quiet fantasy journey.',
+        posterUrl: 'https://img.anili.st/media/154587.jpg',
+        releaseYear: 2023,
+        progressTotal: 28,
+        progressUnit: 'episodes',
+        genres: ['Fantasy', 'Adventure'],
+        searchAliases: ['Sousou no Frieren'],
+        externalRefs: {
+          anilistId: '154587',
+          sourceUrl: 'https://anilist.co/anime/154587',
+        },
+        createdAt: '2026-01-01T00:00:00.000Z',
+      },
+    ])
+    mocks.getDocs
+      .mockResolvedValueOnce({ docs: [] })
+      .mockResolvedValueOnce({ docs: [] })
+      .mockResolvedValueOnce({ docs: [] })
+
+    const results = await repository?.searchCatalog('Frieren', 'anime')
+
+    expect(searchMocks.searchRemoteCatalog).toHaveBeenCalledWith('Frieren', 'anime')
+    expect(mocks.setDoc).toHaveBeenCalledWith(
+      expect.objectContaining({ path: 'publicItems/anime-anilist-154587' }),
+      expect.objectContaining({
+        autoIngestedAt: expect.any(String),
+        canonicalKey: 'anime:frieren beyond journey end',
+        createdBy: 'user-1',
+        demandCount: 1,
+        progressTotal: 28,
+        progressUnit: 'episodes',
+        title: 'Frieren: Beyond Journey End',
+        updatedBy: 'user-1',
+      }),
+      { merge: true },
+    )
+    expect(results?.[0]).toEqual(
+      expect.objectContaining({
+        origin: 'publicCatalog',
+        publicItemId: 'anime-anilist-154587',
+        source: 'nexo',
+        title: 'Frieren: Beyond Journey End',
+      }),
     )
   })
 })

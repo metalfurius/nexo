@@ -100,8 +100,53 @@ describe('catalog helpers', () => {
     expect(libraryItem.progressCurrent).toBe(0)
     expect(libraryItem.progressTotal).toBe(25)
     expect(libraryItem.progressUnit).toBe('episodes')
+    expect(libraryItem.durationMaxHours).toBe(19)
     expect('relatedItems' in candidate).toBe(false)
     expect('relatedItems' in libraryItem).toBe(false)
+  })
+
+  it('uses external runtime as duration without creating movie or game progress targets', () => {
+    const movieItem = discoveryToListItem(
+      externalCandidateToDiscovery({
+        id: 'tmdb-603',
+        title: 'The Matrix',
+        type: 'movie',
+        source: 'tmdb',
+        sourceId: '603',
+        progressTotal: 2.3,
+        progressUnit: 'hours',
+        genres: ['Ciencia ficcion'],
+        externalRefs: { tmdbId: '603' },
+        createdAt: '2026-01-01T00:00:00.000Z',
+      }),
+    )
+    const gameItem = discoveryToListItem(
+      externalCandidateToDiscovery({
+        id: 'rawg-753640',
+        title: 'Outer Wilds',
+        type: 'game',
+        source: 'rawg',
+        sourceId: '753640',
+        progressTotal: 20,
+        progressUnit: 'hours',
+        genres: ['Aventura'],
+        externalRefs: { rawgId: '753640' },
+        createdAt: '2026-01-01T00:00:00.000Z',
+      }),
+    )
+
+    expect(movieItem).toMatchObject({
+      durationMaxHours: 2.5,
+      progressCurrent: undefined,
+      progressTotal: undefined,
+      progressUnit: undefined,
+    })
+    expect(gameItem).toMatchObject({
+      durationMaxHours: 20,
+      progressCurrent: undefined,
+      progressTotal: undefined,
+      progressUnit: undefined,
+    })
   })
 
   it('keeps resolved discovery decisions when the same result is queued again', () => {

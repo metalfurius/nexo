@@ -26,6 +26,86 @@ service cloud.firestore {
       return isSignedIn() && currentUserRole() in ['admin', 'moderator'];
     }
 
+    function isValidItemType(type) {
+      return type in ['game', 'book', 'movie', 'series', 'anime', 'manga', 'manhwa', 'comic', 'other'];
+    }
+
+    function isValidProgressUnit(unit) {
+      return unit in ['episodes', 'chapters', 'pages', 'hours', 'volumes', 'percent', 'items'];
+    }
+
+    function optionalString(field) {
+      return !(field in request.resource.data) || request.resource.data[field] is string;
+    }
+
+    function optionalNumber(field) {
+      return !(field in request.resource.data) || request.resource.data[field] is number;
+    }
+
+    function optionalStringList(field) {
+      return !(field in request.resource.data) || request.resource.data[field] is list;
+    }
+
+    function isAutoCatalogCreate(publicItemId) {
+      return isSignedIn()
+        && request.resource.data.keys().hasOnly([
+          'id',
+          'title',
+          'type',
+          'description',
+          'releaseYear',
+          'progressTotal',
+          'progressUnit',
+          'genres',
+          'tags',
+          'moodTags',
+          'searchAliases',
+          'externalRefs',
+          'posterUrl',
+          'searchTokens',
+          'canonicalKey',
+          'createdAt',
+          'updatedAt',
+          'createdBy',
+          'updatedBy',
+          'autoIngestedAt',
+          'demandCount',
+          'lastDemandAt'
+        ])
+        && request.resource.data.id == publicItemId
+        && request.resource.data.title is string
+        && isValidItemType(request.resource.data.type)
+        && request.resource.data.createdAt is string
+        && request.resource.data.updatedAt is string
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.updatedBy == request.auth.uid
+        && request.resource.data.autoIngestedAt is string
+        && request.resource.data.demandCount == 1
+        && request.resource.data.lastDemandAt == request.resource.data.autoIngestedAt
+        && request.resource.data.canonicalKey is string
+        && request.resource.data.searchTokens is list
+        && request.resource.data.genres is list
+        && request.resource.data.tags is list
+        && request.resource.data.moodTags is list
+        && request.resource.data.externalRefs is map
+        && optionalString('description')
+        && optionalNumber('releaseYear')
+        && optionalNumber('progressTotal')
+        && (!('progressUnit' in request.resource.data) || isValidProgressUnit(request.resource.data.progressUnit))
+        && optionalStringList('searchAliases')
+        && optionalString('posterUrl');
+    }
+
+    function isCatalogDemandUpdate() {
+      return isSignedIn()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'demandCount',
+          'lastDemandAt'
+        ])
+        && request.resource.data.demandCount == resource.data.demandCount + 1
+        && request.resource.data.lastDemandAt is string;
+    }
+
     function isValidUserProfile(userId) {
       return request.resource.data.uid == userId
         && isValidRole(request.resource.data.role)
@@ -78,7 +158,9 @@ service cloud.firestore {
 
     match /publicItems/{publicItemId} {
       allow read: if isSignedIn();
-      allow create, update, delete: if canCurateCatalog();
+      allow create: if canCurateCatalog() || isAutoCatalogCreate(publicItemId);
+      allow update: if canCurateCatalog() || isCatalogDemandUpdate();
+      allow delete: if canCurateCatalog();
     }
 
     match /users/{userId} {

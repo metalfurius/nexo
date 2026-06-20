@@ -10,7 +10,7 @@ import { type CandidateDecisionBrief, discoveryStatusLabels, type ExplorerSource
 import { getExternalRefEntries } from '../lib/externalRefs'
 import { createLibraryExportPayload, getLibraryImportRollbackPlan, getLibraryImportSummary, type LibraryImportRollbackPlan, type LibraryImportSummary, type ParsedLibraryImport, parseLibraryImportPayload } from '../lib/libraryBackup'
 import { getLibraryFocusItems, getLibraryFocusReason, getLibraryLaunchGuide, getLibraryNextPlanFacts, getLibraryNextPlanSignals, getLibraryNextPlanTitle, getLibraryReviewQueues, getLibrarySmartViewOptions, isItemReadyForDicePulse, type LibraryLaunchGuide, type LibraryLaunchStep, type LibraryReviewQueue, type LibrarySmartView, matchesLibrarySmartView } from '../lib/libraryInsights'
-import { formatDateLabel, formatProgress, getDefaultProgressUnit, getItemSubtitle, getPersonalEditorReadiness, isItemInCooldown, itemSourceLabels, progressUnitLabels, itemStatusLabels as statusLabels, itemTypeLabels as typeLabels } from '../lib/libraryItemInsights'
+import { formatDateLabel, formatProgress, getDefaultProgressUnit, getItemSubtitle, getPersonalEditorReadiness, getProgressEditorMode, isItemInCooldown, itemSourceLabels, progressUnitLabels, itemStatusLabels as statusLabels, itemTypeLabels as typeLabels } from '../lib/libraryItemInsights'
 import { type LibrarySortMode, sortLibraryItems } from '../lib/librarySorting'
 import { type PublicCatalogSeedResult, type PublicCatalogSeedRollbackPlan, type PublicCatalogSeedSummary } from '../lib/publicCatalogSeed'
 import { mergeListText, normalizeKey, slugify, splitList, toggleListTextValue, uniqueNormalizedValues, uniqueValues } from '../lib/strings'
@@ -5533,6 +5533,73 @@ export function ProgressControl({
   )
 }
 
+export function PlaytimeProgressControl({
+  current,
+  onChange,
+}: {
+  current?: number
+  onChange: (patch: ProgressControlPatch) => void
+}) {
+  const currentValue = normalizeOptionalNumber(current) ?? 0
+  const summary = formatProgress({
+    progressCurrent: current,
+    progressUnit: 'hours',
+    type: 'game',
+  })
+  const step = 0.5
+
+  function setCurrent(nextValue?: number) {
+    const playedHours = normalizeOptionalNumber(nextValue)
+    onChange({
+      progress: undefined,
+      progressCurrent: playedHours,
+      progressTotal: undefined,
+      progressUnit: playedHours !== undefined ? 'hours' : undefined,
+    })
+  }
+
+  return (
+    <div className="progress-control playtime-control" role="group" aria-label="Horas jugadas">
+      <div className="progress-control-heading">
+        <span>Horas jugadas</span>
+        <strong>{summary ?? 'Sin horas'}</strong>
+      </div>
+      <div className="progress-stepper-row single">
+        <button
+          aria-label="Reducir horas jugadas"
+          className="progress-step-button"
+          disabled={currentValue <= 0}
+          type="button"
+          onClick={() => setCurrent(currentValue - step)}
+          title="Reducir horas jugadas"
+        >
+          <Minus size={14} />
+        </button>
+        <label>
+          <span className="sr-only">Horas jugadas</span>
+          <input
+            aria-label="Horas jugadas"
+            min="0"
+            step={step}
+            type="number"
+            value={current ?? ''}
+            onChange={(event) => setCurrent(readNumberInput(event.target.value))}
+          />
+        </label>
+        <button
+          aria-label="Aumentar horas jugadas"
+          className="progress-step-button"
+          type="button"
+          onClick={() => setCurrent(currentValue + step)}
+          title="Aumentar horas jugadas"
+        >
+          <Plus size={14} />
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export function formatRatingValue(value: number) {
   return Number.isInteger(value) ? String(value) : value.toFixed(1)
 }
@@ -5943,6 +6010,7 @@ export function ItemEditor({
   const canEditTitleInPrimary = !isMetadataLocked && isNewDraft
   const shouldAutofocusTitle = canEditTitleInPrimary && !draft.title.trim()
   const canSaveDraft = Boolean(draft.title.trim())
+  const progressEditorMode = getProgressEditorMode(draft.type)
   const editorHeroClassName = [
     'editor-hero',
     draft.posterUrl ? 'has-poster' : 'generated-cover',
@@ -5953,12 +6021,30 @@ export function ItemEditor({
   const editorHeroStyle = getPosterBackplateStyle(draft.posterUrl)
   const editorSummaryText =
     draft.notes?.trim() || draft.publicSnapshot?.description?.trim() || `${typeLabels[draft.type]} en tu biblioteca personal.`
-  const progressSummary = formatProgress({
-    ...draft,
-    progressUnit: draft.progressUnit ?? getDefaultProgressUnit(draft.type),
-  })
+  const progressSummary =
+    progressEditorMode === 'none'
+      ? undefined
+      : formatProgress({
+          ...draft,
+          progressUnit: draft.progressUnit ?? getDefaultProgressUnit(draft.type),
+        })
   const personalProgressSummary =
-    progressSummary || (draft.notes?.trim() ? 'Notas personales guardadas.' : 'Estado, nota y notas personales.')
+    progressSummary ||
+    (progressEditorMode === 'playtime'
+      ? 'Registra horas jugadas sin objetivo obligatorio.'
+      : progressEditorMode === 'none'
+        ? 'Estado, nota y notas personales.'
+        : draft.notes?.trim()
+          ? 'Notas personales guardadas.'
+          : 'Estado, nota y notas personales.')
+  const editorProgressTitle = canEditTitleInPrimary
+    ? 'Datos basicos'
+    : progressEditorMode === 'playtime'
+      ? 'Horas jugadas'
+      : progressEditorMode === 'none'
+        ? 'Estado'
+        : 'Progreso'
+  const metadataLockLabel = progressEditorMode === 'none' ? 'Solo personal' : 'Solo progreso'
   const heroSignals = uniqueValues([...selectedGenres, ...selectedTags]).slice(0, 4)
   const readiness = getPersonalEditorReadiness({
     ...draft,
@@ -5992,16 +6078,24 @@ export function ItemEditor({
     const priorityWeight = Number(draft.weights.priority)
     const surpriseWeight = Number(draft.weights.surprise)
     const challengeWeight = Number(draft.weights.challenge)
-    const progressCurrent = normalizeOptionalNumber(draft.progressCurrent)
-    const progressTotal = normalizeOptionalNumber(draft.progressTotal)
-    const progressUnit = progressCurrent !== undefined || progressTotal !== undefined
-      ? draft.progressUnit ?? getDefaultProgressUnit(draft.type)
-      : undefined
+    const structuredProgressCurrent = normalizeOptionalNumber(draft.progressCurrent)
+    const structuredProgressTotal = normalizeOptionalNumber(draft.progressTotal)
+    const progressCurrent =
+      progressEditorMode === 'structured' || progressEditorMode === 'playtime'
+        ? structuredProgressCurrent
+        : undefined
+    const progressTotal = progressEditorMode === 'structured' ? structuredProgressTotal : undefined
+    const progressUnit =
+      progressEditorMode === 'structured' && (progressCurrent !== undefined || progressTotal !== undefined)
+        ? draft.progressUnit ?? getDefaultProgressUnit(draft.type)
+        : progressEditorMode === 'playtime' && progressCurrent !== undefined
+          ? 'hours'
+          : undefined
 
     return {
       ...draft,
       id: draft.id.startsWith('manual-') && draft.title ? `${draft.type}-${slugify(draft.title)}` : draft.id,
-      progress: draft.progress?.trim() || undefined,
+      progress: progressEditorMode === 'structured' ? draft.progress?.trim() || undefined : undefined,
       progressCurrent,
       progressTotal,
       progressUnit,
@@ -6156,7 +6250,7 @@ export function ItemEditor({
             <div className="detail-meta">
               <span>{itemSourceLabels[draft.source]}</span>
               <span>{typeLabels[draft.type]}</span>
-              {isMetadataLocked && <span>Solo progreso</span>}
+              {isMetadataLocked && <span>{metadataLockLabel}</span>}
             </div>
             <h3 id="item-editor-title">{editorTitle}</h3>
             <p>{editorSummaryText}</p>
@@ -6174,7 +6268,7 @@ export function ItemEditor({
           <div className="editor-progress-heading">
             <div>
               <span className="eyebrow">{canEditTitleInPrimary ? 'Nueva obra' : 'Personal'}</span>
-              <h3>{canEditTitleInPrimary ? 'Datos basicos' : 'Progreso'}</h3>
+              <h3>{editorProgressTitle}</h3>
               <p>{personalProgressSummary}</p>
             </div>
           </div>
@@ -6187,14 +6281,22 @@ export function ItemEditor({
           <div className="form-grid editor-progress-fields">
             <StatusControl value={draft.status} onChange={(status) => update('status', status)} />
             <RatingControl value={draft.rating} onChange={(rating) => update('rating', rating)} />
-            <ProgressControl
-              current={draft.progressCurrent}
-              freeText={draft.progress}
-              itemType={draft.type}
-              total={draft.progressTotal}
-              unit={draft.progressUnit}
-              onChange={(patch) => setDraft((current) => ({ ...current, ...patch }))}
-            />
+            {progressEditorMode === 'structured' && (
+              <ProgressControl
+                current={draft.progressCurrent}
+                freeText={draft.progress}
+                itemType={draft.type}
+                total={draft.progressTotal}
+                unit={draft.progressUnit}
+                onChange={(patch) => setDraft((current) => ({ ...current, ...patch }))}
+              />
+            )}
+            {progressEditorMode === 'playtime' && (
+              <PlaytimeProgressControl
+                current={draft.progressCurrent}
+                onChange={(patch) => setDraft((current) => ({ ...current, ...patch }))}
+              />
+            )}
           </div>
         </section>
 

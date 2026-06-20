@@ -9,6 +9,7 @@ import {
   getItemSignals,
   getItemSubtitle,
   getPersonalEditorReadiness,
+  getProgressEditorMode,
   getVisibleItemChips,
   getWeightMeterValue,
   isItemInCooldown,
@@ -43,6 +44,9 @@ describe('library item insights', () => {
     expect(itemTypeLabels.book).toBe('Libros')
     expect(itemStatusLabels.in_progress).toBe('En progreso')
     expect(itemSourceLabels.public).toBe('Catalogo Nexo')
+    expect(getProgressEditorMode('anime')).toBe('structured')
+    expect(getProgressEditorMode('game')).toBe('playtime')
+    expect(getProgressEditorMode('movie')).toBe('none')
   })
 
   it('formats subtitles, durations and visible chips', () => {

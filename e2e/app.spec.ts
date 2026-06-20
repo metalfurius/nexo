@@ -1724,7 +1724,7 @@ test('library and weighted dice work in demo mode', async ({ page }) => {
   expect(editorShellMetrics.heroHeight).toBeGreaterThan(editorShellMetrics.headingHeight)
   expect(editorShellMetrics.heroHeight).toBeLessThanOrEqual(290)
   expect(editorShellMetrics.heroTop - editorShellMetrics.headingBottom).toBeLessThanOrEqual(32)
-  expect(editorShellMetrics.progressHeadingText).toContain('Progreso')
+  expect(editorShellMetrics.progressHeadingText).toContain('Horas jugadas')
   expect(editorShellMetrics.actionTop).toBeLessThanOrEqual(editorShellMetrics.viewportHeight)
   expect(editorShellMetrics.statusButtonCount).toBe(5)
   expect(editorShellMetrics.statusButtonClipped).toBe(false)
@@ -1749,13 +1749,13 @@ test('library and weighted dice work in demo mode', async ({ page }) => {
   await expect(page.getByTestId('personal-readiness')).toContainText('Preparacion')
   await expect(page.getByLabel('Prioridad')).toBeVisible()
   await expect(page.getByLabel('Sorpresa')).toHaveCount(0)
-  await page.getByRole('textbox', { name: 'Progreso' }).fill('Cambio temporal guardado al cerrar.')
+  await outerWildsEditor.getByRole('spinbutton', { name: 'Horas jugadas' }).fill('3.5')
   await page.mouse.click(8, 8)
   await expect(page.getByRole('dialog', { name: 'Entrada' })).not.toBeVisible()
   await expect(page.getByRole('status').filter({ hasText: 'Outer Wilds guardada en Biblioteca' })).toBeVisible()
   await page.locator('.item-main').filter({ hasText: 'Outer Wilds' }).click()
   const savedOuterWildsEditor = page.getByRole('dialog', { name: 'Entrada' })
-  await expect(savedOuterWildsEditor.getByRole('textbox', { name: 'Progreso' })).toHaveValue('Cambio temporal guardado al cerrar.')
+  await expect(savedOuterWildsEditor.getByRole('spinbutton', { name: 'Horas jugadas' })).toHaveValue('3.5')
   await expect(savedOuterWildsEditor.getByRole('button', { name: 'Eliminar entrada' })).toBeVisible()
   await savedOuterWildsEditor.getByRole('button', { name: 'Eliminar entrada' }).click()
   await expect(savedOuterWildsEditor.getByLabel('Confirmar borrado de entrada')).toContainText('Outer Wilds')
@@ -1871,7 +1871,13 @@ test('library and weighted dice work in demo mode', async ({ page }) => {
   const recentEditor = page.getByRole('dialog', { name: 'Entrada' })
   await openEditorAdvanced(recentEditor)
   await expect(recentEditor.getByLabel('Notas')).toHaveValue('Afinada desde el dado.')
-  await recentEditor.getByRole('textbox', { name: 'Progreso' }).fill('Revisada desde historial.')
+  if (await recentEditor.getByRole('textbox', { name: 'Progreso' }).count()) {
+    await recentEditor.getByRole('textbox', { name: 'Progreso' }).fill('Revisada desde historial.')
+  } else if (await recentEditor.getByRole('spinbutton', { name: 'Horas jugadas' }).count()) {
+    await recentEditor.getByRole('spinbutton', { name: 'Horas jugadas' }).fill('2')
+  } else {
+    await recentEditor.getByLabel('Notas').fill('Afinada desde el dado. Revisada desde historial.')
+  }
   await recentEditor.getByRole('button', { name: 'Cerrar', exact: true }).click()
   await expect(page.getByText(/afinada desde el dado\./)).toBeVisible()
   await page.getByRole('button', { name: 'No hoy' }).click()
@@ -3564,6 +3570,28 @@ test('library item deep links open and close the focused editor', async ({ page 
   await expect(page.getByRole('dialog', { name: 'Entrada' }).locator('#item-editor-title')).toHaveText('Outer Wilds')
 })
 
+test('library editor uses type-specific progress controls for games and movies', async ({ page }) => {
+  await page.goto('/?item=game-outer-wilds')
+  const gameEditor = page.getByRole('dialog', { name: 'Entrada' })
+  await expect(gameEditor.locator('#item-editor-title')).toHaveText('Outer Wilds')
+  await expect(gameEditor.getByRole('group', { name: 'Horas jugadas' })).toBeVisible()
+  await expect(gameEditor.getByRole('group', { name: 'Progreso' })).toHaveCount(0)
+  await gameEditor.getByRole('spinbutton', { name: 'Horas jugadas' }).fill('4.5')
+  await gameEditor.getByRole('button', { name: 'Cerrar', exact: true }).click()
+
+  await page.locator('.item-main').filter({ hasText: 'Outer Wilds' }).click()
+  const savedGameEditor = page.getByRole('dialog', { name: 'Entrada' })
+  await expect(savedGameEditor.getByRole('spinbutton', { name: 'Horas jugadas' })).toHaveValue('4.5')
+  await savedGameEditor.getByRole('button', { name: 'Cerrar', exact: true }).click()
+
+  await page.goto('/?item=movie-inception')
+  const movieEditor = page.getByRole('dialog', { name: 'Entrada' })
+  await expect(movieEditor.locator('#item-editor-title')).toHaveText('Inception')
+  await expect(movieEditor.locator('.editor-progress-heading')).toContainText('Estado')
+  await expect(movieEditor.getByRole('group', { name: 'Progreso' })).toHaveCount(0)
+  await expect(movieEditor.getByRole('group', { name: 'Horas jugadas' })).toHaveCount(0)
+})
+
 test('missing item deep links can recover through library search', async ({ page }) => {
   await page.goto('/?item=outer-wilds')
   await expect(page.getByLabel('Actividad sin entrada')).toContainText('outer wilds')
@@ -3582,7 +3610,14 @@ test('dice item activity opens the linked library editor', async ({ page }) => {
 
   const diceEditor = page.getByRole('dialog', { name: 'Entrada' })
   const recommendedTitle = (await diceEditor.locator('#item-editor-title').textContent()) ?? ''
-  await diceEditor.getByRole('textbox', { name: 'Progreso' }).fill('Vuelta desde actividad del dado.')
+  if (await diceEditor.getByRole('textbox', { name: 'Progreso' }).count()) {
+    await diceEditor.getByRole('textbox', { name: 'Progreso' }).fill('Vuelta desde actividad del dado.')
+  } else if (await diceEditor.getByRole('spinbutton', { name: 'Horas jugadas' }).count()) {
+    await diceEditor.getByRole('spinbutton', { name: 'Horas jugadas' }).fill('1.5')
+  } else {
+    await openEditorAdvanced(diceEditor)
+    await diceEditor.getByLabel('Notas').fill('Vuelta desde actividad del dado.')
+  }
   await diceEditor.getByRole('button', { name: 'Cerrar', exact: true }).click()
   await expect(page.getByTestId('session-activity')).toContainText('Ficha afinada')
 

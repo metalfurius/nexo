@@ -6,12 +6,14 @@ import {
   doc,
   getDoc,
   getDocs,
+  increment,
   limit as firestoreLimit,
   onSnapshot,
   orderBy,
   query,
   setDoc,
   type Firestore,
+  where,
   writeBatch,
 } from 'firebase/firestore'
 import {
@@ -28,7 +30,7 @@ import {
 } from '../domain/types'
 import { buildPublicCatalogItem, externalCandidateToDiscovery, publicItemToDiscovery, shouldPreserveDiscoveryDecision } from '../lib/catalog'
 import { rankCatalogSearchCandidates, scoreCatalogSearchCandidate } from '../lib/catalogSearch'
-import { normalizeKey } from '../lib/strings'
+import { normalizeKey, slugify, uniqueValues } from '../lib/strings'
 import { searchExternalSources } from './externalSearch'
 import { getFirebaseServices } from './firebaseDb'
 import { searchRemoteCatalog } from './remoteCatalog'
@@ -208,9 +210,13 @@ export function createFirestoreRepository(userId: string): LibraryRepository | u
         this.searchPublicCatalog(cleanedQuery, type),
         cleanedQuery.length >= 2 ? this.searchExternal(cleanedQuery, type ?? 'any') : Promise.resolve([]),
       ])
+      const ingestedItems = cleanedQuery.length >= 2
+        ? await autoIngestExternalCandidates(services.db, userId, cleanedQuery, type ?? 'any', externalCandidates).catch(() => [])
+        : []
       return rankCatalogSearchCandidates(
         uniqueDiscoveryCandidates([
           ...publicItems.map(publicItemToDiscovery),
+          ...ingestedItems.map(publicItemToDiscovery),
           ...externalCandidates.map(externalCandidateToDiscovery),
         ]),
         cleanedQuery,
@@ -541,6 +547,148 @@ function uniqueDiscoveryCandidates(candidates: DiscoveryCandidate[]) {
     byId.set(`${candidate.source}:${candidate.sourceId}`, candidate)
   }
   return [...byId.values()]
+}
+
+async function autoIngestExternalCandidates(
+  db: Firestore,
+  actorId: string,
+  searchQuery: string,
+  type: string,
+  candidates: ExternalCandidate[],
+) {
+  const timestamp = nowIso()
+  const ingestable = candidates
+    .map((candidate) => ({
+      candidate,
+      score: scoreCatalogSearchCandidate(searchQuery, candidate, type),
+    }))
+    .filter(({ candidate, score }) => score >= 30 && matchesSearchType(candidate.type, type))
+    .sort((left, right) => right.score - left.score || left.candidate.title.localeCompare(right.candidate.title, 'es'))
+    .slice(0, 4)
+
+  const ingestedItems: PublicCatalogItem[] = []
+  for (const { candidate } of ingestable) {
+    const existing = await findExistingPublicItem(db, candidate)
+    if (existing?.data.archivedAt) continue
+
+    if (existing) {
+      await setDoc(
+        existing.ref,
+        {
+          demandCount: increment(1),
+          lastDemandAt: timestamp,
+        },
+        { merge: true },
+      )
+      ingestedItems.push(existing.data)
+      continue
+    }
+
+    const item = buildAutoIngestedPublicItem(candidate, actorId, searchQuery, timestamp)
+    await setDoc(doc(db, 'publicItems', item.id), withoutUndefined(item), { merge: true })
+    ingestedItems.push(item)
+  }
+
+  return ingestedItems
+}
+
+async function findExistingPublicItem(db: Firestore, candidate: ExternalCandidate) {
+  const directRef = doc(db, 'publicItems', createAutoPublicItemId(candidate))
+  const directSnapshot = await getDoc(directRef)
+  if (directSnapshot.exists()) {
+    return { data: directSnapshot.data() as PublicCatalogItem, ref: directRef }
+  }
+
+  const sourceRefKey = externalSourceRefKey(candidate.source)
+  if (sourceRefKey) {
+    const sourceSnapshot = await getDocs(
+      query(collection(db, 'publicItems'), where(`externalRefs.${sourceRefKey}`, '==', candidate.sourceId), firestoreLimit(1)),
+    )
+    const sourceDoc = sourceSnapshot.docs[0]
+    if (sourceDoc?.ref) return { data: sourceDoc.data() as PublicCatalogItem, ref: sourceDoc.ref }
+  }
+
+  const canonicalSnapshot = await getDocs(
+    query(
+      collection(db, 'publicItems'),
+      where('canonicalKey', '==', `${candidate.type}:${normalizeKey(candidate.title)}`),
+      firestoreLimit(1),
+    ),
+  )
+  const canonicalDoc = canonicalSnapshot.docs[0]
+  return canonicalDoc?.ref ? { data: canonicalDoc.data() as PublicCatalogItem, ref: canonicalDoc.ref } : undefined
+}
+
+function buildAutoIngestedPublicItem(
+  candidate: ExternalCandidate,
+  actorId: string,
+  searchQuery: string,
+  timestamp: string,
+) {
+  const sourceRefKey = externalSourceRefKey(candidate.source)
+  const sourceLabel = externalSourceLabel(candidate.source)
+
+  return buildPublicCatalogItem(
+    {
+      id: createAutoPublicItemId(candidate),
+      title: candidate.title,
+      type: candidate.type,
+      description: candidate.overview,
+      releaseYear: candidate.releaseYear,
+      progressTotal: candidate.progressTotal,
+      progressUnit: candidate.progressUnit,
+      genres: candidate.genres,
+      tags: uniqueValues([candidate.type, sourceLabel, ...candidate.genres]),
+      moodTags: [],
+      searchAliases: uniqueValues([searchQuery, ...(candidate.searchAliases ?? [])]).slice(0, 16),
+      externalRefs: {
+        ...candidate.externalRefs,
+        ...(sourceRefKey ? { [sourceRefKey]: candidate.sourceId } : {}),
+      },
+      posterUrl: candidate.posterUrl,
+      createdAt: timestamp,
+      createdBy: actorId,
+      updatedBy: actorId,
+      autoIngestedAt: timestamp,
+      demandCount: 1,
+      lastDemandAt: timestamp,
+    },
+    actorId,
+  )
+}
+
+function createAutoPublicItemId(candidate: ExternalCandidate) {
+  return `${candidate.type}-${candidate.source}-${slugify(candidate.sourceId || candidate.title)}`.slice(0, 120)
+}
+
+function externalSourceRefKey(source: ExternalCandidate['source']) {
+  const keys: Partial<Record<ExternalCandidate['source'], keyof NonNullable<ExternalCandidate['externalRefs']>>> = {
+    anilist: 'anilistId',
+    googleBooks: 'googleBooksId',
+    jikan: 'malId',
+    kitsu: 'kitsuId',
+    mangaDex: 'mangaDexId',
+    openLibrary: 'openLibraryKey',
+    rawg: 'rawgId',
+    tmdb: 'tmdbId',
+    wikidata: 'wikidataId',
+  }
+  return keys[source]
+}
+
+function externalSourceLabel(source: ExternalCandidate['source']) {
+  const labels: Record<ExternalCandidate['source'], string> = {
+    anilist: 'AniList',
+    googleBooks: 'Google Books',
+    jikan: 'Jikan',
+    kitsu: 'Kitsu',
+    mangaDex: 'MangaDex',
+    openLibrary: 'Open Library',
+    rawg: 'RAWG',
+    tmdb: 'TMDB',
+    wikidata: 'Wikidata',
+  }
+  return labels[source]
 }
 
 function withoutUndefined<T>(value: T): T {
