@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { rankCatalogSearchCandidates, scoreCatalogSearchCandidate } from './catalogSearch'
+import { dedupeCatalogSearchCandidates, rankCatalogSearchCandidates, scoreCatalogSearchCandidate } from './catalogSearch'
 
 describe('catalog search relevance', () => {
   it.each([
@@ -197,6 +197,46 @@ describe('catalog search relevance', () => {
     expect(ranked.map((entry) => entry.source)).toEqual(['jikan', 'kitsu', 'mangaDex'])
   })
 
+  it('dedupes public Nexo matches against external providers for the same work', () => {
+    const dune2021Nexo = {
+      ...candidate('Dune', 'movie', 'nexo', { tmdbId: '438631' }),
+      overview: 'Ficha curada de Nexo.',
+      releaseYear: 2021,
+    }
+    const dune2021Tmdb = {
+      ...candidate('Dune', 'movie', 'tmdb', { tmdbId: '438631' }),
+      overview: 'External TMDB copy.',
+      releaseYear: 2021,
+    }
+    const dune1984Tmdb = {
+      ...candidate('Dune', 'movie', 'tmdb', { tmdbId: '841' }),
+      releaseYear: 1984,
+    }
+    const duneGameNexo = {
+      ...candidate('Dune', 'game', 'nexo'),
+      releaseYear: 1992,
+    }
+    const duneGameRawg = {
+      ...candidate('Dune', 'game', 'rawg'),
+      releaseYear: 1992,
+    }
+
+    const ranked = rankCatalogSearchCandidates(
+      dedupeCatalogSearchCandidates([duneGameRawg, dune2021Tmdb, dune2021Nexo, dune1984Tmdb, duneGameNexo]),
+      'Dune',
+      'any',
+    )
+
+    expect(ranked).toHaveLength(3)
+    expect(ranked).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ releaseYear: 2021, source: 'nexo', type: 'movie' }),
+        expect.objectContaining({ releaseYear: 1984, source: 'tmdb', type: 'movie' }),
+        expect.objectContaining({ releaseYear: 1992, source: 'nexo', type: 'game' }),
+      ]),
+    )
+  })
+
   it('keeps the real catalog audit list findable through exact titles or curated aliases', () => {
     const fixtures = [
       ['akatsuki no yona', 'Yona of the Dawn', ['Akatsuki no Yona']],
@@ -247,7 +287,7 @@ describe('catalog search relevance', () => {
 function candidate(
   title: string,
   type: 'anime' | 'book' | 'game' | 'manga' | 'manhwa' | 'movie' | 'series',
-  source: 'anilist' | 'googleBooks' | 'jikan' | 'kitsu' | 'mangaDex' | 'nexo' | 'openLibrary' | 'tmdb',
+  source: 'anilist' | 'googleBooks' | 'jikan' | 'kitsu' | 'mangaDex' | 'nexo' | 'openLibrary' | 'rawg' | 'tmdb',
   externalRefs = {},
 ) {
   return {

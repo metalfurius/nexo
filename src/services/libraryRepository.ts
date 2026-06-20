@@ -29,7 +29,7 @@ import {
   nowIso,
 } from '../domain/types'
 import { buildPublicCatalogItem, externalCandidateToDiscovery, publicItemToDiscovery, shouldPreserveDiscoveryDecision } from '../lib/catalog'
-import { rankCatalogSearchCandidates, scoreCatalogSearchCandidate } from '../lib/catalogSearch'
+import { dedupeCatalogSearchCandidates, rankCatalogSearchCandidates, scoreCatalogSearchCandidate } from '../lib/catalogSearch'
 import { normalizeKey, slugify, uniqueValues } from '../lib/strings'
 import { searchExternalSources } from './externalSearch'
 import { getFirebaseServices } from './firebaseDb'
@@ -544,11 +544,7 @@ async function searchExternalClientSide(searchQuery: string, type: string): Prom
 }
 
 function uniqueDiscoveryCandidates(candidates: DiscoveryCandidate[]) {
-  const byId = new Map<string, DiscoveryCandidate>()
-  for (const candidate of candidates) {
-    byId.set(`${candidate.source}:${candidate.sourceId}`, candidate)
-  }
-  return [...byId.values()]
+  return dedupeCatalogSearchCandidates(candidates)
 }
 
 function shouldEnrichRemoteCatalogCandidates(candidates: DiscoveryCandidate[]) {

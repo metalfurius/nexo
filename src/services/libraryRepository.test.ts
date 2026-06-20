@@ -637,6 +637,86 @@ describe('createFirestoreRepository', () => {
     )
   })
 
+  it('dedupes external catalog matches when Nexo already has the same public item', async () => {
+    const repository = createFirestoreRepository('user-1')
+    const publicDune: PublicCatalogItem = {
+      id: 'movie-dune-2021',
+      title: 'Dune',
+      type: 'movie',
+      description: 'Ficha curada de Nexo.',
+      releaseYear: 2021,
+      genres: ['Ciencia ficcion'],
+      tags: ['Aventura'],
+      moodTags: [],
+      externalRefs: {
+        tmdbId: '438631',
+      },
+      posterUrl: 'https://image.tmdb.org/t/p/w342/dune.jpg',
+      searchTokens: ['dune'],
+      canonicalKey: 'movie:dune',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      createdBy: 'moderator',
+      updatedBy: 'moderator',
+    }
+    const publicRef = { path: 'publicItems/movie-dune-2021' }
+    searchMocks.searchExternalSources.mockResolvedValueOnce([
+      {
+        id: 'tmdb-438631',
+        title: 'Dune',
+        type: 'movie',
+        source: 'tmdb',
+        sourceId: '438631',
+        overview: 'External TMDB copy.',
+        posterUrl: 'https://image.tmdb.org/t/p/w342/dune.jpg',
+        releaseYear: 2021,
+        genres: ['Ciencia ficcion', 'Aventura'],
+        externalRefs: {
+          tmdbId: '438631',
+          sourceUrl: 'https://www.themoviedb.org/movie/438631',
+        },
+        createdAt: '2026-01-01T00:00:00.000Z',
+      },
+    ])
+    mocks.getDocs
+      .mockResolvedValueOnce({
+        docs: [
+          {
+            data: () => publicDune,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        docs: [
+          {
+            data: () => publicDune,
+            ref: publicRef,
+          },
+        ],
+      })
+
+    const results = await repository?.searchCatalog('Dune', 'watch')
+
+    expect(results).toHaveLength(1)
+    expect(results?.[0]).toEqual(
+      expect.objectContaining({
+        origin: 'publicCatalog',
+        publicItemId: 'movie-dune-2021',
+        source: 'nexo',
+        title: 'Dune',
+      }),
+    )
+    expect(results?.some((candidate) => candidate.source === 'tmdb')).toBe(false)
+    expect(mocks.setDoc).toHaveBeenCalledWith(
+      publicRef,
+      expect.objectContaining({
+        demandCount: { kind: 'increment', value: 1 },
+        lastDemandAt: expect.any(String),
+      }),
+      { merge: true },
+    )
+  })
+
   it('enriches stale remote catalog matches that are missing progress metadata', async () => {
     const repository = createFirestoreRepository('user-1')
     const staleRemoteCandidate: DiscoveryCandidate = {

@@ -5920,8 +5920,8 @@ export function SourceCreditsDialog({ onClose }: { onClose: () => void }) {
           <span className="eyebrow">Fuentes externas</span>
           <h2 id="source-credits-title">Catalogos usados por Nexo</h2>
           <p>
-            Nexo busca bajo demanda y guarda solo copias privadas elegidas por ti. Los datos siguen perteneciendo a sus
-            fuentes originales.
+            El catalogo publico se explora sin sembrar busquedas. Biblioteca y Explorador buscan bajo demanda y pueden
+            ampliar Nexo con hallazgos de alta confianza; los datos siguen perteneciendo a sus fuentes originales.
           </p>
         </div>
         <div className="source-credit-list">

@@ -34,7 +34,6 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
   const [loading, setLoading] = useState(false)
   const [status, setStatus] = useState<string | undefined>()
   const publicCount = useMemo(() => candidates.filter((candidate) => candidate.source === 'nexo').length, [candidates])
-  const externalCount = candidates.length - publicCount
 
   useEffect(() => {
     let disposed = false
@@ -73,14 +72,14 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
     try {
       const nextCandidates =
         cleanedQuery.length >= 2
-          ? await library.searchCatalog(cleanedQuery, type)
+          ? (await library.searchPublicCatalog(cleanedQuery, type)).map(library.publicItemToDiscovery).slice(0, 24)
           : (await library.listPublicCatalog()).map(library.publicItemToDiscovery).slice(0, 24)
 
       setCandidates(nextCandidates)
       setStatus(
         nextCandidates.length
           ? `${nextCandidates.length} resultado${nextCandidates.length === 1 ? '' : 's'} para explorar.`
-          : 'Sin resultados todavia. Las busquedas con sesion ayudan a ampliar el catalogo.',
+          : 'Sin resultados en el catalogo publico.',
       )
       if (isSignedIn && cleanedQuery.length >= 2 && nextCandidates.length) {
         onActivity({
@@ -182,8 +181,8 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
               <small>Nexo</small>
             </span>
             <span>
-              <strong>{externalCount}</strong>
-              <small>Externas</small>
+              <strong>{getCatalogTypeSummary(type)}</strong>
+              <small>Filtro</small>
             </span>
             <span>
               <strong>{isSignedIn ? 'Activa' : 'Vista'}</strong>
@@ -254,6 +253,12 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
       )}
     </section>
   )
+}
+
+function getCatalogTypeSummary(type: ExplorerSearchType) {
+  if (type === 'any') return 'Todo'
+  if (type === 'watch') return 'Ver'
+  return typeLabels[type]
 }
 
 function CatalogPublicCard({

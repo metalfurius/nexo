@@ -1,4 +1,4 @@
-import type { ExternalRefs, ItemType, PublicCatalogSnapshot } from '../domain/types'
+import type { ExternalRefs, ItemType, ProgressUnit, PublicCatalogSnapshot } from '../domain/types'
 
 export const CATALOG_RESULTS_PAGE_SIZE = 8
 
@@ -59,6 +59,21 @@ const SOURCE_PRIORITY: Record<string, number> = {
   wikidata: 9,
 }
 
+const EXTERNAL_REF_IDENTITY_KEYS: Array<keyof ExternalRefs> = [
+  'tmdbId',
+  'rawgId',
+  'openLibraryKey',
+  'googleBooksId',
+  'anilistId',
+  'mangaDexId',
+  'kitsuId',
+  'malId',
+  'goodreadsBookId',
+  'isbn',
+  'letterboxdSlug',
+  'wikidataId',
+]
+
 export interface CatalogSearchCandidate {
   title: string
   type: ItemType
@@ -73,6 +88,9 @@ export interface CatalogSearchCandidate {
   publicSnapshot?: PublicCatalogSnapshot
   externalRefs?: ExternalRefs
   releaseYear?: number
+  posterUrl?: string
+  progressTotal?: number
+  progressUnit?: ProgressUnit
 }
 
 interface ScoredCatalogCandidate<Candidate> {
@@ -216,6 +234,20 @@ export function rankCatalogSearchCandidates<Candidate extends CatalogSearchCandi
     .map((entry) => entry.candidate)
 }
 
+export function dedupeCatalogSearchCandidates<Candidate extends CatalogSearchCandidate>(candidates: Candidate[]) {
+  const deduped: Candidate[] = []
+  for (const candidate of candidates) {
+    const duplicateIndex = deduped.findIndex((existing) => areCatalogSearchCandidatesDuplicates(existing, candidate))
+    if (duplicateIndex === -1) {
+      deduped.push(candidate)
+      continue
+    }
+
+    deduped[duplicateIndex] = mergeDuplicateCatalogCandidate(deduped[duplicateIndex], candidate)
+  }
+  return deduped
+}
+
 function compareScoredCandidates<Candidate extends CatalogSearchCandidate>(
   left: ScoredCatalogCandidate<Candidate>,
   right: ScoredCatalogCandidate<Candidate>,
@@ -228,6 +260,78 @@ function compareScoredCandidates<Candidate extends CatalogSearchCandidate>(
   if (leftSource !== rightSource) return leftSource - rightSource
 
   return left.candidate.title.localeCompare(right.candidate.title, 'es') || left.index - right.index
+}
+
+function areCatalogSearchCandidatesDuplicates(left: CatalogSearchCandidate, right: CatalogSearchCandidate) {
+  if (left.source && right.source && left.source === right.source && left.sourceId && left.sourceId === right.sourceId) return true
+  if (hasSharedExternalIdentity(left.externalRefs, right.externalRefs)) return true
+  if (left.type !== right.type) return false
+  if (normalizeCatalogSearchText(left.title) !== normalizeCatalogSearchText(right.title)) return false
+  return areReleaseYearsCompatible(left.releaseYear, right.releaseYear)
+}
+
+function hasSharedExternalIdentity(leftRefs?: ExternalRefs, rightRefs?: ExternalRefs) {
+  if (!leftRefs || !rightRefs) return false
+  return EXTERNAL_REF_IDENTITY_KEYS.some((key) => {
+    const leftValue = leftRefs[key]
+    const rightValue = rightRefs[key]
+    return Boolean(leftValue && rightValue && leftValue === rightValue)
+  })
+}
+
+function areReleaseYearsCompatible(leftYear?: number, rightYear?: number) {
+  if (typeof leftYear === 'number' && typeof rightYear === 'number') return leftYear === rightYear
+  return leftYear === undefined && rightYear === undefined
+}
+
+function mergeDuplicateCatalogCandidate<Candidate extends CatalogSearchCandidate>(left: Candidate, right: Candidate): Candidate {
+  const primary = compareCatalogCandidatePreference(left, right) <= 0 ? left : right
+  const secondary = primary === left ? right : left
+  return {
+    ...primary,
+    overview: primary.overview || secondary.overview,
+    releaseYear: primary.releaseYear ?? secondary.releaseYear,
+    posterUrl: primary.posterUrl || secondary.posterUrl,
+    progressTotal: primary.progressTotal ?? secondary.progressTotal,
+    progressUnit: primary.progressUnit ?? secondary.progressUnit,
+    genres: mergeStringLists(primary.genres, secondary.genres),
+    tags: mergeStringLists(primary.tags, secondary.tags),
+    moodTags: mergeStringLists(primary.moodTags, secondary.moodTags),
+    searchAliases: mergeStringLists(primary.searchAliases, secondary.searchAliases),
+    externalRefs: {
+      ...(secondary.externalRefs ?? {}),
+      ...(primary.externalRefs ?? {}),
+    },
+  } as Candidate
+}
+
+function compareCatalogCandidatePreference(left: CatalogSearchCandidate, right: CatalogSearchCandidate) {
+  const sourceDelta = (SOURCE_PRIORITY[left.source ?? ''] ?? 99) - (SOURCE_PRIORITY[right.source ?? ''] ?? 99)
+  if (sourceDelta !== 0) return sourceDelta
+
+  const leftCompleteness = getCatalogCandidateCompleteness(left)
+  const rightCompleteness = getCatalogCandidateCompleteness(right)
+  if (leftCompleteness !== rightCompleteness) return rightCompleteness - leftCompleteness
+
+  return 0
+}
+
+function getCatalogCandidateCompleteness(candidate: CatalogSearchCandidate) {
+  return [
+    candidate.overview,
+    candidate.posterUrl,
+    candidate.releaseYear,
+    candidate.progressTotal,
+    candidate.progressUnit,
+    candidate.genres?.length,
+    candidate.tags?.length,
+    candidate.searchAliases?.length,
+    candidate.externalRefs && Object.keys(candidate.externalRefs).length,
+  ].filter(Boolean).length
+}
+
+function mergeStringLists(left: string[] | undefined, right: string[] | undefined) {
+  return [...new Set([...(left ?? []), ...(right ?? [])].map((value) => value.trim()).filter(Boolean))]
 }
 
 function getCandidateTitleFields(candidate: CatalogSearchCandidate) {

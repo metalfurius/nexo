@@ -936,6 +936,33 @@ test('public catalog is the default entry surface', async ({ page }) => {
   await expect(page.getByLabel('Rail catalogo: espacio publicitario desactivado')).toContainText('Anuncio')
 })
 
+test('public catalog search does not query external providers', async ({ page }) => {
+  let openLibraryCalls = 0
+  await page.route('https://openlibrary.org/search.json**', async (route) => {
+    openLibraryCalls += 1
+    await route.fulfill({
+      contentType: 'application/json',
+      json: {
+        docs: [
+          {
+            author_name: ['Frank Herbert'],
+            key: '/works/OL893415W',
+            title: 'Dune',
+          },
+        ],
+      },
+    })
+  })
+
+  await page.goto('/')
+  await page.getByLabel('Buscar en el catalogo publico').fill('Dune')
+  await page.getByLabel('Tipo de obra').selectOption('book')
+  await page.getByRole('button', { name: /^Buscar$/ }).click()
+
+  await expect(page.getByRole('status').filter({ hasText: 'Sin resultados en el catalogo publico.' })).toBeVisible()
+  expect(openLibraryCalls).toBe(0)
+})
+
 test('shell navigation keeps clear labels without responsive overflow', async ({ page }) => {
   await page.setViewportSize({ width: 1920, height: 1080 })
   await page.goto('/?tab=library')

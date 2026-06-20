@@ -28,7 +28,7 @@ import {
   publicItemToDiscovery,
   shouldPreserveDiscoveryDecision,
 } from '../lib/catalog'
-import { rankCatalogSearchCandidates, scoreCatalogSearchCandidate } from '../lib/catalogSearch'
+import { dedupeCatalogSearchCandidates, rankCatalogSearchCandidates, scoreCatalogSearchCandidate } from '../lib/catalogSearch'
 import { slugify, uniqueValues } from '../lib/strings'
 import { isFirebaseConfigured } from '../services/firebaseConfig'
 import { isFirestoreOfflinePersistenceEnabled } from '../services/devicePreferences'
@@ -744,11 +744,7 @@ function mergeCandidates(nextCandidates: DiscoveryCandidate[], currentCandidates
 }
 
 function uniqueDiscoveryCandidates(candidates: DiscoveryCandidate[]) {
-  const byId = new Map<string, DiscoveryCandidate>()
-  for (const candidate of candidates) {
-    byId.set(`${candidate.source}:${candidate.sourceId}`, candidate)
-  }
-  return [...byId.values()]
+  return dedupeCatalogSearchCandidates(candidates)
 }
 
 function mergeSettings(settings: Partial<UserSettings>): UserSettings {

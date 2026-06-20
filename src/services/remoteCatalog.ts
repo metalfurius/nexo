@@ -1,7 +1,7 @@
 import { httpsCallable } from 'firebase/functions'
 import type { DiscoveryCandidate, ExternalCandidate, ExternalSource, ItemType, ProgressUnit } from '../domain/types'
 import { externalCandidateToDiscovery, publicItemToDiscovery } from '../lib/catalog'
-import { rankCatalogSearchCandidates } from '../lib/catalogSearch'
+import { dedupeCatalogSearchCandidates, rankCatalogSearchCandidates } from '../lib/catalogSearch'
 import { getFirebaseFunctionsClient } from './firebaseFunctions'
 import { normalizePublicCatalogItems } from './publicCatalog'
 
@@ -60,11 +60,7 @@ function normalizeExternalCandidate(value: unknown): ExternalCandidate[] {
 }
 
 function uniqueDiscoveryCandidates(candidates: DiscoveryCandidate[]) {
-  const byId = new Map<string, DiscoveryCandidate>()
-  for (const candidate of candidates) {
-    byId.set(`${candidate.source}:${candidate.sourceId}`, candidate)
-  }
-  return [...byId.values()]
+  return dedupeCatalogSearchCandidates(candidates)
 }
 
 function readExternalRefs(value: unknown) {
