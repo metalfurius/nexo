@@ -204,7 +204,6 @@ export function createFirestoreRepository(userId: string): LibraryRepository | u
       let remoteCandidates: DiscoveryCandidate[] | undefined
       if (cleanedQuery.length >= 2) {
         remoteCandidates = await searchRemoteCatalog(cleanedQuery, type).catch(() => undefined)
-        if (remoteCandidates?.length && !shouldEnrichRemoteCatalogCandidates(remoteCandidates)) return remoteCandidates
       }
 
       const [publicItems, externalCandidates] = await Promise.all([
@@ -545,19 +544,6 @@ async function searchExternalClientSide(searchQuery: string, type: string): Prom
 
 function uniqueDiscoveryCandidates(candidates: DiscoveryCandidate[]) {
   return dedupeCatalogSearchCandidates(candidates)
-}
-
-function shouldEnrichRemoteCatalogCandidates(candidates: DiscoveryCandidate[]) {
-  return candidates.some((candidate) => shouldHaveProgressMetadata(candidate.type) && candidate.progressTotal === undefined)
-}
-
-function shouldHaveProgressMetadata(type: DiscoveryCandidate['type']) {
-  return type === 'anime' ||
-    type === 'series' ||
-    type === 'book' ||
-    type === 'manga' ||
-    type === 'manhwa' ||
-    type === 'comic'
 }
 
 async function autoIngestExternalCandidates(

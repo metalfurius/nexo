@@ -787,7 +787,7 @@ describe('createFirestoreRepository', () => {
     )
   })
 
-  it('trusts remote catalog matches that already include progress metadata', async () => {
+  it('keeps ingesting private-search demand when remote catalog matches are already complete', async () => {
     const repository = createFirestoreRepository('user-1')
     searchMocks.searchRemoteCatalog.mockResolvedValueOnce([
       {
@@ -810,16 +810,49 @@ describe('createFirestoreRepository', () => {
         updatedAt: '2026-01-01T00:00:00.000Z',
       },
     ] satisfies DiscoveryCandidate[])
+    searchMocks.searchExternalSources.mockResolvedValueOnce([
+      {
+        id: 'anilist-154587',
+        title: 'Frieren: Beyond Journey End',
+        type: 'anime',
+        source: 'anilist',
+        sourceId: '154587',
+        overview: 'A quiet fantasy journey.',
+        posterUrl: 'https://img.anili.st/media/154587.jpg',
+        releaseYear: 2023,
+        progressTotal: 28,
+        progressUnit: 'episodes',
+        genres: ['Fantasy', 'Adventure'],
+        searchAliases: ['Sousou no Frieren'],
+        externalRefs: {
+          anilistId: '154587',
+          sourceUrl: 'https://anilist.co/anime/154587',
+        },
+        createdAt: '2026-01-01T00:00:00.000Z',
+      },
+    ])
 
     const results = await repository?.searchCatalog('Frieren', 'anime')
 
-    expect(searchMocks.searchExternalSources).not.toHaveBeenCalled()
-    expect(mocks.getDocs).not.toHaveBeenCalled()
-    expect(results).toEqual([
+    expect(searchMocks.searchExternalSources).toHaveBeenCalledWith('Frieren', 'anime')
+    expect(mocks.setDoc).toHaveBeenCalledWith(
+      expect.objectContaining({ path: 'publicItems/anime-anilist-154587' }),
       expect.objectContaining({
+        autoIngestedAt: expect.any(String),
+        demandCount: 1,
         progressTotal: 28,
         progressUnit: 'episodes',
       }),
-    ])
+      { merge: true },
+    )
+    expect(results).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        origin: 'publicCatalog',
+        publicItemId: 'anime-anilist-154587',
+        progressTotal: 28,
+        progressUnit: 'episodes',
+        source: 'nexo',
+      }),
+    ]))
   })
 })
