@@ -68,8 +68,7 @@ export const searchExternal = onCall(
     }
 
     const candidates = await searchByType(query, type)
-    const ingestedItems = await ingestExternalCandidates(query, type, candidates).catch(() => [])
-    return { candidates: candidates.slice(0, 8), ingestedItems }
+    return { candidates: candidates.slice(0, 8), ingestedItems: [] }
   },
 )
 
@@ -113,13 +112,12 @@ export const searchCatalog = onCall(
       searchPublicCatalogItems(query, type, 12),
       searchByType(query, type).catch(() => []),
     ])
-    const ingestedItems = await ingestExternalCandidates(query, type, externalCandidates).catch(() => [])
-    const items = rankPublicItems(uniquePublicItems([...publicItems, ...ingestedItems]), query, type, 24)
+    const items = rankPublicItems(uniquePublicItems(publicItems), query, type, 24)
     await recordCatalogSearch(query, type, items.length)
 
     return {
       candidates: externalCandidates.slice(0, 12),
-      ingestedItems,
+      ingestedItems: [],
       items,
     }
   },
@@ -357,179 +355,6 @@ async function recordCatalogSearch(query: string, type: SearchType, resultCount:
   )
 }
 
-async function ingestExternalCandidates(query: string, type: SearchType, candidates: ExternalCandidate[]) {
-  const db = getFirestore()
-  const timestamp = new Date().toISOString()
-  const ingestable = candidates
-    .map((candidate) => ({
-      candidate,
-      score: scoreExternalCandidate(candidate, query, type),
-    }))
-    .filter((entry) => entry.score >= 30 && matchesSearchType(entry.candidate.type, type))
-    .sort((left, right) => right.score - left.score || left.candidate.title.localeCompare(right.candidate.title, 'es'))
-    .slice(0, 4)
-
-  const ingestedItems: PublicCatalogItem[] = []
-  for (const { candidate } of ingestable) {
-    const existing = await findExistingPublicItem(candidate)
-    if (existing?.data.archivedAt) continue
-
-    if (existing) {
-      const nextItem = mergeAutoIngestedPublicItem(existing.data, candidate, timestamp)
-      await existing.ref.set(
-        stripUndefined({
-          ...nextItem,
-          demandCount: FieldValue.increment(1),
-          lastDemandAt: timestamp,
-        }),
-        { merge: true },
-      )
-      ingestedItems.push(nextItem)
-      continue
-    }
-
-    const item = buildAutoIngestedPublicItem(candidate, query, timestamp)
-    await db.collection('publicItems').doc(item.id).set(
-      stripUndefined({
-        ...item,
-        demandCount: 1,
-        lastDemandAt: timestamp,
-      }),
-      { merge: true },
-    )
-    ingestedItems.push(item)
-  }
-
-  return ingestedItems
-}
-
-async function findExistingPublicItem(candidate: ExternalCandidate) {
-  const db = getFirestore()
-  const itemId = createAutoPublicItemId(candidate)
-  const directRef = db.collection('publicItems').doc(itemId)
-  const directSnapshot = await directRef.get()
-  if (directSnapshot.exists) {
-    return { data: directSnapshot.data() as PublicCatalogItem, ref: directRef }
-  }
-
-  const sourceRefKey = externalSourceRefKey(candidate.source)
-  if (sourceRefKey) {
-    const sourceSnapshot = await db
-      .collection('publicItems')
-      .where(`externalRefs.${sourceRefKey}`, '==', candidate.sourceId)
-      .limit(1)
-      .get()
-    const sourceDoc = sourceSnapshot.docs[0]
-    if (sourceDoc) return { data: sourceDoc.data() as PublicCatalogItem, ref: sourceDoc.ref }
-  }
-
-  const canonicalSnapshot = await db
-    .collection('publicItems')
-    .where('canonicalKey', '==', `${normalizeCatalogType(candidate.type)}:${normalizeKey(candidate.title)}`)
-    .limit(1)
-    .get()
-  const canonicalDoc = canonicalSnapshot.docs[0]
-  return canonicalDoc ? { data: canonicalDoc.data() as PublicCatalogItem, ref: canonicalDoc.ref } : undefined
-}
-
-function buildAutoIngestedPublicItem(candidate: ExternalCandidate, query: string, timestamp: string): PublicCatalogItem {
-  const type = normalizeCatalogType(candidate.type)
-  const genres = uniqueValues(asStringArray(candidate.genres))
-  const sourceTag = externalSourceLabel(candidate.source)
-  const tags = uniqueValues([type, sourceTag].filter(Boolean))
-  const searchAliases = uniqueValues(asStringArray(candidate.searchAliases))
-  return {
-    id: createAutoPublicItemId(candidate),
-    title: candidate.title.trim(),
-    type,
-    description: optionalString(candidate.overview),
-    releaseYear: candidate.releaseYear,
-    progressTotal: candidate.progressTotal,
-    progressUnit: normalizeProgressUnit(candidate.progressUnit),
-    genres,
-    tags,
-    moodTags: [],
-    searchAliases,
-    externalRefs: asExternalRefs({
-      ...candidate.externalRefs,
-      [externalSourceRefKey(candidate.source) ?? `${candidate.source}Id`]: candidate.sourceId,
-    }),
-    posterUrl: optionalString(candidate.posterUrl),
-    searchTokens: createSearchTokens({
-      title: candidate.title,
-      type,
-      genres,
-      tags,
-      searchAliases: uniqueValues([query, ...searchAliases]),
-      releaseYear: candidate.releaseYear,
-    }),
-    canonicalKey: `${type}:${normalizeKey(candidate.title)}`,
-    createdAt: timestamp,
-    updatedAt: timestamp,
-    createdBy: 'system:auto-ingest',
-    updatedBy: 'system:auto-ingest',
-    autoIngestedAt: timestamp,
-  }
-}
-
-function mergeAutoIngestedPublicItem(existing: PublicCatalogItem, candidate: ExternalCandidate, timestamp: string): PublicCatalogItem {
-  const type = normalizeCatalogType(existing.type || candidate.type)
-  const genres = uniqueValues([...(existing.genres ?? []), ...candidate.genres])
-  const tags = uniqueValues([...(existing.tags ?? []), type, externalSourceLabel(candidate.source)])
-  const searchAliases = uniqueValues([...(existing.searchAliases ?? []), ...(candidate.searchAliases ?? [])])
-  const externalRefs = asExternalRefs({
-    ...existing.externalRefs,
-    ...candidate.externalRefs,
-    [externalSourceRefKey(candidate.source) ?? `${candidate.source}Id`]: candidate.sourceId,
-  })
-
-  return {
-    ...existing,
-    type,
-    description: existing.description || optionalString(candidate.overview),
-    releaseYear: existing.releaseYear ?? candidate.releaseYear,
-    progressTotal: existing.progressTotal ?? candidate.progressTotal,
-    progressUnit: existing.progressUnit ?? normalizeProgressUnit(candidate.progressUnit),
-    genres,
-    tags,
-    searchAliases,
-    externalRefs,
-    posterUrl: existing.posterUrl || optionalString(candidate.posterUrl),
-    searchTokens: createSearchTokens({
-      title: existing.title,
-      type,
-      genres,
-      tags,
-      searchAliases,
-      releaseYear: existing.releaseYear ?? candidate.releaseYear,
-    }),
-    canonicalKey: existing.canonicalKey || `${type}:${normalizeKey(existing.title)}`,
-    updatedAt: timestamp,
-    updatedBy: 'system:auto-ingest',
-    lastDemandAt: timestamp,
-  }
-}
-
-function scoreExternalCandidate(candidate: ExternalCandidate, query: string, type: SearchType) {
-  const queryKey = normalizeKey(query)
-  const titleKey = normalizeKey(candidate.title)
-  const queryTokens = queryKey.split(/\s+/).filter(Boolean)
-  let score = 0
-
-  if (titleKey === queryKey) score += 80
-  if (titleKey.includes(queryKey)) score += 35
-  for (const token of queryTokens) {
-    if (titleKey.includes(token)) score += 8
-  }
-  if (matchesSearchType(candidate.type, type)) score += 15
-  if (candidate.posterUrl) score += 10
-  if (candidate.overview) score += 8
-  if (candidate.releaseYear) score += 5
-  if (candidate.genres.length) score += 4
-  if (candidate.sourceId) score += 5
-  return score
-}
-
 function rankPublicItems(items: PublicCatalogItem[], query: string, type: SearchType, resultLimit: number) {
   const tokens = createSearchTokens({ title: query })
   return items
@@ -548,26 +373,6 @@ function uniquePublicItems(items: PublicCatalogItem[]) {
     byKey.set(item.canonicalKey || `${item.type}:${normalizeKey(item.title)}`, item)
   }
   return [...byKey.values()]
-}
-
-function createAutoPublicItemId(candidate: ExternalCandidate) {
-  return `${normalizeCatalogType(candidate.type)}-${candidate.source}-${slugify(candidate.sourceId || candidate.title)}`.slice(0, 120)
-}
-
-function externalSourceRefKey(source: ExternalCandidate['source']) {
-  const keys: Record<ExternalCandidate['source'], string> = {
-    anilist: 'anilistId',
-    openLibrary: 'openLibraryKey',
-  }
-  return keys[source]
-}
-
-function externalSourceLabel(source: ExternalCandidate['source']) {
-  const labels: Record<ExternalCandidate['source'], string> = {
-    anilist: 'AniList',
-    openLibrary: 'Open Library',
-  }
-  return labels[source]
 }
 
 async function assertWithinRateLimit(uid: string, key: string, maxPerMinute: number) {

@@ -240,12 +240,12 @@ function getListItemProgressDefaults(candidate: Pick<DiscoveryCandidate, 'progre
   if (candidate.type === 'game' || candidate.type === 'movie' || candidate.type === 'other') return {}
 
   const progressTotal = readPositiveNumber(candidate.progressTotal)
-  if (progressTotal === undefined) return {}
+  const progressUnit = candidate.progressUnit ?? getDefaultCatalogProgressUnit(candidate.type)
 
   return {
     progressCurrent: 0,
     progressTotal,
-    progressUnit: candidate.progressUnit ?? getDefaultCatalogProgressUnit(candidate.type),
+    progressUnit,
   }
 }
 

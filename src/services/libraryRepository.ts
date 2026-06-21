@@ -71,6 +71,7 @@ export interface LibraryRepository {
   dismissDiscoveryCandidate: (candidateId: string) => Promise<void>
   restoreDiscoveryCandidate: (candidateId: string) => Promise<void>
   markDiscoveryCandidateSaved: (candidateId: string, savedItemId: string) => Promise<void>
+  recordDiscoverySaveToPublicCatalog: (candidate: DiscoveryCandidate) => Promise<void>
   ensureUserProfile: (profile: Partial<UserProfile>) => Promise<void>
   subscribeUserProfile: (
     onProfile: (profile: UserProfile | undefined, snapshotState: RepositorySnapshotState) => void,
@@ -210,14 +211,10 @@ export function createFirestoreRepository(userId: string): LibraryRepository | u
         this.searchPublicCatalog(cleanedQuery, type),
         cleanedQuery.length >= 2 ? this.searchExternal(cleanedQuery, type ?? 'any') : Promise.resolve([]),
       ])
-      const ingestedItems = cleanedQuery.length >= 2
-        ? await autoIngestExternalCandidates(services.db, userId, cleanedQuery, type ?? 'any', externalCandidates).catch(() => [])
-        : []
       return rankCatalogSearchCandidates(
         uniqueDiscoveryCandidates([
           ...(remoteCandidates ?? []),
           ...publicItems.map(publicItemToDiscovery),
-          ...ingestedItems.map(publicItemToDiscovery),
           ...externalCandidates.map(externalCandidateToDiscovery),
         ]),
         cleanedQuery,
@@ -324,6 +321,9 @@ export function createFirestoreRepository(userId: string): LibraryRepository | u
         },
         { merge: true },
       )
+    },
+    async recordDiscoverySaveToPublicCatalog(candidate) {
+      await recordSavedDiscoveryCandidateInPublicCatalog(services.db, userId, candidate)
     },
     async ensureUserProfile(profile) {
       const snapshot = await getDoc(userProfileDocument)
@@ -546,63 +546,58 @@ function uniqueDiscoveryCandidates(candidates: DiscoveryCandidate[]) {
   return dedupeCatalogSearchCandidates(candidates)
 }
 
-async function autoIngestExternalCandidates(
+async function recordSavedDiscoveryCandidateInPublicCatalog(
   db: Firestore,
   actorId: string,
-  searchQuery: string,
-  type: string,
-  candidates: ExternalCandidate[],
+  candidate: DiscoveryCandidate,
 ) {
   const timestamp = nowIso()
-  const ingestable = candidates
-    .map((candidate) => ({
-      candidate,
-      score: scoreCatalogSearchCandidate(searchQuery, candidate, type),
-    }))
-    .filter(({ candidate, score }) => score >= 30 && matchesSearchType(candidate.type, type))
-    .sort((left, right) => right.score - left.score || left.candidate.title.localeCompare(right.candidate.title, 'es'))
-    .slice(0, 4)
+  const existing = await findExistingPublicItem(db, candidate)
+  if (existing?.data.archivedAt) return
 
-  const ingestedItems: PublicCatalogItem[] = []
-  for (const { candidate } of ingestable) {
-    const existing = await findExistingPublicItem(db, candidate)
-    if (existing?.data.archivedAt) continue
-
-    if (existing) {
-      await setDoc(
-        existing.ref,
-        {
-          demandCount: increment(1),
-          lastDemandAt: timestamp,
-        },
-        { merge: true },
-      )
-      ingestedItems.push(existing.data)
-      continue
-    }
-
-    const item = buildAutoIngestedPublicItem(candidate, actorId, searchQuery, timestamp)
-    await setDoc(doc(db, 'publicItems', item.id), withoutUndefined(item), { merge: true })
-    ingestedItems.push(item)
+  if (existing) {
+    await setDoc(
+      existing.ref,
+      {
+        demandCount: increment(1),
+        lastDemandAt: timestamp,
+      },
+      { merge: true },
+    )
+    return
   }
 
-  return ingestedItems
+  if (!isExternalDiscoveryCandidate(candidate)) return
+
+  const item = buildAutoIngestedPublicItem(candidate, actorId, timestamp)
+  await setDoc(doc(db, 'publicItems', item.id), withoutUndefined(item), { merge: true })
 }
 
-async function findExistingPublicItem(db: Firestore, candidate: ExternalCandidate) {
-  const directRef = doc(db, 'publicItems', createAutoPublicItemId(candidate))
-  const directSnapshot = await getDoc(directRef)
-  if (directSnapshot.exists()) {
-    return { data: directSnapshot.data() as PublicCatalogItem, ref: directRef }
+async function findExistingPublicItem(db: Firestore, candidate: DiscoveryCandidate) {
+  const publicItemId = candidate.publicItemId || (candidate.source === 'nexo' ? candidate.sourceId : undefined)
+  if (publicItemId) {
+    const publicRef = doc(db, 'publicItems', publicItemId)
+    const publicSnapshot = await getDoc(publicRef)
+    if (publicSnapshot.exists()) {
+      return { data: publicSnapshot.data() as PublicCatalogItem, ref: publicRef }
+    }
   }
 
-  const sourceRefKey = externalSourceRefKey(candidate.source)
-  if (sourceRefKey) {
-    const sourceSnapshot = await getDocs(
-      query(collection(db, 'publicItems'), where(`externalRefs.${sourceRefKey}`, '==', candidate.sourceId), firestoreLimit(1)),
-    )
-    const sourceDoc = sourceSnapshot.docs[0]
-    if (sourceDoc?.ref) return { data: sourceDoc.data() as PublicCatalogItem, ref: sourceDoc.ref }
+  if (isExternalDiscoveryCandidate(candidate)) {
+    const directRef = doc(db, 'publicItems', createAutoPublicItemId(candidate))
+    const directSnapshot = await getDoc(directRef)
+    if (directSnapshot.exists()) {
+      return { data: directSnapshot.data() as PublicCatalogItem, ref: directRef }
+    }
+
+    const sourceRefKey = externalSourceRefKey(candidate.source)
+    if (sourceRefKey) {
+      const sourceSnapshot = await getDocs(
+        query(collection(db, 'publicItems'), where(`externalRefs.${sourceRefKey}`, '==', candidate.sourceId), firestoreLimit(1)),
+      )
+      const sourceDoc = sourceSnapshot.docs[0]
+      if (sourceDoc?.ref) return { data: sourceDoc.data() as PublicCatalogItem, ref: sourceDoc.ref }
+    }
   }
 
   const canonicalSnapshot = await getDocs(
@@ -617,13 +612,13 @@ async function findExistingPublicItem(db: Firestore, candidate: ExternalCandidat
 }
 
 function buildAutoIngestedPublicItem(
-  candidate: ExternalCandidate,
+  candidate: DiscoveryCandidate & { source: ExternalCandidate['source'] },
   actorId: string,
-  searchQuery: string,
   timestamp: string,
 ) {
   const sourceRefKey = externalSourceRefKey(candidate.source)
   const sourceLabel = externalSourceLabel(candidate.source)
+  const searchAliases = candidate.publicSnapshot?.searchAliases ?? []
 
   return buildPublicCatalogItem(
     {
@@ -637,7 +632,7 @@ function buildAutoIngestedPublicItem(
       genres: candidate.genres,
       tags: uniqueValues([candidate.type, sourceLabel, ...candidate.genres]),
       moodTags: [],
-      searchAliases: uniqueValues([searchQuery, ...(candidate.searchAliases ?? [])]).slice(0, 16),
+      searchAliases: uniqueValues(searchAliases).slice(0, 16),
       externalRefs: {
         ...candidate.externalRefs,
         ...(sourceRefKey ? { [sourceRefKey]: candidate.sourceId } : {}),
@@ -654,7 +649,15 @@ function buildAutoIngestedPublicItem(
   )
 }
 
-function createAutoPublicItemId(candidate: ExternalCandidate) {
+function isExternalDiscoveryCandidate(
+  candidate: DiscoveryCandidate,
+): candidate is DiscoveryCandidate & { source: ExternalCandidate['source'] } {
+  return candidate.source !== 'nexo' && candidate.source !== 'prompt'
+}
+
+function createAutoPublicItemId(
+  candidate: Pick<DiscoveryCandidate, 'source' | 'sourceId' | 'title' | 'type'> & { source: ExternalCandidate['source'] },
+) {
   return `${candidate.type}-${candidate.source}-${slugify(candidate.sourceId || candidate.title)}`.slice(0, 120)
 }
 

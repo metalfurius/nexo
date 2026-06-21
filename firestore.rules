@@ -102,7 +102,10 @@ service cloud.firestore {
           'demandCount',
           'lastDemandAt'
         ])
-        && request.resource.data.demandCount == resource.data.demandCount + 1
+        && (
+          (resource.data.demandCount is number && request.resource.data.demandCount == resource.data.demandCount + 1) ||
+          (!('demandCount' in resource.data) && request.resource.data.demandCount == 1)
+        )
         && request.resource.data.lastDemandAt is string;
     }
 

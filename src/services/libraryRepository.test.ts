@@ -582,7 +582,7 @@ describe('createFirestoreRepository', () => {
     )
   })
 
-  it('auto-ingests strong external catalog matches for signed-in searches', async () => {
+  it('does not write public catalog items from signed-in searches', async () => {
     const repository = createFirestoreRepository('user-1')
     searchMocks.searchExternalSources.mockResolvedValueOnce([
       {
@@ -613,31 +613,17 @@ describe('createFirestoreRepository', () => {
     const results = await repository?.searchCatalog('Frieren', 'anime')
 
     expect(searchMocks.searchRemoteCatalog).toHaveBeenCalledWith('Frieren', 'anime')
-    expect(mocks.setDoc).toHaveBeenCalledWith(
-      expect.objectContaining({ path: 'publicItems/anime-anilist-154587' }),
-      expect.objectContaining({
-        autoIngestedAt: expect.any(String),
-        canonicalKey: 'anime:frieren beyond journey end',
-        createdBy: 'user-1',
-        demandCount: 1,
-        progressTotal: 28,
-        progressUnit: 'episodes',
-        title: 'Frieren: Beyond Journey End',
-        updatedBy: 'user-1',
-      }),
-      { merge: true },
-    )
+    expect(mocks.setDoc).not.toHaveBeenCalled()
     expect(results?.[0]).toEqual(
       expect.objectContaining({
-        origin: 'publicCatalog',
-        publicItemId: 'anime-anilist-154587',
-        source: 'nexo',
+        origin: 'externalSearch',
+        source: 'anilist',
         title: 'Frieren: Beyond Journey End',
       }),
     )
   })
 
-  it('dedupes external catalog matches when Nexo already has the same public item', async () => {
+  it('dedupes external catalog matches when Nexo already has the same public item without bumping demand on search', async () => {
     const repository = createFirestoreRepository('user-1')
     const publicDune: PublicCatalogItem = {
       id: 'movie-dune-2021',
@@ -659,7 +645,6 @@ describe('createFirestoreRepository', () => {
       createdBy: 'moderator',
       updatedBy: 'moderator',
     }
-    const publicRef = { path: 'publicItems/movie-dune-2021' }
     searchMocks.searchExternalSources.mockResolvedValueOnce([
       {
         id: 'tmdb-438631',
@@ -686,38 +671,15 @@ describe('createFirestoreRepository', () => {
           },
         ],
       })
-      .mockResolvedValueOnce({
-        docs: [
-          {
-            data: () => publicDune,
-            ref: publicRef,
-          },
-        ],
-      })
 
     const results = await repository?.searchCatalog('Dune', 'watch')
 
     expect(results).toHaveLength(1)
-    expect(results?.[0]).toEqual(
-      expect.objectContaining({
-        origin: 'publicCatalog',
-        publicItemId: 'movie-dune-2021',
-        source: 'nexo',
-        title: 'Dune',
-      }),
-    )
-    expect(results?.some((candidate) => candidate.source === 'tmdb')).toBe(false)
-    expect(mocks.setDoc).toHaveBeenCalledWith(
-      publicRef,
-      expect.objectContaining({
-        demandCount: { kind: 'increment', value: 1 },
-        lastDemandAt: expect.any(String),
-      }),
-      { merge: true },
-    )
+    expect(results?.[0]).toEqual(expect.objectContaining({ title: 'Dune' }))
+    expect(mocks.setDoc).not.toHaveBeenCalled()
   })
 
-  it('enriches stale remote catalog matches that are missing progress metadata', async () => {
+  it('uses external metadata to enrich stale remote catalog matches without catalog writes', async () => {
     const repository = createFirestoreRepository('user-1')
     const staleRemoteCandidate: DiscoveryCandidate = {
       id: 'external-anilist-154587',
@@ -766,16 +728,7 @@ describe('createFirestoreRepository', () => {
     const results = await repository?.searchCatalog('Frieren', 'anime')
 
     expect(searchMocks.searchExternalSources).toHaveBeenCalledWith('Frieren', 'anime')
-    expect(mocks.setDoc).toHaveBeenCalledWith(
-      expect.objectContaining({ path: 'publicItems/anime-anilist-154587' }),
-      expect.objectContaining({
-        autoIngestedAt: expect.any(String),
-        demandCount: 1,
-        progressTotal: 28,
-        progressUnit: 'episodes',
-      }),
-      { merge: true },
-    )
+    expect(mocks.setDoc).not.toHaveBeenCalled()
     expect(results).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -787,72 +740,104 @@ describe('createFirestoreRepository', () => {
     )
   })
 
-  it('keeps ingesting private-search demand when remote catalog matches are already complete', async () => {
+  it('records saved external discovery candidates in the public catalog', async () => {
     const repository = createFirestoreRepository('user-1')
-    searchMocks.searchRemoteCatalog.mockResolvedValueOnce([
-      {
-        id: 'external-anilist-154587',
-        title: 'Frieren',
-        type: 'anime',
-        status: 'queued',
-        origin: 'externalSearch',
-        source: 'anilist',
-        sourceId: '154587',
-        progressTotal: 28,
-        progressUnit: 'episodes',
-        genres: ['Fantasy'],
-        tags: ['anime', 'anilist'],
-        moodTags: [],
-        externalRefs: {
-          anilistId: '154587',
-        },
-        createdAt: '2026-01-01T00:00:00.000Z',
-        updatedAt: '2026-01-01T00:00:00.000Z',
+    const candidate: DiscoveryCandidate = {
+      id: 'external-anilist-154587',
+      title: 'Frieren: Beyond Journey End',
+      type: 'anime',
+      status: 'queued',
+      origin: 'externalSearch',
+      source: 'anilist',
+      sourceId: '154587',
+      overview: 'A quiet fantasy journey.',
+      posterUrl: 'https://img.anili.st/media/154587.jpg',
+      releaseYear: 2023,
+      progressTotal: 28,
+      progressUnit: 'episodes',
+      genres: ['Fantasy', 'Adventure'],
+      tags: ['anime', 'anilist'],
+      moodTags: [],
+      externalRefs: {
+        anilistId: '154587',
+        sourceUrl: 'https://anilist.co/anime/154587',
       },
-    ] satisfies DiscoveryCandidate[])
-    searchMocks.searchExternalSources.mockResolvedValueOnce([
-      {
-        id: 'anilist-154587',
-        title: 'Frieren: Beyond Journey End',
-        type: 'anime',
-        source: 'anilist',
-        sourceId: '154587',
-        overview: 'A quiet fantasy journey.',
-        posterUrl: 'https://img.anili.st/media/154587.jpg',
-        releaseYear: 2023,
-        progressTotal: 28,
-        progressUnit: 'episodes',
-        genres: ['Fantasy', 'Adventure'],
-        searchAliases: ['Sousou no Frieren'],
-        externalRefs: {
-          anilistId: '154587',
-          sourceUrl: 'https://anilist.co/anime/154587',
-        },
-        createdAt: '2026-01-01T00:00:00.000Z',
-      },
-    ])
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    }
 
-    const results = await repository?.searchCatalog('Frieren', 'anime')
+    await repository?.recordDiscoverySaveToPublicCatalog(candidate)
 
-    expect(searchMocks.searchExternalSources).toHaveBeenCalledWith('Frieren', 'anime')
     expect(mocks.setDoc).toHaveBeenCalledWith(
       expect.objectContaining({ path: 'publicItems/anime-anilist-154587' }),
       expect.objectContaining({
         autoIngestedAt: expect.any(String),
+        canonicalKey: 'anime:frieren beyond journey end',
+        createdBy: 'user-1',
         demandCount: 1,
         progressTotal: 28,
         progressUnit: 'episodes',
+        title: 'Frieren: Beyond Journey End',
+        updatedBy: 'user-1',
       }),
       { merge: true },
     )
-    expect(results).toEqual(expect.arrayContaining([
+  })
+
+  it('bumps demand when saving an existing Nexo public catalog candidate', async () => {
+    const repository = createFirestoreRepository('user-1')
+    const publicDune: PublicCatalogItem = {
+      id: 'movie-dune-2021',
+      title: 'Dune',
+      type: 'movie',
+      description: 'Ficha curada de Nexo.',
+      releaseYear: 2021,
+      genres: ['Ciencia ficcion'],
+      tags: ['Aventura'],
+      moodTags: [],
+      externalRefs: {
+        tmdbId: '438631',
+      },
+      posterUrl: 'https://image.tmdb.org/t/p/w342/dune.jpg',
+      searchTokens: ['dune'],
+      canonicalKey: 'movie:dune',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      createdBy: 'moderator',
+      updatedBy: 'moderator',
+    }
+    const candidate: DiscoveryCandidate = {
+      id: 'public-movie-dune-2021',
+      title: 'Dune',
+      type: 'movie',
+      status: 'queued',
+      origin: 'publicCatalog',
+      source: 'nexo',
+      sourceId: 'movie-dune-2021',
+      genres: ['Ciencia ficcion'],
+      tags: ['Aventura'],
+      moodTags: [],
+      externalRefs: {
+        tmdbId: '438631',
+      },
+      publicItemId: 'movie-dune-2021',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    }
+    mocks.getDoc.mockResolvedValueOnce({
+      data: () => publicDune,
+      exists: () => true,
+    })
+
+    await repository?.recordDiscoverySaveToPublicCatalog(candidate)
+
+    expect(mocks.setDoc).toHaveBeenCalledWith(
+      expect.objectContaining({ path: 'publicItems/movie-dune-2021' }),
       expect.objectContaining({
-        origin: 'publicCatalog',
-        publicItemId: 'anime-anilist-154587',
-        progressTotal: 28,
-        progressUnit: 'episodes',
-        source: 'nexo',
+        demandCount: { kind: 'increment', value: 1 },
+        lastDemandAt: expect.any(String),
       }),
-    ]))
+      { merge: true },
+    )
   })
 })

@@ -513,6 +513,12 @@ export function useLibrary(user?: SignedInUserProfile | null) {
     const { persistDiscoveryCandidate = true } = options
     const item = discoveryToListItem(candidate)
     await saveItem(item)
+    if (repository) {
+      await trackRepositoryWrite(
+        repository.recordDiscoverySaveToPublicCatalog(candidate),
+        'No se pudo registrar la ficha en el catalogo compartido.',
+      ).catch(() => undefined)
+    }
     const savedAt = nowIso()
     setDiscoveryCandidates((current) =>
       current.map((entry) =>

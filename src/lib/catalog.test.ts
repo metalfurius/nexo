@@ -105,6 +105,44 @@ describe('catalog helpers', () => {
     expect('relatedItems' in libraryItem).toBe(false)
   })
 
+  it('starts structured anime and comic-like items with default progress controls even without a known total', () => {
+    const animeItem = discoveryToListItem(
+      externalCandidateToDiscovery({
+        id: 'anilist-1',
+        title: 'Unknown Episode Count',
+        type: 'anime',
+        source: 'anilist',
+        sourceId: '1',
+        genres: ['Drama'],
+        externalRefs: { anilistId: '1' },
+        createdAt: '2026-01-01T00:00:00.000Z',
+      }),
+    )
+    const manhwaItem = discoveryToListItem(
+      externalCandidateToDiscovery({
+        id: 'anilist-2',
+        title: 'Unknown Chapter Count',
+        type: 'manhwa',
+        source: 'anilist',
+        sourceId: '2',
+        genres: ['Fantasy'],
+        externalRefs: { anilistId: '2' },
+        createdAt: '2026-01-01T00:00:00.000Z',
+      }),
+    )
+
+    expect(animeItem).toMatchObject({
+      progressCurrent: 0,
+      progressTotal: undefined,
+      progressUnit: 'episodes',
+    })
+    expect(manhwaItem).toMatchObject({
+      progressCurrent: 0,
+      progressTotal: undefined,
+      progressUnit: 'chapters',
+    })
+  })
+
   it('uses external runtime as duration without creating movie or game progress targets', () => {
     const movieItem = discoveryToListItem(
       externalCandidateToDiscovery({

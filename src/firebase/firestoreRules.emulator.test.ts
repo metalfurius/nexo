@@ -118,6 +118,33 @@ maybeDescribe('firestore.rules emulator', () => {
     await expect(setDoc(itemRef, { title: 'Nope' }, { merge: true })).rejects.toThrow()
   })
 
+  it('allows signed-in users to bump first demand on legacy public catalog items', async () => {
+    await env.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'publicItems', 'game-hollow-knight'), {
+        id: 'game-hollow-knight',
+        title: 'Hollow Knight',
+        type: 'game',
+        genres: ['Metroidvania'],
+        tags: ['Aventura'],
+        moodTags: [],
+        externalRefs: {},
+        searchTokens: ['hollow', 'knight'],
+        canonicalKey: 'game:hollow knight',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        createdBy: 'moderator',
+        updatedBy: 'moderator',
+      })
+    })
+
+    const ownerDb = env.authenticatedContext('owner').firestore()
+    const itemRef = doc(ownerDb, 'publicItems', 'game-hollow-knight')
+
+    await expect(
+      setDoc(itemRef, { demandCount: increment(1), lastDemandAt: '2026-06-20T12:01:00.000Z' }, { merge: true }),
+    ).resolves.toBeUndefined()
+  })
+
   it('blocks anonymous public catalog reads', async () => {
     await env.withSecurityRulesDisabled(async (context) => {
       await setDoc(doc(context.firestore(), 'publicItems', 'archived'), {

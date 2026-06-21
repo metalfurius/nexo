@@ -11,6 +11,7 @@ const repositoryMock = vi.hoisted(() => ({
   ensureUserProfile: vi.fn(),
   listPublicCatalog: vi.fn(),
   markDiscoveryCandidateSaved: vi.fn(),
+  recordDiscoverySaveToPublicCatalog: vi.fn(),
   recordRecommendation: vi.fn(),
   replacePublicItem: vi.fn(),
   restoreDiscoveryCandidate: vi.fn(),
@@ -70,6 +71,7 @@ describe('useLibrary', () => {
       'deleteItem',
       'dismissDiscoveryCandidate',
       'markDiscoveryCandidateSaved',
+      'recordDiscoverySaveToPublicCatalog',
       'recordRecommendation',
       'replacePublicItem',
       'restoreDiscoveryCandidate',
@@ -593,6 +595,7 @@ describe('useLibrary', () => {
     )
     expect(repositoryMock.markDiscoveryCandidateSaved).not.toHaveBeenCalled()
     expect(repositoryMock.saveDiscoveryCandidate).not.toHaveBeenCalled()
+    expect(repositoryMock.recordDiscoverySaveToPublicCatalog).toHaveBeenCalledWith(candidate)
   })
 
   it('preserves locked external metadata when saving personal progress', async () => {
