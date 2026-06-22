@@ -517,7 +517,7 @@ export function useLibrary(user?: SignedInUserProfile | null) {
       await trackRepositoryWrite(
         repository.recordDiscoverySaveToPublicCatalog(candidate),
         'No se pudo registrar la ficha en el catalogo compartido.',
-      ).catch(() => undefined)
+      )
     }
     const savedAt = nowIso()
     setDiscoveryCandidates((current) =>

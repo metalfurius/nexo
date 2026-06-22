@@ -1,36 +1,51 @@
 import {
+  connectAuthEmulator,
   getAuth,
   GoogleAuthProvider,
   onAuthStateChanged,
   signInWithPopup,
   signOut,
+  type Auth,
   type User,
 } from 'firebase/auth'
 import { getFirebaseApp } from './firebaseApp'
 
 export type FirebaseUser = User
 
-export function watchAuth(callback: (user: FirebaseUser | null) => void) {
+let authEmulatorConnected = false
+
+function getConfiguredAuth(): Auth | undefined {
   const firebaseApp = getFirebaseApp()
-  if (!firebaseApp) {
+  if (!firebaseApp) return undefined
+
+  const auth = getAuth(firebaseApp)
+  if (import.meta.env.DEV && import.meta.env.VITE_USE_FIREBASE_EMULATORS === 'true' && !authEmulatorConnected) {
+    connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true })
+    authEmulatorConnected = true
+  }
+  return auth
+}
+
+export function watchAuth(callback: (user: FirebaseUser | null) => void) {
+  const auth = getConfiguredAuth()
+  if (!auth) {
     callback(null)
     return () => undefined
   }
 
-  return onAuthStateChanged(getAuth(firebaseApp), callback)
+  return onAuthStateChanged(auth, callback)
 }
 
 export async function signInWithGoogle() {
-  const firebaseApp = getFirebaseApp()
-  if (!firebaseApp) throw new Error('Firebase no esta configurado')
-  const auth = getAuth(firebaseApp)
+  const auth = getConfiguredAuth()
+  if (!auth) throw new Error('Firebase no esta configurado')
   const provider = new GoogleAuthProvider()
   provider.setCustomParameters({ prompt: 'select_account' })
   await signInWithPopup(auth, provider)
 }
 
 export async function signOutCurrentUser() {
-  const firebaseApp = getFirebaseApp()
-  if (!firebaseApp) return
-  await signOut(getAuth(firebaseApp))
+  const auth = getConfiguredAuth()
+  if (!auth) return
+  await signOut(auth)
 }

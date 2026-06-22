@@ -598,6 +598,58 @@ describe('useLibrary', () => {
     expect(repositoryMock.recordDiscoverySaveToPublicCatalog).toHaveBeenCalledWith(candidate)
   })
 
+  it('surfaces public catalog registration failures when saving external discovery results', async () => {
+    const externalCandidate: DiscoveryCandidate = {
+      id: 'external-jikan-52991',
+      title: 'Frieren: Beyond Journey End',
+      type: 'anime',
+      status: 'queued',
+      origin: 'externalSearch',
+      source: 'jikan',
+      sourceId: '52991',
+      releaseYear: 2023,
+      progressTotal: 28,
+      progressUnit: 'episodes',
+      genres: ['Fantasy'],
+      tags: ['anime', 'Jikan'],
+      moodTags: [],
+      externalRefs: {
+        malId: '52991',
+        sourceUrl: 'https://myanimelist.net/anime/52991',
+      },
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    }
+    repositoryMock.recordDiscoverySaveToPublicCatalog.mockRejectedValueOnce(
+      new Error('Missing or insufficient permissions.'),
+    )
+    const user = {
+      uid: 'user-1',
+      email: null,
+      displayName: null,
+    }
+    const { result } = renderHook(() => useLibrary(user))
+
+    await waitFor(() => expect(repositoryMock.subscribeItems).toHaveBeenCalled())
+
+    await act(async () => {
+      await expect(result.current.saveDiscoveryToLibrary(externalCandidate)).rejects.toThrow(
+        'Missing or insufficient permissions.',
+      )
+    })
+
+    expect(repositoryMock.saveItem).toHaveBeenCalledWith(
+      expect.objectContaining({
+        progressCurrent: 0,
+        progressTotal: 28,
+        progressUnit: 'episodes',
+        title: 'Frieren: Beyond Journey End',
+      }),
+    )
+    expect(repositoryMock.markDiscoveryCandidateSaved).not.toHaveBeenCalled()
+    await waitFor(() => expect(result.current.error).toBe('Missing or insufficient permissions.'))
+  })
+
   it('preserves locked external metadata when saving personal progress', async () => {
     const externalItem: ListItem = {
       id: 'anime-frieren-anilist-154587',

@@ -34,7 +34,7 @@ const DEFAULT_ALLOWED_ORIGINS = [
   'http://127.0.0.1:5173',
 ]
 const CACHE_LANGUAGE = 'es-ES'
-const PROVIDER_VERSION = '2026-06-16-v19'
+const PROVIDER_VERSION = '2026-06-22-v20'
 const POSITIVE_TTL_SECONDS = 86_400
 const EMPTY_TTL_SECONDS = 900
 const DISCOVER_TTL_SECONDS = 900
@@ -945,6 +945,7 @@ function json(payload, corsHeaders, status = 200, headers = {}) {
     headers: {
       ...corsHeaders,
       ...headers,
+      'x-nexo-provider-version': PROVIDER_VERSION,
       'content-type': 'application/json; charset=utf-8',
     },
   })
