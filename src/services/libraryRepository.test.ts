@@ -814,11 +814,17 @@ describe('createFirestoreRepository', () => {
       origin: 'publicCatalog',
       source: 'nexo',
       sourceId: 'movie-dune-2021',
+      overview: 'External runtime and poster from TMDB.',
+      posterUrl: 'https://image.tmdb.org/t/p/w342/dune-new.jpg',
+      releaseYear: 2021,
+      progressTotal: 2.6,
+      progressUnit: 'hours',
       genres: ['Ciencia ficcion'],
       tags: ['Aventura'],
       moodTags: [],
       externalRefs: {
         tmdbId: '438631',
+        sourceUrl: 'https://www.themoviedb.org/movie/438631',
       },
       publicItemId: 'movie-dune-2021',
       createdAt: '2026-01-01T00:00:00.000Z',
@@ -835,7 +841,80 @@ describe('createFirestoreRepository', () => {
       expect.objectContaining({ path: 'publicItems/movie-dune-2021' }),
       expect.objectContaining({
         demandCount: { kind: 'increment', value: 1 },
+        externalRefs: {
+          tmdbId: '438631',
+          sourceUrl: 'https://www.themoviedb.org/movie/438631',
+        },
         lastDemandAt: expect.any(String),
+        progressTotal: 2.6,
+        progressUnit: 'hours',
+        updatedBy: 'user-1',
+      }),
+      { merge: true },
+    )
+  })
+
+  it('revives archived public catalog matches when saving an external candidate', async () => {
+    const repository = createFirestoreRepository('user-1')
+    const archivedDune: PublicCatalogItem = {
+      id: 'movie-tmdb-438631',
+      title: 'Dune',
+      type: 'movie',
+      releaseYear: 2021,
+      genres: ['Ciencia ficcion'],
+      tags: ['Aventura'],
+      moodTags: [],
+      externalRefs: {
+        tmdbId: '438631',
+      },
+      searchTokens: ['dune'],
+      canonicalKey: 'movie:dune',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      createdBy: 'moderator',
+      updatedBy: 'moderator',
+      archivedAt: '2026-06-20T00:00:00.000Z',
+    }
+    const candidate: DiscoveryCandidate = {
+      id: 'external-tmdb-438631',
+      title: 'Dune',
+      type: 'movie',
+      status: 'queued',
+      origin: 'externalSearch',
+      source: 'tmdb',
+      sourceId: '438631',
+      overview: 'A desert planet becomes the center of a galactic struggle.',
+      releaseYear: 2021,
+      progressTotal: 2.6,
+      progressUnit: 'hours',
+      genres: ['Ciencia ficcion', 'Aventura'],
+      tags: ['movie', 'tmdb'],
+      moodTags: [],
+      externalRefs: {
+        tmdbId: '438631',
+        sourceUrl: 'https://www.themoviedb.org/movie/438631',
+      },
+      posterUrl: 'https://image.tmdb.org/t/p/w342/dune.jpg',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    }
+    mocks.getDoc.mockResolvedValueOnce({
+      data: () => archivedDune,
+      exists: () => true,
+    })
+
+    await repository?.recordDiscoverySaveToPublicCatalog(candidate)
+
+    expect(mocks.setDoc).toHaveBeenCalledWith(
+      expect.objectContaining({ path: 'publicItems/movie-tmdb-438631' }),
+      expect.objectContaining({
+        archivedAt: { kind: 'deleteField' },
+        autoIngestedAt: expect.any(String),
+        demandCount: 1,
+        id: 'movie-tmdb-438631',
+        progressTotal: 2.6,
+        progressUnit: 'hours',
+        updatedBy: 'user-1',
       }),
       { merge: true },
     )

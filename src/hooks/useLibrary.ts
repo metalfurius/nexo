@@ -74,6 +74,7 @@ const activityEntryLimit = 25
 type SyncSliceId = 'items' | 'settings' | 'discovery' | 'activity' | 'profile' | 'profiles'
 interface SaveDiscoveryOptions {
   persistDiscoveryCandidate?: boolean
+  registerPublicCatalog?: boolean
 }
 
 export function useLibrary(user?: SignedInUserProfile | null) {
@@ -510,10 +511,10 @@ export function useLibrary(user?: SignedInUserProfile | null) {
   }
 
   async function saveDiscoveryToLibrary(candidate: DiscoveryCandidate, options: SaveDiscoveryOptions = {}) {
-    const { persistDiscoveryCandidate = true } = options
+    const { persistDiscoveryCandidate = true, registerPublicCatalog = true } = options
     const item = discoveryToListItem(candidate)
     await saveItem(item)
-    if (repository) {
+    if (repository && registerPublicCatalog) {
       await trackRepositoryWrite(
         repository.recordDiscoverySaveToPublicCatalog(candidate),
         'No se pudo registrar la ficha en el catalogo compartido.',

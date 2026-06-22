@@ -1,4 +1,4 @@
-import type { ItemStatus, ItemType, ListItem, ProgressUnit } from '../domain/types'
+import type { DiscoveryCandidate, ItemStatus, ItemType, ListItem, ProgressUnit } from '../domain/types'
 import { uniqueValues } from './strings'
 
 export interface ItemPulseMetric {
@@ -217,6 +217,18 @@ export function getItemEffortSignal(item: ListItem) {
   return itemStatusLabels[item.status]
 }
 
+export function getDiscoveryCandidateEffortSignal(
+  candidate: Pick<DiscoveryCandidate, 'progressTotal' | 'progressUnit' | 'type'>,
+) {
+  const total = readProgressNumber(candidate.progressTotal)
+  if (total === undefined) return undefined
+
+  const unit = candidate.progressUnit ?? getDefaultProgressUnit(candidate.type)
+  if (unit === 'hours') return `${formatCompactNumber(total)}h`
+  if (unit === 'percent') return `${formatCompactNumber(total)}%`
+  return `0/${formatCompactNumber(total)} ${progressUnitLabels[unit].plural}`
+}
+
 export function formatDuration(item: Pick<ListItem, 'durationMaxHours' | 'durationMinHours'>) {
   if (item.durationMinHours && item.durationMaxHours && item.durationMinHours !== item.durationMaxHours) {
     return `${item.durationMinHours}-${item.durationMaxHours}h`
@@ -257,6 +269,10 @@ export function getProgressEditorMode(type: ItemType): ProgressEditorMode {
 
 function readProgressNumber(value: number | undefined) {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined
+}
+
+function formatCompactNumber(value: number) {
+  return String(Math.round(value * 10) / 10)
 }
 
 export function formatDateLabel(value: string) {

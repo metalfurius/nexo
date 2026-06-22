@@ -553,15 +553,22 @@ async function recordSavedDiscoveryCandidateInPublicCatalog(
 ) {
   const timestamp = nowIso()
   const existing = await findExistingPublicItem(db, candidate)
-  if (existing?.data.archivedAt) return
+  if (existing?.data.archivedAt) {
+    if (!isExternalDiscoveryCandidate(candidate)) return
+
+    const item = {
+      ...buildAutoIngestedPublicItem(candidate, actorId, timestamp),
+      id: existing.data.id,
+      archivedAt: deleteField(),
+    }
+    await setDoc(existing.ref, withoutUndefined(item), { merge: true })
+    return
+  }
 
   if (existing) {
     await setDoc(
       existing.ref,
-      {
-        demandCount: increment(1),
-        lastDemandAt: timestamp,
-      },
+      buildExistingPublicItemDemandPatch(existing.data, candidate, actorId, timestamp),
       { merge: true },
     )
     return
@@ -571,6 +578,40 @@ async function recordSavedDiscoveryCandidateInPublicCatalog(
 
   const item = buildAutoIngestedPublicItem(candidate, actorId, timestamp)
   await setDoc(doc(db, 'publicItems', item.id), withoutUndefined(item), { merge: true })
+}
+
+function buildExistingPublicItemDemandPatch(
+  existing: PublicCatalogItem,
+  candidate: DiscoveryCandidate,
+  actorId: string,
+  timestamp: string,
+) {
+  const patch: Record<string, unknown> = {
+    demandCount: increment(1),
+    lastDemandAt: timestamp,
+    updatedAt: timestamp,
+    updatedBy: actorId,
+  }
+
+  if (!existing.description && candidate.overview) patch.description = candidate.overview
+  if (existing.releaseYear === undefined && candidate.releaseYear !== undefined) patch.releaseYear = candidate.releaseYear
+  if (existing.progressTotal === undefined && candidate.progressTotal !== undefined) {
+    patch.progressTotal = candidate.progressTotal
+    patch.progressUnit = candidate.progressUnit
+  } else if (existing.progressUnit === undefined && candidate.progressUnit !== undefined) {
+    patch.progressUnit = candidate.progressUnit
+  }
+  if (!existing.posterUrl && candidate.posterUrl) patch.posterUrl = candidate.posterUrl
+
+  const externalRefs = {
+    ...(existing.externalRefs ?? {}),
+    ...(candidate.externalRefs ?? {}),
+  }
+  if (Object.keys(externalRefs).length > Object.keys(existing.externalRefs ?? {}).length) {
+    patch.externalRefs = externalRefs
+  }
+
+  return withoutUndefined(patch)
 }
 
 async function findExistingPublicItem(db: Firestore, candidate: DiscoveryCandidate) {

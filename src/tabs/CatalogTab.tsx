@@ -1,6 +1,6 @@
 import { type DiscoveryCandidate, type ExplorerSearchType } from '../domain/types'
 import { discoverySourceLabels as sourceLabels } from '../lib/explorerInsights'
-import { itemTypeLabels as typeLabels } from '../lib/libraryItemInsights'
+import { getDiscoveryCandidateEffortSignal, itemTypeLabels as typeLabels } from '../lib/libraryItemInsights'
 import { CheckCircle2, Eye, Library, LogIn, Plus, Search, Sparkles, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import {
@@ -106,7 +106,10 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
 
     setStatus(`Guardando ${candidate.title}...`)
     try {
-      const item = await library.saveDiscoveryToLibrary(candidate, { persistDiscoveryCandidate: false })
+      const item = await library.saveDiscoveryToLibrary(candidate, {
+        persistDiscoveryCandidate: false,
+        registerPublicCatalog: false,
+      })
       setStatus(`${item.title} guardado en Biblioteca.`)
       onActivity({
         detail: item.title,
@@ -274,6 +277,8 @@ function CatalogPublicCard({
   onSave: () => void
   showAdAfter: boolean
 }) {
+  const effortSignal = getDiscoveryCandidateEffortSignal(candidate)
+
   return (
     <>
       <article className="catalog-public-card">
@@ -284,6 +289,7 @@ function CatalogPublicCard({
               <span className="source-pill">{sourceLabels[candidate.source]}</span>
               <span>{typeLabels[candidate.type]}</span>
               {candidate.releaseYear && <span>{candidate.releaseYear}</span>}
+              {effortSignal && <span>{effortSignal}</span>}
             </div>
             <h3>{candidate.title}</h3>
             <p>{candidate.overview || `${typeLabels[candidate.type]} en ${sourceLabels[candidate.source]}.`}</p>
@@ -328,6 +334,8 @@ function CatalogPublicDialog({
   onSave: () => void
   onSignIn: () => void
 }) {
+  const effortSignal = getDiscoveryCandidateEffortSignal(candidate)
+
   return (
     <div className="modal-backdrop" role="presentation">
       <DialogFocusReturn />
@@ -347,6 +355,7 @@ function CatalogPublicDialog({
             <span className="source-pill">{sourceLabels[candidate.source]}</span>
             <span>{typeLabels[candidate.type]}</span>
             {candidate.releaseYear && <span>{candidate.releaseYear}</span>}
+            {effortSignal && <span>{effortSignal}</span>}
           </div>
           <h2 id="catalog-public-dialog-title">{candidate.title}</h2>
           <p>{candidate.overview || 'Esta ficha todavia no tiene descripcion publica.'}</p>
