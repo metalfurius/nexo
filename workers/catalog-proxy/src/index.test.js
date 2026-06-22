@@ -139,7 +139,8 @@ describe('catalog proxy worker', () => {
     )
     expect('relatedItems' in payload.results[0]).toBe(false)
     expect(fetchedUrls().some((url) => url.hostname === 'graphql.anilist.co' || url.hostname === 'api.jikan.moe' || url.hostname === 'www.wikidata.org')).toBe(false)
-    expect(cachePut.mock.calls[0]?.[0].url).toContain('v=2026-06-16-v19')
+    expect(response.headers.get('x-nexo-provider-version')).toBe('2026-06-22-v20')
+    expect(cachePut.mock.calls[0]?.[0].url).toContain('v=2026-06-22-v20')
   })
 
   it('ignores AniList relations for manga source entries', async () => {
