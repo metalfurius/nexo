@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   batchCommit: vi.fn(),
   batchDelete: vi.fn(),
   deleteDoc: vi.fn(),
+  deleteField: vi.fn(),
   getDoc: vi.fn(),
   getDocs: vi.fn(),
   increment: vi.fn(),
@@ -27,6 +28,16 @@ const searchMocks = vi.hoisted(() => ({
 
 const sdkPath = vi.hoisted(() => (args: unknown[]) => args.slice(1).map(String).join('/'))
 
+class FirestoreSentinel {
+  kind: string
+  value?: number
+
+  constructor(kind: string, value?: number) {
+    this.kind = kind
+    this.value = value
+  }
+}
+
 vi.mock('./firebaseDb', () => ({
   getFirebaseServices: vi.fn(() => firebaseServices),
 }))
@@ -43,7 +54,7 @@ vi.mock('firebase/firestore', () => ({
   addDoc: mocks.addDoc,
   collection: vi.fn((...args: unknown[]) => ({ kind: 'collection', path: sdkPath(args) })),
   deleteDoc: mocks.deleteDoc,
-  deleteField: vi.fn(() => ({ kind: 'deleteField' })),
+  deleteField: mocks.deleteField,
   doc: vi.fn((...args: unknown[]) => ({ kind: 'doc', path: sdkPath(args) })),
   getDoc: mocks.getDoc,
   getDocs: mocks.getDocs,
@@ -80,9 +91,10 @@ describe('createFirestoreRepository', () => {
     mocks.addDoc.mockResolvedValue(undefined)
     mocks.batchCommit.mockResolvedValue(undefined)
     mocks.deleteDoc.mockResolvedValue(undefined)
+    mocks.deleteField.mockImplementation(() => new FirestoreSentinel('deleteField'))
     mocks.getDoc.mockResolvedValue({ exists: () => false })
     mocks.getDocs.mockResolvedValue({ docs: [] })
-    mocks.increment.mockImplementation((value: number) => ({ kind: 'increment', value }))
+    mocks.increment.mockImplementation((value: number) => new FirestoreSentinel('increment', value))
     mocks.limit.mockImplementation((count: number) => ({ count, kind: 'limit' }))
     mocks.setDoc.mockResolvedValue(undefined)
     mocks.where.mockImplementation((field: string, operator: string, value: unknown) => ({ field, kind: 'where', operator, value }))
@@ -837,6 +849,8 @@ describe('createFirestoreRepository', () => {
 
     await repository?.recordDiscoverySaveToPublicCatalog(candidate)
 
+    const demandPatch = mocks.setDoc.mock.calls[0][1] as Record<string, unknown>
+    expect(demandPatch.demandCount).toBe(mocks.increment.mock.results[0].value)
     expect(mocks.setDoc).toHaveBeenCalledWith(
       expect.objectContaining({ path: 'publicItems/movie-dune-2021' }),
       expect.objectContaining({
@@ -905,6 +919,8 @@ describe('createFirestoreRepository', () => {
 
     await repository?.recordDiscoverySaveToPublicCatalog(candidate)
 
+    const revivePayload = mocks.setDoc.mock.calls[0][1] as Record<string, unknown>
+    expect(revivePayload.archivedAt).toBe(mocks.deleteField.mock.results[0].value)
     expect(mocks.setDoc).toHaveBeenCalledWith(
       expect.objectContaining({ path: 'publicItems/movie-tmdb-438631' }),
       expect.objectContaining({

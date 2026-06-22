@@ -738,6 +738,8 @@ function withoutUndefined<T>(value: T): T {
   }
 
   if (value && typeof value === 'object') {
+    if (!isPlainObject(value)) return value
+
     return Object.fromEntries(
       Object.entries(value).flatMap(([key, entry]) =>
         entry === undefined ? [] : [[key, withoutUndefined(entry)]],
@@ -746,4 +748,9 @@ function withoutUndefined<T>(value: T): T {
   }
 
   return value
+}
+
+function isPlainObject(value: object) {
+  const prototype = Object.getPrototypeOf(value)
+  return prototype === Object.prototype || prototype === null
 }
