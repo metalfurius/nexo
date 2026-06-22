@@ -31,6 +31,7 @@ jobs:
       VITE_FIREBASE_APP_ID: ${{ vars.VITE_FIREBASE_APP_ID }}
       VITE_FIREBASE_MEASUREMENT_ID: ${{ vars.VITE_FIREBASE_MEASUREMENT_ID }}
       VITE_CATALOG_PROXY_URL: ${{ vars.VITE_CATALOG_PROXY_URL }}
+      VITE_PUBLIC_CATALOG_URL: ${{ vars.VITE_PUBLIC_CATALOG_URL }}
       VITE_DEMO_MODE: 'false'
     steps:
       - name: Checkout
