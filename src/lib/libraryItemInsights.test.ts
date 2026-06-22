@@ -3,6 +3,7 @@ import type { ListItem } from '../domain/types'
 import {
   formatDuration,
   formatRelativeShortTime,
+  getDiscoveryCandidateEffortSignal,
   getItemEffortSignal,
   getItemPulse,
   getItemPulseSummary,
@@ -155,6 +156,8 @@ describe('library item insights', () => {
     expect(getItemEffortSignal(item({ progressCurrent: 2, progressTotal: 10, progressUnit: 'chapters', type: 'manga' }))).toBe('2/10 capitulos')
     expect(getItemEffortSignal(item({ durationMaxHours: 8, progress: undefined }))).toBe('8h')
     expect(getItemEffortSignal(item({ weights: { surprise: 0.8 }, progress: undefined }))).toBe('Sorpresa alta')
+    expect(getDiscoveryCandidateEffortSignal({ progressTotal: 2.6, progressUnit: 'hours', type: 'movie' })).toBe('2.6h')
+    expect(getDiscoveryCandidateEffortSignal({ progressTotal: 28, progressUnit: 'episodes', type: 'anime' })).toBe('0/28 episodios')
 
     expect(
       getItemSignals(

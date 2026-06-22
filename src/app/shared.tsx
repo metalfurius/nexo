@@ -10,7 +10,7 @@ import { type CandidateDecisionBrief, discoveryStatusLabels, type ExplorerSource
 import { getExternalRefEntries } from '../lib/externalRefs'
 import { createLibraryExportPayload, getLibraryImportRollbackPlan, getLibraryImportSummary, type LibraryImportRollbackPlan, type LibraryImportSummary, type ParsedLibraryImport, parseLibraryImportPayload } from '../lib/libraryBackup'
 import { getLibraryFocusItems, getLibraryFocusReason, getLibraryLaunchGuide, getLibraryNextPlanFacts, getLibraryNextPlanSignals, getLibraryNextPlanTitle, getLibraryReviewQueues, getLibrarySmartViewOptions, isItemReadyForDicePulse, type LibraryLaunchGuide, type LibraryLaunchStep, type LibraryReviewQueue, type LibrarySmartView, matchesLibrarySmartView } from '../lib/libraryInsights'
-import { formatDateLabel, formatProgress, getDefaultProgressUnit, getItemSubtitle, getPersonalEditorReadiness, getProgressEditorMode, isItemInCooldown, itemSourceLabels, progressUnitLabels, itemStatusLabels as statusLabels, itemTypeLabels as typeLabels } from '../lib/libraryItemInsights'
+import { formatDateLabel, formatDuration, formatProgress, getDefaultProgressUnit, getDiscoveryCandidateEffortSignal, getItemSubtitle, getPersonalEditorReadiness, getProgressEditorMode, isItemInCooldown, itemSourceLabels, progressUnitLabels, itemStatusLabels as statusLabels, itemTypeLabels as typeLabels } from '../lib/libraryItemInsights'
 import { type LibrarySortMode, sortLibraryItems } from '../lib/librarySorting'
 import { type PublicCatalogSeedResult, type PublicCatalogSeedRollbackPlan, type PublicCatalogSeedSummary } from '../lib/publicCatalogSeed'
 import { mergeListText, normalizeKey, slugify, splitList, toggleListTextValue, uniqueNormalizedValues, uniqueValues } from '../lib/strings'
@@ -1556,7 +1556,10 @@ export interface LibrarySurface {
   queueDiscoveryCandidates: (candidates: DiscoveryCandidate[]) => Promise<number>
   dismissDiscoveryCandidate: (candidateId: string) => Promise<void>
   restoreDiscoveryCandidate: (candidateId: string) => Promise<void>
-  saveDiscoveryToLibrary: (candidate: DiscoveryCandidate, options?: { persistDiscoveryCandidate?: boolean }) => Promise<ListItem>
+  saveDiscoveryToLibrary: (
+    candidate: DiscoveryCandidate,
+    options?: { persistDiscoveryCandidate?: boolean; registerPublicCatalog?: boolean },
+  ) => Promise<ListItem>
   upsertPublicItem: (item: Partial<PublicCatalogItem> & Pick<PublicCatalogItem, 'title' | 'type'>) => Promise<PublicCatalogItem>
   replacePublicItem: (item: PublicCatalogItem) => Promise<PublicCatalogItem>
   archivePublicItem: (id: string) => Promise<void>
@@ -5014,6 +5017,7 @@ export function DiscoveryCard({
   const isQueued = candidate.status === 'queued'
   const isDismissed = candidate.status === 'dismissed'
   const catalogActionLabel = candidate.source === 'nexo' ? 'Editar catalogo' : 'Crear catalogo'
+  const effortSignal = getDiscoveryCandidateEffortSignal(candidate)
 
   function openDetailsFromKeyboard(event: KeyboardEvent<HTMLDivElement>) {
     if (event.key !== 'Enter' && event.key !== ' ') return
@@ -5037,11 +5041,13 @@ export function DiscoveryCard({
           <div className="candidate-meta">
             <span className="source-pill">{sourceLabels[candidate.source]}</span>
             {!isQueued && <span className={`candidate-status ${candidate.status}`}>{discoveryStatusLabels[candidate.status]}</span>}
+            <span>{typeLabels[candidate.type]}</span>
+            {candidate.releaseYear && <span>{candidate.releaseYear}</span>}
+            {effortSignal && <span>{effortSignal}</span>}
           </div>
           <h3>{candidate.title}</h3>
           <p>{candidate.overview || `${typeLabels[candidate.type]} para explorar`}</p>
           <div className="tag-row">
-            {candidate.releaseYear && <span>{candidate.releaseYear}</span>}
             {candidate.genres.slice(0, 2).map((genre) => (
               <span key={genre}>{genre}</span>
             ))}
@@ -5170,6 +5176,8 @@ export function LibraryCatalogCandidateCard({
   isSaved: boolean
   onSave: () => void
 }) {
+  const effortSignal = getDiscoveryCandidateEffortSignal(candidate)
+
   return (
     <article className={isSaved ? 'library-catalog-card saved' : 'library-catalog-card'}>
       <CoverArt title={candidate.title} type={candidate.type} posterUrl={candidate.posterUrl} />
@@ -5178,6 +5186,7 @@ export function LibraryCatalogCandidateCard({
           <span className="source-pill">{sourceLabels[candidate.source]}</span>
           <span>{typeLabels[candidate.type]}</span>
           {candidate.releaseYear && <span>{candidate.releaseYear}</span>}
+          {effortSignal && <span>{effortSignal}</span>}
         </div>
         <h4>{candidate.title}</h4>
         <p>{candidate.overview || `${typeLabels[candidate.type]} encontrado en ${sourceLabels[candidate.source]}.`}</p>
@@ -5841,6 +5850,7 @@ export function CandidateDialog({
   const isQueued = candidate.status === 'queued'
   const isDismissed = candidate.status === 'dismissed'
   const catalogActionLabel = candidate.source === 'nexo' ? 'Editar catalogo' : 'Crear ficha publica'
+  const effortSignal = getDiscoveryCandidateEffortSignal(candidate)
 
   return (
     <div className="modal-backdrop" role="presentation">
@@ -5861,6 +5871,7 @@ export function CandidateDialog({
             <span className={`candidate-status ${candidate.status}`}>{discoveryStatusLabels[candidate.status]}</span>
             <span>{typeLabels[candidate.type]}</span>
             {candidate.releaseYear && <span>{candidate.releaseYear}</span>}
+            {effortSignal && <span>{effortSignal}</span>}
           </div>
           <h2 id="candidate-detail-title">{candidate.title}</h2>
           <p>{candidate.overview || 'Sin descripcion todavia.'}</p>
@@ -6028,12 +6039,13 @@ export function ItemEditor({
           ...draft,
           progressUnit: draft.progressUnit ?? getDefaultProgressUnit(draft.type),
         })
+  const effortSummary = progressSummary || (draft.durationMinHours || draft.durationMaxHours ? formatDuration(draft) : undefined)
   const personalProgressSummary =
     progressSummary ||
     (progressEditorMode === 'playtime'
       ? 'Registra horas jugadas sin objetivo obligatorio.'
       : progressEditorMode === 'none'
-        ? 'Estado, nota y notas personales.'
+        ? effortSummary ?? 'Estado, nota y notas personales.'
         : draft.notes?.trim()
           ? 'Notas personales guardadas.'
           : 'Estado, nota y notas personales.')
@@ -6250,6 +6262,7 @@ export function ItemEditor({
             <div className="detail-meta">
               <span>{itemSourceLabels[draft.source]}</span>
               <span>{typeLabels[draft.type]}</span>
+              {effortSummary && <span>{effortSummary}</span>}
               {isMetadataLocked && <span>{metadataLockLabel}</span>}
             </div>
             <h3 id="item-editor-title">{editorTitle}</h3>

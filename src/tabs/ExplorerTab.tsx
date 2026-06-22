@@ -2,7 +2,7 @@ import { type DiscoveryCandidate, type DiscoveryStatus, type ExplorerSearchType,
 import { promptToDiscovery } from '../lib/catalog'
 import { blankPublicCatalogItem, publicCatalogDraftFromCandidate } from '../lib/catalogInsights'
 import { discoveryEmptyCopy, discoveryStatusLabels, type ExplorerSourceFilter, explorerSourceFilters, getCandidateDecisionBrief, getDiscoverySourceFilter, getExplorerDecisionState, getExplorerSourceFilterLabel, discoverySourceLabels as sourceLabels } from '../lib/explorerInsights'
-import { itemTypeLabels as typeLabels } from '../lib/libraryItemInsights'
+import { getDiscoveryCandidateEffortSignal, itemTypeLabels as typeLabels } from '../lib/libraryItemInsights'
 import { normalizeKey } from '../lib/strings'
 import { type ExternalDiscoverDuration, type ExternalDiscoverType } from '../services/externalSourceCredits'
 import { CheckCircle2, Eye, Info, Plus, Search, ShieldCheck, SlidersHorizontal, Sparkles, X } from 'lucide-react'
@@ -802,6 +802,8 @@ export default function ExplorerTab({
     if (id === 'explorer-status' || id === 'explorer-undo') clearExplorerUndoState()
   }
 
+  const spotlightEffortSignal = spotlightCandidate ? getDiscoveryCandidateEffortSignal(spotlightCandidate) : undefined
+
   return (
     <section className={totalDiscoveryCount > 0 ? 'content-grid explorer-grid' : 'content-grid explorer-focus-grid explorer-grid'}>
       <section className="workspace-panel wide">
@@ -1113,6 +1115,7 @@ export default function ExplorerTab({
                 <span className="source-pill">{sourceLabels[spotlightCandidate.source]}</span>
                 <span>{typeLabels[spotlightCandidate.type]}</span>
                 {spotlightCandidate.releaseYear && <span>{spotlightCandidate.releaseYear}</span>}
+                {spotlightEffortSignal && <span>{spotlightEffortSignal}</span>}
               </div>
               <span className="eyebrow">Resultado listo</span>
               <h3>{spotlightCandidate.title}</h3>

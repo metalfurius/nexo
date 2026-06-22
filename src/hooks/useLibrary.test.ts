@@ -598,6 +598,34 @@ describe('useLibrary', () => {
     expect(repositoryMock.recordDiscoverySaveToPublicCatalog).toHaveBeenCalledWith(candidate)
   })
 
+  it('can save public catalog entries without feeding public catalog demand again', async () => {
+    const user = {
+      uid: 'user-1',
+      email: null,
+      displayName: null,
+    }
+    const { result } = renderHook(() => useLibrary(user))
+
+    await waitFor(() => expect(repositoryMock.subscribeItems).toHaveBeenCalled())
+
+    await act(async () => {
+      await result.current.saveDiscoveryToLibrary(candidate, {
+        persistDiscoveryCandidate: false,
+        registerPublicCatalog: false,
+      })
+    })
+
+    expect(repositoryMock.saveItem).toHaveBeenCalledWith(
+      expect.objectContaining({
+        source: 'public',
+        title: 'Odisea',
+      }),
+    )
+    expect(repositoryMock.markDiscoveryCandidateSaved).not.toHaveBeenCalled()
+    expect(repositoryMock.saveDiscoveryCandidate).not.toHaveBeenCalled()
+    expect(repositoryMock.recordDiscoverySaveToPublicCatalog).not.toHaveBeenCalled()
+  })
+
   it('surfaces public catalog registration failures when saving external discovery results', async () => {
     const externalCandidate: DiscoveryCandidate = {
       id: 'external-jikan-52991',

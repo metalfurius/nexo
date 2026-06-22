@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { initializeTestEnvironment, type RulesTestEnvironment } from '@firebase/rules-unit-testing'
-import { doc, getDoc, increment, setDoc } from 'firebase/firestore'
+import { deleteField, doc, getDoc, increment, setDoc } from 'firebase/firestore'
 
 const maybeDescribe = process.env.FIRESTORE_EMULATOR_HOST ? describe : describe.skip
 
@@ -142,6 +142,130 @@ maybeDescribe('firestore.rules emulator', () => {
 
     await expect(
       setDoc(itemRef, { demandCount: increment(1), lastDemandAt: '2026-06-20T12:01:00.000Z' }, { merge: true }),
+    ).resolves.toBeUndefined()
+  })
+
+  it('allows signed-in users to fill missing public catalog metadata while bumping demand', async () => {
+    await env.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'publicItems', 'movie-dune-2021'), {
+        id: 'movie-dune-2021',
+        title: 'Dune',
+        type: 'movie',
+        genres: ['Ciencia ficcion'],
+        tags: ['Aventura'],
+        moodTags: [],
+        externalRefs: {
+          tmdbId: '438631',
+        },
+        searchTokens: ['dune'],
+        canonicalKey: 'movie:dune',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        createdBy: 'moderator',
+        updatedBy: 'moderator',
+      })
+    })
+
+    const ownerDb = env.authenticatedContext('owner').firestore()
+    const itemRef = doc(ownerDb, 'publicItems', 'movie-dune-2021')
+
+    await expect(
+      setDoc(
+        itemRef,
+        {
+          demandCount: increment(1),
+          description: 'External runtime and poster from TMDB.',
+          externalRefs: {
+            tmdbId: '438631',
+            sourceUrl: 'https://www.themoviedb.org/movie/438631',
+          },
+          lastDemandAt: '2026-06-20T12:01:00.000Z',
+          posterUrl: 'https://image.tmdb.org/t/p/w342/dune-new.jpg',
+          progressTotal: 2.6,
+          progressUnit: 'hours',
+          releaseYear: 2021,
+          updatedAt: '2026-06-20T12:01:00.000Z',
+          updatedBy: 'owner',
+        },
+        { merge: true },
+      ),
+    ).resolves.toBeUndefined()
+
+    await expect(
+      setDoc(
+        itemRef,
+        {
+          demandCount: increment(1),
+          lastDemandAt: '2026-06-20T12:02:00.000Z',
+          progressTotal: 3,
+          updatedAt: '2026-06-20T12:02:00.000Z',
+          updatedBy: 'owner',
+        },
+        { merge: true },
+      ),
+    ).rejects.toThrow()
+  })
+
+  it('allows signed-in users to revive archived auto-ingested public catalog items', async () => {
+    await env.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'publicItems', 'movie-tmdb-438631'), {
+        id: 'movie-tmdb-438631',
+        title: 'Dune',
+        type: 'movie',
+        releaseYear: 2021,
+        genres: ['Ciencia ficcion'],
+        tags: ['Aventura'],
+        moodTags: [],
+        externalRefs: {
+          tmdbId: '438631',
+        },
+        searchTokens: ['dune'],
+        canonicalKey: 'movie:dune',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        createdBy: 'moderator',
+        updatedBy: 'moderator',
+        archivedAt: '2026-06-20T00:00:00.000Z',
+      })
+    })
+
+    const ownerDb = env.authenticatedContext('owner').firestore()
+    const itemRef = doc(ownerDb, 'publicItems', 'movie-tmdb-438631')
+    const timestamp = '2026-06-20T12:01:00.000Z'
+
+    await expect(
+      setDoc(
+        itemRef,
+        {
+          id: 'movie-tmdb-438631',
+          title: 'Dune',
+          type: 'movie',
+          description: 'A desert planet becomes the center of a galactic struggle.',
+          releaseYear: 2021,
+          progressTotal: 2.6,
+          progressUnit: 'hours',
+          genres: ['Ciencia ficcion', 'Aventura'],
+          tags: ['movie', 'TMDB', 'Ciencia ficcion', 'Aventura'],
+          moodTags: [],
+          searchAliases: [],
+          externalRefs: {
+            tmdbId: '438631',
+            sourceUrl: 'https://www.themoviedb.org/movie/438631',
+          },
+          posterUrl: 'https://image.tmdb.org/t/p/w342/dune.jpg',
+          searchTokens: ['dune', 'movie', 'tmdb', '2021'],
+          canonicalKey: 'movie:dune',
+          createdAt: timestamp,
+          updatedAt: timestamp,
+          createdBy: 'owner',
+          updatedBy: 'owner',
+          autoIngestedAt: timestamp,
+          demandCount: 1,
+          lastDemandAt: timestamp,
+          archivedAt: deleteField(),
+        },
+        { merge: true },
+      ),
     ).resolves.toBeUndefined()
   })
 

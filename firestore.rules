@@ -100,13 +100,54 @@ service cloud.firestore {
       return isSignedIn()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'demandCount',
-          'lastDemandAt'
+          'lastDemandAt',
+          'updatedAt',
+          'updatedBy',
+          'description',
+          'releaseYear',
+          'progressTotal',
+          'progressUnit',
+          'posterUrl',
+          'externalRefs'
         ])
         && (
           (resource.data.demandCount is number && request.resource.data.demandCount == resource.data.demandCount + 1) ||
           (!('demandCount' in resource.data) && request.resource.data.demandCount == 1)
         )
-        && request.resource.data.lastDemandAt is string;
+        && request.resource.data.lastDemandAt is string
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['updatedAt']) || request.resource.data.updatedAt is string)
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['updatedBy']) || request.resource.data.updatedBy == request.auth.uid)
+        && isMissingStringFill('description')
+        && isMissingStringFill('posterUrl')
+        && isMissingNumberFill('releaseYear')
+        && isMissingNumberFill('progressTotal')
+        && isMissingProgressUnitFill()
+        && isSafeExternalRefsMerge();
+    }
+
+    function isMissingStringFill(field) {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny([field])
+        || (!(field in resource.data) && request.resource.data[field] is string);
+    }
+
+    function isMissingNumberFill(field) {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny([field])
+        || (!(field in resource.data) && request.resource.data[field] is number);
+    }
+
+    function isMissingProgressUnitFill() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['progressUnit'])
+        || (!('progressUnit' in resource.data) && isValidProgressUnit(request.resource.data.progressUnit));
+    }
+
+    function isSafeExternalRefsMerge() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['externalRefs'])
+        || (
+          resource.data.externalRefs is map
+          && request.resource.data.externalRefs is map
+          && request.resource.data.externalRefs.diff(resource.data.externalRefs).removedKeys().size() == 0
+          && request.resource.data.externalRefs.diff(resource.data.externalRefs).changedKeys().size() == 0
+        );
     }
 
     function isValidUserProfile(userId) {
@@ -162,8 +203,15 @@ service cloud.firestore {
     match /publicItems/{publicItemId} {
       allow read: if isSignedIn();
       allow create: if canCurateCatalog() || isAutoCatalogCreate(publicItemId);
-      allow update: if canCurateCatalog() || isCatalogDemandUpdate();
+      allow update: if canCurateCatalog() || isCatalogDemandUpdate() || isAutoCatalogRevive(publicItemId);
       allow delete: if canCurateCatalog();
+    }
+
+    function isAutoCatalogRevive(publicItemId) {
+      return isSignedIn()
+        && ('archivedAt' in resource.data)
+        && !('archivedAt' in request.resource.data)
+        && isAutoCatalogCreate(publicItemId);
     }
 
     match /users/{userId} {
