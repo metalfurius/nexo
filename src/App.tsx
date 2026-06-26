@@ -24,6 +24,8 @@ const ImportTab = lazy(() => import('./tabs/ImportTab'))
 const SettingsTab = lazy(() => import('./tabs/SettingsTab'))
 const CurationTab = lazy(() => import('./tabs/CurationTab'))
 
+const appVersion = String(import.meta.env.VITE_APP_VERSION ?? '0.0.0').trim() || '0.0.0'
+
 function LazyTabFallback() {
   return <ShellState title="Cargando vista" detail="Preparando modulos de Nexo." />
 }
@@ -1715,6 +1717,9 @@ function App() {
             <div className="brand-copy">
               <span className="brand-line">
                 <span className="brand-wordmark">Nexo</span>
+                <span className="brand-version" aria-label={`Version ${appVersion}`}>
+                  v{appVersion}
+                </span>
               </span>
               <h1>{shellTitle}</h1>
               <p className="topbar-subtitle">{activeNavItem.description}</p>

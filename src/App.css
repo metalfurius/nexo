@@ -107,6 +107,20 @@ body.dialog-scroll-locked {
   text-transform: uppercase;
 }
 
+.brand-version {
+  background: color-mix(in srgb, var(--surface-muted) 84%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  border-radius: 999px;
+  color: var(--muted);
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  padding: 3px 7px;
+  white-space: nowrap;
+}
+
 .nexo-mark {
   align-items: center;
   background:
@@ -615,6 +629,17 @@ body.dialog-scroll-locked {
 
 .tabbar::-webkit-scrollbar {
   display: none;
+}
+
+@media (min-width: 901px) {
+  .tabbar {
+    align-self: start;
+    height: calc(100dvh - 58px);
+    max-height: calc(100dvh - 58px);
+    overflow-y: auto;
+    position: sticky;
+    top: 58px;
+  }
 }
 
 .tabbar-group {

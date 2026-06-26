@@ -29,7 +29,7 @@ VITE_CATALOG_PROXY_URL=https://nexo-catalog-proxy.<your-subdomain>.workers.dev
 
 Do not add TMDB, RAWG, or Google Books keys to GitHub variables or Vite env vars.
 
-The Worker can be deployed before secrets exist; TMDB, RAWG, and Google Books searches simply return no proxy results until those secrets are configured. MangaDex, AniList, Jikan, Open Library, and Wikidata do not need secrets.
+The Worker can be deployed before secrets exist; TMDB, RAWG, and Google Books searches simply return no proxy results until those secrets are configured. AniList, Jikan, Kitsu, Open Library, and Wikidata do not need secrets.
 
 ## Endpoints
 

@@ -139,8 +139,8 @@ describe('catalog proxy worker', () => {
     )
     expect('relatedItems' in payload.results[0]).toBe(false)
     expect(fetchedUrls().some((url) => url.hostname === 'graphql.anilist.co' || url.hostname === 'api.jikan.moe' || url.hostname === 'www.wikidata.org')).toBe(false)
-    expect(response.headers.get('x-nexo-provider-version')).toBe('2026-06-22-v20')
-    expect(cachePut.mock.calls[0]?.[0].url).toContain('v=2026-06-22-v20')
+    expect(response.headers.get('x-nexo-provider-version')).toBe('2026-06-26-v21')
+    expect(cachePut.mock.calls[0]?.[0].url).toContain('v=2026-06-26-v21')
   })
 
   it('ignores AniList relations for manga source entries', async () => {
@@ -194,9 +194,9 @@ describe('catalog proxy worker', () => {
           })
         }
 
-        if (url.hostname === 'api.mangadex.org') return jsonResponse({ data: [] })
         if (url.hostname === 'kitsu.io') return jsonResponse({ data: [] })
         if (url.hostname === 'api.jikan.moe') return jsonResponse({ data: [] })
+        if (url.hostname === 'api.mangadex.org') throw new Error('MangaDex should not be requested')
 
         throw new Error(`Unexpected fetch: ${url.href}`)
       }),
@@ -222,5 +222,62 @@ describe('catalog proxy worker', () => {
     expect('relatedItems' in payload.results[0]).toBe(false)
     const aniListCall = vi.mocked(fetch).mock.calls.find(([input]) => String(input).includes('graphql.anilist.co'))
     expect(String(aniListCall?.[1]?.body ?? '')).not.toContain('relations')
+    expect(fetchedUrls().some((url) => url.hostname === 'api.mangadex.org')).toBe(false)
+  })
+
+  it('does not call MangaDex while discovering anime and manga candidates', async () => {
+    vi.stubGlobal('caches', {
+      default: {
+        match: vi.fn(async () => undefined),
+        put: vi.fn(async () => undefined),
+      },
+    })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input) => {
+        const url = new URL(input instanceof Request ? input.url : String(input))
+
+        if (url.hostname === 'graphql.anilist.co') {
+          return jsonResponse({
+            data: {
+              Page: {
+                media: [
+                  {
+                    id: 154587,
+                    title: { english: 'Frieren: Beyond Journey End', romaji: 'Sousou no Frieren' },
+                    description: 'Fantasy journey.',
+                    format: 'TV',
+                    episodes: 28,
+                    genres: ['Fantasy'],
+                    startDate: { year: 2023 },
+                    coverImage: { medium: 'https://img.anili.st/media/154587.jpg' },
+                    siteUrl: 'https://anilist.co/anime/154587',
+                  },
+                ],
+              },
+            },
+          })
+        }
+
+        if (url.hostname === 'api.jikan.moe') return jsonResponse({ data: [] })
+        if (url.hostname === 'kitsu.io') return jsonResponse({ data: [] })
+        if (url.hostname === 'api.mangadex.org') throw new Error('MangaDex should not be requested')
+
+        throw new Error(`Unexpected fetch: ${url.href}`)
+      }),
+    )
+
+    const response = await worker.fetch(
+      new Request('https://proxy.example/discover?type=animeManga&duration=any&seed=frieren', {
+        headers: { origin: 'http://localhost:5173' },
+      }),
+      {
+        ALLOWED_ORIGINS: 'http://localhost:5173',
+      },
+    )
+    const payload = await response.json()
+
+    expect(payload.result).toEqual(expect.objectContaining({ source: 'anilist' }))
+    expect(fetchedUrls().some((url) => url.hostname === 'api.mangadex.org')).toBe(false)
   })
 })
