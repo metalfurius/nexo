@@ -20,7 +20,7 @@ GitHub Actions mirrors the gate:
 
 - `.github/workflows/ci.yml` runs on pull requests and manual dispatch.
 - `.github/workflows/deploy-pages.yml` runs on `main`, repeats the gate, then deploys GitHub Pages.
-- `.github/workflows/version-bump.yml` bumps package versions after a merged PR labelled `patch`, `minor` or `major`.
+- `.github/workflows/version-bump.yml` opens a package version PR after a merged PR labelled `patch`, `minor` or `major`, runs CI on it, merges it, then dispatches deploy.
 
 ## Firebase
 
