@@ -986,10 +986,12 @@ test('shell navigation keeps clear labels without responsive overflow', async ({
   )
   expect(visibleNavDescriptions).toBe(0)
   const desktopShellGeometry = await page.evaluate(() => {
+    const brand = document.querySelector('.topbar .brand-line') as HTMLElement | null
     const tabbar = document.querySelector('.tabbar') as HTMLElement | null
     const topbar = document.querySelector('.topbar') as HTMLElement | null
     const masthead = document.querySelector('[data-testid="library-masthead"]') as HTMLElement | null
     return {
+      brandLeft: brand?.getBoundingClientRect().left ?? 0,
       navWidth: tabbar?.getBoundingClientRect().width ?? 0,
       pageHasHorizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
       mastheadTop: masthead?.getBoundingClientRect().top ?? 0,
@@ -1005,6 +1007,7 @@ test('shell navigation keeps clear labels without responsive overflow', async ({
     }
   })
   expect(desktopShellGeometry.navWidth).toBeLessThanOrEqual(188)
+  expect(desktopShellGeometry.brandLeft).toBeGreaterThanOrEqual(desktopShellGeometry.navWidth + 18)
   expect(desktopShellGeometry.navLeft).toBe(0)
   expect(desktopShellGeometry.navPosition).toBe('fixed')
   expect(desktopShellGeometry.navTop).toBeGreaterThanOrEqual(57)

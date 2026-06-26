@@ -352,8 +352,11 @@ body.dialog-scroll-locked {
 
 @media (min-width: 901px) {
   .topbar {
+    column-gap: 24px;
+    display: grid;
+    grid-template-columns: var(--nav-rail-width) minmax(0, 1fr) auto;
     min-height: 58px;
-    padding: 8px 24px;
+    padding: 8px 24px 8px 0;
   }
 
   .topbar .nexo-mark {
@@ -370,6 +373,10 @@ body.dialog-scroll-locked {
     display: none;
   }
 
+  .topbar-main {
+    grid-column: 2;
+  }
+
   .brand-lockup {
     gap: 10px;
     min-width: 0;
@@ -384,7 +391,9 @@ body.dialog-scroll-locked {
   }
 
   .topbar-actions {
+    grid-column: 3;
     gap: 8px;
+    justify-content: flex-end;
   }
 
   .topbar-actions .icon-button {
