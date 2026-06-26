@@ -33,6 +33,14 @@ if (eventName === 'workflow_dispatch') {
 } else {
   const event = readEvent()
   const pullRequest = event.pull_request
+  const headRef = String(pullRequest?.head?.ref ?? '')
+  if (headRef.startsWith('automation/version-bump-')) {
+    writeOutput('bump', '')
+    writeOutput('should_bump', 'false')
+    console.log('Skipping version label requirement for automated version bump PR.')
+    process.exit(0)
+  }
+
   const labelNames = Array.isArray(pullRequest?.labels)
     ? pullRequest.labels.map((label) => String(label?.name ?? '').trim().toLowerCase())
     : []
