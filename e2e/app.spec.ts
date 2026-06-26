@@ -362,10 +362,6 @@ async function mockEmptyAnimeMangaProviders(page: Page) {
     await route.fulfill({ contentType: 'application/json', json: { data: [] } })
   })
 
-  await page.route('https://api.mangadex.org/manga**', async (route) => {
-    await route.fulfill({ contentType: 'application/json', json: { data: [] } })
-  })
-
   await page.route('https://kitsu.io/api/edge/manga**', async (route) => {
     await route.fulfill({ contentType: 'application/vnd.api+json', json: { data: [] } })
   })
@@ -639,10 +635,6 @@ async function mockPaginatedCatalog(page: Page) {
     })
   })
 
-  await page.route('https://api.mangadex.org/manga**', async (route) => {
-    await route.fulfill({ contentType: 'application/json', json: { data: [] } })
-  })
-
   await page.route('https://kitsu.io/api/edge/manga**', async (route) => {
     await route.fulfill({ contentType: 'application/vnd.api+json', json: { data: [] } })
   })
@@ -763,10 +755,6 @@ async function mockAnimeMangaCatalog(page: Page) {
       return
     }
 
-    await route.fulfill({ contentType: 'application/json', json: { data: [] } })
-  })
-
-  await page.route('https://api.mangadex.org/manga**', async (route) => {
     await route.fulfill({ contentType: 'application/json', json: { data: [] } })
   })
 
@@ -968,8 +956,10 @@ test('public catalog search does not query external providers', async ({ page })
 test('shell navigation keeps clear labels without responsive overflow', async ({ page }) => {
   await page.setViewportSize({ width: 1920, height: 1080 })
   await page.goto('/?tab=library')
+  const expectedAppVersion = (JSON.parse(await readFile('package.json', 'utf8')) as { version: string }).version
   await expect(page.getByTestId('library-masthead')).toContainText('Biblioteca')
   await expect(page.locator('.brand-wordmark')).toHaveText('Nexo')
+  await expect(page.locator('.brand-version')).toHaveText(`v${expectedAppVersion}`)
 
   const desktopLabels = await page.locator('.tabbar .tab-label').evaluateAll((labels) =>
     labels.map((label) => (label as HTMLElement).innerText.trim()),
@@ -1003,6 +993,7 @@ test('shell navigation keeps clear labels without responsive overflow', async ({
       navWidth: tabbar?.getBoundingClientRect().width ?? 0,
       pageHasHorizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
       mastheadTop: masthead?.getBoundingClientRect().top ?? 0,
+      navPosition: tabbar ? window.getComputedStyle(tabbar).position : '',
       rolePillText: document.querySelector('.topbar-actions .role-pill')?.textContent?.trim() ?? '',
       topbarHeight: topbar?.getBoundingClientRect().height ?? 0,
       visibleModePills: Array.from(document.querySelectorAll('.topbar-actions .mode-pill')).filter((pill) => {
@@ -1012,11 +1003,27 @@ test('shell navigation keeps clear labels without responsive overflow', async ({
     }
   })
   expect(desktopShellGeometry.navWidth).toBeLessThanOrEqual(188)
+  expect(desktopShellGeometry.navPosition).toBe('sticky')
   expect(desktopShellGeometry.topbarHeight).toBeLessThanOrEqual(64)
   expect(desktopShellGeometry.mastheadTop).toBeLessThanOrEqual(96)
   expect(desktopShellGeometry.rolePillText).toBe('Rol: Admin')
   expect(desktopShellGeometry.visibleModePills).toBe(1)
   expect(desktopShellGeometry.pageHasHorizontalOverflow).toBe(false)
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight))
+  const desktopScrolledShellGeometry = await page.locator('.tabbar').evaluate((tabbar) => {
+    const rect = tabbar.getBoundingClientRect()
+    return {
+      bottom: rect.bottom,
+      height: rect.height,
+      top: rect.top,
+      viewportHeight: window.innerHeight,
+    }
+  })
+  expect(desktopScrolledShellGeometry.top).toBeGreaterThanOrEqual(57)
+  expect(desktopScrolledShellGeometry.top).toBeLessThanOrEqual(60)
+  expect(desktopScrolledShellGeometry.bottom).toBeLessThanOrEqual(desktopScrolledShellGeometry.viewportHeight + 1)
+  expect(desktopScrolledShellGeometry.height).toBeLessThanOrEqual(desktopScrolledShellGeometry.viewportHeight - 57)
+  await page.evaluate(() => window.scrollTo(0, 0))
 
   for (const surface of ['Biblioteca', 'Dado', 'Explorador', 'Ajustes']) {
     if (surface !== 'Biblioteca') {
@@ -1402,6 +1409,7 @@ test('library can search a free catalog source and save directly', async ({ page
   await expect(page.getByRole('dialog', { name: 'Catalogos usados por Nexo' })).toContainText('TMDB')
   await expect(page.getByRole('dialog', { name: 'Catalogos usados por Nexo' })).toContainText('RAWG')
   await expect(page.getByRole('dialog', { name: 'Catalogos usados por Nexo' })).toContainText('Open Library')
+  await expect(page.getByRole('dialog', { name: 'Catalogos usados por Nexo' })).not.toContainText('MangaDex')
 })
 
 test('library saves Frieren from external search without candidate permission noise', async ({ page }) => {

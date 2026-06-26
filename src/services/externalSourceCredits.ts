@@ -48,13 +48,6 @@ export const externalSourceCredits: ExternalSourceCredit[] = [
     url: 'https://anilist.co/',
   },
   {
-    detail: 'Manga y manhwa con aliases localizados, tags y portadas sin clave de API.',
-    id: 'mangaDex',
-    label: 'MangaDex',
-    requiresKey: false,
-    url: 'https://mangadex.org/',
-  },
-  {
     detail: 'Manga y manhwa con titulos localizados y portadas sin clave de API.',
     id: 'kitsu',
     label: 'Kitsu',

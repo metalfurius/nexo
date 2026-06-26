@@ -34,7 +34,7 @@ const DEFAULT_ALLOWED_ORIGINS = [
   'http://127.0.0.1:5173',
 ]
 const CACHE_LANGUAGE = 'es-ES'
-const PROVIDER_VERSION = '2026-06-22-v20'
+const PROVIDER_VERSION = '2026-06-26-v21'
 const POSITIVE_TTL_SECONDS = 86_400
 const EMPTY_TTL_SECONDS = 900
 const DISCOVER_TTL_SECONDS = 900
@@ -155,7 +155,6 @@ async function searchProviders(query, type, env) {
   if (type === 'watch' || type === 'manga' || type === 'manhwa' || type === 'animeManga' || type === 'any') {
     const mangaFilter = type === 'manga' || type === 'manhwa' ? type : 'allManga'
     tasks.push(searchAniList(query, 'manga', mangaFilter))
-    tasks.push(searchMangaDex(query, mangaFilter))
     tasks.push(searchKitsuManga(query, mangaFilter))
     tasks.push(searchJikan(query, mangaFilter))
   }
@@ -559,63 +558,6 @@ async function searchJikan(query, requestedFilter) {
     })
 }
 
-async function searchMangaDex(query, requestedFilter) {
-  const url = new URL('https://api.mangadex.org/manga')
-  url.searchParams.set('title', query)
-  url.searchParams.set('limit', '8')
-  url.searchParams.append('includes[]', 'cover_art')
-  for (const rating of ['safe', 'suggestive', 'erotica', 'pornographic']) {
-    url.searchParams.append('contentRating[]', rating)
-  }
-
-  const response = await fetch(url, {
-    headers: {
-      accept: 'application/json',
-      referer: 'https://nexo.codeoverdose.es/',
-      'user-agent': 'Nexo/1.0 (https://nexo.codeoverdose.es)',
-    },
-  })
-  if (!response.ok) return []
-
-  const payload = await response.json()
-  return (payload.data ?? [])
-    .map((entry) => {
-      const inferredType = inferMangaDexType(entry)
-      return { entry, inferredType }
-    })
-    .filter(({ inferredType }) => matchesAnimeMangaFilter(inferredType, requestedFilter))
-    .map(({ entry, inferredType }) => {
-      const id = String(entry.id || '')
-      const attributes = entry.attributes ?? {}
-      const aliases = collectMangaDexTitleAliases(attributes)
-      const title = pickMangaDexTitle(attributes, query, aliases)
-      const cover = Array.isArray(entry.relationships)
-        ? entry.relationships.find((relationship) => relationship?.type === 'cover_art')
-        : undefined
-      const fileName = optionalString(cover?.attributes?.fileName)
-      const description = readLocalizedText(attributes.description)
-
-      return {
-        id: `mangadex-${id}`,
-        title,
-        type: inferredType,
-        source: 'mangaDex',
-        sourceId: id,
-        overview: description,
-        posterUrl: fileName ? `https://uploads.mangadex.org/covers/${id}/${fileName}.256.jpg` : undefined,
-        releaseYear: typeof attributes.year === 'number' ? attributes.year : undefined,
-        genres: readMangaDexTags(attributes.tags),
-        searchAliases: aliases,
-        externalRefs: {
-          mangaDexId: id,
-          sourceUrl: `https://mangadex.org/title/${id}`,
-        },
-        createdAt: new Date().toISOString(),
-      }
-    })
-    .filter((candidate) => Boolean(candidate.sourceId))
-}
-
 async function searchKitsuManga(query, requestedFilter) {
   const url = new URL('https://kitsu.io/api/edge/manga')
   url.searchParams.set('filter[text]', query)
@@ -682,11 +624,6 @@ function inferJikanType(endpoint, entry) {
   return type.includes('manhwa') ? 'manhwa' : 'manga'
 }
 
-function inferMangaDexType(entry) {
-  const originalLanguage = String(entry.attributes?.originalLanguage || '').toLowerCase()
-  return originalLanguage === 'ko' ? 'manhwa' : 'manga'
-}
-
 function inferKitsuType(entry) {
   const subtype = String(entry.attributes?.subtype || '').toLowerCase()
   if (subtype === 'manhwa') return 'manhwa'
@@ -728,85 +665,6 @@ function readJikanTitleAliases(entry) {
     ? entry.titles.map((titleEntry) => optionalString(titleEntry?.title)).filter(Boolean)
     : []
   return uniqueStrings([entry.title, entry.title_english, entry.title_japanese, ...typedTitles])
-}
-
-function collectMangaDexTitleAliases(attributes) {
-  const titleValues = attributes.title && typeof attributes.title === 'object' ? Object.values(attributes.title) : []
-  const altValues = Array.isArray(attributes.altTitles)
-    ? attributes.altTitles.flatMap((entry) => (entry && typeof entry === 'object' ? Object.values(entry) : []))
-    : []
-  return uniqueStrings([...titleValues, ...altValues])
-}
-
-function pickMangaDexTitle(attributes, query, aliases) {
-  const queryText = normalizeSearchText(query)
-  const queryCompact = compactSearchText(query)
-  const exactAliases = aliases.filter((alias) => {
-    const aliasText = normalizeSearchText(alias)
-    return aliasText === queryText || compactSearchText(aliasText) === queryCompact
-  })
-  const exactAlias = exactAliases.find(isReadableLatinAlias)
-  if (exactAlias) return exactAlias
-  const readableMatch = pickReadableMatchingAlias(aliases, queryText, queryCompact)
-  if (readableMatch) return readableMatch
-  if (exactAliases[0]) return exactAliases[0]
-
-  const titles = attributes.title && typeof attributes.title === 'object' ? attributes.title : {}
-  return (
-    optionalString(titles.es) ||
-    optionalString(titles.en) ||
-    optionalString(titles['ja-ro']) ||
-    optionalString(titles.ko) ||
-    optionalString(Object.values(titles)[0]) ||
-    'Sin titulo'
-  )
-}
-
-function pickReadableMatchingAlias(aliases, queryText, queryCompact) {
-  return aliases
-    .map((alias) => {
-      const aliasText = normalizeSearchText(alias)
-      const aliasCompact = compactSearchText(aliasText)
-      return { alias, aliasCompact, aliasText, score: scoreMatchingAlias(aliasText, aliasCompact, queryText, queryCompact) }
-    })
-    .filter((entry) => entry.score > 0 && isReadableLatinAlias(entry.alias))
-    .sort((left, right) => right.score - left.score)[0]?.alias
-}
-
-function scoreMatchingAlias(aliasText, aliasCompact, queryText, queryCompact) {
-  if (!queryText || !queryCompact) return 0
-  if (aliasText === queryText || aliasCompact === queryCompact) return 5
-  if (aliasText.startsWith(queryText)) return 4
-  if (aliasCompact.startsWith(queryCompact)) return 3
-  if (aliasText.includes(queryText)) return 2
-  if (aliasCompact.includes(queryCompact)) return 1
-  return 0
-}
-
-function isReadableLatinAlias(value) {
-  const letterCount = value.match(/\p{Letter}/gu)?.length ?? 0
-  if (!letterCount) return true
-  const latinLetterCount = value.match(/[A-Za-z]/g)?.length ?? 0
-  return latinLetterCount / letterCount >= 0.5
-}
-
-function readLocalizedText(value) {
-  if (!value || typeof value !== 'object') return undefined
-  return (
-    optionalString(value.es) ||
-    optionalString(value.en) ||
-    optionalString(value['ja-ro']) ||
-    optionalString(value.ko) ||
-    optionalString(Object.values(value)[0])
-  )
-}
-
-function readMangaDexTags(tags) {
-  if (!Array.isArray(tags)) return []
-  return tags
-    .map((tag) => readLocalizedText(tag?.attributes?.name))
-    .filter(Boolean)
-    .slice(0, 8)
 }
 
 function collectKitsuTitleAliases(attributes) {
@@ -1007,7 +865,6 @@ const SOURCE_PRIORITY = {
   anilist: 1,
   jikan: 2,
   kitsu: 3,
-  mangaDex: 4,
   tmdb: 5,
   googleBooks: 6,
   openLibrary: 7,
