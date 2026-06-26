@@ -66,18 +66,45 @@ jobs:
           git add package.json package-lock.json functions/package.json functions/package-lock.json
           git commit -m "chore: bump version to v${{ steps.bump.outputs.version }}"
           git push origin "$branch"
-          gh pr create \
+          pr_url="$(gh pr create \
             --base main \
             --head "$branch" \
             --title "chore: bump version to v${{ steps.bump.outputs.version }}" \
-            --body "Automated ${{ steps.resolve.outputs.bump }} version bump after a labelled merge to main."
-          gh workflow run ci.yml --ref "$branch"
-          sleep 10
-          run_id="$(gh run list --workflow ci.yml --branch "$branch" --event workflow_dispatch --limit 1 --json databaseId --jq '.[0].databaseId')"
+            --body "Automated ${{ steps.resolve.outputs.bump }} version bump after a labelled merge to main.")"
+          pr_number="$(gh pr view "$pr_url" --json number --jq '.number')"
+          merge_ref="refs/pull/${pr_number}/merge"
+          check_branch="automation/version-bump-check-v${{ steps.bump.outputs.version }}-${{ github.run_id }}"
+          cleanup() {
+            git push origin --delete "$check_branch" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          git fetch origin "$merge_ref"
+          merge_sha="$(git rev-parse FETCH_HEAD)"
+          git push origin "FETCH_HEAD:refs/heads/$check_branch"
+          gh workflow run ci.yml --ref "$check_branch"
+          run_id=""
+          for attempt in {1..30}; do
+            run_id="$(gh run list --workflow ci.yml --branch "$check_branch" --event workflow_dispatch --limit 10 --json databaseId,headSha --jq ".[] | select(.headSha == \"$merge_sha\") | .databaseId" | head -n 1)"
+            if [ -n "$run_id" ]; then
+              break
+            fi
+            sleep 5
+          done
           if [ -z "$run_id" ]; then
-            echo "Could not find dispatched CI run for $branch."
+            echo "Could not find dispatched CI run for $check_branch at $merge_sha."
             exit 1
           fi
           gh run watch "$run_id" --interval 10 --exit-status
-          gh pr merge "$branch" --squash --delete-branch --subject "chore: bump version to v${{ steps.bump.outputs.version }}" --body "Automated version bump."
+          gh pr merge "$pr_number" --squash --auto --delete-branch --subject "chore: bump version to v${{ steps.bump.outputs.version }}" --body "Automated version bump."
+          for attempt in {1..60}; do
+            merged_at="$(gh pr view "$pr_number" --json mergedAt --jq '.mergedAt // ""')"
+            if [ -n "$merged_at" ]; then
+              break
+            fi
+            sleep 10
+          done
+          if [ -z "$merged_at" ]; then
+            echo "Version bump PR #${pr_number} did not merge after CI succeeded."
+            exit 1
+          fi
           gh workflow run deploy-pages.yml --ref main
