@@ -20,7 +20,8 @@ GitHub Actions mirrors the gate:
 
 - `.github/workflows/ci.yml` runs on pull requests and manual dispatch.
 - `.github/workflows/deploy-pages.yml` runs on `main`, repeats the gate, then deploys GitHub Pages.
-- `.github/workflows/version-bump.yml` opens a package version PR after a merged PR labelled `patch`, `minor` or `major`, runs CI against the strict PR merge ref, auto-merges it, then dispatches deploy.
+- `.github/workflows/version-bump.yml` opens a package version PR with `VERSION_BUMP_TOKEN` after a merged PR labelled `patch`, `minor` or `major`, lets normal PR CI run, auto-merges it, then dispatches deploy.
+- Repository secret `VERSION_BUMP_TOKEN` must be present with `repo` and `workflow` permissions so automated version PRs trigger normal PR checks.
 
 ## Firebase
 
