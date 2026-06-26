@@ -20,6 +20,7 @@ GitHub Actions mirrors the gate:
 
 - `.github/workflows/ci.yml` runs on pull requests and manual dispatch.
 - `.github/workflows/deploy-pages.yml` runs on `main`, repeats the gate, then deploys GitHub Pages.
+- `.github/workflows/version-bump.yml` opens a package version PR after a merged PR labelled `patch`, `minor` or `major`, runs CI on it, merges it, then dispatches deploy.
 
 ## Firebase
 
@@ -35,11 +36,12 @@ Functions are optional for a Blaze-backed provider upgrade. The 1.0 Spark-compat
 
 ## Release Steps
 
-- Verify package versions are `1.0.0`.
+- Put exactly one version label on the PR before merge: `patch`, `minor` or `major`.
+- Verify package versions stay synchronized across root and functions package files.
 - Review `CHANGELOG.md`.
 - Run the required gate.
 - Build with `GITHUB_PAGES=true`.
-- Tag `v1.0.0`.
+- Tag the merged version, for example `v1.0.1`.
 - Create a GitHub Release from the tag.
 - Watch GitHub Pages deploy and smoke-test login, Biblioteca, Dado, Explorador and Curacion.
 - Install from browser/PWA prompt once and confirm standalone launch reaches Biblioteca.

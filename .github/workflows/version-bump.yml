@@ -1,0 +1,83 @@
+name: Version Bump
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Version bump to apply
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+permissions:
+  actions: write
+  contents: write
+  pull-requests: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+concurrency:
+  group: version-bump-main
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Resolve bump type
+        id: resolve
+        run: node scripts/resolveVersionBump.mjs
+        env:
+          VERSION_BUMP_INPUT: ${{ github.event.inputs.bump || '' }}
+
+      - name: Bump package versions
+        id: bump
+        if: steps.resolve.outputs.should_bump == 'true'
+        run: node scripts/bumpVersion.mjs "${{ steps.resolve.outputs.bump }}"
+
+      - name: Create and merge version bump pull request
+        if: steps.resolve.outputs.should_bump == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          branch="automation/version-bump-v${{ steps.bump.outputs.version }}-${{ github.run_id }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git add package.json package-lock.json functions/package.json functions/package-lock.json
+          git commit -m "chore: bump version to v${{ steps.bump.outputs.version }}"
+          git push origin "$branch"
+          gh pr create \
+            --base main \
+            --head "$branch" \
+            --title "chore: bump version to v${{ steps.bump.outputs.version }}" \
+            --body "Automated ${{ steps.resolve.outputs.bump }} version bump after a labelled merge to main."
+          gh workflow run ci.yml --ref "$branch"
+          sleep 10
+          run_id="$(gh run list --workflow ci.yml --branch "$branch" --event workflow_dispatch --limit 1 --json databaseId --jq '.[0].databaseId')"
+          if [ -z "$run_id" ]; then
+            echo "Could not find dispatched CI run for $branch."
+            exit 1
+          fi
+          gh run watch "$run_id" --interval 10 --exit-status
+          gh pr merge "$branch" --squash --delete-branch --subject "chore: bump version to v${{ steps.bump.outputs.version }}" --body "Automated version bump."
+          gh workflow run deploy-pages.yml --ref main

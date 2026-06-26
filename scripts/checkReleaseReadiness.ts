@@ -28,6 +28,7 @@ const requiredFiles = [
   'seed/public-catalog.seed.json',
   '.github/workflows/ci.yml',
   '.github/workflows/deploy-pages.yml',
+  '.github/workflows/version-bump.yml',
 ]
 
 const failures: string[] = []
@@ -53,13 +54,21 @@ for (const file of requiredFiles) {
   }
 }
 
+const semverPattern = /^\d+\.\d+\.\d+$/
 const rootPackage = await readJson<{ scripts?: Record<string, string>; version?: string }>('package.json')
+const rootLock = await readJson<{ packages?: Record<string, { version?: string }>; version?: string }>('package-lock.json')
 const functionsPackage = await readJson<{ version?: string }>('functions/package.json')
-check(rootPackage.version === '1.0.0', 'Root package version must be 1.0.0.')
+const functionsLock = await readJson<{ packages?: Record<string, { version?: string }>; version?: string }>('functions/package-lock.json')
+check(semverPattern.test(rootPackage.version ?? ''), 'Root package version must be plain semver x.y.z.')
+check(rootLock.version === rootPackage.version, 'Root package-lock version must match root package version.')
+check(rootLock.packages?.['']?.version === rootPackage.version, 'Root package-lock root package version must match root package version.')
 check(functionsPackage.version === rootPackage.version, 'Functions package version must match root package version.')
+check(functionsLock.version === rootPackage.version, 'Functions package-lock version must match root package version.')
+check(functionsLock.packages?.['']?.version === rootPackage.version, 'Functions package-lock root package version must match root package version.')
 check(rootPackage.scripts?.['check:build-output'], 'package.json must expose check:build-output.')
 check(rootPackage.scripts?.check?.includes('check:build-output'), 'npm run check must include check:build-output.')
 check(rootPackage.scripts?.['check:release-files'], 'package.json must expose check:release-files.')
+check(rootPackage.scripts?.['version:bump'], 'package.json must expose version:bump.')
 check(rootPackage.scripts?.['release:check']?.includes('check:release-files'), 'release:check must include check:release-files.')
 
 const cname = (await readText('public/CNAME')).trim()
@@ -132,10 +141,11 @@ check(changelog.includes('## 1.0.0'), 'CHANGELOG.md must include 1.0.0 release n
 
 const releaseChecklist = await readText('docs/release-checklist.md')
 check(releaseChecklist.includes('npm run release:check'), 'Release checklist must mention npm run release:check.')
-check(releaseChecklist.includes('v1.0.0'), 'Release checklist must mention tag v1.0.0.')
+check(releaseChecklist.includes('patch') && releaseChecklist.includes('minor') && releaseChecklist.includes('major'), 'Release checklist must mention version labels.')
 
 const ciWorkflow = await readText('.github/workflows/ci.yml')
 check(ciWorkflow.includes('pull_request:'), 'CI workflow must run on pull requests.')
+check(ciWorkflow.includes('Version bump label'), 'CI workflow must enforce version bump labels.')
 check(ciWorkflow.includes('npm run check'), 'CI workflow must run npm run check.')
 check(ciWorkflow.includes('npm run test:e2e'), 'CI workflow must run E2E tests.')
 check(ciWorkflow.includes('npm run check:release-files'), 'CI workflow must run check:release-files.')
@@ -146,6 +156,14 @@ check(deployWorkflow.includes('branches: [main]'), 'Deploy workflow must run on 
 check(deployWorkflow.includes('npm run check:build-output'), 'Deploy workflow must validate build output.')
 check(deployWorkflow.includes('npm run check:release-files'), 'Deploy workflow must run check:release-files.')
 check(deployWorkflow.includes('actions/deploy-pages'), 'Deploy workflow must deploy GitHub Pages.')
+
+const versionWorkflow = await readText('.github/workflows/version-bump.yml')
+check(versionWorkflow.includes('pull_request:'), 'Version workflow must run after merged pull requests.')
+check(versionWorkflow.includes('workflow_dispatch:'), 'Version workflow must support manual dispatch.')
+check(versionWorkflow.includes('scripts/bumpVersion.mjs'), 'Version workflow must bump package versions.')
+check(versionWorkflow.includes('gh pr create') && versionWorkflow.includes('gh pr merge'), 'Version workflow must create and merge a version bump PR.')
+check(versionWorkflow.includes('gh workflow run ci.yml'), 'Version workflow must run CI before merging its version bump PR.')
+check(versionWorkflow.includes('gh workflow run deploy-pages.yml'), 'Version workflow must trigger deploy after merging its version bump PR.')
 
 const seed = await readJson<unknown>('seed/public-catalog.seed.json')
 const seedResult = parsePublicCatalogSeed(seed, 'release-check')

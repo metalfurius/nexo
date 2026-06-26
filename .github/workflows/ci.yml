@@ -2,6 +2,7 @@ name: CI
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
   push:
     branches: [main]
   workflow_dispatch:
@@ -27,6 +28,12 @@ jobs:
         with:
           node-version: 24
           cache: npm
+
+      - name: Version bump label
+        if: github.event_name == 'pull_request'
+        run: node scripts/resolveVersionBump.mjs
+        env:
+          VERSION_LABEL_REQUIRED: 'true'
 
       - name: Setup Java for Firebase emulators
         uses: actions/setup-java@v4

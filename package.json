@@ -20,6 +20,7 @@
     "check:functions": "npm run build:functions",
     "check:build-output": "tsx scripts/checkBuildOutput.ts",
     "check:release-files": "tsx scripts/checkReleaseReadiness.ts",
+    "version:bump": "node scripts/bumpVersion.mjs",
     "release:check": "npm run check && npm run test:e2e && npm run check:release-files && npm audit --audit-level=high",
     "test:rules": "tsx scripts/runFirestoreRulesTests.ts",
     "test": "vitest run",
