@@ -993,7 +993,9 @@ test('shell navigation keeps clear labels without responsive overflow', async ({
       navWidth: tabbar?.getBoundingClientRect().width ?? 0,
       pageHasHorizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
       mastheadTop: masthead?.getBoundingClientRect().top ?? 0,
+      navLeft: tabbar?.getBoundingClientRect().left ?? 0,
       navPosition: tabbar ? window.getComputedStyle(tabbar).position : '',
+      navTop: tabbar?.getBoundingClientRect().top ?? 0,
       rolePillText: document.querySelector('.topbar-actions .role-pill')?.textContent?.trim() ?? '',
       topbarHeight: topbar?.getBoundingClientRect().height ?? 0,
       visibleModePills: Array.from(document.querySelectorAll('.topbar-actions .mode-pill')).filter((pill) => {
@@ -1003,7 +1005,10 @@ test('shell navigation keeps clear labels without responsive overflow', async ({
     }
   })
   expect(desktopShellGeometry.navWidth).toBeLessThanOrEqual(188)
-  expect(desktopShellGeometry.navPosition).toBe('sticky')
+  expect(desktopShellGeometry.navLeft).toBe(0)
+  expect(desktopShellGeometry.navPosition).toBe('fixed')
+  expect(desktopShellGeometry.navTop).toBeGreaterThanOrEqual(57)
+  expect(desktopShellGeometry.navTop).toBeLessThanOrEqual(60)
   expect(desktopShellGeometry.topbarHeight).toBeLessThanOrEqual(64)
   expect(desktopShellGeometry.mastheadTop).toBeLessThanOrEqual(96)
   expect(desktopShellGeometry.rolePillText).toBe('Rol: Admin')
@@ -1015,14 +1020,19 @@ test('shell navigation keeps clear labels without responsive overflow', async ({
     return {
       bottom: rect.bottom,
       height: rect.height,
+      left: rect.left,
       top: rect.top,
       viewportHeight: window.innerHeight,
     }
   })
+  expect(desktopScrolledShellGeometry.left).toBe(desktopShellGeometry.navLeft)
   expect(desktopScrolledShellGeometry.top).toBeGreaterThanOrEqual(57)
   expect(desktopScrolledShellGeometry.top).toBeLessThanOrEqual(60)
   expect(desktopScrolledShellGeometry.bottom).toBeLessThanOrEqual(desktopScrolledShellGeometry.viewportHeight + 1)
   expect(desktopScrolledShellGeometry.height).toBeLessThanOrEqual(desktopScrolledShellGeometry.viewportHeight - 57)
+  await page.getByRole('button', { name: 'Dado', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Dado', exact: true })).toHaveAttribute('aria-current', 'page')
+  await page.getByRole('button', { name: 'Biblioteca', exact: true }).click()
   await page.evaluate(() => window.scrollTo(0, 0))
 
   for (const surface of ['Biblioteca', 'Dado', 'Explorador', 'Ajustes']) {

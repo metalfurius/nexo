@@ -633,12 +633,15 @@ body.dialog-scroll-locked {
 
 @media (min-width: 901px) {
   .tabbar {
-    align-self: start;
-    height: calc(100dvh - 58px);
-    max-height: calc(100dvh - 58px);
+    bottom: 0;
+    height: auto;
+    left: 0;
+    max-height: none;
     overflow-y: auto;
-    position: sticky;
+    position: fixed;
     top: 58px;
+    width: var(--nav-rail-width);
+    z-index: 20;
   }
 }
 
