@@ -1,7 +1,7 @@
 import { type DiscoveryCandidate, type ExplorerSearchType } from '../domain/types'
 import { discoverySourceLabels as sourceLabels } from '../lib/explorerInsights'
 import { getDiscoveryCandidateEffortSignal, itemTypeLabels as typeLabels } from '../lib/libraryItemInsights'
-import { CheckCircle2, Eye, Library, LogIn, Plus, Search, Sparkles, X } from 'lucide-react'
+import { Check, CheckCircle2, Eye, Library, LogIn, Plus, Search, Sparkles, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import {
   CoverArt,
@@ -9,6 +9,7 @@ import {
   EmptyState,
   FeedbackMessage,
   feedbackToneFromText,
+  getSavedLibraryItemForCandidate,
   handleDialogKeyDown,
   libraryCatalogSearchTypes,
   type ActivityRecorder,
@@ -34,6 +35,9 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
   const [loading, setLoading] = useState(false)
   const [status, setStatus] = useState<string | undefined>()
   const publicCount = useMemo(() => candidates.filter((candidate) => candidate.source === 'nexo').length, [candidates])
+  const showCatalogRail = !isSignedIn || adsEnabled
+  const isCandidateSaved = (candidate: DiscoveryCandidate) =>
+    isSignedIn && Boolean(getSavedLibraryItemForCandidate(candidate, library.items))
 
   useEffect(() => {
     let disposed = false
@@ -103,6 +107,11 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
       onSignIn()
       return
     }
+    const savedItem = getSavedLibraryItemForCandidate(candidate, library.items)
+    if (savedItem) {
+      setStatus(`${candidate.title} ya esta en tu Biblioteca.`)
+      return
+    }
 
     setStatus(`Guardando ${candidate.title}...`)
     try {
@@ -136,7 +145,7 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
   }
 
   return (
-    <section className="catalog-public-layout" aria-label="Catalogo publico de Nexo">
+    <section className={showCatalogRail ? 'catalog-public-layout' : 'catalog-public-layout no-rail'} aria-label="Catalogo publico de Nexo">
       <div className="catalog-public-main">
         <section className="catalog-public-hero">
           <div className="catalog-public-heading">
@@ -187,10 +196,6 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
               <strong>{getCatalogTypeSummary(type)}</strong>
               <small>Filtro</small>
             </span>
-            <span>
-              <strong>{isSignedIn ? 'Activa' : 'Vista'}</strong>
-              <small>{isSignedIn ? 'Biblioteca conectada' : 'Acciones con login'}</small>
-            </span>
           </div>
         </section>
 
@@ -201,6 +206,7 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
             {candidates.map((candidate, index) => (
               <CatalogPublicCard
                 candidate={candidate}
+                isSaved={isCandidateSaved(candidate)}
                 key={candidate.id}
                 onDetails={() => setSelectedCandidate(candidate)}
                 onQueue={() => void queueCandidate(candidate)}
@@ -223,30 +229,29 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
         )}
       </div>
 
-      <aside className="catalog-public-rail" aria-label="Acciones del catalogo">
-        <section className="catalog-public-login-panel">
-          <LogIn size={18} />
-          <div>
-            <strong>{isSignedIn ? 'Biblioteca conectada' : 'Guarda tu ruta'}</strong>
-            <p>
-              {isSignedIn
-                ? 'Puedes guardar obras, enviarlas al Explorador y convertir el catalogo en una lista privada.'
-                : 'El catalogo se puede mirar sin cuenta. Guardar, decidir y recomendar requiere iniciar sesion.'}
-            </p>
-          </div>
+      {showCatalogRail && (
+        <aside className="catalog-public-rail" aria-label="Acciones del catalogo">
           {!isSignedIn && (
-            <button className="primary-button" type="button" onClick={onSignIn}>
-              <LogIn size={16} />
-              Entrar
-            </button>
+            <section className="catalog-public-login-panel">
+              <LogIn size={18} />
+              <div>
+                <strong>Guarda tu ruta</strong>
+                <p>El catalogo se puede mirar sin cuenta. Guardar, decidir y recomendar requiere iniciar sesion.</p>
+              </div>
+              <button className="primary-button" type="button" onClick={onSignIn}>
+                <LogIn size={16} />
+                Entrar
+              </button>
+            </section>
           )}
-        </section>
-        <AdSlot label="Rail catalogo" />
-      </aside>
+          <AdSlot label="Rail catalogo" />
+        </aside>
+      )}
 
       {selectedCandidate && (
         <CatalogPublicDialog
           candidate={selectedCandidate}
+          isSaved={isCandidateSaved(selectedCandidate)}
           isSignedIn={isSignedIn}
           onClose={() => setSelectedCandidate(undefined)}
           onQueue={() => void queueCandidate(selectedCandidate)}
@@ -266,12 +271,14 @@ function getCatalogTypeSummary(type: ExplorerSearchType) {
 
 function CatalogPublicCard({
   candidate,
+  isSaved,
   onDetails,
   onQueue,
   onSave,
   showAdAfter,
 }: {
   candidate: DiscoveryCandidate
+  isSaved: boolean
   onDetails: () => void
   onQueue: () => void
   onSave: () => void
@@ -281,7 +288,7 @@ function CatalogPublicCard({
 
   return (
     <>
-      <article className="catalog-public-card">
+      <article className={isSaved ? 'catalog-public-card saved' : 'catalog-public-card'}>
         <button className="catalog-public-card-main" type="button" onClick={onDetails}>
           <CoverArt title={candidate.title} type={candidate.type} posterUrl={candidate.posterUrl} />
           <div>
@@ -301,9 +308,9 @@ function CatalogPublicCard({
           </div>
         </button>
         <div className="catalog-public-actions" aria-label={`Acciones ${candidate.title}`}>
-          <button className="primary-button" type="button" onClick={onSave}>
-            <Plus size={16} />
-            Guardar
+          <button className={isSaved ? 'secondary-button saved' : 'primary-button'} disabled={isSaved} type="button" onClick={onSave}>
+            {isSaved ? <Check size={16} /> : <Plus size={16} />}
+            {isSaved ? 'Guardado' : 'Guardar'}
           </button>
           <button className="secondary-button" type="button" onClick={onQueue}>
             <Library size={16} />
@@ -321,6 +328,7 @@ function CatalogPublicCard({
 
 function CatalogPublicDialog({
   candidate,
+  isSaved,
   isSignedIn,
   onClose,
   onQueue,
@@ -328,6 +336,7 @@ function CatalogPublicDialog({
   onSignIn,
 }: {
   candidate: DiscoveryCandidate
+  isSaved: boolean
   isSignedIn: boolean
   onClose: () => void
   onQueue: () => void
@@ -367,15 +376,22 @@ function CatalogPublicDialog({
           <div className="catalog-public-dialog-note">
             <CheckCircle2 size={16} />
             <span>
-              {isSignedIn
-                ? 'Tu sesion permite guardar esta obra o mandarla al Explorador.'
-                : 'Inicia sesion para convertir esta ficha publica en una entrada privada.'}
+              {isSaved
+                ? 'Esta ficha ya esta guardada en tu Biblioteca.'
+                : isSignedIn
+                  ? 'Tu sesion permite guardar esta obra o mandarla al Explorador.'
+                  : 'Inicia sesion para convertir esta ficha publica en una entrada privada.'}
             </span>
           </div>
           <div className="action-row detail-actions">
-            <button className="primary-button" type="button" onClick={isSignedIn ? onSave : onSignIn}>
-              {isSignedIn ? <Plus size={16} /> : <LogIn size={16} />}
-              {isSignedIn ? 'Guardar en Biblioteca' : 'Entrar para guardar'}
+            <button
+              className={isSaved ? 'secondary-button saved' : 'primary-button'}
+              disabled={isSaved}
+              type="button"
+              onClick={isSignedIn ? onSave : onSignIn}
+            >
+              {isSaved ? <Check size={16} /> : isSignedIn ? <Plus size={16} /> : <LogIn size={16} />}
+              {isSaved ? 'Guardado' : isSignedIn ? 'Guardar en Biblioteca' : 'Entrar para guardar'}
             </button>
             <button className="secondary-button" type="button" onClick={isSignedIn ? onQueue : onSignIn}>
               <Library size={16} />

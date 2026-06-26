@@ -931,8 +931,10 @@ test('public catalog is the default entry surface', async ({ page }) => {
 
   await expect(page.getByRole('button', { name: 'Catalogo', exact: true })).toHaveAttribute('aria-current', 'page')
   await expect(page.getByRole('heading', { name: 'Explora obras antes de montar tu biblioteca' })).toBeVisible()
+  await expect(page.getByLabel('Rol: Admin')).toBeVisible()
   await expect(page.getByLabel('Buscar en el catalogo publico')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Guardar' }).first()).toBeVisible()
+  await expect(page.getByText('Biblioteca conectada', { exact: true })).toHaveCount(0)
   await expect(page.getByLabel('Rail catalogo: espacio publicitario desactivado')).toContainText('Anuncio')
 })
 
@@ -1001,6 +1003,7 @@ test('shell navigation keeps clear labels without responsive overflow', async ({
       navWidth: tabbar?.getBoundingClientRect().width ?? 0,
       pageHasHorizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
       mastheadTop: masthead?.getBoundingClientRect().top ?? 0,
+      rolePillText: document.querySelector('.topbar-actions .role-pill')?.textContent?.trim() ?? '',
       topbarHeight: topbar?.getBoundingClientRect().height ?? 0,
       visibleModePills: Array.from(document.querySelectorAll('.topbar-actions .mode-pill')).filter((pill) => {
         const rect = (pill as HTMLElement).getBoundingClientRect()
@@ -1011,7 +1014,8 @@ test('shell navigation keeps clear labels without responsive overflow', async ({
   expect(desktopShellGeometry.navWidth).toBeLessThanOrEqual(188)
   expect(desktopShellGeometry.topbarHeight).toBeLessThanOrEqual(64)
   expect(desktopShellGeometry.mastheadTop).toBeLessThanOrEqual(96)
-  expect(desktopShellGeometry.visibleModePills).toBe(0)
+  expect(desktopShellGeometry.rolePillText).toBe('Rol: Admin')
+  expect(desktopShellGeometry.visibleModePills).toBe(1)
   expect(desktopShellGeometry.pageHasHorizontalOverflow).toBe(false)
 
   for (const surface of ['Biblioteca', 'Dado', 'Explorador', 'Ajustes']) {

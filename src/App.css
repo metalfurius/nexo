@@ -738,6 +738,19 @@ body.dialog-scroll-locked {
   color: var(--accent-dark);
 }
 
+.role-pill {
+  align-items: center;
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 850;
+  max-width: min(180px, 34vw);
+  min-height: 36px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .mode-pill.warning,
 .mode-pill.offline {
   background: var(--accent-warm-soft);
@@ -3341,6 +3354,10 @@ body.dialog-scroll-locked {
   grid-template-columns: minmax(0, 1fr) minmax(220px, 280px);
 }
 
+.catalog-public-layout.no-rail {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .catalog-public-main {
   display: grid;
   gap: 14px;
@@ -3394,7 +3411,8 @@ body.dialog-scroll-locked {
 .catalog-public-summary {
   display: grid;
   gap: 8px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-width: 560px;
 }
 
 .catalog-public-summary span {
@@ -3435,6 +3453,13 @@ body.dialog-scroll-locked {
   gap: 12px;
   min-width: 0;
   padding: 12px;
+}
+
+.catalog-public-card.saved {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-muted) 26%, transparent), transparent),
+    var(--surface-raised);
+  border-color: color-mix(in srgb, var(--border) 84%, var(--text-strong) 16%);
 }
 
 .catalog-public-card-main {
@@ -3492,6 +3517,25 @@ body.dialog-scroll-locked {
 .catalog-public-actions .secondary-button,
 .catalog-public-actions .icon-button {
   min-height: 38px;
+}
+
+.catalog-public-actions .primary-button,
+.catalog-public-actions .secondary-button {
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.catalog-public-actions .secondary-button.saved,
+.detail-actions .secondary-button.saved {
+  background: color-mix(in srgb, var(--surface-muted) 78%, var(--border) 22%);
+  border-color: color-mix(in srgb, var(--border) 90%, var(--text-strong) 10%);
+  color: var(--muted);
+}
+
+.catalog-public-actions .secondary-button.saved:disabled,
+.detail-actions .secondary-button.saved:disabled {
+  opacity: 1;
+  transform: none;
 }
 
 .catalog-public-rail {
@@ -13441,7 +13485,7 @@ textarea:focus-visible {
     width: auto;
   }
 
-  .topbar-actions .mode-pill:not(.offline) {
+  .topbar-actions .mode-pill:not(.offline):not(.role-pill) {
     display: none;
   }
 
