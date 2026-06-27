@@ -118,6 +118,46 @@ maybeDescribe('firestore.rules emulator', () => {
     await expect(setDoc(itemRef, { title: 'Nope' }, { merge: true })).rejects.toThrow()
   })
 
+  it('blocks private fields on user auto-ingested public catalog items', async () => {
+    const ownerDb = env.authenticatedContext('owner').firestore()
+    const itemRef = doc(ownerDb, 'publicItems', 'anime-anilist-private')
+    const timestamp = '2026-06-20T12:00:00.000Z'
+
+    await expect(
+      setDoc(itemRef, {
+        id: 'anime-anilist-private',
+        title: 'Private Anime',
+        type: 'anime',
+        releaseYear: 2023,
+        progressTotal: 12,
+        progressUnit: 'episodes',
+        genres: ['Fantasy'],
+        tags: ['anime', 'AniList'],
+        moodTags: [],
+        searchAliases: [],
+        externalRefs: {
+          anilistId: 'private',
+        },
+        searchTokens: ['private', 'anime'],
+        canonicalKey: 'anime:private anime',
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        createdBy: 'owner',
+        updatedBy: 'owner',
+        autoIngestedAt: timestamp,
+        demandCount: 1,
+        lastDemandAt: timestamp,
+        status: 'completed',
+        rating: 5,
+        progressCurrent: 12,
+        notes: 'No publicar',
+        rawText: 'Raw privado',
+        importNotes: ['Nota privada'],
+        weights: { priority: 1 },
+      }),
+    ).rejects.toThrow()
+  })
+
   it('allows signed-in users to bump first demand on legacy public catalog items', async () => {
     await env.withSecurityRulesDisabled(async (context) => {
       await setDoc(doc(context.firestore(), 'publicItems', 'game-hollow-knight'), {

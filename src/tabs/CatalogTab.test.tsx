@@ -62,6 +62,7 @@ function createLibrarySurface(options: { items?: ListItem[]; publicItems: Public
     dismissDiscoveryCandidate: vi.fn(async () => undefined),
     restoreDiscoveryCandidate: vi.fn(async () => undefined),
     saveDiscoveryToLibrary,
+    recordImportedItemToPublicCatalog: vi.fn(async () => undefined),
     upsertPublicItem: vi.fn(async (item) => buildPublicCatalogItem(item, 'test-moderator')),
     replacePublicItem: vi.fn(async (item) => item),
     archivePublicItem: vi.fn(async () => undefined),

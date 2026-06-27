@@ -6,6 +6,8 @@ import { BookOpen, Film, HelpCircle, Library, LoaderCircle, RotateCcw, Search, S
 import { type DragEvent, useMemo, useRef, useState } from 'react'
 import { FeedbackMessage, ServiceImportDialog, feedbackToneFromText, formatLibraryImportRollbackDetail, formatLibraryImportRollbackStatus, getImportPreviewNewItems, serviceImportPreviewRenderLimit, type ActivityRecorder, type AppTab, type LibrarySurface, type ServiceImportApplyProgress, type ServiceImportDialogPhase } from '../app/shared'
 
+export const publicCatalogImportRecordLimit = 500
+
 export default function ImportTab({
   library,
   onActivity,
@@ -182,22 +184,44 @@ export default function ImportTab({
     setServiceImportDialogPhase('applying')
     setServiceImportApplyProgress({ current: 0, total: itemsToImport.length })
     setServiceImportMessage(`Importando 0/${itemsToImport.length} desde ${serviceImportPreview.sourceLabel}...`)
+    let publicCatalogRecords = 0
+    let publicCatalogFailures = 0
+    const shouldRecordPublicCatalog = library.syncState.remote
+    const publicCatalogRecordableItems = shouldRecordPublicCatalog
+      ? itemsToImport.slice(0, publicCatalogImportRecordLimit)
+      : []
     try {
       for (const [index, item] of itemsToImport.entries()) {
         await library.saveItem(item)
+        if (shouldRecordPublicCatalog && index < publicCatalogImportRecordLimit) {
+          try {
+            await library.recordImportedItemToPublicCatalog(item)
+            publicCatalogRecords += 1
+          } catch {
+            publicCatalogFailures += 1
+          }
+        }
         const current = index + 1
         setServiceImportApplyProgress({ current, total: itemsToImport.length })
         setServiceImportMessage(`Importando ${current}/${itemsToImport.length} desde ${serviceImportPreview.sourceLabel}...`)
       }
 
+      const completionMessage = formatServiceImportCompletionMessage({
+        failures: publicCatalogFailures,
+        imported: itemsToImport.length,
+        limit: publicCatalogImportRecordLimit,
+        recordable: publicCatalogRecordableItems.length,
+        records: publicCatalogRecords,
+        sourceLabel: serviceImportPreview.sourceLabel,
+      })
       setServiceImportDialogPhase('complete')
-      setServiceImportMessage(`Importadas ${itemsToImport.length} entradas desde ${serviceImportPreview.sourceLabel}`)
-      setStatus(`Importadas ${itemsToImport.length} entradas desde ${serviceImportPreview.sourceLabel}`)
+      setServiceImportMessage(completionMessage)
+      setStatus(completionMessage)
       onActivity({
-        detail: `${itemsToImport.length} entradas privadas`,
+        detail: `${itemsToImport.length} entradas privadas; ${publicCatalogRecords} registradas para catalogo`,
         label: `${serviceImportPreview.sourceLabel} importado`,
         tab: 'import',
-        tone: 'success',
+        tone: publicCatalogFailures ? 'info' : 'success',
       })
     } catch (reason) {
       setServiceImportDialogPhase('error')
@@ -427,4 +451,29 @@ export default function ImportTab({
       )}
     </section>
   )
+}
+
+function formatServiceImportCompletionMessage({
+  failures,
+  imported,
+  limit,
+  recordable,
+  records,
+  sourceLabel,
+}: {
+  failures: number
+  imported: number
+  limit: number
+  recordable: number
+  records: number
+  sourceLabel: string
+}) {
+  const capped = imported > limit
+  const catalogSummary = recordable > 0
+    ? `${records} registradas para mejorar el catalogo${capped ? `; limite publico ${limit}` : ''}.`
+    : '0 registradas para mejorar el catalogo.'
+  const failureSummary = failures > 0
+    ? ' Importacion completada; algunas obras no se pudieron registrar en el catalogo.'
+    : ''
+  return `Importadas ${imported} entradas desde ${sourceLabel}. ${catalogSummary}${failureSummary}`
 }

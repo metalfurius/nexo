@@ -5719,6 +5719,17 @@ body.dialog-scroll-locked {
   padding: 5px 8px;
 }
 
+.service-import-privacy-note {
+  background: color-mix(in srgb, var(--accent-soft) 34%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border));
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.4;
+  margin: 0;
+  padding: 8px 10px;
+}
+
 .service-import-filters button {
   background: var(--surface-muted);
   border: 1px solid var(--border);

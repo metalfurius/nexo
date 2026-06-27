@@ -20,6 +20,7 @@ import {
   type ActivityEntry,
   type DiscoveryCandidate,
   type ExternalCandidate,
+  type ExternalRefs,
   type ItemStatus,
   type ListItem,
   type PublicCatalogItem,
@@ -72,6 +73,7 @@ export interface LibraryRepository {
   restoreDiscoveryCandidate: (candidateId: string) => Promise<void>
   markDiscoveryCandidateSaved: (candidateId: string, savedItemId: string) => Promise<void>
   recordDiscoverySaveToPublicCatalog: (candidate: DiscoveryCandidate) => Promise<void>
+  recordImportedItemToPublicCatalog: (item: ListItem) => Promise<void>
   ensureUserProfile: (profile: Partial<UserProfile>) => Promise<void>
   subscribeUserProfile: (
     onProfile: (profile: UserProfile | undefined, snapshotState: RepositorySnapshotState) => void,
@@ -324,6 +326,9 @@ export function createFirestoreRepository(userId: string): LibraryRepository | u
     },
     async recordDiscoverySaveToPublicCatalog(candidate) {
       await recordSavedDiscoveryCandidateInPublicCatalog(services.db, userId, candidate)
+    },
+    async recordImportedItemToPublicCatalog(item) {
+      await recordImportedLibraryItemInPublicCatalog(services.db, userId, item)
     },
     async ensureUserProfile(profile) {
       const snapshot = await getDoc(userProfileDocument)
@@ -580,6 +585,38 @@ async function recordSavedDiscoveryCandidateInPublicCatalog(
   await setDoc(doc(db, 'publicItems', item.id), withoutUndefined(item), { merge: true })
 }
 
+async function recordImportedLibraryItemInPublicCatalog(
+  db: Firestore,
+  actorId: string,
+  item: ListItem,
+) {
+  if (item.source !== 'external' || !item.title.trim()) return
+
+  const timestamp = nowIso()
+  const existing = await findExistingPublicItemForImportedItem(db, item)
+  if (existing?.data.archivedAt) {
+    const publicItem = {
+      ...buildImportedPublicCatalogItem(item, actorId, timestamp),
+      id: existing.data.id,
+      archivedAt: deleteField(),
+    }
+    await setDoc(existing.ref, withoutUndefined(publicItem), { merge: true })
+    return
+  }
+
+  if (existing) {
+    await setDoc(
+      existing.ref,
+      buildExistingImportedItemDemandPatch(existing.data, item, actorId, timestamp),
+      { merge: true },
+    )
+    return
+  }
+
+  const publicItem = buildImportedPublicCatalogItem(item, actorId, timestamp)
+  await setDoc(doc(db, 'publicItems', publicItem.id), withoutUndefined(publicItem), { merge: true })
+}
+
 function buildExistingPublicItemDemandPatch(
   existing: PublicCatalogItem,
   candidate: DiscoveryCandidate,
@@ -606,6 +643,42 @@ function buildExistingPublicItemDemandPatch(
   const externalRefs = {
     ...(existing.externalRefs ?? {}),
     ...(candidate.externalRefs ?? {}),
+  }
+  if (Object.keys(externalRefs).length > Object.keys(existing.externalRefs ?? {}).length) {
+    patch.externalRefs = externalRefs
+  }
+
+  return withoutUndefined(patch)
+}
+
+function buildExistingImportedItemDemandPatch(
+  existing: PublicCatalogItem,
+  item: ListItem,
+  actorId: string,
+  timestamp: string,
+) {
+  const importedItem = buildImportedPublicCatalogItem(item, actorId, timestamp)
+  const patch: Record<string, unknown> = {
+    demandCount: increment(1),
+    lastDemandAt: timestamp,
+    updatedAt: timestamp,
+    updatedBy: actorId,
+  }
+
+  if (existing.releaseYear === undefined && importedItem.releaseYear !== undefined) {
+    patch.releaseYear = importedItem.releaseYear
+  }
+  if (existing.progressTotal === undefined && importedItem.progressTotal !== undefined) {
+    patch.progressTotal = importedItem.progressTotal
+    patch.progressUnit = importedItem.progressUnit
+  } else if (existing.progressUnit === undefined && importedItem.progressUnit !== undefined) {
+    patch.progressUnit = importedItem.progressUnit
+  }
+  if (!existing.posterUrl && importedItem.posterUrl) patch.posterUrl = importedItem.posterUrl
+
+  const externalRefs = {
+    ...(existing.externalRefs ?? {}),
+    ...(importedItem.externalRefs ?? {}),
   }
   if (Object.keys(externalRefs).length > Object.keys(existing.externalRefs ?? {}).length) {
     patch.externalRefs = externalRefs
@@ -652,6 +725,32 @@ async function findExistingPublicItem(db: Firestore, candidate: DiscoveryCandida
   return canonicalDoc?.ref ? { data: canonicalDoc.data() as PublicCatalogItem, ref: canonicalDoc.ref } : undefined
 }
 
+async function findExistingPublicItemForImportedItem(db: Firestore, item: ListItem) {
+  const directRef = doc(db, 'publicItems', createImportedPublicItemId(item))
+  const directSnapshot = await getDoc(directRef)
+  if (directSnapshot.exists()) {
+    return { data: directSnapshot.data() as PublicCatalogItem, ref: directRef }
+  }
+
+  for (const [key, value] of importedExternalRefEntries(item)) {
+    const sourceSnapshot = await getDocs(
+      query(collection(db, 'publicItems'), where(`externalRefs.${key}`, '==', value), firestoreLimit(1)),
+    )
+    const sourceDoc = sourceSnapshot.docs[0]
+    if (sourceDoc?.ref) return { data: sourceDoc.data() as PublicCatalogItem, ref: sourceDoc.ref }
+  }
+
+  const canonicalSnapshot = await getDocs(
+    query(
+      collection(db, 'publicItems'),
+      where('canonicalKey', '==', `${item.type}:${normalizeKey(item.title)}`),
+      firestoreLimit(1),
+    ),
+  )
+  const canonicalDoc = canonicalSnapshot.docs[0]
+  return canonicalDoc?.ref ? { data: canonicalDoc.data() as PublicCatalogItem, ref: canonicalDoc.ref } : undefined
+}
+
 function buildAutoIngestedPublicItem(
   candidate: DiscoveryCandidate & { source: ExternalCandidate['source'] },
   actorId: string,
@@ -690,6 +789,32 @@ function buildAutoIngestedPublicItem(
   )
 }
 
+function buildImportedPublicCatalogItem(item: ListItem, actorId: string, timestamp: string) {
+  return buildPublicCatalogItem(
+    {
+      id: createImportedPublicItemId(item),
+      title: item.title,
+      type: item.type,
+      releaseYear: readImportedReleaseYear(item),
+      progressTotal: readPublicProgressTotal(item),
+      progressUnit: readPublicProgressTotal(item) === undefined ? undefined : item.progressUnit,
+      genres: uniqueValues(item.genres),
+      tags: importedPublicCatalogTags(item),
+      moodTags: [],
+      searchAliases: [],
+      externalRefs: compactExternalRefs(item.externalRefs),
+      posterUrl: item.posterUrl,
+      createdAt: timestamp,
+      createdBy: actorId,
+      updatedBy: actorId,
+      autoIngestedAt: timestamp,
+      demandCount: 1,
+      lastDemandAt: timestamp,
+    },
+    actorId,
+  )
+}
+
 function isExternalDiscoveryCandidate(
   candidate: DiscoveryCandidate,
 ): candidate is DiscoveryCandidate & { source: ExternalCandidate['source'] } {
@@ -700,6 +825,105 @@ function createAutoPublicItemId(
   candidate: Pick<DiscoveryCandidate, 'source' | 'sourceId' | 'title' | 'type'> & { source: ExternalCandidate['source'] },
 ) {
   return `${candidate.type}-${candidate.source}-${slugify(candidate.sourceId || candidate.title)}`.slice(0, 120)
+}
+
+function createImportedPublicItemId(item: ListItem) {
+  const stableRef = importedStablePublicRef(item)
+  const idSource = stableRef ? `${stableRef.source}-${stableRef.value}` : item.title
+  return `${item.type}-${slugify(idSource)}`.slice(0, 120)
+}
+
+function importedStablePublicRef(item: ListItem) {
+  const refs = compactExternalRefs(item.externalRefs)
+  const stableRefs: Array<{ key: keyof ExternalRefs; source: string }> = [
+    { key: 'anilistId', source: 'anilist' },
+    { key: 'malId', source: 'jikan' },
+    { key: 'letterboxdSlug', source: 'letterboxd' },
+    { key: 'goodreadsBookId', source: 'goodreads' },
+    { key: 'isbn', source: 'isbn' },
+    { key: 'googleBooksId', source: 'googleBooks' },
+    { key: 'openLibraryKey', source: 'openLibrary' },
+    { key: 'tmdbId', source: 'tmdb' },
+    { key: 'rawgId', source: 'rawg' },
+    { key: 'kitsuId', source: 'kitsu' },
+    { key: 'wikidataId', source: 'wikidata' },
+  ]
+
+  for (const { key, source } of stableRefs) {
+    const value = refs[key]
+    if (value) return { key, source, value }
+  }
+  return undefined
+}
+
+function importedExternalRefEntries(item: ListItem): Array<[keyof ExternalRefs, string]> {
+  const refs = compactExternalRefs(item.externalRefs)
+  const stableKeys: Array<keyof ExternalRefs> = [
+    'anilistId',
+    'malId',
+    'letterboxdSlug',
+    'goodreadsBookId',
+    'isbn',
+    'googleBooksId',
+    'openLibraryKey',
+    'tmdbId',
+    'rawgId',
+    'kitsuId',
+    'wikidataId',
+  ]
+  return stableKeys.flatMap((key) => refs[key] ? [[key, refs[key]]] : [])
+}
+
+function importedPublicCatalogTags(item: ListItem) {
+  const refs = compactExternalRefs(item.externalRefs)
+  return uniqueValues([
+    item.type,
+    refs.anilistId ? 'AniList' : undefined,
+    refs.malId ? 'MyAnimeList' : undefined,
+    refs.letterboxdSlug ? 'Letterboxd' : undefined,
+    refs.goodreadsBookId || refs.isbn ? 'Goodreads' : undefined,
+    refs.googleBooksId ? 'Google Books' : undefined,
+    refs.openLibraryKey ? 'Open Library' : undefined,
+    refs.tmdbId ? 'TMDB' : undefined,
+    refs.rawgId ? 'RAWG' : undefined,
+    refs.kitsuId ? 'Kitsu' : undefined,
+    refs.wikidataId ? 'Wikidata' : undefined,
+  ])
+}
+
+function readImportedReleaseYear(item: ListItem) {
+  const snapshotYear = readSafeYear(item.publicSnapshot?.releaseYear)
+  if (snapshotYear !== undefined) return snapshotYear
+
+  for (const note of item.importNotes ?? []) {
+    const match = note.match(/^Ano:\s*(\d{4})$/)
+    const year = readSafeYear(match ? Number(match[1]) : undefined)
+    if (year !== undefined) return year
+  }
+  return undefined
+}
+
+function readSafeYear(value: unknown) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return undefined
+  const year = Math.trunc(value)
+  return year >= 1800 && year <= 2100 ? year : undefined
+}
+
+function readPublicProgressTotal(item: ListItem) {
+  if (typeof item.progressTotal !== 'number' || !Number.isFinite(item.progressTotal) || item.progressTotal <= 0) {
+    return undefined
+  }
+  return item.progressTotal
+}
+
+function compactExternalRefs(refs: ExternalRefs | undefined): ExternalRefs {
+  if (!refs) return {}
+
+  return Object.fromEntries(
+    Object.entries(refs).flatMap(([key, value]) =>
+      typeof value === 'string' && value.trim() ? [[key, value.trim()]] : [],
+    ),
+  ) as ExternalRefs
 }
 
 function externalSourceRefKey(source: ExternalCandidate['source']) {
