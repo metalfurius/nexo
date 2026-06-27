@@ -26,15 +26,21 @@ interface CatalogTabProps {
 }
 
 const adsEnabled = import.meta.env.VITE_ADS_ENABLED === 'true'
+const catalogPublicPageSize = 24
 
 export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate, onSignIn }: CatalogTabProps) {
   const [query, setQuery] = useState('')
   const [type, setType] = useState<ExplorerSearchType>('any')
   const [candidates, setCandidates] = useState<DiscoveryCandidate[]>([])
+  const [visibleLimit, setVisibleLimit] = useState(catalogPublicPageSize)
+  const [catalogResultLabel, setCatalogResultLabel] = useState('obras del catalogo')
   const [selectedCandidate, setSelectedCandidate] = useState<DiscoveryCandidate | undefined>()
   const [loading, setLoading] = useState(false)
   const [status, setStatus] = useState<string | undefined>()
+  const visibleCandidates = useMemo(() => candidates.slice(0, visibleLimit), [candidates, visibleLimit])
   const publicCount = useMemo(() => candidates.filter((candidate) => candidate.source === 'nexo').length, [candidates])
+  const visiblePublicCount = useMemo(() => visibleCandidates.filter((candidate) => candidate.source === 'nexo').length, [visibleCandidates])
+  const hasMoreCandidates = visibleCandidates.length < candidates.length
   const showCatalogRail = !isSignedIn || adsEnabled
   const isCandidateSaved = (candidate: DiscoveryCandidate) =>
     isSignedIn && Boolean(getSavedLibraryItemForCandidate(candidate, library.items))
@@ -47,11 +53,14 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
       try {
         const publicItems = await library.listPublicCatalog()
         if (disposed) return
-        const initialCandidates = publicItems.map(library.publicItemToDiscovery).slice(0, 24)
+        const initialCandidates = publicItems.map(library.publicItemToDiscovery)
+        const initialVisibleCount = Math.min(catalogPublicPageSize, initialCandidates.length)
         setCandidates(initialCandidates)
+        setVisibleLimit(catalogPublicPageSize)
+        setCatalogResultLabel('obras del catalogo')
         setStatus(
           initialCandidates.length
-            ? `${initialCandidates.length} obras del catalogo listas para explorar.`
+            ? formatCatalogVisibleStatus(initialVisibleCount, initialCandidates.length, 'obras del catalogo', isSignedIn)
             : 'El catalogo publico esta esperando sus primeras obras.',
         )
       } catch (reason) {
@@ -67,7 +76,7 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
     return () => {
       disposed = true
     }
-  }, [library])
+  }, [isSignedIn, library])
 
   async function searchCatalog() {
     const cleanedQuery = query.trim()
@@ -76,13 +85,17 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
     try {
       const nextCandidates =
         cleanedQuery.length >= 2
-          ? (await library.searchPublicCatalog(cleanedQuery, type)).map(library.publicItemToDiscovery).slice(0, 24)
-          : (await library.listPublicCatalog()).map(library.publicItemToDiscovery).slice(0, 24)
+          ? (await library.searchPublicCatalog(cleanedQuery, type)).map(library.publicItemToDiscovery)
+          : (await library.listPublicCatalog()).map(library.publicItemToDiscovery)
+      const nextVisibleCount = Math.min(catalogPublicPageSize, nextCandidates.length)
+      const nextResultLabel = cleanedQuery.length >= 2 ? 'resultados para explorar' : 'obras del catalogo'
 
       setCandidates(nextCandidates)
+      setVisibleLimit(catalogPublicPageSize)
+      setCatalogResultLabel(nextResultLabel)
       setStatus(
         nextCandidates.length
-          ? `${nextCandidates.length} resultado${nextCandidates.length === 1 ? '' : 's'} para explorar.`
+          ? formatCatalogVisibleStatus(nextVisibleCount, nextCandidates.length, nextResultLabel, isSignedIn)
           : 'Sin resultados en el catalogo publico.',
       )
       if (isSignedIn && cleanedQuery.length >= 2 && nextCandidates.length) {
@@ -144,6 +157,12 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
     onNavigate('explorer')
   }
 
+  function showMoreCandidates() {
+    const nextVisibleLimit = Math.min(visibleLimit + catalogPublicPageSize, candidates.length)
+    setVisibleLimit(nextVisibleLimit)
+    setStatus(formatCatalogVisibleStatus(nextVisibleLimit, candidates.length, catalogResultLabel, isSignedIn))
+  }
+
   return (
     <section className={showCatalogRail ? 'catalog-public-layout' : 'catalog-public-layout no-rail'} aria-label="Catalogo publico de Nexo">
       <div className="catalog-public-main">
@@ -189,7 +208,7 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
           </form>
           <div className="catalog-public-summary" aria-label="Resumen del catalogo">
             <span>
-              <strong>{publicCount}</strong>
+              <strong>{visiblePublicCount === publicCount ? publicCount : `${visiblePublicCount}/${publicCount}`}</strong>
               <small>Nexo</small>
             </span>
             <span>
@@ -202,19 +221,34 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
         {status && <FeedbackMessage tone={feedbackToneFromText(status)}>{status}</FeedbackMessage>}
 
         {candidates.length ? (
-          <div className="catalog-public-grid" aria-label="Resultados del catalogo">
-            {candidates.map((candidate, index) => (
-              <CatalogPublicCard
-                candidate={candidate}
-                isSaved={isCandidateSaved(candidate)}
-                key={candidate.id}
-                onDetails={() => setSelectedCandidate(candidate)}
-                onQueue={() => void queueCandidate(candidate)}
-                onSave={() => void saveCandidate(candidate)}
-                showAdAfter={index > 0 && (index + 1) % 10 === 0}
-              />
-            ))}
-          </div>
+          <>
+            <div className="catalog-public-grid" aria-label="Resultados del catalogo">
+              {visibleCandidates.map((candidate, index) => (
+                <CatalogPublicCard
+                  candidate={candidate}
+                  isSaved={isCandidateSaved(candidate)}
+                  key={candidate.id}
+                  onDetails={() => setSelectedCandidate(candidate)}
+                  onQueue={() => void queueCandidate(candidate)}
+                  onSave={() => void saveCandidate(candidate)}
+                  showAdAfter={index > 0 && (index + 1) % 10 === 0}
+                />
+              ))}
+            </div>
+            {hasMoreCandidates && (
+              <div className="catalog-public-load-more" aria-label="Mas resultados del catalogo">
+                <span>{formatCatalogVisibleStatus(visibleCandidates.length, candidates.length, catalogResultLabel, isSignedIn)}</span>
+                <button
+                  className="secondary-button"
+                  type="button"
+                  onClick={showMoreCandidates}
+                >
+                  <Sparkles size={16} />
+                  Mostrar mas
+                </button>
+              </div>
+            )}
+          </>
         ) : (
           <EmptyState
             action={
@@ -267,6 +301,13 @@ function getCatalogTypeSummary(type: ExplorerSearchType) {
   if (type === 'any') return 'Todo'
   if (type === 'watch') return 'Ver'
   return typeLabels[type]
+}
+
+function formatCatalogVisibleStatus(visibleCount: number, totalCount: number, label: string, canTrustTotal: boolean) {
+  if (canTrustTotal || totalCount < catalogPublicPageSize) {
+    return `Mostrando ${visibleCount} de ${totalCount} ${label}.`
+  }
+  return `Mostrando ${visibleCount} ${label}.`
 }
 
 function CatalogPublicCard({

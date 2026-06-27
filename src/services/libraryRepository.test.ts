@@ -594,6 +594,37 @@ describe('createFirestoreRepository', () => {
     )
   })
 
+  it('returns signed-in public catalog searches without the old twelve item cutoff', async () => {
+    const repository = createFirestoreRepository('user-1')
+    const publicItems: PublicCatalogItem[] = Array.from({ length: 15 }, (_entry, index) => ({
+      id: `anime-catalog-${index + 1}`,
+      title: `Catalog Anime ${index + 1}`,
+      type: 'anime',
+      genres: ['Fantasy'],
+      tags: ['anime'],
+      moodTags: [],
+      searchAliases: [],
+      externalRefs: {
+        anilistId: String(9000 + index),
+      },
+      searchTokens: ['catalog', 'anime', String(index + 1)],
+      canonicalKey: `anime:catalog anime ${index + 1}`,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      createdBy: 'moderator',
+      updatedBy: 'moderator',
+    }))
+    mocks.getDocs.mockResolvedValueOnce({
+      docs: publicItems.map((publicItem) => ({
+        data: () => publicItem,
+      })),
+    })
+
+    const results = await repository?.searchPublicCatalog('Catalog', 'anime')
+
+    expect(results).toHaveLength(15)
+  })
+
   it('does not write public catalog items from signed-in searches', async () => {
     const repository = createFirestoreRepository('user-1')
     searchMocks.searchExternalSources.mockResolvedValueOnce([
@@ -977,6 +1008,85 @@ describe('createFirestoreRepository', () => {
         updatedBy: 'user-1',
       }),
       { merge: true },
+    )
+  })
+
+  it('prioritizes imported external refs over canonical matches when both dedupe queries match', async () => {
+    const repository = createFirestoreRepository('user-1')
+    const externalExisting: PublicCatalogItem = {
+      id: 'anime-frieren-by-ref',
+      title: 'Frieren: Beyond Journey End',
+      type: 'anime',
+      genres: ['Fantasy'],
+      tags: ['anime'],
+      moodTags: [],
+      externalRefs: {
+        anilistId: '154587',
+      },
+      searchTokens: ['frieren'],
+      canonicalKey: 'anime:frieren beyond journey end',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      createdBy: 'moderator',
+      updatedBy: 'moderator',
+    }
+    const canonicalExisting: PublicCatalogItem = {
+      ...externalExisting,
+      id: 'anime-frieren-by-title',
+      externalRefs: {},
+    }
+    const importedItem: ListItem = {
+      id: 'anime-frieren-anilist-154587',
+      title: 'Frieren: Beyond Journey End',
+      type: 'anime',
+      status: 'completed',
+      progressCurrent: 28,
+      progressTotal: 28,
+      progressUnit: 'episodes',
+      genres: ['Fantasy', 'Adventure'],
+      tags: [],
+      moodTags: [],
+      weights: DEFAULT_WEIGHTS,
+      source: 'external',
+      externalRefs: {
+        anilistId: '154587',
+      },
+      posterUrl: 'https://img.anili.st/media/154587.jpg',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    }
+    mocks.getDocs
+      .mockResolvedValueOnce({
+        docs: [
+          {
+            data: () => externalExisting,
+            ref: { path: 'publicItems/anime-frieren-by-ref' },
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        docs: [
+          {
+            data: () => canonicalExisting,
+            ref: { path: 'publicItems/anime-frieren-by-title' },
+          },
+        ],
+      })
+
+    await repository?.recordImportedItemToPublicCatalog(importedItem)
+
+    expect(mocks.setDoc).toHaveBeenCalledWith(
+      expect.objectContaining({ path: 'publicItems/anime-frieren-by-ref' }),
+      expect.objectContaining({
+        demandCount: { kind: 'increment', value: 1 },
+        updatedBy: 'user-1',
+      }),
+      { merge: true },
+    )
+    expect(mocks.setDoc).not.toHaveBeenCalledWith(
+      expect.objectContaining({ path: 'publicItems/anime-frieren-by-title' }),
+      expect.anything(),
+      expect.anything(),
     )
   })
 

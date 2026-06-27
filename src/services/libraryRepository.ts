@@ -236,7 +236,6 @@ export function createFirestoreRepository(userId: string): LibraryRepository | u
         searchQuery,
         type,
       )
-        .slice(0, 12)
     },
     async listPublicCatalog() {
       const snapshot = await getDocs(collection(services.db, 'publicItems'))
@@ -732,23 +731,30 @@ async function findExistingPublicItemForImportedItem(db: Firestore, item: ListIt
     return { data: directSnapshot.data() as PublicCatalogItem, ref: directRef }
   }
 
-  for (const [key, value] of importedExternalRefEntries(item)) {
-    const sourceSnapshot = await getDocs(
-      query(collection(db, 'publicItems'), where(`externalRefs.${key}`, '==', value), firestoreLimit(1)),
-    )
-    const sourceDoc = sourceSnapshot.docs[0]
-    if (sourceDoc?.ref) return { data: sourceDoc.data() as PublicCatalogItem, ref: sourceDoc.ref }
-  }
-
-  const canonicalSnapshot = await getDocs(
+  const externalMatchPromise = Promise.all(
+    importedExternalRefEntries(item).map(async ([key, value]) => {
+      const sourceSnapshot = await getDocs(
+        query(collection(db, 'publicItems'), where(`externalRefs.${key}`, '==', value), firestoreLimit(1)),
+      )
+      const sourceDoc = sourceSnapshot.docs[0]
+      return sourceDoc?.ref ? { data: sourceDoc.data() as PublicCatalogItem, ref: sourceDoc.ref } : undefined
+    }),
+  )
+  const canonicalMatchPromise = getDocs(
     query(
       collection(db, 'publicItems'),
       where('canonicalKey', '==', `${item.type}:${normalizeKey(item.title)}`),
       firestoreLimit(1),
     ),
-  )
-  const canonicalDoc = canonicalSnapshot.docs[0]
-  return canonicalDoc?.ref ? { data: canonicalDoc.data() as PublicCatalogItem, ref: canonicalDoc.ref } : undefined
+  ).then((canonicalSnapshot) => {
+    const canonicalDoc = canonicalSnapshot.docs[0]
+    return canonicalDoc?.ref ? { data: canonicalDoc.data() as PublicCatalogItem, ref: canonicalDoc.ref } : undefined
+  })
+  const externalMatches = await externalMatchPromise
+  const externalMatch = externalMatches.find(Boolean)
+  if (externalMatch) return externalMatch
+
+  return canonicalMatchPromise
 }
 
 function buildAutoIngestedPublicItem(

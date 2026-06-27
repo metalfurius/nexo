@@ -1,12 +1,13 @@
-import { type ImportPreview, type ImportSourceId, type ItemStatus } from '../domain/types'
+import { type ImportPreview, type ImportSourceId, type ItemStatus, type ListItem } from '../domain/types'
 import { getLibraryImportRollbackPlan, type LibraryImportRollbackPlan } from '../lib/libraryBackup'
-import { uniqueValues } from '../lib/strings'
+import { normalizeKey, uniqueValues } from '../lib/strings'
 import { importSourceLabels } from '../services/importSourceLabels'
 import { BookOpen, Film, HelpCircle, Library, LoaderCircle, RotateCcw, Search, Sparkles, Upload } from 'lucide-react'
-import { type DragEvent, useMemo, useRef, useState } from 'react'
+import { type DragEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { FeedbackMessage, ServiceImportDialog, feedbackToneFromText, formatLibraryImportRollbackDetail, formatLibraryImportRollbackStatus, getImportPreviewNewItems, serviceImportPreviewRenderLimit, type ActivityRecorder, type AppTab, type LibrarySurface, type ServiceImportApplyProgress, type ServiceImportDialogPhase } from '../app/shared'
 
 export const publicCatalogImportRecordLimit = 500
+export const publicCatalogImportRecordConcurrency = 4
 
 export default function ImportTab({
   library,
@@ -32,6 +33,8 @@ export default function ImportTab({
   const [anilistImportInput, setAnilistImportInput] = useState('')
   const [myAnimeListImportInput, setMyAnimeListImportInput] = useState('')
   const importRequestId = useRef(0)
+  const mountedRef = useRef(true)
+  const serviceImportFeedbackRunId = useRef(0)
   const serviceImportVisibleItems = useMemo(() => {
     if (!serviceImportPreview) return []
     return serviceImportPreview.items.filter(
@@ -62,6 +65,14 @@ export default function ImportTab({
     serviceImportPreview?.sourceLabel ??
     (serviceImportDialogSource ? importSourceLabels[serviceImportDialogSource] : 'Importacion')
 
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      serviceImportFeedbackRunId.current += 1
+    }
+  }, [])
+
   function resetServiceImportPreview() {
     setServiceImportPreview(undefined)
     setServiceImportSelectedIds([])
@@ -87,6 +98,7 @@ export default function ImportTab({
     const input = sourceId === 'anilist' ? anilistImportInput : myAnimeListImportInput
     const requestId = importRequestId.current + 1
     importRequestId.current = requestId
+    serviceImportFeedbackRunId.current += 1
     setServiceImportDialogSource(sourceId)
     setServiceImportLoading(sourceId)
     setServiceImportDialogOpen(true)
@@ -115,6 +127,7 @@ export default function ImportTab({
 
     const requestId = importRequestId.current + 1
     importRequestId.current = requestId
+    serviceImportFeedbackRunId.current += 1
     setServiceImportDialogSource(sourceId)
     setServiceImportLoading(sourceId)
     setServiceImportDialogOpen(true)
@@ -163,6 +176,7 @@ export default function ImportTab({
       importRequestId.current += 1
     }
     setServiceImportDialogOpen(false)
+    serviceImportFeedbackRunId.current += 1
     setServiceImportLoading(undefined)
     setServiceImportDialogSource(undefined)
     setServiceImportMessage(undefined)
@@ -184,50 +198,98 @@ export default function ImportTab({
     setServiceImportDialogPhase('applying')
     setServiceImportApplyProgress({ current: 0, total: itemsToImport.length })
     setServiceImportMessage(`Importando 0/${itemsToImport.length} desde ${serviceImportPreview.sourceLabel}...`)
-    let publicCatalogRecords = 0
-    let publicCatalogFailures = 0
     const shouldRecordPublicCatalog = library.syncState.remote
     const publicCatalogRecordableItems = shouldRecordPublicCatalog
-      ? itemsToImport.slice(0, publicCatalogImportRecordLimit)
+      ? dedupePublicCatalogRecordItems(itemsToImport).slice(0, publicCatalogImportRecordLimit)
       : []
     try {
       for (const [index, item] of itemsToImport.entries()) {
         await library.saveItem(item)
-        if (shouldRecordPublicCatalog && index < publicCatalogImportRecordLimit) {
-          try {
-            await library.recordImportedItemToPublicCatalog(item)
-            publicCatalogRecords += 1
-          } catch {
-            publicCatalogFailures += 1
-          }
-        }
         const current = index + 1
         setServiceImportApplyProgress({ current, total: itemsToImport.length })
         setServiceImportMessage(`Importando ${current}/${itemsToImport.length} desde ${serviceImportPreview.sourceLabel}...`)
       }
 
-      const completionMessage = formatServiceImportCompletionMessage({
-        failures: publicCatalogFailures,
+      const feedbackRunId = serviceImportFeedbackRunId.current + 1
+      serviceImportFeedbackRunId.current = feedbackRunId
+      const completionMessage = formatServiceImportPrivateCompletionMessage({
         imported: itemsToImport.length,
-        limit: publicCatalogImportRecordLimit,
         recordable: publicCatalogRecordableItems.length,
-        records: publicCatalogRecords,
         sourceLabel: serviceImportPreview.sourceLabel,
       })
       setServiceImportDialogPhase('complete')
       setServiceImportMessage(completionMessage)
       setStatus(completionMessage)
       onActivity({
-        detail: `${itemsToImport.length} entradas privadas; ${publicCatalogRecords} registradas para catalogo`,
+        detail: `${itemsToImport.length} entradas privadas; ${publicCatalogRecordableItems.length} pendientes para catalogo`,
         label: `${serviceImportPreview.sourceLabel} importado`,
         tab: 'import',
-        tone: publicCatalogFailures ? 'info' : 'success',
+        tone: 'success',
       })
+      if (publicCatalogRecordableItems.length) {
+        void recordPublicCatalogImportsInBackground(
+          publicCatalogRecordableItems,
+          serviceImportPreview.sourceLabel,
+          itemsToImport.length,
+          feedbackRunId,
+        )
+      }
     } catch (reason) {
       setServiceImportDialogPhase('error')
       const errorMessage = reason instanceof Error ? reason.message : 'No se pudo aplicar la importacion.'
       setServiceImportMessage(`${errorMessage} Puedes deshacer cualquier cambio aplicado.`)
     }
+  }
+
+  async function recordPublicCatalogImportsInBackground(
+    itemsToRecord: ListItem[],
+    sourceLabel: string,
+    importedCount: number,
+    feedbackRunId: number,
+  ) {
+    let completed = 0
+    let records = 0
+    let failures = 0
+    const total = itemsToRecord.length
+
+    const updateBackgroundMessage = () => {
+      if (!canUpdateServiceImportFeedback(feedbackRunId)) return
+      setServiceImportMessage(
+        `Importadas ${importedCount} entradas desde ${sourceLabel}. Registrando catalogo publico... ${completed}/${total}`,
+      )
+    }
+
+    updateBackgroundMessage()
+    const workerCount = Math.min(publicCatalogImportRecordConcurrency, total)
+    await Promise.all(
+      Array.from({ length: workerCount }, async (_entry, workerIndex) => {
+        for (let index = workerIndex; index < total; index += workerCount) {
+          try {
+            await library.recordImportedItemToPublicCatalog(itemsToRecord[index])
+            records += 1
+          } catch {
+            failures += 1
+          } finally {
+            completed += 1
+            updateBackgroundMessage()
+          }
+        }
+      }),
+    )
+
+    if (!canUpdateServiceImportFeedback(feedbackRunId)) return
+    const completionMessage = formatServiceImportCatalogCompletionMessage({
+      failures,
+      imported: importedCount,
+      records,
+      sourceLabel,
+    })
+    setServiceImportMessage(completionMessage)
+    setStatus(completionMessage)
+  }
+
+  function canUpdateServiceImportFeedback(feedbackRunId: number) {
+    return mountedRef.current && serviceImportFeedbackRunId.current === feedbackRunId
   }
 
   async function undoServiceImport() {
@@ -453,27 +515,64 @@ export default function ImportTab({
   )
 }
 
-function formatServiceImportCompletionMessage({
+function formatServiceImportPrivateCompletionMessage({
+  imported,
+  recordable,
+  sourceLabel,
+}: {
+  imported: number
+  recordable: number
+  sourceLabel: string
+}) {
+  const backgroundSummary = recordable > 0
+    ? ` Registrando ${recordable} para mejorar el catalogo en segundo plano.`
+    : ''
+  return `Importadas ${imported} entradas desde ${sourceLabel}.${backgroundSummary}`
+}
+
+function formatServiceImportCatalogCompletionMessage({
   failures,
   imported,
-  limit,
-  recordable,
   records,
   sourceLabel,
 }: {
   failures: number
   imported: number
-  limit: number
-  recordable: number
   records: number
   sourceLabel: string
 }) {
-  const capped = imported > limit
-  const catalogSummary = recordable > 0
-    ? `${records} registradas para mejorar el catalogo${capped ? `; limite publico ${limit}` : ''}.`
-    : '0 registradas para mejorar el catalogo.'
   const failureSummary = failures > 0
     ? ' Importacion completada; algunas obras no se pudieron registrar en el catalogo.'
     : ''
-  return `Importadas ${imported} entradas desde ${sourceLabel}. ${catalogSummary}${failureSummary}`
+  return `Importadas ${imported} entradas desde ${sourceLabel}. ${records} registradas para mejorar el catalogo.${failureSummary}`
+}
+
+function dedupePublicCatalogRecordItems(items: ListItem[]) {
+  const seenKeys = new Set<string>()
+  return items.filter((item) => {
+    const keys = publicCatalogRecordKeys(item)
+    if (keys.some((key) => seenKeys.has(key))) return false
+    keys.forEach((key) => seenKeys.add(key))
+    return true
+  })
+}
+
+function publicCatalogRecordKeys(item: ListItem) {
+  const refs = item.externalRefs ?? {}
+  const refKeys = [
+    ['anilistId', refs.anilistId],
+    ['malId', refs.malId],
+    ['letterboxdSlug', refs.letterboxdSlug],
+    ['goodreadsBookId', refs.goodreadsBookId],
+    ['isbn', refs.isbn],
+    ['googleBooksId', refs.googleBooksId],
+    ['openLibraryKey', refs.openLibraryKey],
+    ['tmdbId', refs.tmdbId],
+    ['rawgId', refs.rawgId],
+    ['kitsuId', refs.kitsuId],
+    ['wikidataId', refs.wikidataId],
+  ]
+    .filter((entry): entry is [string, string] => typeof entry[1] === 'string' && entry[1].trim().length > 0)
+    .map(([key, value]) => `${item.type}:ref:${key}:${normalizeKey(value)}`)
+  return refKeys.length ? refKeys : [`${item.type}:title:${normalizeKey(item.title)}`]
 }

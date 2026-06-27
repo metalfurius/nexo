@@ -6,11 +6,12 @@ import { buildPublicCatalogItem, discoveryToListItem, externalCandidateToDiscove
 import type { LibrarySurface } from '../app/shared'
 import CatalogTab from './CatalogTab'
 
-function createPublicCatalogItem() {
+function createPublicCatalogItem(index?: number) {
+  const title = index === undefined ? "Frieren: Beyond Journey's End" : `Catalog Item ${index}`
   return buildPublicCatalogItem(
     {
-      id: 'anime-frieren',
-      title: "Frieren: Beyond Journey's End",
+      id: index === undefined ? 'anime-frieren' : `anime-catalog-item-${index}`,
+      title,
       type: 'anime',
       description: 'Fantasia contemplativa sobre memoria, duelo y tiempo despues de la aventura.',
       releaseYear: 2023,
@@ -138,5 +139,38 @@ describe('CatalogTab', () => {
 
     await waitFor(() => expect(saveDiscoveryToLibrary).not.toHaveBeenCalled())
     expect(screen.getByRole('status')).toHaveTextContent(`${publicItem.title} ya esta en tu Biblioteca.`)
+  })
+
+  it('shows public catalog entries in an incremental window', async () => {
+    const publicItems = Array.from({ length: 30 }, (_entry, index) => createPublicCatalogItem(index + 1))
+    const { library } = createLibrarySurface({ publicItems })
+
+    renderCatalog(library)
+
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Mostrando 24 de 30 obras del catalogo.'))
+    expect(screen.getByRole('heading', { name: 'Catalog Item 24' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Catalog Item 25' })).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Mostrar mas' }))
+
+    expect(await screen.findByRole('heading', { name: 'Catalog Item 30' })).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('Mostrando 30 de 30 obras del catalogo.')
+    expect(screen.queryByRole('button', { name: 'Mostrar mas' })).not.toBeInTheDocument()
+  })
+
+  it('keeps public search results paged locally instead of truncating them', async () => {
+    const publicItems = Array.from({ length: 30 }, (_entry, index) => createPublicCatalogItem(index + 1))
+    const { library } = createLibrarySurface({ publicItems })
+
+    renderCatalog(library)
+
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Mostrando 24 de 30 obras del catalogo.'))
+    await userEvent.type(screen.getByLabelText('Buscar en el catalogo publico'), 'Catalog')
+    await userEvent.click(screen.getByRole('button', { name: 'Buscar' }))
+
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Mostrando 24 de 30 resultados para explorar.'))
+    expect(library.searchPublicCatalog).toHaveBeenCalledWith('Catalog', 'any')
+    expect(screen.getByRole('heading', { name: 'Catalog Item 24' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Catalog Item 25' })).not.toBeInTheDocument()
   })
 })

@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_SETTINGS, DEFAULT_WEIGHTS, type ImportPreview, type ImportPreviewItem, type ListItem } from '../domain/types'
 import { buildPublicCatalogItem, externalCandidateToDiscovery, publicItemToDiscovery } from '../lib/catalog'
 import type { LibrarySurface } from '../app/shared'
-import ImportTab from './ImportTab'
+import ImportTab, { publicCatalogImportRecordConcurrency, publicCatalogImportRecordLimit } from './ImportTab'
 
 const importerMocks = vi.hoisted(() => ({
   buildImportPreview: vi.fn(),
@@ -101,6 +101,51 @@ function createImportedItem(): ListItem {
   }
 }
 
+function createGeneratedPreviewItem(index: number, externalId = String(100000 + index)): ImportPreviewItem {
+  return {
+    id: `anilist:${externalId}`,
+    draft: {
+      sourceId: 'anilist',
+      sourceItemId: externalId,
+      title: `Anime ${index}`,
+      type: 'anime',
+      status: 'completed',
+      progressTotal: 12,
+      progressUnit: 'episodes',
+      genres: ['Fantasy'],
+      tags: [],
+      moodTags: [],
+      externalRefs: {
+        anilistId: externalId,
+      },
+      releaseYear: 2024,
+    },
+  }
+}
+
+function createGeneratedImportedItem(index: number, externalId = String(100000 + index)): ListItem {
+  return {
+    ...createImportedItem(),
+    id: `anime-${index}-anilist-${externalId}`,
+    title: `Anime ${index}`,
+    progressCurrent: undefined,
+    progressTotal: 12,
+    externalRefs: {
+      anilistId: externalId,
+    },
+  }
+}
+
+function createDeferred<T = void>() {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve
+    reject = promiseReject
+  })
+  return { promise, reject, resolve }
+}
+
 function createLibrarySurface(overrides: Partial<LibrarySurface> = {}) {
   const library: LibrarySurface = {
     items: [],
@@ -151,11 +196,11 @@ function createLibrarySurface(overrides: Partial<LibrarySurface> = {}) {
   return library
 }
 
-async function prepareAniListImport() {
+async function prepareAniListImport(expectedPreviewTitle = 'Frieren: Beyond Journey End') {
   const user = userEvent.setup()
   await user.type(screen.getByPlaceholderText('usuario o anilist.co/user/...'), 'fran')
   await user.click(screen.getAllByRole('button', { name: 'Leer perfil' })[0])
-  await screen.findByText('Frieren: Beyond Journey End')
+  await screen.findByText(expectedPreviewTitle)
   return user
 }
 
@@ -168,14 +213,17 @@ describe('ImportTab', () => {
     })
   })
 
-  it('registers selected new imports in the public catalog after saving them privately', async () => {
+  it('completes the private import before public catalog registration finishes', async () => {
     const { duplicatePreviewItem, frierenPreviewItem } = createPreviewItems()
     const importedItem = createImportedItem()
+    const publicRecord = createDeferred()
     const preview = createPreview([frierenPreviewItem, duplicatePreviewItem])
     importerMocks.importAniListLibrary.mockResolvedValueOnce({ sourceId: 'anilist', drafts: [], warnings: [] })
     importerMocks.buildImportPreview.mockReturnValueOnce(preview)
     importerMocks.importPreviewItemsToListItems.mockReturnValueOnce([importedItem])
-    const library = createLibrarySurface()
+    const library = createLibrarySurface({
+      recordImportedItemToPublicCatalog: vi.fn(() => publicRecord.promise),
+    })
 
     render(<ImportTab library={library} onActivity={vi.fn()} onNavigate={vi.fn()} />)
     const user = await prepareAniListImport()
@@ -184,14 +232,22 @@ describe('ImportTab', () => {
     await user.click(screen.getByRole('button', { name: 'Importar todo' }))
 
     await waitFor(() => {
-      expect(screen.getAllByText('Importadas 1 entradas desde AniList. 1 registradas para mejorar el catalogo.').length).toBeGreaterThan(0)
+      expect(
+        screen.getAllByText('Importadas 1 entradas desde AniList. Registrando 1 para mejorar el catalogo en segundo plano.').length,
+      ).toBeGreaterThan(0)
     })
+    expect(screen.getAllByRole('button', { name: 'Ver Biblioteca' }).some((button) => !button.hasAttribute('disabled'))).toBe(true)
     expect(importerMocks.importPreviewItemsToListItems).toHaveBeenCalledWith([frierenPreviewItem])
     expect(library.saveItem).toHaveBeenCalledWith(importedItem)
     expect(library.recordImportedItemToPublicCatalog).toHaveBeenCalledWith(importedItem)
     expect(vi.mocked(library.saveItem).mock.invocationCallOrder[0]).toBeLessThan(
       vi.mocked(library.recordImportedItemToPublicCatalog).mock.invocationCallOrder[0],
     )
+
+    publicRecord.resolve()
+    await waitFor(() => {
+      expect(screen.getAllByText('Importadas 1 entradas desde AniList. 1 registradas para mejorar el catalogo.').length).toBeGreaterThan(0)
+    })
   })
 
   it('completes the private import when public catalog registration fails', async () => {
@@ -201,10 +257,9 @@ describe('ImportTab', () => {
     importerMocks.importAniListLibrary.mockResolvedValueOnce({ sourceId: 'anilist', drafts: [], warnings: [] })
     importerMocks.buildImportPreview.mockReturnValueOnce(preview)
     importerMocks.importPreviewItemsToListItems.mockReturnValueOnce([importedItem])
+    const publicRecord = createDeferred()
     const library = createLibrarySurface({
-      recordImportedItemToPublicCatalog: vi.fn(async () => {
-        throw new Error('catalog unavailable')
-      }),
+      recordImportedItemToPublicCatalog: vi.fn(() => publicRecord.promise),
     })
 
     render(<ImportTab library={library} onActivity={vi.fn()} onNavigate={vi.fn()} />)
@@ -213,9 +268,73 @@ describe('ImportTab', () => {
     await user.click(screen.getByRole('button', { name: 'Importar todo' }))
 
     await waitFor(() => {
+      expect(
+        screen.getAllByText('Importadas 1 entradas desde AniList. Registrando 1 para mejorar el catalogo en segundo plano.').length,
+      ).toBeGreaterThan(0)
+    })
+    publicRecord.reject(new Error('catalog unavailable'))
+    await waitFor(() => {
       expect(screen.getAllByText(/Importacion completada; algunas obras no se pudieron registrar en el catalogo/).length).toBeGreaterThan(0)
     })
     expect(library.saveItem).toHaveBeenCalledWith(importedItem)
     expect(library.recordImportedItemToPublicCatalog).toHaveBeenCalledWith(importedItem)
+  })
+
+  it('records imported public catalog items in the background with concurrency four', async () => {
+    const previewItems = Array.from({ length: publicCatalogImportRecordConcurrency + 2 }, (_entry, index) =>
+      createGeneratedPreviewItem(index),
+    )
+    const importedItems = previewItems.map((item, index) => createGeneratedImportedItem(index, item.draft.sourceItemId))
+    const pendingRecords: Array<() => void> = []
+    let activeRecords = 0
+    let maxActiveRecords = 0
+    const recordImportedItemToPublicCatalog = vi.fn(async () => {
+      activeRecords += 1
+      maxActiveRecords = Math.max(maxActiveRecords, activeRecords)
+      await new Promise<void>((resolve) => pendingRecords.push(resolve))
+      activeRecords -= 1
+    })
+    importerMocks.importAniListLibrary.mockResolvedValueOnce({ sourceId: 'anilist', drafts: [], warnings: [] })
+    importerMocks.buildImportPreview.mockReturnValueOnce(createPreview(previewItems))
+    importerMocks.importPreviewItemsToListItems.mockReturnValueOnce(importedItems)
+    const library = createLibrarySurface({ recordImportedItemToPublicCatalog })
+
+    render(<ImportTab library={library} onActivity={vi.fn()} onNavigate={vi.fn()} />)
+    const user = await prepareAniListImport('Anime 0')
+
+    await user.click(screen.getByRole('button', { name: 'Importar todo' }))
+
+    await waitFor(() => expect(recordImportedItemToPublicCatalog).toHaveBeenCalledTimes(publicCatalogImportRecordConcurrency))
+    expect(maxActiveRecords).toBe(publicCatalogImportRecordConcurrency)
+    pendingRecords.splice(0).forEach((resolve) => resolve())
+    await waitFor(() => expect(recordImportedItemToPublicCatalog).toHaveBeenCalledTimes(importedItems.length))
+    pendingRecords.splice(0).forEach((resolve) => resolve())
+    await waitFor(() => {
+      expect(
+        screen.getAllByText(`Importadas ${importedItems.length} entradas desde AniList. ${importedItems.length} registradas para mejorar el catalogo.`).length,
+      ).toBeGreaterThan(0)
+    })
+  })
+
+  it('dedupes and caps the public catalog registration queue', async () => {
+    const previewItems = Array.from({ length: publicCatalogImportRecordLimit + 2 }, (_entry, index) =>
+      createGeneratedPreviewItem(index, String(200000 + index)),
+    )
+    const importedItems = previewItems.map((item, index) => createGeneratedImportedItem(index, item.draft.sourceItemId))
+    importedItems[1] = createGeneratedImportedItem(1, importedItems[0].externalRefs?.anilistId)
+    importerMocks.importAniListLibrary.mockResolvedValueOnce({ sourceId: 'anilist', drafts: [], warnings: [] })
+    importerMocks.buildImportPreview.mockReturnValueOnce(createPreview(previewItems))
+    importerMocks.importPreviewItemsToListItems.mockReturnValueOnce(importedItems)
+    const library = createLibrarySurface()
+
+    render(<ImportTab library={library} onActivity={vi.fn()} onNavigate={vi.fn()} />)
+    const user = await prepareAniListImport('Anime 0')
+
+    await user.click(screen.getByRole('button', { name: 'Importar todo' }))
+
+    await waitFor(() => expect(library.recordImportedItemToPublicCatalog).toHaveBeenCalledTimes(publicCatalogImportRecordLimit))
+    expect(screen.getAllByText(
+      `Importadas ${importedItems.length} entradas desde AniList. ${publicCatalogImportRecordLimit} registradas para mejorar el catalogo.`,
+    ).length).toBeGreaterThan(0)
   })
 })

@@ -3485,6 +3485,23 @@ body.dialog-scroll-locked {
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
 }
 
+.catalog-public-load-more {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 12px;
+  font-weight: 800;
+  gap: 10px;
+  justify-content: center;
+  line-height: 1.35;
+  padding: 4px 0 0;
+}
+
+.catalog-public-load-more .secondary-button {
+  min-height: 38px;
+}
+
 .catalog-public-card {
   background: var(--surface-raised);
   border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
