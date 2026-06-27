@@ -918,7 +918,7 @@ test('public catalog is the default entry surface', async ({ page }) => {
   await page.goto('/')
 
   await expect(page.getByRole('button', { name: 'Catalogo', exact: true })).toHaveAttribute('aria-current', 'page')
-  await expect(page.getByRole('heading', { name: 'Explora obras antes de montar tu biblioteca' })).toBeVisible()
+  await expect(page.getByTestId('catalog-public-masthead')).toContainText('Catalogo Nexo')
   await expect(page.getByLabel('Rol: Admin')).toBeVisible()
   await expect(page.getByLabel('Buscar en el catalogo publico')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Guardar' }).first()).toBeVisible()

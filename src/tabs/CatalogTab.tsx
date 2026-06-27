@@ -40,6 +40,13 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
   const visibleCandidates = useMemo(() => candidates.slice(0, visibleLimit), [candidates, visibleLimit])
   const publicCount = useMemo(() => candidates.filter((candidate) => candidate.source === 'nexo').length, [candidates])
   const visiblePublicCount = useMemo(() => visibleCandidates.filter((candidate) => candidate.source === 'nexo').length, [visibleCandidates])
+  const visibleSavedCount = useMemo(
+    () =>
+      isSignedIn
+        ? visibleCandidates.filter((candidate) => getSavedLibraryItemForCandidate(candidate, library.items)).length
+        : 0,
+    [isSignedIn, library.items, visibleCandidates],
+  )
   const hasMoreCandidates = visibleCandidates.length < candidates.length
   const showCatalogRail = !isSignedIn || adsEnabled
   const isCandidateSaved = (candidate: DiscoveryCandidate) =>
@@ -168,13 +175,11 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
   return (
     <section className={showCatalogRail ? 'catalog-public-layout' : 'catalog-public-layout no-rail'} aria-label="Catalogo publico de Nexo">
       <div className="catalog-public-main">
-        <section className="catalog-public-hero">
+        <section className="catalog-public-hero" data-testid="catalog-public-masthead">
           <div className="catalog-public-heading">
-            <span className="eyebrow">Catalogo Nexo</span>
-            <h2>Explora obras antes de montar tu biblioteca</h2>
-            <p>
-              Busca en el catalogo publico, descubre fichas de Nexo y prueba las acciones que se vuelven personales al iniciar sesion.
-            </p>
+            <span className="eyebrow">Catalogo publico</span>
+            <h2>Catalogo Nexo</h2>
+            <p>Explora fichas publicas y guarda las que quieras llevar a tu biblioteca.</p>
           </div>
           <form
             className="catalog-public-search"
@@ -221,6 +226,12 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
               <strong>{getCatalogTypeSummary(type)}</strong>
               <small>Filtro</small>
             </span>
+            {visibleSavedCount > 0 && (
+              <span>
+                <strong>{visibleSavedCount}</strong>
+                <small>Guardadas</small>
+              </span>
+            )}
           </div>
         </section>
 
@@ -363,8 +374,9 @@ function CatalogPublicCard({
             <Library size={16} />
             Explorar
           </button>
-          <button className="icon-button" type="button" onClick={onDetails} title="Ver ficha">
+          <button className="secondary-button catalog-public-details-button" type="button" onClick={onDetails} title="Ver ficha">
             <Eye size={17} />
+            Ver ficha
           </button>
         </div>
       </article>

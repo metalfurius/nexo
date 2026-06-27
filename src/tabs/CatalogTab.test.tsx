@@ -113,6 +113,22 @@ async function getCatalogCard(title: string) {
 }
 
 describe('CatalogTab', () => {
+  it('renders a compact public catalog masthead with integrated controls', async () => {
+    const publicItems = [createPublicCatalogItem()]
+    const { library } = createLibrarySurface({ publicItems })
+
+    renderCatalog(library)
+
+    expect(await screen.findByRole('heading', { name: publicItems[0].title })).toBeInTheDocument()
+    const masthead = screen.getByTestId('catalog-public-masthead')
+    expect(within(masthead).getByRole('heading', { name: 'Catalogo Nexo' })).toBeVisible()
+    expect(within(masthead).getByLabelText('Buscar en el catalogo publico')).toBeVisible()
+    expect(within(masthead).getByLabelText('Tipo de obra')).toBeVisible()
+    expect(within(masthead).getByRole('button', { name: 'Buscar' })).toBeVisible()
+    expect(within(masthead).getByText('Filtro')).toBeVisible()
+    expect(masthead).not.toHaveTextContent('Biblioteca conectada')
+  })
+
   it('marks public catalog entries already saved in the library', async () => {
     const publicItem = createPublicCatalogItem()
     const savedItem = discoveryToListItem(publicItemToDiscovery(publicItem))
@@ -121,6 +137,7 @@ describe('CatalogTab', () => {
     renderCatalog(library)
 
     const card = await getCatalogCard(publicItem.title)
+    expect(within(screen.getByTestId('catalog-public-masthead')).getByText('Guardadas')).toBeVisible()
     const savedButton = card.getByRole('button', { name: 'Guardado' })
     expect(savedButton).toBeDisabled()
     expect(card.getByRole('button', { name: 'Explorar' })).toBeEnabled()
