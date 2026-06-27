@@ -12,6 +12,7 @@ const repositoryMock = vi.hoisted(() => ({
   listPublicCatalog: vi.fn(),
   markDiscoveryCandidateSaved: vi.fn(),
   recordDiscoverySaveToPublicCatalog: vi.fn(),
+  recordImportedItemToPublicCatalog: vi.fn(),
   recordRecommendation: vi.fn(),
   replacePublicItem: vi.fn(),
   restoreDiscoveryCandidate: vi.fn(),
@@ -72,6 +73,7 @@ describe('useLibrary', () => {
       'dismissDiscoveryCandidate',
       'markDiscoveryCandidateSaved',
       'recordDiscoverySaveToPublicCatalog',
+      'recordImportedItemToPublicCatalog',
       'recordRecommendation',
       'replacePublicItem',
       'restoreDiscoveryCandidate',
@@ -676,6 +678,44 @@ describe('useLibrary', () => {
     )
     expect(repositoryMock.markDiscoveryCandidateSaved).not.toHaveBeenCalled()
     await waitFor(() => expect(result.current.error).toBe('Missing or insufficient permissions.'))
+  })
+
+  it('records imported items in the public catalog without setting a global sync error', async () => {
+    const importedItem: ListItem = {
+      id: 'anime-frieren-anilist-154587',
+      title: 'Frieren: Beyond Journey End',
+      type: 'anime',
+      status: 'completed',
+      progressCurrent: 28,
+      progressTotal: 28,
+      progressUnit: 'episodes',
+      genres: ['Fantasy'],
+      tags: [],
+      moodTags: [],
+      weights: { priority: 1, surprise: 0.35, challenge: 0.5 },
+      source: 'external',
+      externalRefs: {
+        anilistId: '154587',
+      },
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    }
+    repositoryMock.recordImportedItemToPublicCatalog.mockRejectedValueOnce(new Error('catalog unavailable'))
+    const user = {
+      uid: 'user-1',
+      email: null,
+      displayName: null,
+    }
+    const { result } = renderHook(() => useLibrary(user))
+
+    await waitFor(() => expect(repositoryMock.subscribeItems).toHaveBeenCalled())
+
+    await act(async () => {
+      await expect(result.current.recordImportedItemToPublicCatalog(importedItem)).rejects.toThrow('catalog unavailable')
+    })
+
+    expect(repositoryMock.recordImportedItemToPublicCatalog).toHaveBeenCalledWith(importedItem)
+    expect(result.current.error).toBeUndefined()
   })
 
   it('preserves locked external metadata when saving personal progress', async () => {

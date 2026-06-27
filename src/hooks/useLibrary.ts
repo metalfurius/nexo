@@ -535,6 +535,17 @@ export function useLibrary(user?: SignedInUserProfile | null) {
     return item
   }
 
+  async function recordImportedItemToPublicCatalog(item: ListItem) {
+    if (!repository) return
+
+    setLocalPendingWriteCount((current) => current + 1)
+    try {
+      await repository.recordImportedItemToPublicCatalog(item)
+    } finally {
+      setLocalPendingWriteCount((current) => Math.max(0, current - 1))
+    }
+  }
+
   async function upsertPublicItem(item: Partial<PublicCatalogItem> & Pick<PublicCatalogItem, 'title' | 'type'>) {
     if (repository) return repository.upsertPublicItem(item)
 
@@ -657,6 +668,7 @@ export function useLibrary(user?: SignedInUserProfile | null) {
     dismissDiscoveryCandidate,
     restoreDiscoveryCandidate,
     saveDiscoveryToLibrary,
+    recordImportedItemToPublicCatalog,
     upsertPublicItem,
     replacePublicItem,
     archivePublicItem,

@@ -1560,6 +1560,7 @@ export interface LibrarySurface {
     candidate: DiscoveryCandidate,
     options?: { persistDiscoveryCandidate?: boolean; registerPublicCatalog?: boolean },
   ) => Promise<ListItem>
+  recordImportedItemToPublicCatalog: (item: ListItem) => Promise<void>
   upsertPublicItem: (item: Partial<PublicCatalogItem> & Pick<PublicCatalogItem, 'title' | 'type'>) => Promise<PublicCatalogItem>
   replacePublicItem: (item: PublicCatalogItem) => Promise<PublicCatalogItem>
   archivePublicItem: (id: string) => Promise<void>
@@ -4531,6 +4532,10 @@ export function ServiceImportDialog({
                 </span>
               ))}
             </div>
+
+            <p className="service-import-privacy-note">
+              Nexo puede usar metadatos publicos de las obras importadas para mejorar el catalogo. No se publican tus notas, estado, rating ni progreso.
+            </p>
 
             <div className="service-import-filters" aria-label="Filtros por estado">
               <button

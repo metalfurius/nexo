@@ -796,6 +796,190 @@ describe('createFirestoreRepository', () => {
     )
   })
 
+  it('records imported external items in the public catalog without private fields', async () => {
+    const repository = createFirestoreRepository('user-1')
+    const importedItem: ListItem = {
+      id: 'anime-frieren-anilist-154587',
+      title: 'Frieren: Beyond Journey End',
+      type: 'anime',
+      status: 'completed',
+      rating: 5,
+      progress: '28/28 episodios',
+      progressCurrent: 28,
+      progressTotal: 28,
+      progressUnit: 'episodes',
+      genres: ['Fantasy', 'Adventure'],
+      tags: ['private-tag'],
+      moodTags: ['private-mood'],
+      weights: DEFAULT_WEIGHTS,
+      notes: 'Mis notas privadas',
+      source: 'external',
+      rawText: 'Raw privado de importacion',
+      importNotes: ['Importado desde AniList', 'Ano: 2023', 'Nota privada'],
+      externalRefs: {
+        anilistId: '154587',
+        sourceUrl: 'https://anilist.co/anime/154587',
+      },
+      posterUrl: 'https://img.anili.st/media/154587.jpg',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    }
+
+    await repository?.recordImportedItemToPublicCatalog(importedItem)
+
+    const payload = mocks.setDoc.mock.calls[0][1] as Record<string, unknown>
+    expect(mocks.setDoc).toHaveBeenCalledWith(
+      expect.objectContaining({ path: 'publicItems/anime-anilist-154587' }),
+      expect.objectContaining({
+        autoIngestedAt: expect.any(String),
+        canonicalKey: 'anime:frieren beyond journey end',
+        createdBy: 'user-1',
+        demandCount: 1,
+        externalRefs: {
+          anilistId: '154587',
+          sourceUrl: 'https://anilist.co/anime/154587',
+        },
+        progressTotal: 28,
+        progressUnit: 'episodes',
+        releaseYear: 2023,
+        tags: ['anime', 'AniList'],
+        title: 'Frieren: Beyond Journey End',
+      }),
+      { merge: true },
+    )
+    expect(payload).not.toHaveProperty('status')
+    expect(payload).not.toHaveProperty('rating')
+    expect(payload).not.toHaveProperty('progress')
+    expect(payload).not.toHaveProperty('progressCurrent')
+    expect(payload).not.toHaveProperty('notes')
+    expect(payload).not.toHaveProperty('rawText')
+    expect(payload).not.toHaveProperty('importNotes')
+    expect(payload).not.toHaveProperty('weights')
+  })
+
+  it('bumps demand for imported items that already exist by external ref', async () => {
+    const repository = createFirestoreRepository('user-1')
+    const existing: PublicCatalogItem = {
+      id: 'anime-frieren',
+      title: 'Frieren: Beyond Journey End',
+      type: 'anime',
+      genres: ['Fantasy'],
+      tags: ['anime'],
+      moodTags: [],
+      externalRefs: {
+        anilistId: '154587',
+      },
+      searchTokens: ['frieren'],
+      canonicalKey: 'anime:frieren beyond journey end',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      createdBy: 'moderator',
+      updatedBy: 'moderator',
+    }
+    const importedItem: ListItem = {
+      id: 'anime-frieren-anilist-154587',
+      title: 'Frieren: Beyond Journey End',
+      type: 'anime',
+      status: 'completed',
+      progressCurrent: 28,
+      progressTotal: 28,
+      progressUnit: 'episodes',
+      genres: ['Fantasy', 'Adventure'],
+      tags: [],
+      moodTags: [],
+      weights: DEFAULT_WEIGHTS,
+      source: 'external',
+      importNotes: ['Importado desde AniList', 'Ano: 2023'],
+      externalRefs: {
+        anilistId: '154587',
+        sourceUrl: 'https://anilist.co/anime/154587',
+      },
+      posterUrl: 'https://img.anili.st/media/154587.jpg',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    }
+    mocks.getDocs.mockResolvedValueOnce({
+      docs: [
+        {
+          data: () => existing,
+          ref: { path: 'publicItems/anime-frieren' },
+        },
+      ],
+    })
+
+    await repository?.recordImportedItemToPublicCatalog(importedItem)
+
+    expect(mocks.setDoc).toHaveBeenCalledWith(
+      expect.objectContaining({ path: 'publicItems/anime-frieren' }),
+      expect.objectContaining({
+        demandCount: { kind: 'increment', value: 1 },
+        externalRefs: {
+          anilistId: '154587',
+          sourceUrl: 'https://anilist.co/anime/154587',
+        },
+        lastDemandAt: expect.any(String),
+        posterUrl: 'https://img.anili.st/media/154587.jpg',
+        progressTotal: 28,
+        progressUnit: 'episodes',
+        releaseYear: 2023,
+        updatedBy: 'user-1',
+      }),
+      { merge: true },
+    )
+  })
+
+  it('dedupes imported items by canonical key before creating public catalog entries', async () => {
+    const repository = createFirestoreRepository('user-1')
+    const existing: PublicCatalogItem = {
+      id: 'book-the-left-hand-of-darkness',
+      title: 'The Left Hand of Darkness',
+      type: 'book',
+      genres: ['Science fiction'],
+      tags: ['book'],
+      moodTags: [],
+      externalRefs: {},
+      searchTokens: ['left', 'hand', 'darkness'],
+      canonicalKey: 'book:the left hand of darkness',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      createdBy: 'moderator',
+      updatedBy: 'moderator',
+    }
+    const importedItem: ListItem = {
+      id: 'book-the-left-hand-of-darkness-goodreads',
+      title: 'The Left Hand of Darkness',
+      type: 'book',
+      status: 'wishlist',
+      genres: ['Science fiction'],
+      tags: [],
+      moodTags: [],
+      weights: DEFAULT_WEIGHTS,
+      source: 'external',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    }
+    mocks.getDocs.mockResolvedValueOnce({
+      docs: [
+        {
+          data: () => existing,
+          ref: { path: 'publicItems/book-the-left-hand-of-darkness' },
+        },
+      ],
+    })
+
+    await repository?.recordImportedItemToPublicCatalog(importedItem)
+
+    expect(mocks.setDoc).toHaveBeenCalledWith(
+      expect.objectContaining({ path: 'publicItems/book-the-left-hand-of-darkness' }),
+      expect.objectContaining({
+        demandCount: { kind: 'increment', value: 1 },
+        lastDemandAt: expect.any(String),
+        updatedBy: 'user-1',
+      }),
+      { merge: true },
+    )
+  })
+
   it('bumps demand when saving an existing Nexo public catalog candidate', async () => {
     const repository = createFirestoreRepository('user-1')
     const publicDune: PublicCatalogItem = {
