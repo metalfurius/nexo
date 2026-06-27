@@ -42,6 +42,10 @@ export const libraryCatalogSearchTypes: Array<{ id: ExplorerSearchType; label: s
   { id: 'manhwa', label: 'Manhwa' },
 ]
 
+function getLibraryCatalogSearchTypeLabel(type: ExplorerSearchType) {
+  return libraryCatalogSearchTypes.find((option) => option.id === type)?.label ?? 'Catalogo'
+}
+
 export const explorerDiscoverTypeOptions: Array<{ id: ExternalDiscoverType; label: string }> = [
   { id: 'any', label: 'Cualquiera' },
   { id: 'movie', label: 'Pelicula' },
@@ -2848,11 +2852,13 @@ export function LibraryTab({
     }
   }
 
-  async function searchCatalogFromLibrary() {
-    const cleanedQuery = catalogQuery.trim()
+  async function searchCatalogFromLibrary(nextQuery = catalogQuery, nextType = catalogType) {
+    const cleanedQuery = nextQuery.trim()
+    const shouldBrowseNexoByType = cleanedQuery.length === 0 && nextType !== 'any'
+    const selectedTypeLabel = getLibraryCatalogSearchTypeLabel(nextType).toLowerCase()
     setCatalogStatus(undefined)
     setCatalogResultsPage(1)
-    if (cleanedQuery.length < 2) {
+    if (cleanedQuery.length < 2 && !shouldBrowseNexoByType) {
       setCatalogStatus('Escribe al menos 2 caracteres para buscar obras.')
       setCatalogCandidates([])
       return
@@ -2860,17 +2866,25 @@ export function LibraryTab({
 
     setCatalogLoading(true)
     try {
-      const candidates = await library.searchCatalog(cleanedQuery, catalogType)
+      const candidates = shouldBrowseNexoByType
+        ? (await library.searchPublicCatalog('', nextType)).map(library.publicItemToDiscovery)
+        : await library.searchCatalog(cleanedQuery, nextType)
       setCatalogCandidates(candidates)
       setCatalogStatus(
         candidates.length
-          ? `${candidates.length} resultado${candidates.length === 1 ? '' : 's'} listo${candidates.length === 1 ? '' : 's'} para guardar.`
-          : 'Sin resultados. Puedes crear una ficha manual si quieres conservar esa idea.',
+          ? shouldBrowseNexoByType
+            ? `${candidates.length} obra${candidates.length === 1 ? '' : 's'} de ${selectedTypeLabel} en Nexo lista${candidates.length === 1 ? '' : 's'} para guardar.`
+            : `${candidates.length} resultado${candidates.length === 1 ? '' : 's'} listo${candidates.length === 1 ? '' : 's'} para guardar.`
+          : shouldBrowseNexoByType
+            ? `Sin obras de ${selectedTypeLabel} en el catalogo Nexo.`
+            : 'Sin resultados. Puedes crear una ficha manual si quieres conservar esa idea.',
       )
       if (candidates.length) {
         onActivity({
-          detail: `${candidates.length} resultados para "${cleanedQuery}"`,
-          label: 'Busqueda de obra',
+          detail: shouldBrowseNexoByType
+            ? `${candidates.length} obras de ${selectedTypeLabel} en Nexo`
+            : `${candidates.length} resultados para "${cleanedQuery}"`,
+          label: shouldBrowseNexoByType ? 'Catalogo Nexo por tipo' : 'Busqueda de obra',
           tab: 'library',
           tone: 'success',
         })
@@ -3320,8 +3334,10 @@ export function LibraryTab({
         aria-label="Tipo de obra para buscar"
         value={catalogType}
         onChange={(event) => {
-          setCatalogType(event.target.value as ExplorerSearchType)
+          const nextType = event.target.value as ExplorerSearchType
+          setCatalogType(nextType)
           setCatalogResultsPage(1)
+          void searchCatalogFromLibrary(catalogQuery, nextType)
         }}
       >
         {libraryCatalogSearchTypes.map((option) => (

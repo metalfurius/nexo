@@ -1,28 +1,36 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import { DEFAULT_SETTINGS, type ListItem, type PublicCatalogItem } from '../domain/types'
+import { DEFAULT_SETTINGS, type ItemType, type ListItem, type PublicCatalogItem } from '../domain/types'
 import { buildPublicCatalogItem, discoveryToListItem, externalCandidateToDiscovery, publicItemToDiscovery } from '../lib/catalog'
 import type { LibrarySurface } from '../app/shared'
 import CatalogTab from './CatalogTab'
 
-function createPublicCatalogItem(index?: number) {
-  const title = index === undefined ? "Frieren: Beyond Journey's End" : `Catalog Item ${index}`
+function createPublicCatalogItem(index?: number, overrides: Partial<PublicCatalogItem> = {}) {
+  const title = overrides.title ?? (index === undefined ? "Frieren: Beyond Journey's End" : `Catalog Item ${index}`)
+  const type = overrides.type ?? 'anime'
   return buildPublicCatalogItem(
     {
       id: index === undefined ? 'anime-frieren' : `anime-catalog-item-${index}`,
       title,
-      type: 'anime',
+      type,
       description: 'Fantasia contemplativa sobre memoria, duelo y tiempo despues de la aventura.',
       releaseYear: 2023,
-      progressTotal: 28,
-      progressUnit: 'episodes',
+      progressTotal: type === 'manga' || type === 'manhwa' ? 120 : 28,
+      progressUnit: type === 'manga' || type === 'manhwa' ? 'chapters' : 'episodes',
       genres: ['fantasia', 'aventura'],
-      tags: ['anime'],
+      tags: [type],
       moodTags: ['calma'],
+      ...overrides,
     },
     'test-moderator',
   )
+}
+
+function matchesPublicCatalogTestType(itemType: ItemType, requestedType?: string) {
+  if (!requestedType || requestedType === 'any') return true
+  if (requestedType === 'watch') return ['movie', 'series', 'anime'].includes(itemType)
+  return itemType === requestedType
 }
 
 function createLibrarySurface(options: { items?: ListItem[]; publicItems: PublicCatalogItem[] }) {
@@ -57,7 +65,7 @@ function createLibrarySurface(options: { items?: ListItem[]; publicItems: Public
     searchExternal: vi.fn(async () => []),
     searchCatalog: vi.fn(async () => []),
     listPublicCatalog: vi.fn(async () => options.publicItems),
-    searchPublicCatalog: vi.fn(async () => options.publicItems),
+    searchPublicCatalog: vi.fn(async (_query, type) => options.publicItems.filter((item) => matchesPublicCatalogTestType(item.type, type))),
     saveSettings: vi.fn(async () => undefined),
     queueDiscoveryCandidates: vi.fn(async () => 1),
     dismissDiscoveryCandidate: vi.fn(async () => undefined),
@@ -172,5 +180,25 @@ describe('CatalogTab', () => {
     expect(library.searchPublicCatalog).toHaveBeenCalledWith('Catalog', 'any')
     expect(screen.getByRole('heading', { name: 'Catalog Item 24' })).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Catalog Item 25' })).not.toBeInTheDocument()
+  })
+
+  it('filters the Nexo catalog by type without requiring a query', async () => {
+    const publicItems = [
+      createPublicCatalogItem(1, { title: 'Chainsaw Man', type: 'manga' }),
+      createPublicCatalogItem(2, { title: 'Solo Leveling', type: 'manhwa' }),
+      createPublicCatalogItem(3, { title: 'Frieren Anime', type: 'anime' }),
+    ]
+    const { library } = createLibrarySurface({ publicItems })
+
+    renderCatalog(library)
+
+    await screen.findByRole('heading', { name: 'Chainsaw Man' })
+    await userEvent.selectOptions(screen.getByLabelText('Tipo de obra'), 'manga')
+
+    await waitFor(() => expect(library.searchPublicCatalog).toHaveBeenCalledWith('', 'manga'))
+    expect(screen.getByRole('heading', { name: 'Chainsaw Man' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Solo Leveling' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Frieren Anime' })).not.toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('Mostrando 1 de 1 obras del catalogo.')
   })
 })

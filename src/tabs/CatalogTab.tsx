@@ -78,15 +78,17 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
     }
   }, [isSignedIn, library])
 
-  async function searchCatalog() {
-    const cleanedQuery = query.trim()
+  async function searchCatalog(nextQuery = query, nextType = type) {
+    const cleanedQuery = nextQuery.trim()
     setLoading(true)
     setStatus(undefined)
     try {
       const nextCandidates =
         cleanedQuery.length >= 2
-          ? (await library.searchPublicCatalog(cleanedQuery, type)).map(library.publicItemToDiscovery)
-          : (await library.listPublicCatalog()).map(library.publicItemToDiscovery)
+          ? (await library.searchPublicCatalog(cleanedQuery, nextType)).map(library.publicItemToDiscovery)
+          : nextType === 'any'
+            ? (await library.listPublicCatalog()).map(library.publicItemToDiscovery)
+            : (await library.searchPublicCatalog('', nextType)).map(library.publicItemToDiscovery)
       const nextVisibleCount = Math.min(catalogPublicPageSize, nextCandidates.length)
       const nextResultLabel = cleanedQuery.length >= 2 ? 'resultados para explorar' : 'obras del catalogo'
 
@@ -193,7 +195,11 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
             <select
               aria-label="Tipo de obra"
               value={type}
-              onChange={(event) => setType(event.target.value as ExplorerSearchType)}
+              onChange={(event) => {
+                const nextType = event.target.value as ExplorerSearchType
+                setType(nextType)
+                void searchCatalog(query, nextType)
+              }}
             >
               {libraryCatalogSearchTypes.map((option) => (
                 <option key={option.id} value={option.id}>
