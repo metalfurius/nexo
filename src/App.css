@@ -648,7 +648,7 @@ body.dialog-scroll-locked {
     max-height: none;
     overflow-y: auto;
     position: fixed;
-    top: 58px;
+    top: 0;
     width: var(--nav-rail-width);
     z-index: 20;
   }
@@ -802,6 +802,10 @@ body.dialog-scroll-locked {
   margin: 0 auto;
   padding: 24px;
   width: min(100%, 1720px);
+}
+
+.tab-stage:has(.modal-backdrop) {
+  z-index: 70;
 }
 
 .session-activity-panel {
@@ -12531,7 +12535,7 @@ button:active:not(:disabled),
   padding: var(--modal-safe-top) var(--modal-safe-right) var(--modal-safe-bottom) var(--modal-safe-left);
   position: fixed;
   -webkit-backdrop-filter: blur(10px) saturate(0.78);
-  z-index: 20;
+  z-index: 70;
 }
 
 .item-editor,
