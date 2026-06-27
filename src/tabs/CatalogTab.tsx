@@ -343,6 +343,7 @@ function CatalogPublicCard({
   showAdAfter: boolean
 }) {
   const effortSignal = getDiscoveryCandidateEffortSignal(candidate)
+  const secondaryMeta = [candidate.releaseYear?.toString(), effortSignal].filter(Boolean).join(' · ')
 
   return (
     <>
@@ -353,13 +354,12 @@ function CatalogPublicCard({
             <div className="candidate-meta">
               <span className="source-pill">{sourceLabels[candidate.source]}</span>
               <span>{typeLabels[candidate.type]}</span>
-              {candidate.releaseYear && <span>{candidate.releaseYear}</span>}
-              {effortSignal && <span>{effortSignal}</span>}
+              {secondaryMeta && <span className="catalog-public-meta-tail">{secondaryMeta}</span>}
             </div>
             <h3>{candidate.title}</h3>
             <p>{candidate.overview || `${typeLabels[candidate.type]} en ${sourceLabels[candidate.source]}.`}</p>
             <div className="tag-row">
-              {candidate.genres.slice(0, 3).map((genre) => (
+              {candidate.genres.slice(0, 2).map((genre) => (
                 <span key={genre}>{genre}</span>
               ))}
             </div>

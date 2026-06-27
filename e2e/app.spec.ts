@@ -4223,6 +4223,14 @@ test('import tab imports every new valid row beyond the rendered preview', async
   const dialog = page.getByRole('dialog', { name: 'Goodreads' })
   await expect(dialog).toContainText('Importadas 85 entradas desde Goodreads')
   await dialog.getByRole('button', { name: 'Ver Biblioteca' }).click()
+  await expect(page.getByLabel('Mas entradas de Estanteria')).toContainText(/Mostrando 24 de \d+ entradas/)
+  await expect(page.getByTestId('library-grid').locator('.item-card')).toHaveCount(24)
+  const libraryPager = page.getByLabel('Mas entradas de Estanteria')
+  await libraryPager.getByRole('button', { name: 'Mostrar mas' }).click()
+  await expect(page.getByTestId('library-grid').locator('.item-card')).toHaveCount(48)
+  for (let index = 0; index < 2; index += 1) {
+    await libraryPager.getByRole('button', { name: 'Mostrar mas' }).click()
+  }
   await expect(page.getByTestId('library-grid')).toContainText('Service Visible Probe 085')
 })
 

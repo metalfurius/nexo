@@ -30,6 +30,8 @@ export const librarySortLabels: Record<LibrarySortMode, string> = {
 
 export const libraryCardsPerRowOptions: LibraryCardsPerRow[] = [4, 5, 6]
 
+const libraryVisiblePageSize = 24
+
 export const progressUnitOptions: ProgressUnit[] = [...PROGRESS_UNITS]
 
 export const libraryCatalogSearchTypes: Array<{ id: ExplorerSearchType; label: string }> = [
@@ -1717,6 +1719,7 @@ export function LibraryTab({
   const [statusFilter, setStatusFilter] = useState<ItemStatus | 'all'>('all')
   const [smartView, setSmartView] = useState<LibrarySmartView>('all')
   const [sortMode, setSortMode] = useState<LibrarySortMode>('focus')
+  const [libraryVisibleWindow, setLibraryVisibleWindow] = useState({ key: '', limit: libraryVisiblePageSize })
   const [editingItem, setEditingItem] = useState<ListItem | undefined>()
   const [handledDraftRequestId, setHandledDraftRequestId] = useState<string | undefined>()
   const handledResetViewRequestId = useRef<number | undefined>(undefined)
@@ -1785,6 +1788,18 @@ export function LibraryTab({
   const secondaryFocusItems = focusItems.slice(1)
   const mastheadItems = (focusItems.length > 0 ? focusItems : library.items).slice(0, 4)
   const showFocusShelf = !hasActiveLibraryFilters && secondaryFocusItems.length > 0
+  const libraryVisibleWindowKey = useMemo(
+    () =>
+      [
+        query,
+        typeFilter,
+        statusFilter,
+        smartView,
+        sortMode,
+        library.items.map((item) => `${item.id}:${item.updatedAt}`).join('|'),
+      ].join('::'),
+    [library.items, query, smartView, sortMode, statusFilter, typeFilter],
+  )
 
   const filteredItems = useMemo(() => {
     const matchingItems = library.items
@@ -1798,6 +1813,13 @@ export function LibraryTab({
 
     return sortLibraryItems(matchingItems, sortMode)
   }, [library.items, query, smartView, sortMode, statusFilter, typeFilter])
+  const libraryVisibleLimit =
+    libraryVisibleWindow.key === libraryVisibleWindowKey ? libraryVisibleWindow.limit : libraryVisiblePageSize
+  const visibleLibraryItems = useMemo(
+    () => filteredItems.slice(0, libraryVisibleLimit),
+    [filteredItems, libraryVisibleLimit],
+  )
+  const hasMoreLibraryItems = visibleLibraryItems.length < filteredItems.length
 
   async function changeLibraryCardsPerRow(nextCardsPerRow: LibraryCardsPerRow) {
     if (nextCardsPerRow === libraryCardsPerRow) return
@@ -1820,9 +1842,9 @@ export function LibraryTab({
     () => library.items.filter((item) => selectedItemIdSet.has(item.id)),
     [library.items, selectedItemIdSet],
   )
-  const visibleItemIds = useMemo(() => filteredItems.map((item) => item.id), [filteredItems])
+  const visibleItemIds = useMemo(() => visibleLibraryItems.map((item) => item.id), [visibleLibraryItems])
   const selectedVisibleCount = visibleItemIds.filter((id) => selectedItemIdSet.has(id)).length
-  const allVisibleItemsSelected = filteredItems.length > 0 && selectedVisibleCount === filteredItems.length
+  const allVisibleItemsSelected = visibleLibraryItems.length > 0 && selectedVisibleCount === visibleLibraryItems.length
 
   useEffect(() => {
     if (!libraryAdvancedOpen) return
@@ -1844,7 +1866,8 @@ export function LibraryTab({
   const selectedVisibleLabel =
     selectedVisibleCount === 1 ? '1 visible en esta vista' : `${selectedVisibleCount} visibles en esta vista`
   const filteredVisibleLabel =
-    filteredItems.length === 1 ? '1 visible en esta vista' : `${filteredItems.length} visibles en esta vista`
+    visibleLibraryItems.length === 1 ? '1 visible en esta vista' : `${visibleLibraryItems.length} visibles en esta vista`
+  const libraryVisibleSummary = formatLibraryVisibleSummary(visibleLibraryItems.length, filteredItems.length, library.items.length)
   const selectedDiceEligibleCount = selectedItems.filter((item) => item.status !== 'completed' && item.status !== 'dropped').length
   const selectedCooldownCount = selectedItems.filter(isItemInCooldown).length
   const bulkSignalLabels = librarySelectionSignalLabels[bulkSignalKind]
@@ -1855,9 +1878,9 @@ export function LibraryTab({
     onVisibleSelectionSummaryChange({
       allVisibleItemsSelected,
       selectedVisibleCount,
-      visibleCount: filteredItems.length,
+      visibleCount: visibleLibraryItems.length,
     })
-  }, [allVisibleItemsSelected, filteredItems.length, onVisibleSelectionSummaryChange, selectedVisibleCount])
+  }, [allVisibleItemsSelected, onVisibleSelectionSummaryChange, selectedVisibleCount, visibleLibraryItems.length])
 
   const stats = useMemo(() => {
     return ITEM_STATUSES.map((status) => ({
@@ -3133,6 +3156,13 @@ export function LibraryTab({
     setImportStatus('Repaso guiado pausado')
   }
 
+  function showMoreLibraryItems() {
+    setLibraryVisibleWindow({
+      key: libraryVisibleWindowKey,
+      limit: Math.min(libraryVisibleLimit + libraryVisiblePageSize, filteredItems.length),
+    })
+  }
+
   function closeCompletedReviewSession() {
     setActiveReviewSession(undefined)
     setImportStatus('Repaso completado cerrado')
@@ -3464,7 +3494,7 @@ export function LibraryTab({
             <span className="eyebrow">Guardadas</span>
             <h3>Todas</h3>
             <p>
-              {filteredItems.length} de {library.items.length} obras / {hasActiveLibraryControls ? 'vista filtrada' : 'orden inteligente'}
+              {libraryVisibleSummary} / {hasActiveLibraryControls ? 'vista filtrada' : 'orden inteligente'}
             </p>
           </div>
           <div className="library-primary-controls" aria-label="Ordenar y filtrar biblioteca">
@@ -3521,7 +3551,7 @@ export function LibraryTab({
           <div className="filter-summary" aria-live="polite" data-testid="library-filter-summary">
             <div>
               <strong>
-                {filteredItems.length} de {library.items.length} entradas
+                {libraryVisibleSummary}
               </strong>
               <span>{activeLibraryControls.join(' / ')}</span>
             </div>
@@ -4087,29 +4117,42 @@ export function LibraryTab({
         )}
 
         {filteredItems.length ? (
-          <div
-            className="item-grid mosaic-view"
-            data-cards-per-row={libraryCardsPerRow}
-            data-testid="library-grid"
-            style={libraryGridStyle}
-          >
-            {filteredItems.map((item) => (
-              <ItemCard
-                item={item}
-                key={item.id}
-                layout="mosaic"
-                isSelected={selectedItemIdSet.has(item.id)}
-                showSelectionControl={isLibraryAdvancedOpen || selectedItemIdSet.has(item.id)}
-                onToggleSelected={() => toggleLibraryItemSelection(item.id)}
-                onEdit={() => openLibraryEditor(item)}
-                onCopyLink={() => void copyLibraryItemLink(item)}
-                onStatus={(status) => void changeLibraryItemStatus(item, status)}
-                onSnooze={() => void snoozeLibraryItem(item)}
-                onReactivate={() => void reactivateLibraryItem(item)}
-                onDelete={() => setDeleteTarget(item)}
-              />
-            ))}
-          </div>
+          <>
+            <div
+              className="item-grid mosaic-view"
+              data-cards-per-row={libraryCardsPerRow}
+              data-testid="library-grid"
+              style={libraryGridStyle}
+            >
+              {visibleLibraryItems.map((item) => (
+                <ItemCard
+                  item={item}
+                  key={item.id}
+                  layout="mosaic"
+                  isSelected={selectedItemIdSet.has(item.id)}
+                  showSelectionControl={isLibraryAdvancedOpen || selectedItemIdSet.has(item.id)}
+                  onToggleSelected={() => toggleLibraryItemSelection(item.id)}
+                  onEdit={() => openLibraryEditor(item)}
+                  onCopyLink={() => void copyLibraryItemLink(item)}
+                  onStatus={(status) => void changeLibraryItemStatus(item, status)}
+                  onSnooze={() => void snoozeLibraryItem(item)}
+                  onReactivate={() => void reactivateLibraryItem(item)}
+                  onDelete={() => setDeleteTarget(item)}
+                />
+              ))}
+            </div>
+            {filteredItems.length > libraryVisiblePageSize && (
+              <div className="library-load-more" aria-label="Mas entradas de Estanteria">
+                <span>Mostrando {visibleLibraryItems.length} de {filteredItems.length} entradas</span>
+                {hasMoreLibraryItems && (
+                  <button className="secondary-button" type="button" onClick={showMoreLibraryItems}>
+                    <Sparkles size={16} />
+                    Mostrar mas
+                  </button>
+                )}
+              </div>
+            )}
+          </>
         ) : library.loading ? null : (
           <EmptyState
             icon={hasActiveLibraryFilters ? Search : Library}
@@ -4314,6 +4357,14 @@ export function formatBackupImportSummary(summary: LibraryImportSummary) {
   if (summary.duplicateItems) parts.push(`${summary.duplicateItems} ${summary.duplicateItems === 1 ? 'duplicada' : 'duplicadas'}`)
   if (summary.settingsIncluded) parts.push('ajustes')
   return parts.join(' / ')
+}
+
+function formatLibraryVisibleSummary(visibleCount: number, filteredCount: number, totalCount: number) {
+  if (filteredCount === totalCount) {
+    return `Mostrando ${visibleCount} de ${totalCount} obras`
+  }
+
+  return `Mostrando ${visibleCount} de ${filteredCount} filtradas / ${totalCount} totales`
 }
 
 export function formatLibraryImportRollbackDetail(plan: LibraryImportRollbackPlan) {
