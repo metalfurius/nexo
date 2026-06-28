@@ -402,7 +402,7 @@ body.dialog-scroll-locked {
   }
 
   .topbar .app-update-button {
-    min-height: 36px;
+    min-height: 42px;
   }
 }
 
@@ -418,7 +418,7 @@ body.dialog-scroll-locked {
   font-size: 12px;
   font-weight: 850;
   gap: 7px;
-  min-height: 38px;
+  min-height: 42px;
   padding: 0 11px;
   transition:
     background var(--motion-fast) ease,
@@ -3415,9 +3415,9 @@ body.dialog-scroll-locked {
   border-radius: 8px 8px 0 0;
   box-shadow: var(--shadow);
   display: grid;
-  gap: 10px 12px;
-  grid-template-columns: minmax(156px, 220px) minmax(0, 1fr) auto;
-  min-height: 78px;
+  gap: 10px 14px;
+  grid-template-columns: minmax(156px, 220px) minmax(260px, 1fr) max-content;
+  min-height: 72px;
   overflow: hidden;
   padding: 12px 16px;
   position: relative;
@@ -3473,7 +3473,7 @@ body.dialog-scroll-locked {
   font-weight: 760;
   line-height: 1.2;
   margin: 0;
-  max-width: 280px;
+  max-width: 260px;
 }
 
 .catalog-public-search {
@@ -3482,7 +3482,7 @@ body.dialog-scroll-locked {
   display: grid;
   gap: 8px;
   grid-column: 2;
-  grid-template-columns: minmax(180px, 1fr) 112px auto;
+  grid-template-columns: minmax(220px, 1fr) 118px auto;
   min-width: 0;
 }
 
@@ -3498,53 +3498,44 @@ body.dialog-scroll-locked {
 }
 
 .catalog-public-summary {
+  align-items: center;
   align-self: center;
-  display: grid;
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 12px;
+  font-weight: 850;
   gap: 6px;
-  grid-auto-columns: minmax(74px, max-content);
-  grid-auto-flow: column;
   grid-column: 3;
   justify-content: end;
+  line-height: 1.25;
   min-width: 0;
   pointer-events: none;
+  white-space: nowrap;
 }
 
 .catalog-public-summary span {
-  background: color-mix(in srgb, var(--surface) 62%, transparent);
-  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
-  border-radius: 8px;
-  display: grid;
-  gap: 2px;
-  min-width: 74px;
-  padding: 8px 10px;
+  display: inline-flex;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.catalog-public-summary strong {
+.catalog-public-summary span:first-child {
   color: var(--text-strong);
-  font-size: 14px;
-  line-height: 1.05;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-.catalog-public-summary small {
-  color: var(--muted);
-  font-size: 10.5px;
-  font-weight: 850;
-  line-height: 1.2;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.catalog-public-summary span + span::before {
+  color: color-mix(in srgb, var(--muted) 70%, transparent);
+  content: '·';
+  margin-right: 6px;
 }
 
 .catalog-public-grid {
   display: grid;
   gap: 14px;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 420px));
-  justify-content: start;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  justify-content: stretch;
 }
 
 .catalog-public-load-more {
@@ -3573,12 +3564,11 @@ body.dialog-scroll-locked {
   border: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
   border-radius: 8px;
   display: grid;
-  gap: 14px;
-  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 10px;
   grid-template-rows: minmax(0, 1fr) auto;
   min-height: 0;
   min-width: 0;
-  padding: 12px;
+  padding: 10px;
   position: relative;
   transition:
     border-color var(--motion-fast) ease,
@@ -3598,64 +3588,85 @@ body.dialog-scroll-locked {
 }
 
 .catalog-public-card-main {
-  align-items: start;
+  align-items: stretch;
   background: transparent;
   border: 0;
   color: inherit;
   cursor: pointer;
   display: grid;
   font: inherit;
-  gap: 14px;
-  grid-column: 1 / -1;
-  grid-row: 1;
-  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr);
   min-width: 0;
   padding: 0;
   text-align: left;
 }
 
-.catalog-public-card-main .cover-art {
-  aspect-ratio: 3 / 4;
+.catalog-public-cover {
+  aspect-ratio: 16 / 10;
   border-radius: 8px;
-  box-shadow: 0 14px 24px rgba(0, 0, 0, 0.18);
-  grid-column: 1;
-  max-height: 124px;
+  display: block;
   min-height: 0;
+  overflow: hidden;
+  position: relative;
   width: 100%;
 }
 
-.catalog-public-card-main > div {
+.catalog-public-cover .cover-art {
+  aspect-ratio: auto;
+  border-radius: 0;
+  box-shadow: none;
+  height: 100%;
+}
+
+.catalog-public-source-badge {
+  backdrop-filter: blur(8px);
+  background: color-mix(in srgb, var(--accent-soft) 88%, var(--surface) 12%);
+  left: 10px;
+  padding: 6px 8px;
+  position: absolute;
+  top: 10px;
+  z-index: 3;
+}
+
+.catalog-public-card-body {
   align-content: start;
   display: grid;
-  gap: 8px;
-  grid-column: 2;
+  gap: 7px;
   min-width: 0;
 }
 
-.catalog-public-card .candidate-meta {
+.catalog-public-card-meta {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
   flex-wrap: nowrap;
+  font-size: 12px;
+  font-weight: 760;
   gap: 6px;
+  line-height: 1.2;
   min-width: 0;
   overflow: hidden;
 }
 
-.catalog-public-card .candidate-meta span:not(.source-pill) {
+.catalog-public-card-meta > span {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.catalog-public-meta-tail {
-  color: var(--muted);
-  margin-left: auto;
+.catalog-public-card-meta > span + span::before {
+  color: color-mix(in srgb, var(--muted) 64%, transparent);
+  content: '·';
+  margin-right: 6px;
 }
 
 .catalog-public-card h3 {
   color: var(--text-strong);
   display: -webkit-box;
-  font-size: 15px;
-  line-height: 1.18;
+  font-size: 16px;
+  line-height: 1.2;
   margin: 0;
   min-width: 0;
   overflow: hidden;
@@ -3664,41 +3675,44 @@ body.dialog-scroll-locked {
   -webkit-line-clamp: 2;
 }
 
-.catalog-public-card p {
-  color: var(--muted);
-  display: -webkit-box;
-  font-size: 12px;
-  line-height: 1.28;
-  margin: 0;
-  min-width: 0;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 1;
-}
-
-.catalog-public-card .tag-row {
+.catalog-public-tags {
+  display: flex;
   margin-top: 0;
+  min-width: 0;
 }
 
 .catalog-public-actions {
   align-items: center;
   display: grid;
   gap: 8px;
-  grid-column: 1 / -1;
-  grid-row: 2;
-  grid-template-columns: minmax(86px, 1fr) minmax(94px, 1fr) minmax(86px, max-content);
+  grid-template-columns: minmax(0, 1fr) 42px 42px;
 }
 
 .catalog-public-actions .primary-button,
 .catalog-public-actions .secondary-button,
 .catalog-public-actions .icon-button {
-  min-height: 40px;
+  min-height: 42px;
 }
 
 .catalog-public-actions .primary-button,
 .catalog-public-actions .secondary-button {
   min-width: 0;
   white-space: nowrap;
+}
+
+.catalog-public-icon-action {
+  background: color-mix(in srgb, var(--surface-muted) 54%, transparent);
+  border-color: color-mix(in srgb, var(--border) 72%, transparent);
+  color: var(--muted);
+  min-width: 0;
+  padding: 0;
+  width: 42px;
+}
+
+.catalog-public-icon-action:hover {
+  background: color-mix(in srgb, var(--accent-soft) 60%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 36%, var(--border));
+  color: var(--accent-dark);
 }
 
 .catalog-public-details-button {
@@ -13484,9 +13498,8 @@ textarea:focus-visible {
   }
 
   .catalog-public-summary {
-    grid-auto-columns: initial;
-    grid-auto-flow: row;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    justify-content: start;
+    white-space: normal;
   }
 
   .catalog-public-grid {
@@ -13495,24 +13508,18 @@ textarea:focus-visible {
 
   .catalog-public-card {
     gap: 10px;
-    grid-template-columns: 72px minmax(0, 1fr);
   }
 
-  .catalog-public-card-main {
-    grid-template-columns: 72px minmax(0, 1fr);
-  }
-
-  .catalog-public-card-main .cover-art {
-    max-height: 108px;
+  .catalog-public-cover {
+    aspect-ratio: 2 / 1;
   }
 
   .catalog-public-actions {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr) 42px 42px;
   }
 
   .catalog-public-actions .catalog-public-details-button {
     justify-self: stretch;
-    width: 100%;
   }
 
   .catalog-public-load-more {

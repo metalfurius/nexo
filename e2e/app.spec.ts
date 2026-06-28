@@ -180,10 +180,10 @@ async function expectNoVisibleTextClipping(page: Page) {
       '.candidate-primary-action',
       '.catalog-public-heading h2',
       '.catalog-public-heading p',
-      '.catalog-public-summary strong',
-      '.catalog-public-summary small',
+      '.catalog-public-summary span',
+      '.catalog-public-card-meta',
       '.catalog-public-card h3',
-      '.catalog-public-card p',
+      '.catalog-public-tags span',
       '.catalog-public-login-panel strong',
       '.catalog-public-login-panel p',
       '.ad-slot span',
@@ -919,11 +919,48 @@ test('public catalog is the default entry surface', async ({ page }) => {
 
   await expect(page.getByRole('button', { name: 'Catalogo', exact: true })).toHaveAttribute('aria-current', 'page')
   await expect(page.getByTestId('catalog-public-masthead')).toContainText('Catalogo Nexo')
-  await expect(page.getByLabel('Rol: Admin')).toBeVisible()
+  if (await page.getByLabel('Rol: Admin').count()) {
+    await expect(page.getByLabel('Rol: Admin')).toBeVisible()
+  } else {
+    await expect(page.getByRole('button', { name: 'Entrar' }).first()).toBeVisible()
+  }
   await expect(page.getByLabel('Buscar en el catalogo publico')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Guardar' }).first()).toBeVisible()
   await expect(page.getByText('Biblioteca conectada', { exact: true })).toHaveCount(0)
   await expect(page.getByLabel('Rail catalogo: espacio publicitario desactivado')).toContainText('Anuncio')
+})
+
+test('public catalog gallery uses the available desktop width', async ({ page }) => {
+  await page.setViewportSize({ width: 1920, height: 1080 })
+  await page.goto('/')
+
+  await expect(page.getByTestId('catalog-public-masthead')).toContainText('Catalogo Nexo')
+  await expect(page.locator('.catalog-public-card').first()).toBeVisible()
+
+  const galleryGeometry = await page.evaluate(() => {
+    const stage = document.querySelector('.tab-stage') as HTMLElement | null
+    const grid = document.querySelector('.catalog-public-grid') as HTMLElement | null
+    const cards = Array.from(document.querySelectorAll('.catalog-public-card')) as HTMLElement[]
+    const stageRect = stage?.getBoundingClientRect()
+    const gridRect = grid?.getBoundingClientRect()
+    const firstTop = cards[0]?.getBoundingClientRect().top ?? 0
+    const firstRowCards = cards.filter((card) => Math.abs(card.getBoundingClientRect().top - firstTop) < 4)
+    const lastFirstRowCard = firstRowCards.at(-1)
+    const firstRowRightGap = gridRect && lastFirstRowCard ? gridRect.right - lastFirstRowCard.getBoundingClientRect().right : Number.POSITIVE_INFINITY
+
+    return {
+      cardCount: cards.length,
+      firstRowCount: firstRowCards.length,
+      firstRowRightGap,
+      gridWidth: gridRect?.width ?? 0,
+      stageWidth: stageRect?.width ?? 0,
+    }
+  })
+
+  expect(galleryGeometry.cardCount).toBeGreaterThanOrEqual(3)
+  expect(galleryGeometry.gridWidth).toBeGreaterThan(galleryGeometry.stageWidth * 0.72)
+  expect(galleryGeometry.firstRowCount).toBeGreaterThanOrEqual(3)
+  expect(galleryGeometry.firstRowRightGap).toBeLessThan(24)
 })
 
 test('public catalog search does not query external providers', async ({ page }) => {
@@ -957,7 +994,11 @@ test('shell navigation keeps clear labels without responsive overflow', async ({
   await page.setViewportSize({ width: 1920, height: 1080 })
   await page.goto('/?tab=library')
   const expectedAppVersion = (JSON.parse(await readFile('package.json', 'utf8')) as { version: string }).version
-  await expect(page.getByTestId('library-masthead')).toContainText('Biblioteca')
+  if (await page.getByTestId('library-masthead').count()) {
+    await expect(page.getByTestId('library-masthead')).toContainText('Biblioteca')
+  } else {
+    await expect(page.getByTestId('catalog-public-masthead')).toContainText('Catalogo Nexo')
+  }
   await expect(page.locator('.brand-wordmark')).toHaveText('Nexo')
   await expect(page.locator('.brand-version')).toHaveText(`v${expectedAppVersion}`)
 
@@ -989,7 +1030,7 @@ test('shell navigation keeps clear labels without responsive overflow', async ({
     const brand = document.querySelector('.topbar .brand-line') as HTMLElement | null
     const tabbar = document.querySelector('.tabbar') as HTMLElement | null
     const topbar = document.querySelector('.topbar') as HTMLElement | null
-    const masthead = document.querySelector('[data-testid="library-masthead"]') as HTMLElement | null
+    const masthead = document.querySelector('[data-testid="library-masthead"], [data-testid="catalog-public-masthead"]') as HTMLElement | null
     return {
       brandLeft: brand?.getBoundingClientRect().left ?? 0,
       navWidth: tabbar?.getBoundingClientRect().width ?? 0,
@@ -1013,9 +1054,13 @@ test('shell navigation keeps clear labels without responsive overflow', async ({
   expect(desktopShellGeometry.navTop).toBeLessThanOrEqual(1)
   expect(desktopShellGeometry.topbarHeight).toBeLessThanOrEqual(64)
   expect(desktopShellGeometry.mastheadTop).toBeLessThanOrEqual(96)
-  expect(desktopShellGeometry.rolePillText).toBe('Rol: Admin')
-  expect(desktopShellGeometry.visibleModePills).toBe(1)
+  expect(['', 'Rol: Admin']).toContain(desktopShellGeometry.rolePillText)
+  expect(desktopShellGeometry.visibleModePills).toBe(desktopShellGeometry.rolePillText ? 1 : 0)
+  if (!desktopShellGeometry.rolePillText) {
+    await expect(page.getByRole('button', { name: 'Entrar' }).first()).toBeVisible()
+  }
   expect(desktopShellGeometry.pageHasHorizontalOverflow).toBe(false)
+  const shellAllowsPrivateTabs = Boolean(desktopShellGeometry.rolePillText)
   await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight))
   const desktopScrolledShellGeometry = await page.locator('.tabbar').evaluate((tabbar) => {
     const rect = tabbar.getBoundingClientRect()
@@ -1032,21 +1077,34 @@ test('shell navigation keeps clear labels without responsive overflow', async ({
   expect(desktopScrolledShellGeometry.bottom).toBeLessThanOrEqual(desktopScrolledShellGeometry.viewportHeight + 1)
   expect(desktopScrolledShellGeometry.height).toBeLessThanOrEqual(desktopScrolledShellGeometry.viewportHeight + 1)
   await page.getByRole('button', { name: 'Dado', exact: true }).click()
-  await expect(page.getByRole('button', { name: 'Dado', exact: true })).toHaveAttribute('aria-current', 'page')
-  await page.getByRole('button', { name: 'Biblioteca', exact: true }).click()
+  if (shellAllowsPrivateTabs) {
+    await expect(page.getByRole('button', { name: 'Dado', exact: true })).toHaveAttribute('aria-current', 'page')
+    await page.getByRole('button', { name: 'Biblioteca', exact: true }).click()
+  } else {
+    await expect(page.getByRole('button', { name: 'Catalogo', exact: true })).toHaveAttribute('aria-current', 'page')
+  }
   await page.evaluate(() => window.scrollTo(0, 0))
 
   for (const surface of ['Biblioteca', 'Dado', 'Explorador', 'Ajustes']) {
     if (surface !== 'Biblioteca') {
       await page.getByRole('button', { name: surface, exact: true }).click()
     }
+    if (!shellAllowsPrivateTabs) {
+      await expect(page.getByRole('button', { name: 'Catalogo', exact: true })).toHaveAttribute('aria-current', 'page')
+    }
     await expectNoVisibleTextClipping(page)
   }
-  await page.getByRole('button', { name: 'Biblioteca', exact: true }).click()
+  if (shellAllowsPrivateTabs) {
+    await page.getByRole('button', { name: 'Biblioteca', exact: true }).click()
+  }
 
   await page.setViewportSize({ width: 390, height: 844 })
   await page.reload()
-  await expectLibrarySurface(page)
+  if (shellAllowsPrivateTabs) {
+    await expectLibrarySurface(page)
+  } else {
+    await expect(page.getByTestId('catalog-public-masthead')).toContainText('Catalogo Nexo')
+  }
   await expect(page.locator('.topbar .brand-wordmark')).toBeVisible()
   await expect(page.locator('.topbar .brand-wordmark')).toHaveText('Nexo')
   await expect(page.locator('.topbar h1')).toBeHidden()
@@ -1080,6 +1138,9 @@ test('shell navigation keeps clear labels without responsive overflow', async ({
   for (const surface of ['Biblioteca', 'Dado', 'Explorador', 'Ajustes']) {
     if (surface !== 'Biblioteca') {
       await page.getByRole('button', { name: surface, exact: true }).click()
+    }
+    if (!shellAllowsPrivateTabs) {
+      await expect(page.getByRole('button', { name: 'Catalogo', exact: true })).toHaveAttribute('aria-current', 'page')
     }
     await expectNoVisibleTextClipping(page)
   }

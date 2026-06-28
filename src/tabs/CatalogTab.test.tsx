@@ -125,11 +125,13 @@ describe('CatalogTab', () => {
     expect(within(masthead).getByLabelText('Buscar en el catalogo publico')).toBeVisible()
     expect(within(masthead).getByLabelText('Tipo de obra')).toBeVisible()
     expect(within(masthead).getByRole('button', { name: 'Buscar' })).toBeVisible()
-    expect(within(masthead).getByText('Filtro')).toBeVisible()
+    const summary = within(masthead).getByLabelText('Resumen del catalogo')
+    expect(within(summary).getByText('1 de 1')).toBeVisible()
+    expect(within(summary).getByText('Todo')).toBeVisible()
     expect(masthead).not.toHaveTextContent('Biblioteca conectada')
   })
 
-  it('marks public catalog entries already saved in the library', async () => {
+  it('marks public catalog entries already saved in the library while keeping compact actions accessible', async () => {
     const publicItem = createPublicCatalogItem()
     const savedItem = discoveryToListItem(publicItemToDiscovery(publicItem))
     const { library } = createLibrarySurface({ items: [savedItem], publicItems: [publicItem] })
@@ -137,17 +139,31 @@ describe('CatalogTab', () => {
     renderCatalog(library)
 
     const card = await getCatalogCard(publicItem.title)
-    expect(within(screen.getByTestId('catalog-public-masthead')).getByText('Guardadas')).toBeVisible()
+    expect(within(screen.getByTestId('catalog-public-masthead')).getByText('1 guardada')).toBeVisible()
     const savedButton = card.getByRole('button', { name: 'Guardado' })
     expect(savedButton).toBeDisabled()
     expect(card.getByRole('button', { name: 'Explorar' })).toBeEnabled()
-    expect(card.getByTitle('Ver ficha')).toBeEnabled()
+    expect(card.getByRole('button', { name: 'Ver ficha' })).toBeEnabled()
     expect(screen.queryByText('Biblioteca conectada')).not.toBeInTheDocument()
 
-    await userEvent.click(card.getByTitle('Ver ficha'))
+    await userEvent.click(card.getByRole('button', { name: 'Ver ficha' }))
     const dialog = screen.getByRole('dialog', { name: publicItem.title })
     expect(within(dialog).getByRole('button', { name: 'Guardado' })).toBeDisabled()
     expect(within(dialog).getByRole('button', { name: 'Mandar al Explorador' })).toBeEnabled()
+  })
+
+  it('keeps long public descriptions out of the gallery card and in the detail dialog', async () => {
+    const publicItem = createPublicCatalogItem()
+    const { library } = createLibrarySurface({ publicItems: [publicItem] })
+
+    renderCatalog(library)
+
+    const card = await getCatalogCard(publicItem.title)
+    expect(card.queryByText(/Fantasia contemplativa/)).not.toBeInTheDocument()
+
+    await userEvent.click(card.getByRole('button', { name: 'Ver ficha' }))
+
+    expect(screen.getByRole('dialog', { name: publicItem.title })).toHaveTextContent('Fantasia contemplativa')
   })
 
   it('does not save a stale duplicate when the item is already in the library', async () => {

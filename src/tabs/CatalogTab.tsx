@@ -38,8 +38,6 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
   const [loading, setLoading] = useState(false)
   const [status, setStatus] = useState<string | undefined>()
   const visibleCandidates = useMemo(() => candidates.slice(0, visibleLimit), [candidates, visibleLimit])
-  const publicCount = useMemo(() => candidates.filter((candidate) => candidate.source === 'nexo').length, [candidates])
-  const visiblePublicCount = useMemo(() => visibleCandidates.filter((candidate) => candidate.source === 'nexo').length, [visibleCandidates])
   const visibleSavedCount = useMemo(
     () =>
       isSignedIn
@@ -179,7 +177,7 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
           <div className="catalog-public-heading">
             <span className="eyebrow">Catalogo publico</span>
             <h2>Catalogo Nexo</h2>
-            <p>Explora fichas publicas y guarda las que quieras llevar a tu biblioteca.</p>
+            <p>Explora obras publicas y guarda las que quieras llevar a tu biblioteca.</p>
           </div>
           <form
             className="catalog-public-search"
@@ -218,19 +216,10 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
             </button>
           </form>
           <div className="catalog-public-summary" aria-label="Resumen del catalogo">
-            <span>
-              <strong>{visiblePublicCount === publicCount ? publicCount : `${visiblePublicCount}/${publicCount}`}</strong>
-              <small>Nexo</small>
-            </span>
-            <span>
-              <strong>{getCatalogTypeSummary(type)}</strong>
-              <small>Filtro</small>
-            </span>
+            <span>{formatCatalogCompactCount(visibleCandidates.length, candidates.length)}</span>
+            <span>{getCatalogTypeSummary(type)}</span>
             {visibleSavedCount > 0 && (
-              <span>
-                <strong>{visibleSavedCount}</strong>
-                <small>Guardadas</small>
-              </span>
+              <span>{formatCatalogSavedSummary(visibleSavedCount)}</span>
             )}
           </div>
         </section>
@@ -327,6 +316,14 @@ function formatCatalogVisibleStatus(visibleCount: number, totalCount: number, la
   return `Mostrando ${visibleCount} ${label}.`
 }
 
+function formatCatalogCompactCount(visibleCount: number, totalCount: number) {
+  return `${visibleCount} de ${totalCount}`
+}
+
+function formatCatalogSavedSummary(savedCount: number) {
+  return `${savedCount} guardada${savedCount === 1 ? '' : 's'}`
+}
+
 function CatalogPublicCard({
   candidate,
   isSaved,
@@ -343,40 +340,45 @@ function CatalogPublicCard({
   showAdAfter: boolean
 }) {
   const effortSignal = getDiscoveryCandidateEffortSignal(candidate)
-  const secondaryMeta = [candidate.releaseYear?.toString(), effortSignal].filter(Boolean).join(' · ')
+  const metaParts = [typeLabels[candidate.type], candidate.releaseYear?.toString(), effortSignal].filter(
+    (part): part is string => Boolean(part),
+  )
+  const visibleGenre = candidate.genres[0]
+  const hiddenGenreCount = Math.max(0, candidate.genres.length - 1)
 
   return (
     <>
       <article className={isSaved ? 'catalog-public-card saved' : 'catalog-public-card'}>
         <button className="catalog-public-card-main" type="button" onClick={onDetails}>
-          <CoverArt title={candidate.title} type={candidate.type} posterUrl={candidate.posterUrl} />
-          <div>
-            <div className="candidate-meta">
-              <span className="source-pill">{sourceLabels[candidate.source]}</span>
-              <span>{typeLabels[candidate.type]}</span>
-              {secondaryMeta && <span className="catalog-public-meta-tail">{secondaryMeta}</span>}
-            </div>
-            <h3>{candidate.title}</h3>
-            <p>{candidate.overview || `${typeLabels[candidate.type]} en ${sourceLabels[candidate.source]}.`}</p>
-            <div className="tag-row">
-              {candidate.genres.slice(0, 2).map((genre) => (
-                <span key={genre}>{genre}</span>
+          <span className="catalog-public-cover">
+            <CoverArt title={candidate.title} type={candidate.type} posterUrl={candidate.posterUrl} />
+            <span className="source-pill catalog-public-source-badge">{sourceLabels[candidate.source]}</span>
+          </span>
+          <span className="catalog-public-card-body">
+            <span className="catalog-public-card-meta">
+              {metaParts.map((part) => (
+                <span key={part}>{part}</span>
               ))}
-            </div>
-          </div>
+            </span>
+            <h3>{candidate.title}</h3>
+            {visibleGenre && (
+              <span className="tag-row catalog-public-tags">
+                <span>{visibleGenre}</span>
+                {hiddenGenreCount > 0 && <span>+{hiddenGenreCount}</span>}
+              </span>
+            )}
+          </span>
         </button>
         <div className="catalog-public-actions" aria-label={`Acciones ${candidate.title}`}>
           <button className={isSaved ? 'secondary-button saved' : 'primary-button'} disabled={isSaved} type="button" onClick={onSave}>
             {isSaved ? <Check size={16} /> : <Plus size={16} />}
             {isSaved ? 'Guardado' : 'Guardar'}
           </button>
-          <button className="secondary-button" type="button" onClick={onQueue}>
+          <button className="icon-button catalog-public-icon-action" type="button" onClick={onQueue} aria-label="Explorar" title="Explorar">
             <Library size={16} />
-            Explorar
           </button>
-          <button className="secondary-button catalog-public-details-button" type="button" onClick={onDetails} title="Ver ficha">
+          <button className="icon-button catalog-public-icon-action catalog-public-details-button" type="button" onClick={onDetails} aria-label="Ver ficha" title="Ver ficha">
             <Eye size={17} />
-            Ver ficha
           </button>
         </div>
       </article>
