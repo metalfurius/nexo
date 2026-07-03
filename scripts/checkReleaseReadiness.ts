@@ -11,6 +11,7 @@ const requiredEnvVars = [
   'VITE_FIREBASE_MEASUREMENT_ID',
   'VITE_DEMO_MODE',
   'VITE_USE_FIREBASE_EMULATORS',
+  'VITE_PUBLIC_CATALOG_URL',
 ]
 
 const requiredFiles = [
@@ -153,6 +154,10 @@ check(ciWorkflow.includes('npm audit --audit-level=high'), 'CI workflow must run
 
 const deployWorkflow = await readText('.github/workflows/deploy-pages.yml')
 check(deployWorkflow.includes('branches: [main]'), 'Deploy workflow must run on main pushes.')
+check(
+  deployWorkflow.includes('VITE_PUBLIC_CATALOG_URL: ${{ vars.VITE_PUBLIC_CATALOG_URL }}'),
+  'Deploy workflow must pass VITE_PUBLIC_CATALOG_URL from GitHub variables.',
+)
 check(deployWorkflow.includes('npm run check:build-output'), 'Deploy workflow must validate build output.')
 check(deployWorkflow.includes('npm run check:release-files'), 'Deploy workflow must run check:release-files.')
 check(deployWorkflow.includes('actions/deploy-pages'), 'Deploy workflow must deploy GitHub Pages.')

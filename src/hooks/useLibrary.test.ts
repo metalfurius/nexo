@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ActivityEntry, DiscoveryCandidate, ListItem } from '../domain/types'
+import type { ActivityEntry, DiscoveryCandidate, ListItem, PublicCatalogItem } from '../domain/types'
+import { buildPublicCatalogItem } from '../lib/catalog'
 import { useLibrary } from './useLibrary'
 
 const repositoryMock = vi.hoisted(() => ({
@@ -39,6 +40,10 @@ const repositoryMock = vi.hoisted(() => ({
   upsertPublicItem: vi.fn(),
 }))
 
+const publicCatalogMocks = vi.hoisted(() => ({
+  fetchPublicCatalog: vi.fn(),
+}))
+
 vi.mock('../services/libraryRepository', () => ({
   createFirestoreRepository: vi.fn(() => repositoryMock),
 }))
@@ -46,6 +51,8 @@ vi.mock('../services/libraryRepository', () => ({
 vi.mock('../services/firebaseConfig', () => ({
   isFirebaseConfigured: true,
 }))
+
+vi.mock('../services/publicCatalog', () => publicCatalogMocks)
 
 const candidate: DiscoveryCandidate = {
   id: 'public-book-odisea',
@@ -118,6 +125,7 @@ describe('useLibrary', () => {
       onProfiles([])
       return vi.fn()
     })
+    publicCatalogMocks.fetchPublicCatalog.mockResolvedValue(undefined)
   })
 
   it('persists queued discovery candidates for signed-in users', async () => {
@@ -166,6 +174,46 @@ describe('useLibrary', () => {
 
     expect(repositoryMock.searchCatalog).toHaveBeenCalledWith('Odisea', 'book')
     expect(catalogResults).toEqual([candidate])
+  })
+
+  it('uses the remote public catalog for anonymous Firebase searches', async () => {
+    const remoteCatalog: PublicCatalogItem[] = [
+      buildPublicCatalogItem(
+        {
+          id: 'movie-dune-2021',
+          title: 'Dune',
+          type: 'movie',
+          genres: ['sci-fi'],
+          tags: ['pelicula'],
+          moodTags: [],
+          externalRefs: {},
+        },
+        'test-moderator',
+      ),
+    ]
+    publicCatalogMocks.fetchPublicCatalog.mockResolvedValueOnce(remoteCatalog)
+    const { result } = renderHook(() => useLibrary())
+
+    let catalogResults: PublicCatalogItem[] = []
+    await act(async () => {
+      catalogResults = await result.current.searchPublicCatalog('Dune', 'any')
+    })
+
+    expect(publicCatalogMocks.fetchPublicCatalog).toHaveBeenCalledWith('Dune', 'any', 24)
+    expect(catalogResults).toEqual(remoteCatalog)
+  })
+
+  it('does not fall back to demo catalog when anonymous Firebase public catalog is unavailable', async () => {
+    publicCatalogMocks.fetchPublicCatalog.mockResolvedValueOnce(undefined)
+    const { result } = renderHook(() => useLibrary())
+
+    await act(async () => {
+      await expect(result.current.searchPublicCatalog('Odisea', 'book')).rejects.toThrow(
+        'No se pudo cargar el catalogo publico remoto. Revisa VITE_PUBLIC_CATALOG_URL.',
+      )
+    })
+
+    expect(publicCatalogMocks.fetchPublicCatalog).toHaveBeenCalledWith('Odisea', 'book', 24)
   })
 
   it('delegates recommendation runs to the signed-in repository', async () => {

@@ -45,4 +45,20 @@ export const demoPublicCatalog: PublicCatalogItem[] = [
     },
     'demo-moderator',
   ),
+  buildPublicCatalogItem(
+    {
+      id: 'movie-dune-2021',
+      title: 'Dune',
+      type: 'movie',
+      description: 'Ciencia ficcion politica de desierto, casas nobles y poder mesianico.',
+      releaseYear: 2021,
+      genres: ['sci-fi', 'aventura'],
+      tags: ['pelicula', 'space opera'],
+      moodTags: ['epico', 'denso'],
+      externalRefs: {
+        sourceUrl: 'https://www.themoviedb.org/movie/438631-dune',
+      },
+    },
+    'demo-moderator',
+  ),
 ]

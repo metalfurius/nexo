@@ -983,10 +983,10 @@ test('public catalog search does not query external providers', async ({ page })
 
   await page.goto('/')
   await page.getByLabel('Buscar en el catalogo publico').fill('Dune')
-  await page.getByLabel('Tipo de obra').selectOption('book')
   await page.getByRole('button', { name: /^Buscar$/ }).click()
 
-  await expect(page.getByRole('status').filter({ hasText: 'Sin resultados en el catalogo publico.' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Dune' })).toBeVisible()
+  await expect(page.getByRole('status').filter({ hasText: 'resultados para explorar' })).toBeVisible()
   expect(openLibraryCalls).toBe(0)
 })
 

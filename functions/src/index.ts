@@ -8,6 +8,9 @@ type SearchType = 'watch' | 'game' | 'book' | 'anime' | 'manga' | 'manhwa' | 'an
 type ItemType = 'game' | 'book' | 'movie' | 'series' | 'anime' | 'manga' | 'manhwa' | 'comic' | 'other'
 type ProgressUnit = 'episodes' | 'chapters' | 'pages' | 'hours' | 'volumes' | 'percent' | 'items'
 
+const CATALOG_ITEM_TYPES: ItemType[] = ['game', 'book', 'movie', 'series', 'anime', 'manga', 'manhwa', 'comic', 'other']
+const WATCH_ITEM_TYPES: ItemType[] = ['movie', 'series', 'anime', 'manga', 'manhwa', 'comic']
+
 interface ExternalCandidate {
   id: string
   title: string
@@ -323,17 +326,60 @@ async function isModerator(uid: string) {
 }
 
 async function searchPublicCatalogItems(query: string, type: SearchType, resultLimit: number) {
+  const queryKey = normalizeKey(query)
+  if (!queryKey) return listPublicCatalogItems(type, resultLimit)
+
   const tokens = createSearchTokens({ title: query })
-  const snapshot = await getFirestore().collection('publicItems').limit(250).get()
-  return snapshot.docs
-    .map((docSnapshot) => docSnapshot.data() as PublicCatalogItem)
-    .filter((item) => !item.archivedAt)
-    .filter((item) => matchesSearchType(item.type, type))
-    .map((item) => ({ item, score: scorePublicItem(item, tokens, query) }))
-    .filter((entry) => !query || entry.score > 0)
-    .sort((left, right) => right.score - left.score || left.item.title.localeCompare(right.item.title, 'es'))
-    .slice(0, resultLimit)
-    .map((entry) => entry.item)
+  const items = await findPublicCatalogSearchCandidates(queryKey, tokens, type, resultLimit)
+  return rankPublicItems(uniquePublicItems(items), query, type, resultLimit)
+}
+
+async function listPublicCatalogItems(type: SearchType, resultLimit: number) {
+  const publicItems = getFirestore().collection('publicItems')
+  const readLimit = Math.min(Math.max(resultLimit * 4, 48), 200)
+  const itemTypes = getSearchItemTypes(type)
+
+  if (type === 'any') {
+    const snapshot = await publicItems.orderBy('title').limit(readLimit).get()
+    return rankPublicItems(readPublicCatalogSnapshots([snapshot]), '', type, resultLimit)
+  }
+
+  const snapshots = await Promise.all(
+    itemTypes.map((itemType) => publicItems.where('type', '==', itemType).limit(readLimit).get()),
+  )
+  return rankPublicItems(readPublicCatalogSnapshots(snapshots), '', type, resultLimit)
+}
+
+async function findPublicCatalogSearchCandidates(
+  queryKey: string,
+  tokens: string[],
+  type: SearchType,
+  resultLimit: number,
+) {
+  const publicItems = getFirestore().collection('publicItems')
+  const readLimit = Math.min(Math.max(resultLimit * 4, 48), 200)
+  const itemTypes = getSearchItemTypes(type)
+  const canonicalKeys = itemTypes.map((itemType) => `${itemType}:${queryKey}`)
+  const tokenQueries = tokens
+    .slice(0, 10)
+    .map((token) => publicItems.where('searchTokens', 'array-contains', token).limit(readLimit).get())
+  const canonicalQueries = canonicalKeys.map((canonicalKey) =>
+    publicItems.where('canonicalKey', '==', canonicalKey).limit(readLimit).get(),
+  )
+  const snapshots = await Promise.all([...tokenQueries, ...canonicalQueries])
+
+  return readPublicCatalogSnapshots(snapshots)
+}
+
+function readPublicCatalogSnapshots(snapshots: Array<{ docs: Array<{ data: () => unknown }> }>) {
+  const itemsById = new Map<string, PublicCatalogItem>()
+  for (const snapshot of snapshots) {
+    for (const docSnapshot of snapshot.docs) {
+      const item = docSnapshot.data() as PublicCatalogItem
+      if (item?.id) itemsById.set(item.id, item)
+    }
+  }
+  return [...itemsById.values()]
 }
 
 async function recordCatalogSearch(query: string, type: SearchType, resultCount: number) {
@@ -373,6 +419,14 @@ function uniquePublicItems(items: PublicCatalogItem[]) {
     byKey.set(item.canonicalKey || `${item.type}:${normalizeKey(item.title)}`, item)
   }
   return [...byKey.values()]
+}
+
+function getSearchItemTypes(type: SearchType) {
+  if (type === 'any') return CATALOG_ITEM_TYPES
+  if (type === 'watch') return WATCH_ITEM_TYPES
+  if (type === 'animeManga') return ['anime', 'manga', 'manhwa'] satisfies ItemType[]
+  if (CATALOG_ITEM_TYPES.includes(type as ItemType)) return [type as ItemType]
+  return CATALOG_ITEM_TYPES
 }
 
 async function assertWithinRateLimit(uid: string, key: string, maxPerMinute: number) {

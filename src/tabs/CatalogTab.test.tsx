@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { DEFAULT_SETTINGS, type ItemType, type ListItem, type PublicCatalogItem } from '../domain/types'
 import { buildPublicCatalogItem, discoveryToListItem, externalCandidateToDiscovery, publicItemToDiscovery } from '../lib/catalog'
+import { scoreCatalogSearchCandidate } from '../lib/catalogSearch'
 import type { LibrarySurface } from '../app/shared'
 import CatalogTab from './CatalogTab'
 
@@ -65,7 +66,11 @@ function createLibrarySurface(options: { items?: ListItem[]; publicItems: Public
     searchExternal: vi.fn(async () => []),
     searchCatalog: vi.fn(async () => []),
     listPublicCatalog: vi.fn(async () => options.publicItems),
-    searchPublicCatalog: vi.fn(async (_query, type) => options.publicItems.filter((item) => matchesPublicCatalogTestType(item.type, type))),
+    searchPublicCatalog: vi.fn(async (query, type) =>
+      options.publicItems
+        .filter((item) => matchesPublicCatalogTestType(item.type, type))
+        .filter((item) => !query.trim() || scoreCatalogSearchCandidate(query, item, type) > 0),
+    ),
     saveSettings: vi.fn(async () => undefined),
     queueDiscoveryCandidates: vi.fn(async () => 1),
     dismissDiscoveryCandidate: vi.fn(async () => undefined),
@@ -213,6 +218,25 @@ describe('CatalogTab', () => {
     expect(library.searchPublicCatalog).toHaveBeenCalledWith('Catalog', 'any')
     expect(screen.getByRole('heading', { name: 'Catalog Item 24' })).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Catalog Item 25' })).not.toBeInTheDocument()
+  })
+
+  it('searches Dune across the whole Nexo catalog when Todo is selected', async () => {
+    const publicItems = [
+      createPublicCatalogItem(1, { id: 'movie-dune-2021', title: 'Dune', type: 'movie' }),
+      createPublicCatalogItem(2, { id: 'book-dune', title: 'Dune', type: 'book' }),
+      createPublicCatalogItem(3, { id: 'movie-arrival', title: 'Arrival', type: 'movie' }),
+    ]
+    const { library } = createLibrarySurface({ publicItems })
+
+    renderCatalog(library)
+
+    await screen.findByRole('heading', { name: 'Arrival' })
+    await userEvent.type(screen.getByLabelText('Buscar en el catalogo publico'), 'Dune')
+    await userEvent.click(screen.getByRole('button', { name: 'Buscar' }))
+
+    await waitFor(() => expect(library.searchPublicCatalog).toHaveBeenCalledWith('Dune', 'any'))
+    expect(screen.getAllByRole('heading', { name: 'Dune' })).toHaveLength(2)
+    expect(screen.queryByRole('heading', { name: 'Arrival' })).not.toBeInTheDocument()
   })
 
   it('filters the Nexo catalog by type without requiring a query', async () => {

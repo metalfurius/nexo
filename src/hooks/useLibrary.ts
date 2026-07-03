@@ -407,8 +407,7 @@ export function useLibrary(user?: SignedInUserProfile | null) {
   async function searchPublicCatalog(query: string, type?: string): Promise<PublicCatalogItem[]> {
     if (repository) return repository.searchPublicCatalog(query, type)
     if (isFirebaseConfigured) {
-      const remoteCatalog = await fetchPublicCatalog(query, type ?? 'any', 24).catch(() => undefined)
-      if (remoteCatalog) return remoteCatalog
+      return requireRemotePublicCatalog(() => fetchPublicCatalog(query, type ?? 'any', 24))
     }
 
     const normalized = query.trim().toLowerCase()
@@ -445,8 +444,7 @@ export function useLibrary(user?: SignedInUserProfile | null) {
   async function listPublicCatalog(): Promise<PublicCatalogItem[]> {
     if (repository) return repository.listPublicCatalog()
     if (isFirebaseConfigured) {
-      const remoteCatalog = await fetchPublicCatalog('', 'any', 24).catch(() => undefined)
-      if (remoteCatalog) return remoteCatalog
+      return requireRemotePublicCatalog(() => fetchPublicCatalog('', 'any', 24))
     }
 
     return publicCatalog
@@ -764,6 +762,12 @@ function mergeCandidates(nextCandidates: DiscoveryCandidate[], currentCandidates
 
 function uniqueDiscoveryCandidates(candidates: DiscoveryCandidate[]) {
   return dedupeCatalogSearchCandidates(candidates)
+}
+
+async function requireRemotePublicCatalog(loadCatalog: () => Promise<PublicCatalogItem[] | undefined>) {
+  const catalog = await loadCatalog().catch(() => undefined)
+  if (catalog) return catalog
+  throw new Error('No se pudo cargar el catalogo publico remoto. Revisa VITE_PUBLIC_CATALOG_URL.')
 }
 
 function mergeSettings(settings: Partial<UserSettings>): UserSettings {
