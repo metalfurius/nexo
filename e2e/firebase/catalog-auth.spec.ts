@@ -23,9 +23,12 @@ test('anonymous public catalog searches Dune through the Firebase Function path'
   })
 
   await page.goto('/')
-  await page.getByLabel('Buscar en el catalogo publico').fill('Dune')
+  const catalogSearch = page.getByLabel('Buscar en el catalogo publico')
+  await catalogSearch.fill('Dune')
   await page.getByRole('button', { name: /^Buscar$/ }).click()
 
+  await page.waitForTimeout(3000)
+  await expect(catalogSearch).toHaveValue('Dune')
   const duneCards = page.locator('article.catalog-public-card').filter({ hasText: 'Dune' })
   await expect(duneCards.filter({ hasText: 'Libros' })).toBeVisible()
   await expect(duneCards.filter({ hasText: 'Cine' })).toBeVisible()

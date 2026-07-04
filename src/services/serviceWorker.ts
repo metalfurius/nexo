@@ -3,22 +3,32 @@ export const SERVICE_WORKER_UPDATE_READY_EVENT = 'nexo:service-worker-update-rea
 const skipWaitingMessage = { type: 'NEXO_SKIP_WAITING' }
 
 let waitingServiceWorker: ServiceWorker | undefined
+let updateReloadRequested = false
 let reloadingForUpdate = false
 
-export function applyServiceWorkerUpdate() {
-  waitingServiceWorker?.postMessage(skipWaitingMessage)
+interface ServiceWorkerRegistrationOptions {
+  enabled?: boolean
+  reloadWindow?: () => void
 }
 
-export function registerServiceWorker(options: { enabled?: boolean } = {}) {
+export function applyServiceWorkerUpdate() {
+  if (!waitingServiceWorker) return
+  updateReloadRequested = true
+  waitingServiceWorker.postMessage(skipWaitingMessage)
+}
+
+export function registerServiceWorker(options: ServiceWorkerRegistrationOptions = {}) {
   const enabled = options.enabled ?? import.meta.env.PROD
   if (!enabled || !('serviceWorker' in navigator)) return
+  const reloadWindow = options.reloadWindow ?? (() => window.location.reload())
 
   window.addEventListener('load', () => {
     navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!updateReloadRequested) return
       if (reloadingForUpdate) return
 
       reloadingForUpdate = true
-      window.location.reload()
+      reloadWindow()
     })
 
     void navigator.serviceWorker.register('/sw.js').then(trackServiceWorkerUpdate).catch(() => undefined)

@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { DEFAULT_SETTINGS, type ItemType, type ListItem, type PublicCatalogItem } from '../domain/types'
@@ -32,6 +32,14 @@ function matchesPublicCatalogTestType(itemType: ItemType, requestedType?: string
   if (!requestedType || requestedType === 'any') return true
   if (requestedType === 'watch') return ['movie', 'series', 'anime'].includes(itemType)
   return itemType === requestedType
+}
+
+function createDeferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((nextResolve) => {
+    resolve = nextResolve
+  })
+  return { promise, resolve }
 }
 
 function createLibrarySurface(options: { items?: ListItem[]; publicItems: PublicCatalogItem[] }) {
@@ -237,6 +245,38 @@ describe('CatalogTab', () => {
     await waitFor(() => expect(library.searchPublicCatalog).toHaveBeenCalledWith('Dune', 'any'))
     expect(screen.getAllByRole('heading', { name: 'Dune' })).toHaveLength(2)
     expect(screen.queryByRole('heading', { name: 'Arrival' })).not.toBeInTheDocument()
+  })
+
+  it('keeps search results when an older catalog load resolves later', async () => {
+    const initialCatalog = [
+      createPublicCatalogItem(1, { id: 'movie-arrival', title: 'Arrival', type: 'movie' }),
+    ]
+    const duneResults = [
+      createPublicCatalogItem(2, { id: 'movie-dune-2021', title: 'Dune', type: 'movie' }),
+      createPublicCatalogItem(3, { id: 'book-dune', title: 'Dune', type: 'book' }),
+    ]
+    const initialLoad = createDeferred<PublicCatalogItem[]>()
+    const { library } = createLibrarySurface({ publicItems: initialCatalog })
+    library.listPublicCatalog = vi.fn(() => initialLoad.promise)
+    library.searchPublicCatalog = vi.fn(async () => duneResults)
+
+    renderCatalog(library)
+
+    const searchInput = screen.getByLabelText('Buscar en el catalogo publico')
+    await userEvent.type(searchInput, 'Dune')
+    fireEvent.submit(searchInput.closest('form') as HTMLFormElement)
+
+    await waitFor(() => expect(library.searchPublicCatalog).toHaveBeenCalledWith('Dune', 'any'))
+    await waitFor(() => expect(screen.getAllByRole('heading', { name: 'Dune' })).toHaveLength(2))
+    expect(searchInput).toHaveValue('Dune')
+    expect(screen.getByRole('status')).toHaveTextContent('Mostrando 2 de 2 resultados para explorar.')
+
+    initialLoad.resolve(initialCatalog)
+
+    await waitFor(() => expect(screen.getAllByRole('heading', { name: 'Dune' })).toHaveLength(2))
+    expect(searchInput).toHaveValue('Dune')
+    expect(screen.queryByRole('heading', { name: 'Arrival' })).not.toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('Mostrando 2 de 2 resultados para explorar.')
   })
 
   it('filters the Nexo catalog by type without requiring a query', async () => {

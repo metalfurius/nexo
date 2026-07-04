@@ -2,7 +2,7 @@ import { type DiscoveryCandidate, type ExplorerSearchType } from '../domain/type
 import { discoverySourceLabels as sourceLabels } from '../lib/explorerInsights'
 import { getDiscoveryCandidateEffortSignal, itemTypeLabels as typeLabels } from '../lib/libraryItemInsights'
 import { Check, CheckCircle2, Eye, Library, LogIn, Plus, Search, Sparkles, X } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   CoverArt,
   DialogFocusReturn,
@@ -37,6 +37,8 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
   const [selectedCandidate, setSelectedCandidate] = useState<DiscoveryCandidate | undefined>()
   const [loading, setLoading] = useState(false)
   const [status, setStatus] = useState<string | undefined>()
+  const libraryRef = useRef(library)
+  const catalogRequestId = useRef(0)
   const visibleCandidates = useMemo(() => candidates.slice(0, visibleLimit), [candidates, visibleLimit])
   const visibleSavedCount = useMemo(
     () =>
@@ -51,14 +53,20 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
     isSignedIn && Boolean(getSavedLibraryItemForCandidate(candidate, library.items))
 
   useEffect(() => {
+    libraryRef.current = library
+  }, [library])
+
+  useEffect(() => {
     let disposed = false
+    const requestId = ++catalogRequestId.current
 
     async function loadCatalog() {
       setLoading(true)
       try {
-        const publicItems = await library.listPublicCatalog()
-        if (disposed) return
-        const initialCandidates = publicItems.map(library.publicItemToDiscovery)
+        const currentLibrary = libraryRef.current
+        const publicItems = await currentLibrary.listPublicCatalog()
+        if (disposed || requestId !== catalogRequestId.current) return
+        const initialCandidates = publicItems.map(currentLibrary.publicItemToDiscovery)
         const initialVisibleCount = Math.min(catalogPublicPageSize, initialCandidates.length)
         setCandidates(initialCandidates)
         setVisibleLimit(catalogPublicPageSize)
@@ -69,11 +77,11 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
             : 'El catalogo publico esta esperando sus primeras obras.',
         )
       } catch (reason) {
-        if (!disposed) {
+        if (!disposed && requestId === catalogRequestId.current) {
           setStatus(reason instanceof Error ? reason.message : 'No se pudo cargar el catalogo publico.')
         }
       } finally {
-        if (!disposed) setLoading(false)
+        if (!disposed && requestId === catalogRequestId.current) setLoading(false)
       }
     }
 
@@ -81,19 +89,22 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
     return () => {
       disposed = true
     }
-  }, [isSignedIn, library])
+  }, [isSignedIn, library.loading])
 
   async function searchCatalog(nextQuery = query, nextType = type) {
     const cleanedQuery = nextQuery.trim()
+    const requestId = ++catalogRequestId.current
     setLoading(true)
     setStatus(undefined)
     try {
+      const currentLibrary = libraryRef.current
       const nextCandidates =
         cleanedQuery.length >= 2
-          ? (await library.searchPublicCatalog(cleanedQuery, nextType)).map(library.publicItemToDiscovery)
+          ? (await currentLibrary.searchPublicCatalog(cleanedQuery, nextType)).map(currentLibrary.publicItemToDiscovery)
           : nextType === 'any'
-            ? (await library.listPublicCatalog()).map(library.publicItemToDiscovery)
-            : (await library.searchPublicCatalog('', nextType)).map(library.publicItemToDiscovery)
+            ? (await currentLibrary.listPublicCatalog()).map(currentLibrary.publicItemToDiscovery)
+            : (await currentLibrary.searchPublicCatalog('', nextType)).map(currentLibrary.publicItemToDiscovery)
+      if (requestId !== catalogRequestId.current) return
       const nextVisibleCount = Math.min(catalogPublicPageSize, nextCandidates.length)
       const nextResultLabel = cleanedQuery.length >= 2 ? 'resultados para explorar' : 'obras del catalogo'
 
@@ -114,10 +125,11 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
         })
       }
     } catch (reason) {
+      if (requestId !== catalogRequestId.current) return
       setCandidates([])
       setStatus(reason instanceof Error ? reason.message : 'No se pudo buscar en el catalogo.')
     } finally {
-      setLoading(false)
+      if (requestId === catalogRequestId.current) setLoading(false)
     }
   }
 
