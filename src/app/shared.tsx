@@ -39,6 +39,7 @@ export const libraryCatalogSearchTypes: Array<{ id: ExplorerSearchType; label: s
   { id: 'watch', label: 'Ver' },
   { id: 'game', label: 'Juegos' },
   { id: 'book', label: 'Libros' },
+  { id: 'animeManga', label: 'Anime/Manga' },
   { id: 'anime', label: 'Anime' },
   { id: 'manga', label: 'Manga' },
   { id: 'manhwa', label: 'Manhwa' },
@@ -771,6 +772,13 @@ export const curationStarterTypes: ItemType[] = ['book', 'game', 'movie', 'serie
 
 export const urlAddressableTabs: AppTab[] = ['catalog', 'library', 'dice', 'explorer', 'import', 'settings']
 
+export interface CatalogRouteState {
+  query: string
+  type: ExplorerSearchType
+}
+
+const catalogRouteTypeIds = new Set<ExplorerSearchType>(libraryCatalogSearchTypes.map((option) => option.id))
+
 export function explorerSearchTypeForItemType(itemType: ItemType): ExplorerSearchType {
   if (itemType === 'movie' || itemType === 'series') return 'watch'
   if (itemType === 'game' || itemType === 'book' || itemType === 'anime' || itemType === 'manga' || itemType === 'manhwa') {
@@ -792,6 +800,50 @@ export function readInitialActivityFocus(): ActivityFocus | undefined {
   return itemId ? { kind: 'item', id: itemId } : undefined
 }
 
+export function readCatalogRouteState(): CatalogRouteState {
+  const searchParams = new URLSearchParams(window.location.search)
+  const query = searchParams.get('catalogQ')?.trim() ?? ''
+  const rawType = searchParams.get('catalogType')?.trim() as ExplorerSearchType | undefined
+  const type = rawType && catalogRouteTypeIds.has(rawType) ? rawType : 'any'
+  return { query, type }
+}
+
+export function hasCatalogRouteState(state = readCatalogRouteState()) {
+  return Boolean(state.query || state.type !== 'any')
+}
+
+export function writeCatalogRouteState(
+  state: CatalogRouteState,
+  mode: 'push' | 'replace' = 'push',
+) {
+  const url = new URL(window.location.href)
+  const query = state.query.trim()
+  const type = catalogRouteTypeIds.has(state.type) ? state.type : 'any'
+
+  url.searchParams.delete('tab')
+  url.searchParams.delete('item')
+  if (query) {
+    url.searchParams.set('catalogQ', query)
+  } else {
+    url.searchParams.delete('catalogQ')
+  }
+  if (type === 'any') {
+    url.searchParams.delete('catalogType')
+  } else {
+    url.searchParams.set('catalogType', type)
+  }
+
+  const nextUrl = `${url.pathname}${url.search}${url.hash}`
+  const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`
+  if (nextUrl === currentUrl) return
+
+  if (mode === 'push') {
+    window.history.pushState(null, '', nextUrl)
+  } else {
+    window.history.replaceState(null, '', nextUrl)
+  }
+}
+
 export function writeAppTabToUrl(tab: AppTab, mode: 'push' | 'replace' = 'replace', focus?: ActivityFocus) {
   const url = new URL(window.location.href)
   if (tab === 'catalog' || !urlAddressableTabs.includes(tab)) {
@@ -804,6 +856,11 @@ export function writeAppTabToUrl(tab: AppTab, mode: 'push' | 'replace' = 'replac
     url.searchParams.set('item', focus.id)
   } else {
     url.searchParams.delete('item')
+  }
+
+  if (tab !== 'catalog') {
+    url.searchParams.delete('catalogQ')
+    url.searchParams.delete('catalogType')
   }
 
   const nextUrl = `${url.pathname}${url.search}${url.hash}`
@@ -820,6 +877,8 @@ export function writeAppTabToUrl(tab: AppTab, mode: 'push' | 'replace' = 'replac
 export function buildItemShareUrl(itemId: string) {
   const url = new URL(window.location.href)
   url.searchParams.delete('tab')
+  url.searchParams.delete('catalogQ')
+  url.searchParams.delete('catalogType')
   url.searchParams.set('item', itemId)
   return url.toString()
 }

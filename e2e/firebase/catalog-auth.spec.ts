@@ -27,6 +27,7 @@ test('anonymous public catalog searches Dune through the Firebase Function path'
   await catalogSearch.fill('Dune')
   await page.getByRole('button', { name: /^Buscar$/ }).click()
 
+  await expect(page).toHaveURL(/catalogQ=Dune/)
   await page.waitForTimeout(3000)
   await expect(catalogSearch).toHaveValue('Dune')
   const duneCards = page.locator('article.catalog-public-card').filter({ hasText: 'Dune' })
@@ -34,6 +35,19 @@ test('anonymous public catalog searches Dune through the Firebase Function path'
   await expect(duneCards.filter({ hasText: 'Cine' })).toBeVisible()
   await expect(page.getByRole('status').filter({ hasText: 'resultados para explorar' })).toBeVisible()
   expect(openLibraryCalls).toBe(0)
+
+  await page.reload()
+  const reloadedCatalogSearch = page.getByLabel('Buscar en el catalogo publico')
+  await expect(reloadedCatalogSearch).toHaveValue('Dune')
+  const reloadedDuneCards = page.locator('article.catalog-public-card').filter({ hasText: 'Dune' })
+  await expect(reloadedDuneCards.filter({ hasText: 'Libros' })).toBeVisible()
+  await expect(reloadedDuneCards.filter({ hasText: 'Cine' })).toBeVisible()
+  await expect(page.getByRole('status').filter({ hasText: 'resultados para explorar' })).toBeVisible()
+  expect(openLibraryCalls).toBe(0)
+
+  await page.goBack()
+  await expect(page).not.toHaveURL(/catalogQ=/)
+  await expect(page.getByLabel('Buscar en el catalogo publico')).toHaveValue('')
 })
 
 test('moderator can sign in with email and see curation without Google', async ({ page }) => {

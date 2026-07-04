@@ -38,6 +38,7 @@ export interface RecommendationLearningSignals {
 const diceTypeLabels: Record<ExplorerSearchType, string> = {
   any: 'Todo',
   watch: 'Ver',
+  animeManga: 'Anime/Manga',
   game: 'Juegos',
   book: 'Libros',
   movie: 'Cine',
@@ -116,6 +117,7 @@ export function getDiceEligibilityBreakdown(
 export function matchesDiceMedium(itemType: ItemType, medium: ExplorerSearchType) {
   if (medium === 'any') return true
   if (medium === 'watch') return watchTypes.includes(itemType)
+  if (medium === 'animeManga') return ['anime', 'manga', 'manhwa'].includes(itemType)
   return itemType === medium
 }
 

@@ -25,9 +25,10 @@ export interface PersonalEditorReadiness {
 
 export type ProgressEditorMode = 'none' | 'playtime' | 'structured'
 
-export const itemTypeLabels: Record<ItemType | 'any' | 'watch', string> = {
+export const itemTypeLabels: Record<ItemType | 'any' | 'watch' | 'animeManga', string> = {
   any: 'Todo',
   watch: 'Ver',
+  animeManga: 'Anime/Manga',
   game: 'Juegos',
   book: 'Libros',
   movie: 'Cine',

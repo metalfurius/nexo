@@ -1,6 +1,6 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_SETTINGS, type ItemType, type ListItem, type PublicCatalogItem } from '../domain/types'
 import { buildPublicCatalogItem, discoveryToListItem, externalCandidateToDiscovery, publicItemToDiscovery } from '../lib/catalog'
 import { scoreCatalogSearchCandidate } from '../lib/catalogSearch'
@@ -30,7 +30,8 @@ function createPublicCatalogItem(index?: number, overrides: Partial<PublicCatalo
 
 function matchesPublicCatalogTestType(itemType: ItemType, requestedType?: string) {
   if (!requestedType || requestedType === 'any') return true
-  if (requestedType === 'watch') return ['movie', 'series', 'anime'].includes(itemType)
+  if (requestedType === 'watch') return ['movie', 'series', 'anime', 'manga', 'manhwa', 'comic'].includes(itemType)
+  if (requestedType === 'animeManga') return ['anime', 'manga', 'manhwa'].includes(itemType)
   return itemType === requestedType
 }
 
@@ -126,6 +127,10 @@ async function getCatalogCard(title: string) {
 }
 
 describe('CatalogTab', () => {
+  beforeEach(() => {
+    window.history.replaceState(null, '', '/')
+  })
+
   it('renders a compact public catalog masthead with integrated controls', async () => {
     const publicItems = [createPublicCatalogItem()]
     const { library } = createLibrarySurface({ publicItems })
@@ -243,8 +248,94 @@ describe('CatalogTab', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Buscar' }))
 
     await waitFor(() => expect(library.searchPublicCatalog).toHaveBeenCalledWith('Dune', 'any'))
+    expect(window.location.search).toBe('?catalogQ=Dune')
     expect(screen.getAllByRole('heading', { name: 'Dune' })).toHaveLength(2)
     expect(screen.queryByRole('heading', { name: 'Arrival' })).not.toBeInTheDocument()
+  })
+
+  it('hydrates public search from the URL instead of loading the default catalog', async () => {
+    window.history.replaceState(null, '', '/?catalogQ=Dune')
+    const initialCatalog = [
+      createPublicCatalogItem(1, { id: 'movie-arrival', title: 'Arrival', type: 'movie' }),
+    ]
+    const duneResults = [
+      createPublicCatalogItem(2, { id: 'movie-dune-2021', title: 'Dune', type: 'movie' }),
+      createPublicCatalogItem(3, { id: 'book-dune', title: 'Dune', type: 'book' }),
+    ]
+    const { library } = createLibrarySurface({ publicItems: initialCatalog })
+    library.listPublicCatalog = vi.fn(async () => initialCatalog)
+    library.searchPublicCatalog = vi.fn(async () => duneResults)
+
+    renderCatalog(library)
+
+    await waitFor(() => expect(library.searchPublicCatalog).toHaveBeenCalledWith('Dune', 'any'))
+    expect(library.listPublicCatalog).not.toHaveBeenCalled()
+    expect(screen.getByLabelText('Buscar en el catalogo publico')).toHaveValue('Dune')
+    expect(screen.getAllByRole('heading', { name: 'Dune' })).toHaveLength(2)
+    expect(screen.queryByRole('heading', { name: 'Arrival' })).not.toBeInTheDocument()
+  })
+
+  it('writes catalog type URL state when filtering without a query', async () => {
+    const publicItems = [
+      createPublicCatalogItem(1, { title: 'Chainsaw Man', type: 'manga' }),
+      createPublicCatalogItem(2, { title: 'Dune', type: 'book' }),
+    ]
+    const { library } = createLibrarySurface({ publicItems })
+
+    renderCatalog(library)
+
+    await screen.findByRole('heading', { name: 'Chainsaw Man' })
+    await userEvent.selectOptions(screen.getByLabelText('Tipo de obra'), 'book')
+
+    await waitFor(() => expect(library.searchPublicCatalog).toHaveBeenCalledWith('', 'book'))
+    expect(window.location.search).toBe('?catalogType=book')
+    expect(screen.getByRole('heading', { name: 'Dune' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Chainsaw Man' })).not.toBeInTheDocument()
+  })
+
+  it('restores catalog searches from browser history popstate', async () => {
+    const publicItems = [
+      createPublicCatalogItem(1, { id: 'movie-arrival', title: 'Arrival', type: 'movie' }),
+      createPublicCatalogItem(2, { id: 'movie-dune-2021', title: 'Dune', type: 'movie' }),
+      createPublicCatalogItem(3, { id: 'book-dune', title: 'Dune', type: 'book' }),
+    ]
+    const { library } = createLibrarySurface({ publicItems })
+
+    renderCatalog(library)
+
+    await screen.findByRole('heading', { name: 'Arrival' })
+    act(() => {
+      window.history.pushState(null, '', '/?catalogQ=Dune&catalogType=watch')
+      window.dispatchEvent(new PopStateEvent('popstate'))
+    })
+
+    await waitFor(() => expect(library.searchPublicCatalog).toHaveBeenCalledWith('Dune', 'watch'))
+    expect(screen.getByLabelText('Buscar en el catalogo publico')).toHaveValue('Dune')
+    expect(screen.getByLabelText('Tipo de obra')).toHaveValue('watch')
+    expect(screen.getAllByRole('heading', { name: 'Dune' })).toHaveLength(1)
+    expect(screen.queryByRole('heading', { name: 'Arrival' })).not.toBeInTheDocument()
+  })
+
+  it('clears catalog route state and reloads the public catalog', async () => {
+    const publicItems = [
+      createPublicCatalogItem(1, { id: 'movie-arrival', title: 'Arrival', type: 'movie' }),
+      createPublicCatalogItem(2, { id: 'movie-dune-2021', title: 'Dune', type: 'movie' }),
+    ]
+    const { library } = createLibrarySurface({ publicItems })
+
+    renderCatalog(library)
+
+    await screen.findByRole('heading', { name: 'Arrival' })
+    await userEvent.type(screen.getByLabelText('Buscar en el catalogo publico'), 'Dune')
+    await userEvent.click(screen.getByRole('button', { name: 'Buscar' }))
+    await waitFor(() => expect(window.location.search).toBe('?catalogQ=Dune'))
+
+    await userEvent.click(screen.getByRole('button', { name: 'Limpiar busqueda del catalogo' }))
+
+    await waitFor(() => expect(window.location.search).toBe(''))
+    expect(screen.getByLabelText('Buscar en el catalogo publico')).toHaveValue('')
+    expect(screen.getByLabelText('Tipo de obra')).toHaveValue('any')
+    expect(screen.getByRole('heading', { name: 'Arrival' })).toBeInTheDocument()
   })
 
   it('keeps search results when an older catalog load resolves later', async () => {
