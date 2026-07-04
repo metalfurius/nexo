@@ -12723,6 +12723,7 @@ button:active:not(:disabled),
 .confirm-dialog,
 .detail-dialog,
 .quick-search-dialog,
+.auth-login-dialog,
 .service-import-dialog {
   animation: modal-enter var(--motion) var(--motion-ease) both;
   display: grid;
@@ -12747,6 +12748,41 @@ button:active:not(:disabled),
 
 .confirm-dialog {
   width: min(440px, 100%);
+}
+
+.auth-login-dialog {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-raised) 96%, var(--surface)), var(--surface-raised)),
+    var(--surface-raised);
+  position: relative;
+  width: min(460px, 100%);
+}
+
+.auth-login-form {
+  display: grid;
+  gap: 12px;
+}
+
+.auth-login-form label {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.auth-login-error {
+  color: var(--danger-text);
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.auth-login-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.auth-login-actions button {
+  flex: 1 1 180px;
 }
 
 .quick-search-dialog {

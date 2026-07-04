@@ -40,13 +40,24 @@ export function useAuth() {
     loading,
     isFirebaseConfigured,
     error,
-    signIn: async () => {
+    signInWithGoogle: async () => {
       try {
         setError(undefined)
         const { signInWithGoogle } = await import('../services/firebaseAuth')
         await signInWithGoogle()
       } catch (reason) {
         setError(reason instanceof Error ? reason.message : 'No se pudo iniciar sesion')
+        throw reason
+      }
+    },
+    signInWithEmail: async (email: string, password: string) => {
+      try {
+        setError(undefined)
+        const { signInWithEmail } = await import('../services/firebaseAuth')
+        await signInWithEmail(email, password)
+      } catch (reason) {
+        setError(reason instanceof Error ? reason.message : 'No se pudo iniciar sesion')
+        throw reason
       }
     },
     signOut: async () => {

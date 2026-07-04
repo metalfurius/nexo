@@ -14,7 +14,7 @@ import { normalizeKey, slugify, uniqueNormalizedValues } from './lib/strings'
 import { notifyAppUpdateReady } from './services/notificationService'
 import { applyServiceWorkerUpdate, SERVICE_WORKER_UPDATE_READY_EVENT } from './services/serviceWorker'
 import { Archive, BookOpen, Check, CheckCircle2, Dice5, Download, Library, List, LogIn, LogOut, Moon, Palette, Pause, Play, Plus, RotateCcw, Save, Search, ShieldCheck, Sparkles, Trash2, Upload, X } from 'lucide-react'
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { LibraryTab, NavigationDiscardPrompt, NexoMark, QuickSearchDialog, SessionActivityPanel, ShellPulse, ShellState, activityTabLabels, blankItem, cloneActivityEntry, downloadLibraryBackup, getActivityFocus, getActivityIcon, getLibraryReviewQueueIcon, getLibrarySelectionSignals, getPrimaryItemAction, isStandalonePwa, isThemeMode, libraryPriorityOptions, librarySelectionSignalLabels, librarySortLabels, readInitialActivityFocus, readInitialAppTab, roleLabels, sessionActivityLimit, themeMetaColors, themeOptions, themeStorageKey, typeIcons, useCloseDetailsOnOutsideClick, writeAppTabToUrl, type ActivityFocus, type AppTab, type BeforeInstallPromptEvent, type DiceCooldownReactivateRequest, type DicePreferencesSaveRequest, type DiceRollRequest, type DiceRollSummary, type ExplorerCandidateDismissRequest, type ExplorerCandidateRequest, type ExplorerCandidateSaveRequest, type ExplorerPromptCardRequest, type ExplorerSearchRequest, type ExplorerVisibleDismissRequest, type ExplorerVisibleSaveRequest, type LibraryImportRequest, type LibraryPrimaryActionRequest, type LibraryPriorityLevel, type LibraryResetViewRequest, type LibraryReviewRequest, type LibrarySelectedDiceActionRequest, type LibrarySelectedExportRequest, type LibrarySelectedPriorityRequest, type LibrarySelectedSignalsRequest, type LibrarySelectedStatusRequest, type LibrarySelectionSignalAction, type LibrarySelectionSignalKind, type LibrarySmartViewRequest, type LibrarySortModeRequest, type LibraryStatusFilterRequest, type LibraryTypeFilterRequest, type LibraryVisibleSelectionRequest, type LibraryVisibleSelectionSummary, type PendingNavigation, type QuickSearchCommand, type SettingsSaveRequest, type SettingsTasteSuggestionsRequest, type SettingsTaxonomyRepairRequest, type ShellNavItem } from './app/shared'
 
 const DiceTab = lazy(() => import('./tabs/DiceTab'))
@@ -30,10 +30,119 @@ function LazyTabFallback() {
   return <ShellState title="Cargando vista" detail="Preparando modulos de Nexo." />
 }
 
+function SignInDialog({
+  error,
+  onClose,
+  onEmailSignIn,
+  onGoogleSignIn,
+}: {
+  error?: string
+  onClose: () => void
+  onEmailSignIn: (email: string, password: string) => Promise<void>
+  onGoogleSignIn: () => Promise<void>
+}) {
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [pendingProvider, setPendingProvider] = useState<'email' | 'google' | undefined>()
+  const [localError, setLocalError] = useState<string | undefined>()
+  const pending = Boolean(pendingProvider)
+  const feedback = localError ?? error
+
+  async function submitEmail(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!email.trim() || !password) return
+
+    setPendingProvider('email')
+    setLocalError(undefined)
+    try {
+      await onEmailSignIn(email, password)
+      onClose()
+    } catch (reason) {
+      setLocalError(reason instanceof Error ? reason.message : 'No se pudo iniciar sesion')
+    } finally {
+      setPendingProvider(undefined)
+    }
+  }
+
+  async function submitGoogle() {
+    setPendingProvider('google')
+    setLocalError(undefined)
+    try {
+      await onGoogleSignIn()
+      onClose()
+    } catch (reason) {
+      setLocalError(reason instanceof Error ? reason.message : 'No se pudo iniciar sesion')
+    } finally {
+      setPendingProvider(undefined)
+    }
+  }
+
+  return (
+    <div className="modal-backdrop" role="presentation">
+      <section
+        aria-labelledby="sign-in-dialog-title"
+        aria-modal="true"
+        className="auth-login-dialog"
+        role="dialog"
+        onKeyDown={(event) => {
+          if (event.key === 'Escape' && !pending) onClose()
+        }}
+      >
+        <button className="icon-button dialog-close" disabled={pending} type="button" onClick={onClose} title="Cerrar">
+          <X size={18} />
+        </button>
+        <div className="panel-heading compact">
+          <div>
+            <span className="eyebrow">Acceso</span>
+            <h2 id="sign-in-dialog-title">Entrar en Nexo</h2>
+          </div>
+        </div>
+        <form className="auth-login-form" onSubmit={submitEmail}>
+          <label>
+            Email
+            <input
+              autoComplete="email"
+              inputMode="email"
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+            />
+          </label>
+          <label>
+            Contraseña
+            <input
+              autoComplete="current-password"
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+            />
+          </label>
+          {feedback && (
+            <p className="auth-login-error" role="alert">
+              {feedback}
+            </p>
+          )}
+          <div className="auth-login-actions">
+            <button className="primary-button" disabled={pending || !email.trim() || !password} type="submit">
+              <LogIn size={16} />
+              {pendingProvider === 'email' ? 'Entrando' : 'Entrar con email'}
+            </button>
+            <button className="secondary-button" disabled={pending} type="button" onClick={() => void submitGoogle()}>
+              <LogIn size={16} />
+              {pendingProvider === 'google' ? 'Entrando' : 'Entrar con Google'}
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
+  )
+}
+
 function App() {
   const auth = useAuth()
   const library = useLibrary(auth.user)
   const [activeTab, setActiveTabState] = useState<AppTab>(() => readInitialAppTab())
+  const [signInDialogOpen, setSignInDialogOpen] = useState(false)
   const [pendingNavigation, setPendingNavigation] = useState<PendingNavigation | undefined>()
   const [activityFocus, setActivityFocus] = useState<ActivityFocus | undefined>(() => readInitialActivityFocus())
   const [activityClearUndo, setActivityClearUndo] = useState<ActivityEntry[]>([])
@@ -130,6 +239,7 @@ function App() {
 
   useEffect(() => {
     if (!auth.isFirebaseConfigured) return
+    if (import.meta.env.VITE_USE_FIREBASE_EMULATORS === 'true') return
     void import('./services/firebaseAnalytics')
       .then(({ initializeAnalytics }) => initializeAnalytics())
       .catch(() => undefined)
@@ -330,10 +440,15 @@ function App() {
   const pendingNavItem = pendingNavigation ? navItems.find((item) => item.id === pendingNavigation.tab) : undefined
   const shellTitle = activeNavItem.displayLabel ?? activeNavItem.label
 
+  function requestSignIn() {
+    if (!auth.isFirebaseConfigured) return
+    setSignInDialogOpen(true)
+  }
+
   function changeActiveTab(nextTab: AppTab, focus?: ActivityFocus) {
     if (nextTab === 'curation' && !library.isModerator) return
     if (auth.isFirebaseConfigured && !auth.user && nextTab !== 'catalog') {
-      void auth.signIn()
+      requestSignIn()
       return
     }
     if (nextTab === activeTab) {
@@ -1794,13 +1909,21 @@ function App() {
             </button>
           )}
           {auth.isFirebaseConfigured && !auth.user && (
-            <button className="app-update-button" type="button" onClick={auth.signIn}>
+            <button className="app-update-button" type="button" onClick={requestSignIn}>
               <LogIn size={16} />
               <span>Entrar</span>
             </button>
           )}
         </div>
       </header>
+      {signInDialogOpen && (
+        <SignInDialog
+          error={auth.error}
+          onClose={() => setSignInDialogOpen(false)}
+          onEmailSignIn={auth.signInWithEmail}
+          onGoogleSignIn={auth.signInWithGoogle}
+        />
+      )}
 
       <nav className="tabbar" aria-label="Secciones de Nexo">
         {[primaryNavItems, utilityNavItems].map((group, groupIndex) => (
@@ -1867,7 +1990,7 @@ function App() {
               library={library}
               onActivity={recordVisibleActivity}
               onNavigate={changeActiveTab}
-              onSignIn={auth.signIn}
+              onSignIn={requestSignIn}
             />
           )}
         </Suspense>

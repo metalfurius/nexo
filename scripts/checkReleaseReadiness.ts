@@ -28,6 +28,7 @@ const requiredFiles = [
   'public/sw.js',
   'seed/public-catalog.seed.json',
   '.github/workflows/ci.yml',
+  '.github/workflows/deploy-functions.yml',
   '.github/workflows/deploy-pages.yml',
   '.github/workflows/version-bump.yml',
 ]
@@ -69,7 +70,11 @@ check(functionsLock.packages?.['']?.version === rootPackage.version, 'Functions 
 check(rootPackage.scripts?.['check:build-output'], 'package.json must expose check:build-output.')
 check(rootPackage.scripts?.check?.includes('check:build-output'), 'npm run check must include check:build-output.')
 check(rootPackage.scripts?.['check:release-files'], 'package.json must expose check:release-files.')
+check(rootPackage.scripts?.['catalog:write:prod'], 'package.json must expose catalog:write:prod.')
+check(rootPackage.scripts?.['test:e2e:firebase'], 'package.json must expose test:e2e:firebase.')
+check(rootPackage.scripts?.['test:e2e:prod'], 'package.json must expose test:e2e:prod.')
 check(rootPackage.scripts?.['version:bump'], 'package.json must expose version:bump.')
+check(rootPackage.scripts?.['release:check']?.includes('test:e2e:firebase'), 'release:check must include Firebase E2E.')
 check(rootPackage.scripts?.['release:check']?.includes('check:release-files'), 'release:check must include check:release-files.')
 
 const cname = (await readText('public/CNAME')).trim()
@@ -149,8 +154,18 @@ check(ciWorkflow.includes('pull_request:'), 'CI workflow must run on pull reques
 check(ciWorkflow.includes('Version bump label'), 'CI workflow must enforce version bump labels.')
 check(ciWorkflow.includes('npm run check'), 'CI workflow must run npm run check.')
 check(ciWorkflow.includes('npm run test:e2e'), 'CI workflow must run E2E tests.')
+check(ciWorkflow.includes('npm run test:e2e:firebase'), 'CI workflow must run Firebase E2E tests.')
 check(ciWorkflow.includes('npm run check:release-files'), 'CI workflow must run check:release-files.')
 check(ciWorkflow.includes('npm audit --audit-level=high'), 'CI workflow must run high severity audit.')
+
+const functionsWorkflow = await readText('.github/workflows/deploy-functions.yml')
+check(functionsWorkflow.includes('workflow_dispatch:'), 'Functions workflow must support manual dispatch.')
+check(functionsWorkflow.includes('firebase-tools deploy --only functions'), 'Functions workflow must deploy Firebase Functions.')
+check(functionsWorkflow.includes('npm run catalog:write:prod'), 'Functions workflow must write the production catalog seed.')
+check(
+  functionsWorkflow.includes('FIREBASE_SERVICE_ACCOUNT_RECOMENDACIONES_78EB7'),
+  'Functions workflow must use the Firebase service account secret.',
+)
 
 const deployWorkflow = await readText('.github/workflows/deploy-pages.yml')
 check(deployWorkflow.includes('branches: [main]'), 'Deploy workflow must run on main pushes.')
@@ -159,6 +174,8 @@ check(
   'Deploy workflow must pass VITE_PUBLIC_CATALOG_URL from GitHub variables.',
 )
 check(deployWorkflow.includes('npm run check:build-output'), 'Deploy workflow must validate build output.')
+check(deployWorkflow.includes('npm run test:e2e:firebase'), 'Deploy workflow must run Firebase E2E tests.')
+check(deployWorkflow.includes('npm run test:e2e:prod'), 'Deploy workflow must run production smoke tests.')
 check(deployWorkflow.includes('npm run check:release-files'), 'Deploy workflow must run check:release-files.')
 check(deployWorkflow.includes('actions/deploy-pages'), 'Deploy workflow must deploy GitHub Pages.')
 
@@ -174,6 +191,11 @@ const seed = await readJson<unknown>('seed/public-catalog.seed.json')
 const seedResult = parsePublicCatalogSeed(seed, 'release-check')
 check(seedResult.errors.length === 0, `Public catalog seed must validate: ${seedResult.errors[0] ?? ''}`)
 check(seedResult.items.length > 0, 'Public catalog seed must contain at least one valid item.')
+check(
+  seedResult.items.some((item) => item.title === 'Dune' && item.type === 'book') &&
+    seedResult.items.some((item) => item.title === 'Dune' && item.type === 'movie'),
+  'Public catalog seed must include Dune as book and movie.',
+)
 
 const templateResult = parsePublicCatalogSeed(createPublicCatalogSeedTemplate(), 'release-check')
 check(templateResult.errors.length === 0, `Public catalog seed template must validate: ${templateResult.errors[0] ?? ''}`)

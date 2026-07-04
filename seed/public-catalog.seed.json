@@ -175,6 +175,20 @@
       }
     },
     {
+      "title": "Dune",
+      "type": "movie",
+      "description": "Politica, profecia y poder en Arrakis, con escala de epopeya espacial.",
+      "releaseYear": 2021,
+      "genres": ["sci-fi", "aventura", "drama"],
+      "tags": ["pelicula", "desierto", "saga"],
+      "moodTags": ["epico", "solemne"],
+      "searchAliases": ["Dune 2021", "Dune Part One"],
+      "externalRefs": {
+        "tmdbId": "438631",
+        "sourceUrl": "https://www.themoviedb.org/movie/438631-dune"
+      }
+    },
+    {
       "title": "Parasite",
       "type": "movie",
       "description": "Thriller social de clases, espacios y tensiones que cambian de forma sin pedir permiso.",

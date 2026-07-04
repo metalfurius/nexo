@@ -11,6 +11,7 @@
 - `npm run check:build-output`
 - `npm run build:functions`
 - `npm run test:e2e`
+- `npm run test:e2e:firebase`
 - `npm run check:release-files`
 - `npm audit --audit-level=high`
 
@@ -19,7 +20,8 @@
 GitHub Actions mirrors the gate:
 
 - `.github/workflows/ci.yml` runs on pull requests and manual dispatch.
-- `.github/workflows/deploy-pages.yml` runs on `main`, repeats the gate, then deploys GitHub Pages.
+- `.github/workflows/deploy-pages.yml` runs on `main`, repeats the gate, deploys GitHub Pages and runs the production smoke.
+- `.github/workflows/deploy-functions.yml` deploys Firebase Functions and writes the public catalog seed when Functions/catalog paths change, and also supports manual dispatch.
 - `.github/workflows/version-bump.yml` opens a package version PR with `VERSION_BUMP_TOKEN` after a merged PR labelled `patch`, `minor` or `major`, lets normal PR CI run, auto-merges it, then dispatches deploy.
 - Repository secret `VERSION_BUMP_TOKEN` must be present with `repo` and `workflow` permissions so automated version PRs trigger normal PR checks.
 
@@ -27,13 +29,17 @@ GitHub Actions mirrors the gate:
 
 - Confirm GitHub Pages variables match `.env.example`.
 - Confirm Firebase Auth Google provider is enabled.
+- Confirm Firebase Auth Email/Password provider is enabled for admin/mod smoke accounts.
 - Confirm Firestore rules and indexes are deployed.
 - Bootstrap the first admin manually by setting `users/{uid}.role` to `admin`.
+- Create the production smoke moderator/admin account and set `E2E_PROD_MOD_EMAIL` and `E2E_PROD_MOD_PASSWORD` as GitHub Secrets.
+- Set `FIREBASE_SERVICE_ACCOUNT_RECOMENDACIONES_78EB7` as a GitHub Secret for Functions and catalog deploys.
 - Confirm normal sign-in creates `users/{uid}` profiles with `role: "user"`.
 - Run `npm run catalog:normalize` and review `seed/public-catalog.normalized.json`.
-- Seed or curate initial `publicItems` entries before sharing beta access.
+- Run `npm run catalog:write:prod` after reviewing seed changes, or dispatch the Functions/catalog workflow.
+- Confirm `VITE_PUBLIC_CATALOG_URL?q=dune&type=any&limit=24` returns Dune before sharing beta access.
 
-Functions are optional for a Blaze-backed provider upgrade. The 1.0 Spark-compatible path should not require Firebase Functions.
+Firebase Functions are required for the anonymous public catalog endpoint. GitHub Pages deploys do not update `publicCatalog`.
 
 ## Release Steps
 
@@ -42,9 +48,10 @@ Functions are optional for a Blaze-backed provider upgrade. The 1.0 Spark-compat
 - Review `CHANGELOG.md`.
 - Run the required gate.
 - Build with `GITHUB_PAGES=true`.
+- Deploy Functions/catalog seed when public catalog logic or seed changes.
 - Tag the merged version, for example `v1.0.1`.
 - Create a GitHub Release from the tag.
-- Watch GitHub Pages deploy and smoke-test login, Biblioteca, Dado, Explorador and Curacion.
+- Watch GitHub Pages deploy and confirm the production smoke covers anonymous catalog search and moderator email login.
 - Install from browser/PWA prompt once and confirm standalone launch reaches Biblioteca.
 
 ## Known Launch Notes

@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { applicationDefault, initializeApp } from 'firebase-admin/app'
-import { getFirestore } from 'firebase-admin/firestore'
+import { FieldValue, getFirestore } from 'firebase-admin/firestore'
 import { parsePublicCatalogSeed } from '../src/lib/publicCatalogSeed'
 
 const args = new Map<string, string | boolean>()
@@ -64,7 +64,9 @@ if (writeToFirestore) {
   let batch = db.batch()
   let batchSize = 0
   for (const item of result.items) {
-    batch.set(db.collection('publicItems').doc(item.id), withoutUndefined(item), { merge: true })
+    const payload = withoutUndefined(item) as Record<string, unknown>
+    if (!item.archivedAt) payload.archivedAt = FieldValue.delete()
+    batch.set(db.collection('publicItems').doc(item.id), payload, { merge: true })
     batchSize += 1
     if (batchSize >= 400) {
       await batch.commit()

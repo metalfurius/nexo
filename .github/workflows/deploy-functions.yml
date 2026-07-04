@@ -1,0 +1,71 @@
+name: Deploy Functions And Catalog
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'functions/**'
+      - 'seed/public-catalog.seed.json'
+      - 'scripts/importPublicCatalog.ts'
+      - 'src/lib/catalog.ts'
+      - 'src/lib/publicCatalogSeed.ts'
+      - 'firebase.json'
+      - 'firestore.indexes.json'
+      - 'firestore.rules'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+  FIREBASE_PROJECT_ID: recomendaciones-78eb7
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Functions dependencies
+        run: npm --prefix functions ci
+
+      - name: Write Firebase service account
+        id: firebase-credentials
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_RECOMENDACIONES_78EB7 }}
+        run: |
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            echo "::notice::FIREBASE_SERVICE_ACCOUNT_RECOMENDACIONES_78EB7 is not configured; skipping Functions/catalog deploy."
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-service-account.json"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase-service-account.json" >> "$GITHUB_ENV"
+          echo "available=true" >> "$GITHUB_OUTPUT"
+
+      - name: Normalize catalog seed
+        if: steps.firebase-credentials.outputs.available == 'true'
+        run: npm run catalog:normalize
+
+      - name: Build Functions
+        if: steps.firebase-credentials.outputs.available == 'true'
+        run: npm run build:functions
+
+      - name: Deploy Functions
+        if: steps.firebase-credentials.outputs.available == 'true'
+        run: npx firebase-tools deploy --only functions --project "$FIREBASE_PROJECT_ID"
+
+      - name: Write public catalog seed
+        if: steps.firebase-credentials.outputs.available == 'true'
+        run: npm run catalog:write:prod
