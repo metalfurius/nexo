@@ -83,6 +83,9 @@ jobs:
           VITE_USE_FIREBASE_EMULATORS: 'true'
         run: npm run test:e2e
 
+      - name: Firebase E2E smoke
+        run: npm run test:e2e:firebase
+
       - name: Release file readiness
         run: npm run check:release-files
 
@@ -107,3 +110,32 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+  production-smoke:
+    needs: deploy
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+      E2E_PROD_BASE_URL: https://nexo.codeoverdose.es
+      E2E_PUBLIC_CATALOG_URL: ${{ vars.VITE_PUBLIC_CATALOG_URL }}
+      E2E_PROD_MOD_EMAIL: ${{ secrets.E2E_PROD_MOD_EMAIL }}
+      E2E_PROD_MOD_PASSWORD: ${{ secrets.E2E_PROD_MOD_PASSWORD }}
+      VITE_PUBLIC_CATALOG_URL: ${{ vars.VITE_PUBLIC_CATALOG_URL }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Production smoke
+        run: npm run test:e2e:prod

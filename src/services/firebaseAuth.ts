@@ -3,6 +3,7 @@ import {
   getAuth,
   GoogleAuthProvider,
   onAuthStateChanged,
+  signInWithEmailAndPassword,
   signInWithPopup,
   signOut,
   type Auth,
@@ -42,6 +43,12 @@ export async function signInWithGoogle() {
   const provider = new GoogleAuthProvider()
   provider.setCustomParameters({ prompt: 'select_account' })
   await signInWithPopup(auth, provider)
+}
+
+export async function signInWithEmail(email: string, password: string) {
+  const auth = getConfiguredAuth()
+  if (!auth) throw new Error('Firebase no esta configurado')
+  await signInWithEmailAndPassword(auth, email.trim(), password)
 }
 
 export async function signOutCurrentUser() {

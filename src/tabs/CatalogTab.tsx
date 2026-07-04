@@ -123,7 +123,7 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
 
   async function saveCandidate(candidate: DiscoveryCandidate) {
     if (!isSignedIn) {
-      setStatus('Entra con Google para guardar obras en tu biblioteca.')
+      setStatus('Entra en Nexo para guardar obras en tu biblioteca.')
       onSignIn()
       return
     }
@@ -154,7 +154,7 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
 
   async function queueCandidate(candidate: DiscoveryCandidate) {
     if (!isSignedIn) {
-      setStatus('Entra con Google para mandar hallazgos al Explorador.')
+      setStatus('Entra en Nexo para mandar hallazgos al Explorador.')
       onSignIn()
       return
     }
