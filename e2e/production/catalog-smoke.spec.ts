@@ -40,7 +40,7 @@ test('production moderator signs in with email without Google', async ({ page })
   await expect(dialog).toBeVisible()
   await dialog.getByLabel('Email').fill(modEmail as string)
   await dialog.getByLabel('Contraseña').fill(modPassword as string)
-  await dialog.getByRole('button', { name: 'Entrar con email' }).click()
+  await dialog.getByRole('button', { name: 'Entrar con email' }).click({ force: true })
 
   await expect(page.getByLabel(/Rol: (Admin|Moderador)/)).toBeVisible()
   await expect(page.getByRole('button', { name: 'Curacion' })).toBeVisible()

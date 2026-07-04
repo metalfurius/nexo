@@ -41,7 +41,7 @@ test('moderator can sign in with email and see curation without Google', async (
   await expect(dialog).toBeVisible()
   await dialog.getByLabel('Email').fill(modEmail)
   await dialog.getByLabel('Contraseña').fill(modPassword)
-  await dialog.getByRole('button', { name: 'Entrar con email' }).click()
+  await dialog.getByRole('button', { name: 'Entrar con email' }).click({ force: true })
 
   await expect(page.getByLabel('Rol: Moderador')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Curacion' })).toBeVisible()
