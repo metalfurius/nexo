@@ -22,9 +22,19 @@ test('production public catalog endpoint returns Dune in Todo', async ({ request
 
 test('production anonymous UI searches Dune in Todo', async ({ page }) => {
   await page.goto('/')
-  await page.getByLabel('Buscar en el catalogo publico').fill('Dune')
+  let navigationsAfterSearch = 0
+  let trackNavigations = false
+  page.on('framenavigated', (frame) => {
+    if (trackNavigations && frame === page.mainFrame()) navigationsAfterSearch += 1
+  })
+  const catalogSearch = page.getByLabel('Buscar en el catalogo publico')
+  await catalogSearch.fill('Dune')
+  trackNavigations = true
   await page.getByRole('button', { name: /^Buscar$/ }).click()
 
+  await page.waitForTimeout(3000)
+  expect(navigationsAfterSearch).toBe(0)
+  await expect(catalogSearch).toHaveValue('Dune')
   const duneCards = page.locator('article.catalog-public-card').filter({ hasText: 'Dune' })
   await expect(duneCards.first()).toBeVisible()
   await expect(page.getByRole('status').filter({ hasText: 'resultados para explorar' })).toBeVisible()

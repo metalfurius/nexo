@@ -46,6 +46,7 @@ describe('service worker registration', () => {
   it('announces a waiting service worker and applies the update on request', async () => {
     const fireLoad = trapLoadEvent()
     const registrationListeners: ListenerMap = {}
+    const serviceWorkerListeners: ListenerMap = {}
     const waitingWorker = { postMessage: vi.fn() } as unknown as ServiceWorker
     const registration = {
       addEventListener: vi.fn((event: string, listener: () => void) => addListener(registrationListeners, event, listener)),
@@ -53,7 +54,7 @@ describe('service worker registration', () => {
       waiting: waitingWorker,
     } as unknown as ServiceWorkerRegistration
     const serviceWorker = {
-      addEventListener: vi.fn(),
+      addEventListener: vi.fn((event: string, listener: () => void) => addListener(serviceWorkerListeners, event, listener)),
       controller: {},
       register: vi.fn().mockResolvedValue(registration),
     }
@@ -61,6 +62,7 @@ describe('service worker registration', () => {
       configurable: true,
       value: serviceWorker,
     })
+    const reloadWindow = vi.fn()
 
     const { SERVICE_WORKER_UPDATE_READY_EVENT, applyServiceWorkerUpdate, registerServiceWorker } = await import(
       './serviceWorker'
@@ -68,15 +70,22 @@ describe('service worker registration', () => {
     const updateReady = vi.fn()
     window.addEventListener(SERVICE_WORKER_UPDATE_READY_EVENT, updateReady)
 
-    registerServiceWorker({ enabled: true })
+    registerServiceWorker({ enabled: true, reloadWindow })
     fireLoad()
     await flushPromises()
 
     expect(serviceWorker.register).toHaveBeenCalledWith('/sw.js')
     expect(updateReady).toHaveBeenCalledTimes(1)
 
+    fire(serviceWorkerListeners, 'controllerchange')
+    expect(reloadWindow).not.toHaveBeenCalled()
+
     applyServiceWorkerUpdate()
     expect(waitingWorker.postMessage).toHaveBeenCalledWith({ type: 'NEXO_SKIP_WAITING' })
+    fire(serviceWorkerListeners, 'controllerchange')
+    expect(reloadWindow).toHaveBeenCalledTimes(1)
+    fire(serviceWorkerListeners, 'controllerchange')
+    expect(reloadWindow).toHaveBeenCalledTimes(1)
   })
 
   it('announces a newly installed worker only when the page already has a controller', async () => {
