@@ -2,7 +2,7 @@ import { type DiscoveryCandidate, type ExplorerSearchType } from '../domain/type
 import { discoverySourceLabels as sourceLabels } from '../lib/explorerInsights'
 import { getDiscoveryCandidateEffortSignal, itemTypeLabels as typeLabels } from '../lib/libraryItemInsights'
 import { Check, CheckCircle2, Eye, Library, LogIn, Plus, Search, Sparkles, X } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   CoverArt,
   DialogFocusReturn,
@@ -11,7 +11,10 @@ import {
   feedbackToneFromText,
   getSavedLibraryItemForCandidate,
   handleDialogKeyDown,
+  hasCatalogRouteState,
   libraryCatalogSearchTypes,
+  readCatalogRouteState,
+  writeCatalogRouteState,
   type ActivityRecorder,
   type AppTab,
   type LibrarySurface,
@@ -29,8 +32,9 @@ const adsEnabled = import.meta.env.VITE_ADS_ENABLED === 'true'
 const catalogPublicPageSize = 24
 
 export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate, onSignIn }: CatalogTabProps) {
-  const [query, setQuery] = useState('')
-  const [type, setType] = useState<ExplorerSearchType>('any')
+  const initialCatalogRouteState = readCatalogRouteState()
+  const [query, setQuery] = useState(initialCatalogRouteState.query)
+  const [type, setType] = useState<ExplorerSearchType>(initialCatalogRouteState.type)
   const [candidates, setCandidates] = useState<DiscoveryCandidate[]>([])
   const [visibleLimit, setVisibleLimit] = useState(catalogPublicPageSize)
   const [catalogResultLabel, setCatalogResultLabel] = useState('obras del catalogo')
@@ -49,6 +53,7 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
   )
   const hasMoreCandidates = visibleCandidates.length < candidates.length
   const showCatalogRail = !isSignedIn || adsEnabled
+  const hasActiveCatalogRoute = hasCatalogRouteState({ query, type })
   const isCandidateSaved = (candidate: DiscoveryCandidate) =>
     isSignedIn && Boolean(getSavedLibraryItemForCandidate(candidate, library.items))
 
@@ -56,44 +61,26 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
     libraryRef.current = library
   }, [library])
 
-  useEffect(() => {
-    let disposed = false
-    const requestId = ++catalogRequestId.current
-
-    async function loadCatalog() {
-      setLoading(true)
-      try {
-        const currentLibrary = libraryRef.current
-        const publicItems = await currentLibrary.listPublicCatalog()
-        if (disposed || requestId !== catalogRequestId.current) return
-        const initialCandidates = publicItems.map(currentLibrary.publicItemToDiscovery)
-        const initialVisibleCount = Math.min(catalogPublicPageSize, initialCandidates.length)
-        setCandidates(initialCandidates)
-        setVisibleLimit(catalogPublicPageSize)
-        setCatalogResultLabel('obras del catalogo')
-        setStatus(
-          initialCandidates.length
-            ? formatCatalogVisibleStatus(initialVisibleCount, initialCandidates.length, 'obras del catalogo', isSignedIn)
-            : 'El catalogo publico esta esperando sus primeras obras.',
-        )
-      } catch (reason) {
-        if (!disposed && requestId === catalogRequestId.current) {
-          setStatus(reason instanceof Error ? reason.message : 'No se pudo cargar el catalogo publico.')
-        }
-      } finally {
-        if (!disposed && requestId === catalogRequestId.current) setLoading(false)
-      }
-    }
-
-    void loadCatalog()
-    return () => {
-      disposed = true
-    }
-  }, [isSignedIn, library.loading])
-
-  async function searchCatalog(nextQuery = query, nextType = type) {
+  const runCatalogRequest = useCallback(async (
+    nextQuery: string,
+    nextType: ExplorerSearchType,
+    options: { historyMode?: 'push' | 'replace'; syncInputs?: boolean; writeRoute?: boolean } = {},
+  ) => {
     const cleanedQuery = nextQuery.trim()
     const requestId = ++catalogRequestId.current
+    if (options.syncInputs) {
+      setQuery(cleanedQuery)
+      setType(nextType)
+    }
+    if (options.writeRoute) {
+      writeCatalogRouteState(
+        {
+          query: cleanedQuery.length >= 2 ? cleanedQuery : '',
+          type: nextType,
+        },
+        options.historyMode ?? 'push',
+      )
+    }
     setLoading(true)
     setStatus(undefined)
     try {
@@ -131,6 +118,41 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
     } finally {
       if (requestId === catalogRequestId.current) setLoading(false)
     }
+  }, [isSignedIn, onActivity])
+
+  useEffect(() => {
+    const routeState = readCatalogRouteState()
+    const timeoutId = window.setTimeout(() => {
+      void runCatalogRequest(routeState.query, routeState.type)
+    }, 0)
+    return () => window.clearTimeout(timeoutId)
+  }, [isSignedIn, library.loading, runCatalogRequest])
+
+  useEffect(() => {
+    function syncCatalogFromUrl() {
+      const searchParams = new URLSearchParams(window.location.search)
+      const routedTab = searchParams.get('tab')
+      if (searchParams.get('item') || (routedTab && routedTab !== 'catalog')) return
+
+      const routeState = readCatalogRouteState()
+      void runCatalogRequest(routeState.query, routeState.type, { syncInputs: true })
+    }
+
+    window.addEventListener('popstate', syncCatalogFromUrl)
+    return () => window.removeEventListener('popstate', syncCatalogFromUrl)
+  }, [runCatalogRequest])
+
+  function submitCatalogSearch() {
+    void runCatalogRequest(query, type, { syncInputs: true, writeRoute: true })
+  }
+
+  function changeCatalogType(nextType: ExplorerSearchType) {
+    setType(nextType)
+    void runCatalogRequest(query, nextType, { syncInputs: true, writeRoute: true })
+  }
+
+  function clearCatalogSearch() {
+    void runCatalogRequest('', 'any', { syncInputs: true, writeRoute: true })
   }
 
   async function saveCandidate(candidate: DiscoveryCandidate) {
@@ -192,10 +214,10 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
             <p>Explora obras publicas y guarda las que quieras llevar a tu biblioteca.</p>
           </div>
           <form
-            className="catalog-public-search"
+            className={hasActiveCatalogRoute ? 'catalog-public-search has-clear' : 'catalog-public-search'}
             onSubmit={(event) => {
               event.preventDefault()
-              void searchCatalog()
+              submitCatalogSearch()
             }}
           >
             <label className="search-field catalog-public-query">
@@ -212,8 +234,7 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
               value={type}
               onChange={(event) => {
                 const nextType = event.target.value as ExplorerSearchType
-                setType(nextType)
-                void searchCatalog(query, nextType)
+                changeCatalogType(nextType)
               }}
             >
               {libraryCatalogSearchTypes.map((option) => (
@@ -226,6 +247,18 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
               <Search size={16} />
               {loading ? 'Buscando' : 'Buscar'}
             </button>
+            {hasActiveCatalogRoute && (
+              <button
+                aria-label="Limpiar busqueda del catalogo"
+                className="icon-button catalog-public-clear"
+                disabled={loading}
+                title="Limpiar busqueda"
+                type="button"
+                onClick={clearCatalogSearch}
+              >
+                <X size={17} />
+              </button>
+            )}
           </form>
           <div className="catalog-public-summary" aria-label="Resumen del catalogo">
             <span>{formatCatalogCompactCount(visibleCandidates.length, candidates.length)}</span>
@@ -270,7 +303,7 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
         ) : (
           <EmptyState
             action={
-              <button className="secondary-button" type="button" onClick={() => void searchCatalog()}>
+              <button className="secondary-button" type="button" onClick={submitCatalogSearch}>
                 <Sparkles size={16} />
                 Recargar catalogo
               </button>

@@ -22,21 +22,34 @@ test('production public catalog endpoint returns Dune in Todo', async ({ request
 
 test('production anonymous UI searches Dune in Todo', async ({ page }) => {
   await page.goto('/')
-  let navigationsAfterSearch = 0
-  let trackNavigations = false
-  page.on('framenavigated', (frame) => {
-    if (trackNavigations && frame === page.mainFrame()) navigationsAfterSearch += 1
-  })
   const catalogSearch = page.getByLabel('Buscar en el catalogo publico')
   await catalogSearch.fill('Dune')
-  trackNavigations = true
+  await page.evaluate(() => {
+    const smokeWindow = window as Window & { __nexoCatalogSmokeMarker?: string }
+    smokeWindow.__nexoCatalogSmokeMarker = 'search-started'
+  })
   await page.getByRole('button', { name: /^Buscar$/ }).click()
 
+  await expect(page).toHaveURL(/catalogQ=Dune/)
   await page.waitForTimeout(3000)
-  expect(navigationsAfterSearch).toBe(0)
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const smokeWindow = window as Window & { __nexoCatalogSmokeMarker?: string }
+        return smokeWindow.__nexoCatalogSmokeMarker
+      }),
+    )
+    .toBe('search-started')
   await expect(catalogSearch).toHaveValue('Dune')
   const duneCards = page.locator('article.catalog-public-card').filter({ hasText: 'Dune' })
   await expect(duneCards.first()).toBeVisible()
+  await expect(page.getByRole('status').filter({ hasText: 'resultados para explorar' })).toBeVisible()
+
+  await page.reload()
+  const reloadedCatalogSearch = page.getByLabel('Buscar en el catalogo publico')
+  await expect(page).toHaveURL(/catalogQ=Dune/)
+  await expect(reloadedCatalogSearch).toHaveValue('Dune')
+  await expect(page.locator('article.catalog-public-card').filter({ hasText: 'Dune' }).first()).toBeVisible()
   await expect(page.getByRole('status').filter({ hasText: 'resultados para explorar' })).toBeVisible()
 })
 

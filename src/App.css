@@ -3486,6 +3486,10 @@ body.dialog-scroll-locked {
   min-width: 0;
 }
 
+.catalog-public-search.has-clear {
+  grid-template-columns: minmax(220px, 1fr) 118px auto 44px;
+}
+
 .catalog-public-search select,
 .catalog-public-search button,
 .catalog-public-query {
@@ -3495,6 +3499,11 @@ body.dialog-scroll-locked {
 
 .catalog-public-search .primary-button {
   min-width: 112px;
+}
+
+.catalog-public-search .catalog-public-clear {
+  height: 44px;
+  width: 44px;
 }
 
 .catalog-public-summary {
@@ -13400,6 +13409,10 @@ textarea:focus-visible {
 
   .catalog-public-search {
     grid-template-columns: minmax(0, 1fr) 132px;
+  }
+
+  .catalog-public-search.has-clear {
+    grid-template-columns: minmax(0, 1fr) 132px 44px;
   }
 
   .catalog-public-search .primary-button {

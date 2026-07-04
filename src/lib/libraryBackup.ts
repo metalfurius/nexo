@@ -335,7 +335,7 @@ function readProgressUnit(value: unknown): ProgressUnit | undefined {
 }
 
 function readExplorerDefaultType(value: unknown): ExplorerSearchType {
-  if (value === 'any' || value === 'watch') return value
+  if (value === 'any' || value === 'watch' || value === 'animeManga') return value
   if (typeof value === 'string' && ITEM_TYPES.includes(value as ItemType)) return value as ItemType
   return DEFAULT_SETTINGS.explorerDefaultType
 }
