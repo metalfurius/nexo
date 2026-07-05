@@ -135,6 +135,8 @@ check(
 )
 
 const serviceWorker = await readText('public/sw.js')
+const serviceWorkerCacheVersion = /^const CACHE_VERSION = '([^']+)'$/m.exec(serviceWorker)?.[1]
+check(serviceWorkerCacheVersion === `nexo-v${rootPackage.version}`, 'Service worker cache version must match package version.')
 check(serviceWorker.includes("'/manifest.webmanifest'"), 'Service worker should cache the manifest.')
 check(serviceWorker.includes("'/icons/nexo-192.png'"), 'Service worker should cache raster icons.')
 check(serviceWorker.includes("'/screenshots/nexo-wide.png'"), 'Service worker should cache screenshots.')

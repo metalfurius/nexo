@@ -36,6 +36,12 @@ function setPackageLockVersion(lockfile, version) {
   if (lockfile.packages?.['']) lockfile.packages[''].version = version
 }
 
+function setServiceWorkerCacheVersion(source, version) {
+  const nextSource = source.replace(/^const CACHE_VERSION = 'nexo-v\d+\.\d+\.\d+'$/m, `const CACHE_VERSION = 'nexo-v${version}'`)
+  if (nextSource === source) throw new Error('Could not find service worker CACHE_VERSION declaration.')
+  return nextSource
+}
+
 function writeOutput(name, value) {
   const outputPath = process.env.GITHUB_OUTPUT
   if (outputPath) appendFileSync(outputPath, `${name}=${value}\n`)
@@ -49,6 +55,7 @@ if (!dryRun) {
   const rootLock = await readJson('package-lock.json')
   const functionsPackage = await readJson('functions/package.json')
   const functionsLock = await readJson('functions/package-lock.json')
+  const serviceWorker = await readFile('public/sw.js', 'utf8')
 
   rootPackage.version = newVersion
   functionsPackage.version = newVersion
@@ -59,6 +66,7 @@ if (!dryRun) {
   await writeJson('package-lock.json', rootLock)
   await writeJson('functions/package.json', functionsPackage)
   await writeJson('functions/package-lock.json', functionsLock)
+  await writeFile('public/sw.js', setServiceWorkerCacheVersion(serviceWorker, newVersion))
 }
 
 writeOutput('version', newVersion)
