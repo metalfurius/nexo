@@ -180,6 +180,8 @@ function App() {
   >()
   const [diceRollSummary, setDiceRollSummary] = useState<DiceRollSummary | undefined>()
   const [quickSearchOpen, setQuickSearchOpen] = useState(false)
+  const [signOutPending, setSignOutPending] = useState(false)
+  const [signOutError, setSignOutError] = useState<string | undefined>()
   const [serviceWorkerUpdateReady, setServiceWorkerUpdateReady] = useState(false)
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | undefined>()
   const [isOffline, setIsOffline] = useState(() => 'onLine' in navigator && !navigator.onLine)
@@ -373,6 +375,21 @@ function App() {
     await prompt.prompt()
     await prompt.userChoice.catch(() => undefined)
   }
+
+  async function handleSignOut() {
+    if (signOutPending) return
+
+    setSignOutPending(true)
+    setSignOutError(undefined)
+    try {
+      await auth.signOut()
+    } catch {
+      setSignOutError('No se pudo salir')
+    } finally {
+      setSignOutPending(false)
+    }
+  }
+
   const reportDiceUnsavedChanges = useCallback(
     (hasUnsavedChanges: boolean) => reportUnsavedChanges('dice', hasUnsavedChanges),
     [reportUnsavedChanges],
@@ -1904,9 +1921,23 @@ function App() {
             <Search size={18} />
           </button>
           {auth.user && (
-            <button className="icon-button" type="button" onClick={auth.signOut} title="Salir">
-              <LogOut size={18} />
-            </button>
+            <>
+              {signOutError && (
+                <span aria-label={`Error al salir: ${signOutError}`} className="mode-pill warning" role="alert">
+                  {signOutError}
+                </span>
+              )}
+              <button
+                aria-label="Salir"
+                className="icon-button"
+                disabled={signOutPending}
+                type="button"
+                onClick={() => void handleSignOut()}
+                title={signOutPending ? 'Saliendo' : 'Salir'}
+              >
+                <LogOut size={18} />
+              </button>
+            </>
           )}
           {auth.isFirebaseConfigured && !auth.user && (
             <button className="app-update-button" type="button" onClick={requestSignIn}>
