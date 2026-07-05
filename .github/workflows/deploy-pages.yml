@@ -1,8 +1,9 @@
 name: Deploy Pages
 
 on:
-  push:
-    branches: [main]
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
   workflow_dispatch:
 
 permissions:
@@ -19,6 +20,11 @@ concurrency:
 
 jobs:
   build:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
     env:
       GITHUB_PAGES: 'true'
@@ -36,6 +42,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -43,29 +51,8 @@ jobs:
           node-version: 24
           cache: npm
 
-      - name: Setup Java for Firebase emulators
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
-
       - name: Install dependencies
         run: npm ci
-
-      - name: Install Functions dependencies
-        run: npm --prefix functions ci
-
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Unit tests
-        run: npm run test
-
-      - name: Firestore rules tests
-        run: npm run test:rules
 
       - name: Build
         run: npm run build
@@ -73,24 +60,8 @@ jobs:
       - name: Build output readiness
         run: npm run check:build-output
 
-      - name: Functions build
-        run: npm run build:functions
-
-      - name: E2E smoke
-        env:
-          VITE_CATALOG_PROXY_URL: http://127.0.0.1:5174/catalog-proxy
-          VITE_DEMO_MODE: 'true'
-          VITE_USE_FIREBASE_EMULATORS: 'true'
-        run: npm run test:e2e
-
-      - name: Firebase E2E smoke
-        run: npm run test:e2e:firebase
-
       - name: Release file readiness
         run: npm run check:release-files
-
-      - name: High severity audit gate
-        run: npm audit --audit-level=high
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
@@ -124,6 +95,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Setup Node
         uses: actions/setup-node@v4

@@ -170,16 +170,28 @@ check(
 )
 
 const deployWorkflow = await readText('.github/workflows/deploy-pages.yml')
-check(deployWorkflow.includes('branches: [main]'), 'Deploy workflow must run on main pushes.')
+check(deployWorkflow.includes('workflow_run:'), 'Deploy workflow must run after CI completes.')
+check(deployWorkflow.includes('workflows: [CI]'), 'Deploy workflow must depend on the CI workflow.')
+check(deployWorkflow.includes("github.event.workflow_run.conclusion == 'success'"), 'Deploy workflow must require successful CI.')
+check(deployWorkflow.includes("github.event.workflow_run.event == 'push'"), 'Deploy workflow must only auto-deploy CI push runs.')
+check(deployWorkflow.includes("github.event.workflow_run.head_branch == 'main'"), 'Deploy workflow must only auto-deploy main.')
+check(deployWorkflow.includes('workflow_dispatch:'), 'Deploy workflow must support manual dispatch.')
+check(deployWorkflow.includes('github.event.workflow_run.head_sha || github.sha'), 'Deploy workflow must check out the CI-approved commit.')
 check(
   deployWorkflow.includes('VITE_PUBLIC_CATALOG_URL: ${{ vars.VITE_PUBLIC_CATALOG_URL }}'),
   'Deploy workflow must pass VITE_PUBLIC_CATALOG_URL from GitHub variables.',
 )
 check(deployWorkflow.includes('npm run check:build-output'), 'Deploy workflow must validate build output.')
-check(deployWorkflow.includes('npm run test:e2e:firebase'), 'Deploy workflow must run Firebase E2E tests.')
 check(deployWorkflow.includes('npm run test:e2e:prod'), 'Deploy workflow must run production smoke tests.')
 check(deployWorkflow.includes('npm run check:release-files'), 'Deploy workflow must run check:release-files.')
 check(deployWorkflow.includes('actions/deploy-pages'), 'Deploy workflow must deploy GitHub Pages.')
+check(!deployWorkflow.includes('run: npm run lint'), 'Deploy workflow must not duplicate CI lint.')
+check(!deployWorkflow.includes('run: npm run test\n'), 'Deploy workflow must not duplicate CI unit tests.')
+check(!deployWorkflow.includes('run: npm run test:rules'), 'Deploy workflow must not duplicate CI Firestore rules tests.')
+check(!deployWorkflow.includes('run: npm run build:functions'), 'Deploy workflow must not duplicate CI Functions build.')
+check(!deployWorkflow.includes('run: npm run test:e2e\n'), 'Deploy workflow must not duplicate CI E2E smoke.')
+check(!deployWorkflow.includes('run: npm run test:e2e:firebase'), 'Deploy workflow must not duplicate CI Firebase E2E smoke.')
+check(!deployWorkflow.includes('npm audit --audit-level=high'), 'Deploy workflow must not duplicate CI audit.')
 
 const versionWorkflow = await readText('.github/workflows/version-bump.yml')
 check(versionWorkflow.includes('types: [opened, synchronize, reopened, labeled, unlabeled]'), 'Version workflow must sync version bumps inside pull requests.')

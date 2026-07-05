@@ -20,7 +20,8 @@
 GitHub Actions mirrors the gate:
 
 - `.github/workflows/ci.yml` runs on pull requests and manual dispatch.
-- `.github/workflows/deploy-pages.yml` runs on `main`, repeats the gate, deploys GitHub Pages and runs the production smoke.
+- `.github/workflows/ci.yml` also gates pushes to `main` with the full release check before any Pages deploy starts.
+- `.github/workflows/deploy-pages.yml` runs after successful `CI` push runs on `main`, builds the production Pages artifact, deploys GitHub Pages and runs the production smoke.
 - `.github/workflows/deploy-functions.yml` deploys Firebase Functions and writes the public catalog seed when Functions/catalog paths change, and also supports manual dispatch.
 - `.github/workflows/version-bump.yml` commits package, lockfile and service worker cache version updates into open PRs labelled `patch`, `minor` or `major`, so the original PR is the only PR that needs normal verification.
 - Repository secret `VERSION_BUMP_TOKEN` must be present with `repo` permissions so automated version commits trigger normal PR checks.
@@ -48,6 +49,7 @@ Firebase Functions are required for the anonymous public catalog endpoint. GitHu
 - Review `CHANGELOG.md`.
 - Run the required gate.
 - Build with `GITHUB_PAGES=true`.
+- Let Deploy Pages run after CI is green on `main`, or dispatch it manually when republishing the current build.
 - Deploy Functions/catalog seed when public catalog logic or seed changes.
 - Tag the merged version, for example `v1.0.1`.
 - Create a GitHub Release from the tag.
