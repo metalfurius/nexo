@@ -28,6 +28,8 @@ function normalizePublicCatalogItem(value: unknown): PublicCatalogItem[] {
   const type = normalizeItemType(item.type)
   if (!item.id || !item.title || !type) return []
 
+  const timestamp = new Date().toISOString()
+
   return [
     {
       id: String(item.id),
@@ -45,8 +47,8 @@ function normalizePublicCatalogItem(value: unknown): PublicCatalogItem[] {
       posterUrl: optionalString(item.posterUrl),
       searchTokens: Array.isArray(item.searchTokens) ? item.searchTokens.map(String).filter(Boolean) : [],
       canonicalKey: optionalString(item.canonicalKey) ?? `${type}:${String(item.title).toLowerCase()}`,
-      createdAt: optionalString(item.createdAt) ?? new Date().toISOString(),
-      updatedAt: optionalString(item.updatedAt) ?? new Date().toISOString(),
+      createdAt: optionalString(item.createdAt) ?? timestamp,
+      updatedAt: optionalString(item.updatedAt) ?? timestamp,
       createdBy: optionalString(item.createdBy) ?? 'public-catalog',
       updatedBy: optionalString(item.updatedBy) ?? 'public-catalog',
       archivedAt: optionalString(item.archivedAt),
