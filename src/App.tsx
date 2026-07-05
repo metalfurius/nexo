@@ -15,7 +15,7 @@ import { notifyAppUpdateReady } from './services/notificationService'
 import { applyServiceWorkerUpdate, SERVICE_WORKER_UPDATE_READY_EVENT } from './services/serviceWorker'
 import { Archive, BookOpen, Check, CheckCircle2, Dice5, Download, Library, List, LogIn, LogOut, Moon, Palette, Pause, Play, Plus, RotateCcw, Save, Search, ShieldCheck, Sparkles, Trash2, Upload, X } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
-import { LibraryTab, NavigationDiscardPrompt, NexoMark, QuickSearchDialog, SessionActivityPanel, ShellPulse, ShellState, activityTabLabels, blankItem, cloneActivityEntry, downloadLibraryBackup, getActivityFocus, getActivityIcon, getLibraryReviewQueueIcon, getLibrarySelectionSignals, getPrimaryItemAction, isStandalonePwa, isThemeMode, libraryPriorityOptions, librarySelectionSignalLabels, librarySortLabels, readInitialActivityFocus, readInitialAppTab, roleLabels, sessionActivityLimit, themeMetaColors, themeOptions, themeStorageKey, typeIcons, useCloseDetailsOnOutsideClick, writeAppTabToUrl, type ActivityFocus, type AppTab, type BeforeInstallPromptEvent, type DiceCooldownReactivateRequest, type DicePreferencesSaveRequest, type DiceRollRequest, type DiceRollSummary, type ExplorerCandidateDismissRequest, type ExplorerCandidateRequest, type ExplorerCandidateSaveRequest, type ExplorerPromptCardRequest, type ExplorerSearchRequest, type ExplorerVisibleDismissRequest, type ExplorerVisibleSaveRequest, type LibraryImportRequest, type LibraryPrimaryActionRequest, type LibraryPriorityLevel, type LibraryResetViewRequest, type LibraryReviewRequest, type LibrarySelectedDiceActionRequest, type LibrarySelectedExportRequest, type LibrarySelectedPriorityRequest, type LibrarySelectedSignalsRequest, type LibrarySelectedStatusRequest, type LibrarySelectionSignalAction, type LibrarySelectionSignalKind, type LibrarySmartViewRequest, type LibrarySortModeRequest, type LibraryStatusFilterRequest, type LibraryTypeFilterRequest, type LibraryVisibleSelectionRequest, type LibraryVisibleSelectionSummary, type PendingNavigation, type QuickSearchCommand, type SettingsSaveRequest, type SettingsTasteSuggestionsRequest, type SettingsTaxonomyRepairRequest, type ShellNavItem } from './app/shared'
+import { DialogFocusReturn, LibraryTab, NavigationDiscardPrompt, NexoMark, QuickSearchDialog, SessionActivityPanel, ShellPulse, ShellState, activityTabLabels, blankItem, cloneActivityEntry, downloadLibraryBackup, getActivityFocus, getActivityIcon, getLibraryReviewQueueIcon, getLibrarySelectionSignals, getPrimaryItemAction, handleDialogKeyDown, isStandalonePwa, isThemeMode, libraryPriorityOptions, librarySelectionSignalLabels, librarySortLabels, readInitialActivityFocus, readInitialAppTab, roleLabels, sessionActivityLimit, themeMetaColors, themeOptions, themeStorageKey, typeIcons, useCloseDetailsOnOutsideClick, writeAppTabToUrl, type ActivityFocus, type AppTab, type BeforeInstallPromptEvent, type DiceCooldownReactivateRequest, type DicePreferencesSaveRequest, type DiceRollRequest, type DiceRollSummary, type ExplorerCandidateDismissRequest, type ExplorerCandidateRequest, type ExplorerCandidateSaveRequest, type ExplorerPromptCardRequest, type ExplorerSearchRequest, type ExplorerVisibleDismissRequest, type ExplorerVisibleSaveRequest, type LibraryImportRequest, type LibraryPrimaryActionRequest, type LibraryPriorityLevel, type LibraryResetViewRequest, type LibraryReviewRequest, type LibrarySelectedDiceActionRequest, type LibrarySelectedExportRequest, type LibrarySelectedPriorityRequest, type LibrarySelectedSignalsRequest, type LibrarySelectedStatusRequest, type LibrarySelectionSignalAction, type LibrarySelectionSignalKind, type LibrarySmartViewRequest, type LibrarySortModeRequest, type LibraryStatusFilterRequest, type LibraryTypeFilterRequest, type LibraryVisibleSelectionRequest, type LibraryVisibleSelectionSummary, type PendingNavigation, type QuickSearchCommand, type SettingsSaveRequest, type SettingsTasteSuggestionsRequest, type SettingsTaxonomyRepairRequest, type ShellNavItem } from './app/shared'
 
 const DiceTab = lazy(() => import('./tabs/DiceTab'))
 const CatalogTab = lazy(() => import('./tabs/CatalogTab'))
@@ -79,16 +79,15 @@ function SignInDialog({
 
   return (
     <div className="modal-backdrop" role="presentation">
+      <DialogFocusReturn />
       <section
         aria-labelledby="sign-in-dialog-title"
         aria-modal="true"
         className="auth-login-dialog"
         role="dialog"
-        onKeyDown={(event) => {
-          if (event.key === 'Escape' && !pending) onClose()
-        }}
+        onKeyDown={(event) => handleDialogKeyDown(event, pending ? () => undefined : onClose)}
       >
-        <button className="icon-button dialog-close" disabled={pending} type="button" onClick={onClose} title="Cerrar">
+        <button className="icon-button dialog-close" aria-label="Cerrar" disabled={pending} type="button" onClick={onClose} title="Cerrar">
           <X size={18} />
         </button>
         <div className="panel-heading compact">
@@ -101,6 +100,7 @@ function SignInDialog({
           <label>
             Email
             <input
+              autoFocus
               autoComplete="email"
               inputMode="email"
               type="email"
