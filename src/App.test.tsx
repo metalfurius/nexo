@@ -7,7 +7,7 @@ import { DEFAULT_SETTINGS } from './domain/types'
 
 const authMock = vi.hoisted(() => ({
   state: {
-    user: null,
+    user: null as { uid: string } | null,
     loading: false,
     isFirebaseConfigured: true,
     error: undefined as string | undefined,
@@ -166,5 +166,41 @@ describe('App sign-in dialog', () => {
     signIn.resolve()
 
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Entrar en Nexo' })).not.toBeInTheDocument())
+  })
+
+  it('disables sign-out while pending and avoids duplicate requests', async () => {
+    const user = userEvent.setup()
+    const signOut = createDeferred<void>()
+    authMock.state.user = { uid: 'user-1' }
+    authMock.state.signOut.mockReturnValueOnce(signOut.promise)
+    render(<App />)
+
+    const signOutButton = await screen.findByRole('button', { name: 'Salir' })
+    await user.click(signOutButton)
+
+    expect(authMock.state.signOut).toHaveBeenCalledTimes(1)
+    expect(signOutButton).toBeDisabled()
+
+    await user.click(signOutButton)
+    expect(authMock.state.signOut).toHaveBeenCalledTimes(1)
+
+    signOut.resolve()
+    await waitFor(() => expect(signOutButton).not.toBeDisabled())
+  })
+
+  it('shows sign-out errors and clears them before retrying', async () => {
+    const user = userEvent.setup()
+    authMock.state.user = { uid: 'user-1' }
+    authMock.state.signOut.mockRejectedValueOnce(new Error('network')).mockResolvedValueOnce(undefined)
+    render(<App />)
+
+    const signOutButton = await screen.findByRole('button', { name: 'Salir' })
+    await user.click(signOutButton)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('No se pudo salir')
+
+    await user.click(signOutButton)
+    await waitFor(() => expect(authMock.state.signOut).toHaveBeenCalledTimes(2))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 })
