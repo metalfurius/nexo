@@ -2,40 +2,29 @@ name: Version Bump
 
 on:
   pull_request:
-    types: [closed]
+    types: [opened, synchronize, reopened, labeled, unlabeled]
     branches: [main]
-  workflow_dispatch:
-    inputs:
-      bump:
-        description: Version bump to apply
-        required: true
-        type: choice
-        options:
-          - patch
-          - minor
-          - major
 
 permissions:
-  actions: write
   contents: write
-  pull-requests: write
+  pull-requests: read
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
 concurrency:
-  group: version-bump-main
-  cancel-in-progress: false
+  group: version-bump-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
-  bump:
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
+  sync-pr-version:
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout main
+      - name: Checkout PR branch
         uses: actions/checkout@v4
         with:
-          ref: main
+          ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 0
           token: ${{ secrets.VERSION_BUMP_TOKEN || github.token }}
 
@@ -47,8 +36,6 @@ jobs:
       - name: Resolve bump type
         id: resolve
         run: node scripts/resolveVersionBump.mjs
-        env:
-          VERSION_BUMP_INPUT: ${{ github.event.inputs.bump || '' }}
 
       - name: Validate version bump token
         if: steps.resolve.outputs.should_bump == 'true'
@@ -56,43 +43,32 @@ jobs:
           VERSION_BUMP_TOKEN: ${{ secrets.VERSION_BUMP_TOKEN }}
         run: |
           if [ -z "$VERSION_BUMP_TOKEN" ]; then
-            echo "VERSION_BUMP_TOKEN secret is required so the automated PR triggers normal pull_request CI."
+            echo "VERSION_BUMP_TOKEN secret is required so version bump commits trigger normal pull_request CI."
             exit 1
           fi
+
+      - name: Read main package version
+        id: base
+        if: steps.resolve.outputs.should_bump == 'true'
+        run: |
+          git fetch origin main --depth=1
+          version="$(git show origin/main:package.json | node -e "const fs = require('node:fs'); console.log(JSON.parse(fs.readFileSync(0, 'utf8')).version)")"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Bump package versions
         id: bump
         if: steps.resolve.outputs.should_bump == 'true'
-        run: node scripts/bumpVersion.mjs "${{ steps.resolve.outputs.bump }}"
+        run: node scripts/bumpVersion.mjs "${{ steps.resolve.outputs.bump }}" --base-version "${{ steps.base.outputs.version }}"
 
-      - name: Create and merge version bump pull request
+      - name: Commit version files to PR
         if: steps.resolve.outputs.should_bump == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.VERSION_BUMP_TOKEN }}
         run: |
-          branch="automation/version-bump-v${{ steps.bump.outputs.version }}-${{ github.run_id }}"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git switch -c "$branch"
-          git add package.json package-lock.json functions/package.json functions/package-lock.json
-          git commit -m "chore: bump version to v${{ steps.bump.outputs.version }}"
-          git push origin "$branch"
-          pr_url="$(gh pr create \
-            --base main \
-            --head "$branch" \
-            --title "chore: bump version to v${{ steps.bump.outputs.version }}" \
-            --body "Automated ${{ steps.resolve.outputs.bump }} version bump after a labelled merge to main.")"
-          pr_number="$(gh pr view "$pr_url" --json number --jq '.number')"
-          gh pr merge "$pr_number" --squash --auto --delete-branch --subject "chore: bump version to v${{ steps.bump.outputs.version }}" --body "Automated version bump."
-          for attempt in {1..120}; do
-            merged_at="$(gh pr view "$pr_number" --json mergedAt --jq '.mergedAt // ""')"
-            if [ -n "$merged_at" ]; then
-              break
-            fi
-            sleep 10
-          done
-          if [ -z "$merged_at" ]; then
-            echo "Version bump PR #${pr_number} did not merge after waiting for auto-merge."
-            exit 1
+          git add package.json package-lock.json functions/package.json functions/package-lock.json public/sw.js
+          if git diff --cached --quiet; then
+            echo "Version files already match v${{ steps.bump.outputs.version }}."
+            exit 0
           fi
-          gh workflow run deploy-pages.yml --ref main
+          git commit -m "chore: bump version to v${{ steps.bump.outputs.version }}"
+          git push origin "HEAD:${{ github.event.pull_request.head.ref }}"

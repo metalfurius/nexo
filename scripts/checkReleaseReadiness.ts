@@ -182,12 +182,13 @@ check(deployWorkflow.includes('npm run check:release-files'), 'Deploy workflow m
 check(deployWorkflow.includes('actions/deploy-pages'), 'Deploy workflow must deploy GitHub Pages.')
 
 const versionWorkflow = await readText('.github/workflows/version-bump.yml')
-check(versionWorkflow.includes('pull_request:'), 'Version workflow must run after merged pull requests.')
-check(versionWorkflow.includes('workflow_dispatch:'), 'Version workflow must support manual dispatch.')
+check(versionWorkflow.includes('types: [opened, synchronize, reopened, labeled, unlabeled]'), 'Version workflow must sync version bumps inside pull requests.')
 check(versionWorkflow.includes('scripts/bumpVersion.mjs'), 'Version workflow must bump package versions.')
-check(versionWorkflow.includes('VERSION_BUMP_TOKEN'), 'Version workflow must use VERSION_BUMP_TOKEN for automated PRs.')
-check(versionWorkflow.includes('gh pr create') && versionWorkflow.includes('gh pr merge'), 'Version workflow must create and merge a version bump PR.')
-check(versionWorkflow.includes('gh workflow run deploy-pages.yml'), 'Version workflow must trigger deploy after merging its version bump PR.')
+check(versionWorkflow.includes('VERSION_BUMP_TOKEN'), 'Version workflow must use VERSION_BUMP_TOKEN for PR version commits.')
+check(versionWorkflow.includes('public/sw.js'), 'Version workflow must commit the service worker cache version.')
+check(versionWorkflow.includes('--base-version'), 'Version workflow must calculate PR bumps from the main package version.')
+check(!versionWorkflow.includes('gh pr create') && !versionWorkflow.includes('gh pr merge'), 'Version workflow must not create a second version bump PR.')
+check(!versionWorkflow.includes('gh workflow run deploy-pages.yml'), 'Version workflow must not dispatch a duplicate Pages deploy.')
 
 const seed = await readJson<unknown>('seed/public-catalog.seed.json')
 const seedResult = parsePublicCatalogSeed(seed, 'release-check')

@@ -4,9 +4,12 @@ import { readFile, writeFile } from 'node:fs/promises'
 const bump = String(process.argv[2] ?? '').trim().toLowerCase()
 const dryRun = process.argv.includes('--dry-run')
 const bumpTypes = new Set(['patch', 'minor', 'major'])
+const baseVersionIndex = process.argv.indexOf('--base-version')
+const baseVersion =
+  baseVersionIndex === -1 ? undefined : String(process.argv[baseVersionIndex + 1] ?? '').trim() || undefined
 
 if (!bumpTypes.has(bump)) {
-  console.error('Usage: node scripts/bumpVersion.mjs <patch|minor|major> [--dry-run]')
+  console.error('Usage: node scripts/bumpVersion.mjs <patch|minor|major> [--dry-run] [--base-version x.y.z]')
   process.exit(1)
 }
 
@@ -36,10 +39,14 @@ function setPackageLockVersion(lockfile, version) {
   if (lockfile.packages?.['']) lockfile.packages[''].version = version
 }
 
+function packageLockVersionMatches(lockfile, version) {
+  return lockfile.version === version && lockfile.packages?.['']?.version === version
+}
+
 function setServiceWorkerCacheVersion(source, version) {
-  const nextSource = source.replace(/^const CACHE_VERSION = 'nexo-v\d+\.\d+\.\d+'$/m, `const CACHE_VERSION = 'nexo-v${version}'`)
-  if (nextSource === source) throw new Error('Could not find service worker CACHE_VERSION declaration.')
-  return nextSource
+  const cacheVersionPattern = /^const CACHE_VERSION = 'nexo-v\d+\.\d+\.\d+'$/m
+  if (!cacheVersionPattern.test(source)) throw new Error('Could not find service worker CACHE_VERSION declaration.')
+  return source.replace(cacheVersionPattern, `const CACHE_VERSION = 'nexo-v${version}'`)
 }
 
 function writeOutput(name, value) {
@@ -49,24 +56,34 @@ function writeOutput(name, value) {
 
 const rootPackage = await readJson('package.json')
 const currentVersion = rootPackage.version
-const newVersion = nextVersion(currentVersion, bump)
+const newVersion = nextVersion(baseVersion ?? currentVersion, bump)
 
 if (!dryRun) {
   const rootLock = await readJson('package-lock.json')
   const functionsPackage = await readJson('functions/package.json')
   const functionsLock = await readJson('functions/package-lock.json')
   const serviceWorker = await readFile('public/sw.js', 'utf8')
+  const nextServiceWorker = setServiceWorkerCacheVersion(serviceWorker, newVersion)
 
-  rootPackage.version = newVersion
-  functionsPackage.version = newVersion
-  setPackageLockVersion(rootLock, newVersion)
-  setPackageLockVersion(functionsLock, newVersion)
+  const alreadyCurrent =
+    rootPackage.version === newVersion &&
+    functionsPackage.version === newVersion &&
+    packageLockVersionMatches(rootLock, newVersion) &&
+    packageLockVersionMatches(functionsLock, newVersion) &&
+    nextServiceWorker === serviceWorker
 
-  await writeJson('package.json', rootPackage)
-  await writeJson('package-lock.json', rootLock)
-  await writeJson('functions/package.json', functionsPackage)
-  await writeJson('functions/package-lock.json', functionsLock)
-  await writeFile('public/sw.js', setServiceWorkerCacheVersion(serviceWorker, newVersion))
+  if (!alreadyCurrent) {
+    rootPackage.version = newVersion
+    functionsPackage.version = newVersion
+    setPackageLockVersion(rootLock, newVersion)
+    setPackageLockVersion(functionsLock, newVersion)
+
+    await writeJson('package.json', rootPackage)
+    await writeJson('package-lock.json', rootLock)
+    await writeJson('functions/package.json', functionsPackage)
+    await writeJson('functions/package-lock.json', functionsLock)
+    await writeFile('public/sw.js', nextServiceWorker)
+  }
 }
 
 writeOutput('version', newVersion)
