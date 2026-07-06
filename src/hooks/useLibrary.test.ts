@@ -199,7 +199,34 @@ describe('useLibrary', () => {
       catalogResults = await result.current.searchPublicCatalog('Dune', 'any')
     })
 
-    expect(publicCatalogMocks.fetchPublicCatalog).toHaveBeenCalledWith('Dune', 'any', 24)
+    expect(publicCatalogMocks.fetchPublicCatalog).toHaveBeenCalledWith('Dune', 'any', 48)
+    expect(catalogResults).toEqual(remoteCatalog)
+  })
+
+  it('loads an expanded remote public catalog window for anonymous Firebase visitors', async () => {
+    const remoteCatalog: PublicCatalogItem[] = [
+      buildPublicCatalogItem(
+        {
+          id: 'anime-frieren',
+          title: 'Frieren',
+          type: 'anime',
+          genres: ['fantasia'],
+          tags: ['anime'],
+          moodTags: [],
+          externalRefs: {},
+        },
+        'test-moderator',
+      ),
+    ]
+    publicCatalogMocks.fetchPublicCatalog.mockResolvedValueOnce(remoteCatalog)
+    const { result } = renderHook(() => useLibrary())
+
+    let catalogResults: PublicCatalogItem[] = []
+    await act(async () => {
+      catalogResults = await result.current.listPublicCatalog()
+    })
+
+    expect(publicCatalogMocks.fetchPublicCatalog).toHaveBeenCalledWith('', 'any', 48)
     expect(catalogResults).toEqual(remoteCatalog)
   })
 
@@ -213,7 +240,7 @@ describe('useLibrary', () => {
       )
     })
 
-    expect(publicCatalogMocks.fetchPublicCatalog).toHaveBeenCalledWith('Odisea', 'book', 24)
+    expect(publicCatalogMocks.fetchPublicCatalog).toHaveBeenCalledWith('Odisea', 'book', 48)
   })
 
   it('delegates recommendation runs to the signed-in repository', async () => {
