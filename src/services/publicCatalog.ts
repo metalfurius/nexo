@@ -39,13 +39,13 @@ function normalizePublicCatalogItem(value: unknown): PublicCatalogItem[] {
       releaseYear: typeof item.releaseYear === 'number' ? item.releaseYear : undefined,
       progressTotal: typeof item.progressTotal === 'number' ? item.progressTotal : undefined,
       progressUnit: normalizeProgressUnit(item.progressUnit),
-      genres: Array.isArray(item.genres) ? item.genres.map(String).filter(Boolean) : [],
-      tags: Array.isArray(item.tags) ? item.tags.map(String).filter(Boolean) : [],
-      moodTags: Array.isArray(item.moodTags) ? item.moodTags.map(String).filter(Boolean) : [],
-      searchAliases: Array.isArray(item.searchAliases) ? item.searchAliases.map(String).filter(Boolean) : [],
+      genres: normalizeCatalogStringList(item.genres),
+      tags: normalizeCatalogStringList(item.tags),
+      moodTags: normalizeCatalogStringList(item.moodTags),
+      searchAliases: normalizeCatalogStringList(item.searchAliases),
       externalRefs: readExternalRefs(item.externalRefs),
       posterUrl: optionalString(item.posterUrl),
-      searchTokens: Array.isArray(item.searchTokens) ? item.searchTokens.map(String).filter(Boolean) : [],
+      searchTokens: normalizeCatalogStringList(item.searchTokens),
       canonicalKey: optionalString(item.canonicalKey) ?? `${type}:${String(item.title).toLowerCase()}`,
       createdAt: optionalString(item.createdAt) ?? timestamp,
       updatedAt: optionalString(item.updatedAt) ?? timestamp,
@@ -79,4 +79,19 @@ function readExternalRefs(value: unknown) {
 function optionalString(value: unknown) {
   const text = typeof value === 'string' ? value.trim() : ''
   return text || undefined
+}
+
+export function normalizeCatalogStringList(value: unknown) {
+  if (!Array.isArray(value)) return []
+
+  return value.flatMap((entry) => {
+    if (typeof entry === 'string') {
+      const text = entry.trim()
+      return text ? [text] : []
+    }
+    if (typeof entry === 'number' && Number.isFinite(entry)) {
+      return [String(entry)]
+    }
+    return []
+  })
 }

@@ -52,4 +52,36 @@ describe('searchRemoteCatalog', () => {
       }),
     ])
   })
+
+  it('drops empty and non-scalar metadata from remote external candidates', async () => {
+    mocks.searchCatalog.mockResolvedValueOnce({
+      data: {
+        candidates: [
+          {
+            id: 'anilist-154587',
+            title: 'Frieren: Beyond Journey End',
+            type: 'anime',
+            source: 'anilist',
+            sourceId: '154587',
+            genres: [' Fantasy ', undefined, 2023, null, { bad: true }],
+            searchAliases: [' Sousou no Frieren ', undefined, false],
+            externalRefs: {},
+            createdAt: '2026-01-01T00:00:00.000Z',
+          },
+        ],
+        ingestedItems: [],
+        items: [],
+      },
+    })
+
+    const results = await searchRemoteCatalog('Frieren', 'anime')
+
+    expect(results).toEqual([
+      expect.objectContaining({
+        genres: ['Fantasy', '2023'],
+        tags: ['anime', 'anilist', 'Fantasy', '2023'],
+        title: 'Frieren: Beyond Journey End',
+      }),
+    ])
+  })
 })
