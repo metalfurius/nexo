@@ -1,5 +1,16 @@
-import { beforeEach, describe, expect, it } from 'vitest'
-import { hasCatalogRouteState, readCatalogRouteState, readInitialAppTab, writeAppTabToUrl, writeCatalogRouteState } from './shared'
+import { render, screen } from '@testing-library/react'
+import { createElement } from 'react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { DiscoveryCandidate } from '../domain/types'
+import {
+  CandidateDialog,
+  SourceCreditsDialog,
+  hasCatalogRouteState,
+  readCatalogRouteState,
+  readInitialAppTab,
+  writeAppTabToUrl,
+  writeCatalogRouteState,
+} from './shared'
 
 describe('app tab routing', () => {
   beforeEach(() => {
@@ -65,5 +76,43 @@ describe('app tab routing', () => {
     writeAppTabToUrl('library', 'replace')
 
     expect(window.location.search).toBe('?tab=library')
+  })
+})
+
+describe('shared dialogs', () => {
+  const candidate: DiscoveryCandidate = {
+    id: 'external-anilist-frieren',
+    title: 'Frieren: Beyond Journey End',
+    type: 'anime',
+    status: 'queued',
+    origin: 'externalSearch',
+    source: 'anilist',
+    sourceId: '154587',
+    genres: ['Fantasy'],
+    tags: ['anime'],
+    moodTags: [],
+    externalRefs: {},
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  }
+
+  it('labels candidate dialog close buttons with the candidate title', () => {
+    render(
+      createElement(CandidateDialog, {
+        candidate,
+        onClose: vi.fn(),
+        onDismiss: vi.fn(),
+        onRestore: vi.fn(),
+        onSave: vi.fn(),
+      }),
+    )
+
+    expect(screen.getByRole('button', { name: `Cerrar detalle de ${candidate.title}` })).toBeVisible()
+  })
+
+  it('labels source credits close button with its dialog context', () => {
+    render(createElement(SourceCreditsDialog, { onClose: vi.fn() }))
+
+    expect(screen.getByRole('button', { name: 'Cerrar creditos de fuentes' })).toBeVisible()
   })
 })

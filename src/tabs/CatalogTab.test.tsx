@@ -181,7 +181,9 @@ describe('CatalogTab', () => {
 
     await userEvent.click(card.getByRole('button', { name: 'Ver ficha' }))
 
-    expect(screen.getByRole('dialog', { name: publicItem.title })).toHaveTextContent('Fantasia contemplativa')
+    const dialog = screen.getByRole('dialog', { name: publicItem.title })
+    expect(dialog).toHaveTextContent('Fantasia contemplativa')
+    expect(within(dialog).getByRole('button', { name: `Cerrar ficha de ${publicItem.title}` })).toBeVisible()
   })
 
   it('does not save a stale duplicate when the item is already in the library', async () => {
