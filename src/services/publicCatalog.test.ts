@@ -223,7 +223,7 @@ describe('public catalog service', () => {
     const results = normalizePublicCatalogItems([
       {
         id: 'game-outer-wilds',
-        title: 'Outer Wilds',
+        title: '  Outer Wilds  ',
         type: 'game',
       },
     ])
