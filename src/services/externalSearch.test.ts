@@ -559,6 +559,34 @@ describe('external search', () => {
     expect(results[0]?.progressTotal).toBeUndefined()
   })
 
+  it('drops invalid Open Library page counts before ranking book candidates', async () => {
+    mockCatalogFetch(() => ({
+      docs: [
+        {
+          key: '/works/OL999W',
+          title: 'Invalid Pages',
+          author_name: ['Test Author'],
+          first_publish_year: 2026,
+          cover_i: 8327756,
+          subject: ['Reference'],
+          number_of_pages_median: 0,
+        },
+      ],
+    }))
+
+    const results = await searchExternalSources('invalid pages', 'book')
+
+    expect(results[0]).toEqual(
+      expect.objectContaining({
+        releaseYear: 2026,
+        source: 'openLibrary',
+        title: 'Invalid Pages - Test Author',
+      }),
+    )
+    expect(results[0]?.progressTotal).toBeUndefined()
+    expect(results[0]?.progressUnit).toBeUndefined()
+  })
+
   it('falls back to free discovery sources when the proxy request fails', async () => {
     vi.stubEnv('VITE_CATALOG_PROXY_URL', 'https://catalog-proxy.example')
     mockCatalogFetch((url) => {

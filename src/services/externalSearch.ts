@@ -265,6 +265,7 @@ async function searchOpenLibrary(query: string): Promise<ExternalCandidate[]> {
   return (payload.docs ?? []).map((entry) => {
     const authors = Array.isArray(entry.author_name) ? entry.author_name.map(String).slice(0, 2) : []
     const title = [String(entry.title ?? 'Sin titulo'), authors.join(', ')].filter(Boolean).join(' - ')
+    const pageCount = positiveNumber(entry.number_of_pages_median)
     return {
       id: `open-library-${String(entry.key).replace(/\//g, '-')}`,
       title,
@@ -272,9 +273,9 @@ async function searchOpenLibrary(query: string): Promise<ExternalCandidate[]> {
       source: 'openLibrary',
       sourceId: String(entry.key),
       posterUrl: entry.cover_i ? `https://covers.openlibrary.org/b/id/${entry.cover_i}-M.jpg` : undefined,
-      releaseYear: typeof entry.first_publish_year === 'number' ? entry.first_publish_year : undefined,
-      progressTotal: typeof entry.number_of_pages_median === 'number' ? entry.number_of_pages_median : undefined,
-      progressUnit: typeof entry.number_of_pages_median === 'number' ? 'pages' : undefined,
+      releaseYear: finiteNumber(entry.first_publish_year),
+      progressTotal: pageCount,
+      progressUnit: pageCount === undefined ? undefined : 'pages',
       genres: Array.isArray(entry.subject) ? entry.subject.map(String).slice(0, 5) : [],
       externalRefs: {
         openLibraryKey: String(entry.key),
