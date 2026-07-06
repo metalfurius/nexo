@@ -51,7 +51,7 @@ function normalizePublicCatalogItem(value: unknown): PublicCatalogItem[] {
       externalRefs: readExternalRefs(item.externalRefs),
       posterUrl: optionalString(item.posterUrl),
       searchTokens: normalizeCatalogStringList(item.searchTokens),
-      canonicalKey: optionalString(item.canonicalKey) ?? `${type}:${String(item.title).toLowerCase()}`,
+      canonicalKey: optionalString(item.canonicalKey) ?? `${type}:${title.toLowerCase()}`,
       createdAt: optionalString(item.createdAt) ?? timestamp,
       updatedAt: optionalString(item.updatedAt) ?? timestamp,
       createdBy: optionalString(item.createdBy) ?? 'public-catalog',
