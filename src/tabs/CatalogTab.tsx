@@ -461,7 +461,14 @@ function CatalogPublicDialog({
         role="dialog"
         onKeyDown={(event) => handleDialogKeyDown(event, onClose)}
       >
-        <button className="icon-button dialog-close" type="button" autoFocus onClick={onClose} title="Cerrar">
+        <button
+          aria-label={`Cerrar ficha de ${candidate.title}`}
+          className="icon-button dialog-close"
+          type="button"
+          autoFocus
+          onClick={onClose}
+          title="Cerrar"
+        >
           <X size={18} />
         </button>
         <CoverArt title={candidate.title} type={candidate.type} posterUrl={candidate.posterUrl} />

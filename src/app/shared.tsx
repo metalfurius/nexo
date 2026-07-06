@@ -5992,7 +5992,14 @@ export function CandidateDialog({
         aria-labelledby="candidate-detail-title"
         onKeyDown={(event) => handleDialogKeyDown(event, onClose)}
       >
-        <button className="icon-button dialog-close" type="button" autoFocus onClick={onClose} title="Cerrar">
+        <button
+          aria-label={`Cerrar detalle de ${candidate.title}`}
+          className="icon-button dialog-close"
+          type="button"
+          autoFocus
+          onClick={onClose}
+          title="Cerrar"
+        >
           <X size={18} />
         </button>
         <CoverArt title={candidate.title} type={candidate.type} posterUrl={candidate.posterUrl} />
@@ -6055,7 +6062,14 @@ export function SourceCreditsDialog({ onClose }: { onClose: () => void }) {
         aria-labelledby="source-credits-title"
         onKeyDown={(event) => handleDialogKeyDown(event, onClose)}
       >
-        <button className="icon-button dialog-close" type="button" autoFocus onClick={onClose} title="Cerrar">
+        <button
+          aria-label="Cerrar creditos de fuentes"
+          className="icon-button dialog-close"
+          type="button"
+          autoFocus
+          onClick={onClose}
+          title="Cerrar"
+        >
           <X size={18} />
         </button>
         <div>
