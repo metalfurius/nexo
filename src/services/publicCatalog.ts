@@ -38,8 +38,8 @@ function normalizePublicCatalogItem(value: unknown): PublicCatalogItem[] {
       title,
       type,
       description: optionalString(item.description),
-      releaseYear: typeof item.releaseYear === 'number' ? item.releaseYear : undefined,
-      progressTotal: typeof item.progressTotal === 'number' ? item.progressTotal : undefined,
+      releaseYear: finiteNumber(item.releaseYear),
+      progressTotal: positiveNumber(item.progressTotal),
       progressUnit: normalizeProgressUnit(item.progressUnit),
       genres: normalizeCatalogStringList(item.genres),
       tags: normalizeCatalogStringList(item.tags),
@@ -55,7 +55,7 @@ function normalizePublicCatalogItem(value: unknown): PublicCatalogItem[] {
       updatedBy: optionalString(item.updatedBy) ?? 'public-catalog',
       archivedAt: optionalString(item.archivedAt),
       autoIngestedAt: optionalString(item.autoIngestedAt),
-      demandCount: typeof item.demandCount === 'number' ? item.demandCount : undefined,
+      demandCount: nonNegativeNumber(item.demandCount),
       lastDemandAt: optionalString(item.lastDemandAt),
     },
   ]
@@ -67,6 +67,20 @@ function normalizeItemType(type: unknown): ItemType | undefined {
 
 function normalizeProgressUnit(unit: unknown): ProgressUnit | undefined {
   return PROGRESS_UNITS.includes(unit as ProgressUnit) ? (unit as ProgressUnit) : undefined
+}
+
+function finiteNumber(value: unknown) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+}
+
+function positiveNumber(value: unknown) {
+  const number = finiteNumber(value)
+  return number !== undefined && number > 0 ? number : undefined
+}
+
+function nonNegativeNumber(value: unknown) {
+  const number = finiteNumber(value)
+  return number !== undefined && number >= 0 ? number : undefined
 }
 
 function readExternalRefs(value: unknown) {

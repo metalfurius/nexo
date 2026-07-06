@@ -167,6 +167,39 @@ describe('public catalog service', () => {
     ])
   })
 
+  it('drops invalid numeric catalog metadata', () => {
+    const results = normalizePublicCatalogItems([
+      {
+        id: 'book-invalid-numbers',
+        title: 'Invalid Numbers',
+        type: 'book',
+        releaseYear: Number.POSITIVE_INFINITY,
+        progressTotal: 0,
+        demandCount: -1,
+      },
+      {
+        id: 'game-zero-demand',
+        title: 'Zero Demand',
+        type: 'game',
+        releaseYear: 2026,
+        progressTotal: 12,
+        demandCount: 0,
+      },
+    ])
+
+    expect(results[0]).toEqual(expect.objectContaining({ id: 'book-invalid-numbers' }))
+    expect(results[0].demandCount).toBeUndefined()
+    expect(results[0].progressTotal).toBeUndefined()
+    expect(results[0].releaseYear).toBeUndefined()
+    expect(results[1]).toEqual(
+      expect.objectContaining({
+        demandCount: 0,
+        progressTotal: 12,
+        releaseYear: 2026,
+      }),
+    )
+  })
+
   it('applies defaults and uses the same fallback timestamp for missing createdAt and updatedAt', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-07-05T12:34:56.000Z'))
