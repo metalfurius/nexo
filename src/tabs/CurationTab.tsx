@@ -837,7 +837,14 @@ export default function CurationTab({
                 <h2 id="archive-title">Archivar entrada publica</h2>
                 <p>{archiveTarget.title} dejara de aparecer en Explorador y busquedas del catalogo.</p>
               </div>
-              <button className="icon-button" type="button" autoFocus onClick={() => setArchiveTarget(undefined)} title="Cerrar">
+              <button
+                className="icon-button"
+                type="button"
+                autoFocus
+                onClick={() => setArchiveTarget(undefined)}
+                aria-label={`Cerrar confirmacion de archivo de ${archiveTarget.title}`}
+                title="Cerrar"
+              >
                 <X size={18} />
               </button>
             </div>
