@@ -106,7 +106,7 @@ export async function discoverExternalCandidate(
   duration: ExternalDiscoverDuration,
 ): Promise<ExternalCandidate | undefined> {
   const seed = createDiscoverySeed()
-  const proxyCandidate = await discoverFromCatalogProxy(type, duration, seed)
+  const proxyCandidate = await discoverFromCatalogProxy(type, duration, seed).catch(() => undefined)
   if (proxyCandidate) return proxyCandidate
 
   const queries = getDiscoverQueries(type, duration, seed).slice(0, 3)
