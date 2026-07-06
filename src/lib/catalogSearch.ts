@@ -273,10 +273,16 @@ function areCatalogSearchCandidatesDuplicates(left: CatalogSearchCandidate, righ
 function hasSharedExternalIdentity(leftRefs?: ExternalRefs, rightRefs?: ExternalRefs) {
   if (!leftRefs || !rightRefs) return false
   return EXTERNAL_REF_IDENTITY_KEYS.some((key) => {
-    const leftValue = leftRefs[key]
-    const rightValue = rightRefs[key]
+    const leftValue = normalizeExternalIdentityValue(key, leftRefs[key])
+    const rightValue = normalizeExternalIdentityValue(key, rightRefs[key])
     return Boolean(leftValue && rightValue && leftValue === rightValue)
   })
+}
+
+function normalizeExternalIdentityValue(key: keyof ExternalRefs, value?: string) {
+  const normalized = String(value ?? '').trim().toLowerCase()
+  if (!normalized) return ''
+  return key === 'isbn' ? normalized.replace(/[^0-9x]/g, '') : normalized
 }
 
 function areReleaseYearsCompatible(leftYear?: number, rightYear?: number) {
