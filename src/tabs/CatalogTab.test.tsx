@@ -160,11 +160,11 @@ describe('CatalogTab', () => {
     expect(within(screen.getByTestId('catalog-public-masthead')).getByText('1 guardada')).toBeVisible()
     const savedButton = card.getByRole('button', { name: 'Guardado' })
     expect(savedButton).toBeDisabled()
-    expect(card.getByRole('button', { name: 'Explorar' })).toBeEnabled()
-    expect(card.getByRole('button', { name: 'Ver ficha' })).toBeEnabled()
+    expect(card.getByRole('button', { name: `Explorar ${publicItem.title}` })).toBeEnabled()
+    expect(card.getByRole('button', { name: `Ver ficha de ${publicItem.title}` })).toBeEnabled()
     expect(screen.queryByText('Biblioteca conectada')).not.toBeInTheDocument()
 
-    await userEvent.click(card.getByRole('button', { name: 'Ver ficha' }))
+    await userEvent.click(card.getByRole('button', { name: `Ver ficha de ${publicItem.title}` }))
     const dialog = screen.getByRole('dialog', { name: publicItem.title })
     expect(within(dialog).getByRole('button', { name: 'Guardado' })).toBeDisabled()
     expect(within(dialog).getByRole('button', { name: 'Mandar al Explorador' })).toBeEnabled()
@@ -179,7 +179,7 @@ describe('CatalogTab', () => {
     const card = await getCatalogCard(publicItem.title)
     expect(card.queryByText(/Fantasia contemplativa/)).not.toBeInTheDocument()
 
-    await userEvent.click(card.getByRole('button', { name: 'Ver ficha' }))
+    await userEvent.click(card.getByRole('button', { name: `Ver ficha de ${publicItem.title}` }))
 
     const dialog = screen.getByRole('dialog', { name: publicItem.title })
     expect(dialog).toHaveTextContent('Fantasia contemplativa')
