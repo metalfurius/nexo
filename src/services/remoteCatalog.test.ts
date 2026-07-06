@@ -65,7 +65,7 @@ describe('searchRemoteCatalog', () => {
             sourceId: '154587',
             genres: [' Fantasy ', undefined, 2023, null, { bad: true }],
             searchAliases: [' Sousou no Frieren ', undefined, false],
-            externalRefs: {},
+            externalRefs: { anilistId: ' 154587 ', empty: '   ', malformed: 2023 },
             createdAt: '2026-01-01T00:00:00.000Z',
           },
         ],
@@ -78,6 +78,7 @@ describe('searchRemoteCatalog', () => {
 
     expect(results).toEqual([
       expect.objectContaining({
+        externalRefs: { anilistId: '154587' },
         genres: ['Fantasy', '2023'],
         tags: ['anime', 'anilist', 'Fantasy', '2023'],
         title: 'Frieren: Beyond Journey End',

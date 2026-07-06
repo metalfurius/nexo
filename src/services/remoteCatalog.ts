@@ -67,7 +67,13 @@ function uniqueDiscoveryCandidates(candidates: DiscoveryCandidate[]) {
 
 function readExternalRefs(value: unknown) {
   const record = readRecord(value)
-  return Object.fromEntries(Object.entries(record).filter(([, entry]) => typeof entry === 'string' && entry.trim()))
+  return Object.fromEntries(
+    Object.entries(record).flatMap(([key, entry]) => {
+      if (typeof entry !== 'string') return []
+      const text = entry.trim()
+      return text ? [[key, text]] : []
+    }),
+  )
 }
 
 function normalizeType(type: unknown): ItemType {
