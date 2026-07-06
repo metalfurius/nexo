@@ -553,7 +553,17 @@ function readJikanProgressMeta(type: ItemType, entry: Record<string, unknown>): 
 }
 
 function readProgressMeta(value: unknown, unit: ProgressUnit) {
-  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? { total: value, unit } : undefined
+  const total = positiveNumber(value)
+  return total === undefined ? undefined : { total, unit }
+}
+
+function finiteNumber(value: unknown) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+}
+
+function positiveNumber(value: unknown) {
+  const number = finiteNumber(value)
+  return number !== undefined && number > 0 ? number : undefined
 }
 
 function readJikanTitleAliases(entry: Record<string, unknown>) {
@@ -613,8 +623,8 @@ function normalizeProxyCandidate(value: unknown): ExternalCandidate[] {
       sourceId,
       overview: optionalString(candidate.overview),
       posterUrl: optionalString(candidate.posterUrl),
-      releaseYear: typeof candidate.releaseYear === 'number' ? candidate.releaseYear : undefined,
-      progressTotal: typeof candidate.progressTotal === 'number' ? candidate.progressTotal : undefined,
+      releaseYear: finiteNumber(candidate.releaseYear),
+      progressTotal: positiveNumber(candidate.progressTotal),
       progressUnit: normalizeProgressUnit(candidate.progressUnit),
       genres: Array.isArray(candidate.genres) ? candidate.genres.map(String).filter(Boolean).slice(0, 8) : [],
       searchAliases: Array.isArray(candidate.searchAliases) ? candidate.searchAliases.map(String).filter(Boolean).slice(0, 24) : undefined,
