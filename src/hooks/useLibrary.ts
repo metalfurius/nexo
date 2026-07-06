@@ -71,6 +71,7 @@ const demoUserProfiles: UserProfile[] = [
 
 type ActivityDraft = Omit<ActivityEntry, 'createdAt' | 'id'>
 const activityEntryLimit = 25
+const anonymousPublicCatalogLimit = 48
 type SyncSliceId = 'items' | 'settings' | 'discovery' | 'activity' | 'profile' | 'profiles'
 interface SaveDiscoveryOptions {
   persistDiscoveryCandidate?: boolean
@@ -407,7 +408,7 @@ export function useLibrary(user?: SignedInUserProfile | null) {
   async function searchPublicCatalog(query: string, type?: string): Promise<PublicCatalogItem[]> {
     if (repository) return repository.searchPublicCatalog(query, type)
     if (isFirebaseConfigured) {
-      return requireRemotePublicCatalog(() => fetchPublicCatalog(query, type ?? 'any', 24))
+      return requireRemotePublicCatalog(() => fetchPublicCatalog(query, type ?? 'any', anonymousPublicCatalogLimit))
     }
 
     const normalized = query.trim().toLowerCase()
@@ -444,7 +445,7 @@ export function useLibrary(user?: SignedInUserProfile | null) {
   async function listPublicCatalog(): Promise<PublicCatalogItem[]> {
     if (repository) return repository.listPublicCatalog()
     if (isFirebaseConfigured) {
-      return requireRemotePublicCatalog(() => fetchPublicCatalog('', 'any', 24))
+      return requireRemotePublicCatalog(() => fetchPublicCatalog('', 'any', anonymousPublicCatalogLimit))
     }
 
     return publicCatalog
