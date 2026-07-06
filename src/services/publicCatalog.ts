@@ -26,14 +26,16 @@ function normalizePublicCatalogItem(value: unknown): PublicCatalogItem[] {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return []
   const item = value as Partial<PublicCatalogItem>
   const type = normalizeItemType(item.type)
-  if (!item.id || !item.title || !type) return []
+  const id = optionalString(item.id)
+  const title = optionalString(item.title)
+  if (!id || !title || !type) return []
 
   const timestamp = new Date().toISOString()
 
   return [
     {
-      id: String(item.id),
-      title: String(item.title),
+      id,
+      title,
       type,
       description: optionalString(item.description),
       releaseYear: typeof item.releaseYear === 'number' ? item.releaseYear : undefined,
