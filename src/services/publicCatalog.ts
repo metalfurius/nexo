@@ -1,5 +1,8 @@
 import { ITEM_TYPES, PROGRESS_UNITS, type ItemType, type ProgressUnit, type PublicCatalogItem } from '../domain/types'
 
+const defaultPublicCatalogLimit = 24
+const maxPublicCatalogLimit = 100
+
 export async function fetchPublicCatalog(query = '', type = 'any', limit = 24): Promise<PublicCatalogItem[] | undefined> {
   const endpoint = String(import.meta.env.VITE_PUBLIC_CATALOG_URL ?? '').trim()
   if (!endpoint) return undefined
@@ -7,7 +10,7 @@ export async function fetchPublicCatalog(query = '', type = 'any', limit = 24): 
   const url = new URL(endpoint)
   if (query.trim()) url.searchParams.set('q', query.trim())
   if (type) url.searchParams.set('type', type)
-  url.searchParams.set('limit', String(limit))
+  url.searchParams.set('limit', String(normalizePublicCatalogLimit(limit)))
 
   const response = await fetch(url, { headers: { accept: 'application/json' } })
   if (!response.ok) return undefined
@@ -81,6 +84,11 @@ function positiveNumber(value: unknown) {
 function nonNegativeNumber(value: unknown) {
   const number = finiteNumber(value)
   return number !== undefined && number >= 0 ? number : undefined
+}
+
+function normalizePublicCatalogLimit(value: number) {
+  if (!Number.isFinite(value)) return defaultPublicCatalogLimit
+  return Math.min(maxPublicCatalogLimit, Math.max(1, Math.trunc(value)))
 }
 
 function readExternalRefs(value: unknown) {
