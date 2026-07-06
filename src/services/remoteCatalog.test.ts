@@ -84,4 +84,34 @@ describe('searchRemoteCatalog', () => {
       }),
     ])
   })
+
+  it('drops invalid numeric metadata from remote external candidates', async () => {
+    mocks.searchCatalog.mockResolvedValueOnce({
+      data: {
+        candidates: [
+          {
+            id: 'open-library-invalid-numbers',
+            title: 'Invalid Numbers',
+            type: 'book',
+            source: 'openLibrary',
+            sourceId: 'OL123W',
+            releaseYear: Number.POSITIVE_INFINITY,
+            progressTotal: -320,
+            progressUnit: 'pages',
+            genres: [],
+            externalRefs: {},
+            createdAt: '2026-01-01T00:00:00.000Z',
+          },
+        ],
+        ingestedItems: [],
+        items: [],
+      },
+    })
+
+    const results = await searchRemoteCatalog('Invalid', 'book')
+
+    expect(results?.[0]).toEqual(expect.objectContaining({ title: 'Invalid Numbers' }))
+    expect(results?.[0]?.releaseYear).toBeUndefined()
+    expect(results?.[0]?.progressTotal).toBeUndefined()
+  })
 })
