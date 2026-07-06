@@ -419,10 +419,10 @@ function CatalogPublicCard({
             {isSaved ? <Check size={16} /> : <Plus size={16} />}
             {isSaved ? 'Guardado' : 'Guardar'}
           </button>
-          <button className="icon-button catalog-public-icon-action" type="button" onClick={onQueue} aria-label="Explorar" title="Explorar">
+          <button className="icon-button catalog-public-icon-action" type="button" onClick={onQueue} aria-label={`Explorar ${candidate.title}`} title="Explorar">
             <Library size={16} />
           </button>
-          <button className="icon-button catalog-public-icon-action catalog-public-details-button" type="button" onClick={onDetails} aria-label="Ver ficha" title="Ver ficha">
+          <button className="icon-button catalog-public-icon-action catalog-public-details-button" type="button" onClick={onDetails} aria-label={`Ver ficha de ${candidate.title}`} title="Ver ficha">
             <Eye size={17} />
           </button>
         </div>
