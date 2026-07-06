@@ -167,6 +167,22 @@ describe('public catalog service', () => {
     ])
   })
 
+  it('normalizes unsafe catalog limits before requesting the endpoint', async () => {
+    vi.stubEnv('VITE_PUBLIC_CATALOG_URL', 'https://catalog.example/publicCatalog')
+    const fetchMock = installFetchMock(() => ({ items: [] }))
+
+    await fetchPublicCatalog('', 'any', Number.NaN)
+    await fetchPublicCatalog('', 'any', -4)
+    await fetchPublicCatalog('', 'any', 250)
+
+    const requestedLimits = fetchMock.mock.calls.map(([input]) => {
+      const url = new URL(input instanceof Request ? input.url : String(input))
+      return url.searchParams.get('limit')
+    })
+
+    expect(requestedLimits).toEqual(['24', '1', '100'])
+  })
+
   it('drops invalid numeric catalog metadata', () => {
     const results = normalizePublicCatalogItems([
       {
