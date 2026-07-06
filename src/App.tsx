@@ -87,7 +87,14 @@ function SignInDialog({
         role="dialog"
         onKeyDown={(event) => handleDialogKeyDown(event, pending ? () => undefined : onClose)}
       >
-        <button className="icon-button dialog-close" aria-label="Cerrar" disabled={pending} type="button" onClick={onClose} title="Cerrar">
+        <button
+          className="icon-button dialog-close"
+          aria-label="Cerrar acceso a Nexo"
+          disabled={pending}
+          type="button"
+          onClick={onClose}
+          title="Cerrar"
+        >
           <X size={18} />
         </button>
         <div className="panel-heading compact">

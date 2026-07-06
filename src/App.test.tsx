@@ -147,6 +147,16 @@ describe('App sign-in dialog', () => {
     await waitFor(() => expect(signInButton).toHaveFocus())
   })
 
+  it('labels the sign-in icon close button with its dialog context', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(await screen.findByRole('button', { name: 'Entrar' }))
+
+    const dialog = await screen.findByRole('dialog', { name: 'Entrar en Nexo' })
+    expect(within(dialog).getByRole('button', { name: 'Cerrar acceso a Nexo' })).toBeVisible()
+  })
+
   it('keeps the sign-in dialog open while email sign-in is pending', async () => {
     const user = userEvent.setup()
     const signIn = createDeferred<void>()

@@ -4509,7 +4509,7 @@ test('moderator curation can create a public catalog item in demo mode', async (
   }
   await page.getByRole('button', { name: 'Revisar Arrival' }).click()
   await expect(page.locator('.public-item-editor').getByLabel('Titulo')).toHaveValue('Arrival')
-  await page.getByRole('button', { name: 'Cerrar', exact: true }).click()
+  await page.locator('.public-item-editor').getByRole('button', { name: 'Cerrar editor de Arrival' }).click()
 
   await page.getByText('Herramientas de catalogo').click()
   const templateLauncher = page.getByRole('region', { name: 'Plantillas de curacion' })
@@ -4523,12 +4523,12 @@ test('moderator curation can create a public catalog item in demo mode', async (
   await expect(templatedEditor.getByLabel('Tags', { exact: true })).toHaveValue('cooperativo, base building, mundo abierto')
   await expect(templatedEditor.getByLabel('Mood tags')).toHaveValue('intenso')
   await templatedEditor.getByLabel('Titulo').fill('Borrador temporal')
-  await page.getByRole('button', { name: 'Cerrar', exact: true }).click()
+  await templatedEditor.getByRole('button', { name: 'Cerrar editor de Borrador temporal' }).click()
   await expect(page.getByLabel('Cambios sin guardar')).toContainText('Guarda la ficha')
   await page.getByRole('button', { name: 'Seguir editando' }).click()
   await expect(templatedEditor.getByLabel('Titulo')).toHaveValue('Borrador temporal')
   await expect(templatedEditor.getByLabel('Mood tags')).toHaveValue('intenso')
-  await page.getByRole('button', { name: 'Cerrar', exact: true }).click()
+  await templatedEditor.getByRole('button', { name: 'Cerrar editor de Borrador temporal' }).click()
   await page.getByRole('button', { name: 'Descartar cambios' }).click()
 
   await openCurationTools(page)

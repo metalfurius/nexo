@@ -1,9 +1,13 @@
 import { render, screen } from '@testing-library/react'
 import { createElement } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { DiscoveryCandidate } from '../domain/types'
+import { DEFAULT_WEIGHTS, type DiscoveryCandidate, type ListItem } from '../domain/types'
+import { buildPublicCatalogItem } from '../lib/catalog'
 import {
   CandidateDialog,
+  ItemEditor,
+  PublicItemEditor,
+  QuickSearchDialog,
   SourceCreditsDialog,
   hasCatalogRouteState,
   readCatalogRouteState,
@@ -114,5 +118,63 @@ describe('shared dialogs', () => {
     render(createElement(SourceCreditsDialog, { onClose: vi.fn() }))
 
     expect(screen.getByRole('button', { name: 'Cerrar creditos de fuentes' })).toBeVisible()
+  })
+
+  it('labels quick search close button with its dialog context', () => {
+    render(
+      createElement(QuickSearchDialog, {
+        commands: [],
+        candidates: [],
+        items: [],
+        navItems: [],
+        onClose: vi.fn(),
+        onCreateItem: vi.fn(),
+        onExploreQuery: vi.fn(),
+        onOpenCandidate: vi.fn(),
+        onOpenItem: vi.fn(),
+        onOpenTab: vi.fn(),
+      }),
+    )
+
+    expect(screen.getByRole('button', { name: 'Cerrar busqueda rapida' })).toBeVisible()
+  })
+
+  it('labels private editor icon close button with the edited title', () => {
+    const item: ListItem = {
+      id: 'manual-frieren',
+      title: 'Frieren',
+      type: 'anime',
+      status: 'in_progress',
+      genres: ['fantasia'],
+      tags: ['anime'],
+      moodTags: [],
+      weights: DEFAULT_WEIGHTS,
+      source: 'manual',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    }
+
+    render(createElement(ItemEditor, { item, onClose: vi.fn(), onSave: vi.fn() }))
+
+    expect(screen.getByRole('button', { name: `Cerrar y guardar ${item.title}` })).toBeVisible()
+  })
+
+  it('labels public editor icon close button with the edited title', () => {
+    const item = buildPublicCatalogItem(
+      {
+        id: 'anime-frieren',
+        title: 'Frieren',
+        type: 'anime',
+        description: 'Fantasia contemplativa.',
+        genres: ['fantasia'],
+        tags: ['anime'],
+        moodTags: [],
+      },
+      'test-moderator',
+    )
+
+    render(createElement(PublicItemEditor, { item, onClose: vi.fn(), onSave: vi.fn() }))
+
+    expect(screen.getByRole('button', { name: `Cerrar editor de ${item.title}` })).toBeVisible()
   })
 })

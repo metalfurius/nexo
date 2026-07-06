@@ -1318,7 +1318,7 @@ export function QuickSearchDialog({
             <span className="eyebrow">Busqueda rapida</span>
             <h2 id="quick-search-title">Abrir en Nexo</h2>
           </div>
-          <button className="icon-button" type="button" onClick={onClose} title="Cerrar">
+          <button className="icon-button" type="button" onClick={onClose} aria-label="Cerrar busqueda rapida" title="Cerrar">
             <X size={18} />
           </button>
         </div>
@@ -6364,7 +6364,7 @@ export function ItemEditor({
                 {linkCopyStatus?.tone === 'success' ? <Check size={18} /> : <Copy size={18} />}
               </button>
             )}
-            <button className="icon-button" type="button" onClick={requestClose} title="Cerrar y guardar">
+            <button className="icon-button" type="button" onClick={requestClose} aria-label={`Cerrar y guardar ${editorTitle}`} title="Cerrar y guardar">
               <X size={18} />
             </button>
           </div>
@@ -6837,7 +6837,7 @@ export function PublicItemEditor({
             <h2 id="public-item-editor-title">Catalogo Nexo</h2>
             <p>Entrada publica curada</p>
           </div>
-          <button className="icon-button" type="button" onClick={requestClose} title="Cerrar">
+          <button className="icon-button" type="button" onClick={requestClose} aria-label={`Cerrar editor de ${editorTitle}`} title="Cerrar">
             <X size={18} />
           </button>
         </div>
