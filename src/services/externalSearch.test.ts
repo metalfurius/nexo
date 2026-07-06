@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { externalSourceCredits } from './externalSourceCredits'
-import { searchExternalSources } from './externalSearch'
+import { discoverExternalCandidate, searchExternalSources } from './externalSearch'
 
 type FetchInput = Parameters<typeof fetch>[0]
 
@@ -527,6 +527,43 @@ describe('external search', () => {
       }),
     )
     expect('relatedItems' in (results[0] ?? {})).toBe(false)
+  })
+
+  it('falls back to free discovery sources when the proxy request fails', async () => {
+    vi.stubEnv('VITE_CATALOG_PROXY_URL', 'https://catalog-proxy.example')
+    mockCatalogFetch((url) => {
+      if (url.hostname === 'catalog-proxy.example') throw new Error('proxy unavailable')
+      if (url.hostname === 'openlibrary.org') {
+        const queryTitle = url.searchParams.get('q') ?? 'Fallback discovery'
+        return {
+          docs: [
+            {
+              key: '/works/OL27448W',
+              title: queryTitle,
+              author_name: ['Fallback Author'],
+              first_publish_year: 1968,
+              cover_i: 8327756,
+              subject: ['Fantasy'],
+              number_of_pages_median: 205,
+            },
+          ],
+        }
+      }
+      return jikanPayload([])
+    })
+
+    const result = await discoverExternalCandidate('book', 'any')
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        posterUrl: 'https://covers.openlibrary.org/b/id/8327756-M.jpg',
+        source: 'openLibrary',
+        title: expect.stringContaining('Fallback Author'),
+        type: 'book',
+      }),
+    )
+    expect(fetchedUrls().some((url) => url.hostname === 'catalog-proxy.example' && url.pathname === '/discover')).toBe(true)
+    expect(fetchedUrls().some((url) => url.hostname === 'openlibrary.org')).toBe(true)
   })
 
   it('does not enrich animated TMDB series proxy results with related references in the browser', async () => {
