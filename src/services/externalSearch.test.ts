@@ -529,6 +529,36 @@ describe('external search', () => {
     expect('relatedItems' in (results[0] ?? {})).toBe(false)
   })
 
+  it('drops invalid proxy progress totals before ranking candidates', async () => {
+    vi.stubEnv('VITE_CATALOG_PROXY_URL', 'https://catalog-proxy.example')
+    mockCatalogFetch((url) => {
+      if (url.hostname === 'catalog-proxy.example') {
+        return {
+          results: [
+            {
+              id: 'tmdb-movie-603',
+              title: 'The Matrix',
+              type: 'movie',
+              source: 'tmdb',
+              sourceId: '603',
+              progressTotal: 0,
+              progressUnit: 'hours',
+              genres: ['Ciencia ficcion'],
+              externalRefs: { tmdbId: '603' },
+              createdAt: '2026-06-14T00:00:00.000Z',
+            },
+          ],
+        }
+      }
+      return jikanPayload([])
+    })
+
+    const results = await searchExternalSources('matrix', 'movie')
+
+    expect(results[0]).toEqual(expect.objectContaining({ source: 'tmdb', title: 'The Matrix' }))
+    expect(results[0]?.progressTotal).toBeUndefined()
+  })
+
   it('falls back to free discovery sources when the proxy request fails', async () => {
     vi.stubEnv('VITE_CATALOG_PROXY_URL', 'https://catalog-proxy.example')
     mockCatalogFetch((url) => {
