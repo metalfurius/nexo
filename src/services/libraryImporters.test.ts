@@ -216,6 +216,26 @@ describe('library importers', () => {
     )
   })
 
+  it('matches import duplicates when external refs use harmless formatting differences', () => {
+    const existingBook = {
+      ...currentItem,
+      externalRefs: { isbn: '978-0-441-47812-5' },
+    }
+    const result = parseGoodreadsCsv(
+      [
+        'Book Id,Title,Author,ISBN13,My Rating,Exclusive Shelf,Bookshelves,Original Publication Year,My Review',
+        '42,The Left Hand of Darkness,Ursula K. Le Guin,9780441478125,5,read,sci-fi,1969,',
+        '43,The Left Hand of Darkness,Ursula K. Le Guin,978-0-441-47812-5,5,read,sci-fi,1969,',
+      ].join('\n'),
+    )
+
+    const preview = buildImportPreview(result, [existingBook])
+
+    expect(preview.duplicateItems).toBe(2)
+    expect(preview.items[0]).toEqual(expect.objectContaining({ duplicateOfId: 'book-left-hand', duplicateReason: 'externalRefs' }))
+    expect(preview.items[1]).toEqual(expect.objectContaining({ duplicateOfId: 'book-left-hand', duplicateReason: 'externalRefs' }))
+  })
+
   it('previews duplicates by external refs before import and exposes all new rows for import-all', () => {
     const result = parseGoodreadsCsv(
       [

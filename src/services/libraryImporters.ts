@@ -734,8 +734,15 @@ function externalRefKeys(refs: ExternalRefs | undefined) {
 
   return externalDuplicateKeys.flatMap((key) => {
     const value = refs[key]
-    return value ? [`${key}:${normalizeKey(value)}`] : []
+    const normalizedValue = normalizeExternalRefIdentity(key, value)
+    return normalizedValue ? [`${key}:${normalizedValue}`] : []
   })
+}
+
+function normalizeExternalRefIdentity(key: keyof ExternalRefs, value?: string) {
+  const normalized = String(value ?? '').trim().toLowerCase()
+  if (!normalized) return ''
+  return key === 'isbn' ? normalized.replace(/[^0-9x]/g, '') : normalized
 }
 
 function titleDuplicateKey(title: string, type: ItemType, year?: number) {
