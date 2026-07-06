@@ -88,6 +88,8 @@ describe('public catalog service', () => {
       'Dune',
       { id: 'missing-title', type: 'book' },
       { id: 'missing-type', title: 'Dune' },
+      { id: 'blank-title', title: '   ', type: 'book' },
+      { id: '   ', title: 'Blank id', type: 'book' },
       { id: 'bad-type', title: 'Dune', type: 'boardgame' },
       {
         id: 'movie-dune-2021',
@@ -110,7 +112,7 @@ describe('public catalog service', () => {
   it('normalizes complete catalog entries while preserving remote timestamps', () => {
     const results = normalizePublicCatalogItems([
       {
-        id: 'anime-frieren',
+        id: ' anime-frieren ',
         title: ' Frieren ',
         type: 'anime',
         description: '  Fantasy journey  ',
@@ -139,7 +141,7 @@ describe('public catalog service', () => {
     expect(results).toEqual([
       {
         id: 'anime-frieren',
-        title: ' Frieren ',
+        title: 'Frieren',
         type: 'anime',
         description: 'Fantasy journey',
         releaseYear: 2023,
