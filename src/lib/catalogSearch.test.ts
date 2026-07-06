@@ -237,6 +237,59 @@ describe('catalog search relevance', () => {
     )
   })
 
+  it('dedupes shared external identities with harmless formatting differences', () => {
+    const ranked = rankCatalogSearchCandidates(
+      dedupeCatalogSearchCandidates([
+        {
+          ...candidate('Dune', 'movie', 'tmdb', { tmdbId: ' 438631 ' }),
+          overview: 'External TMDB copy.',
+          releaseYear: 2021,
+        },
+        {
+          ...candidate('Dune', 'movie', 'nexo', { tmdbId: '438631' }),
+          overview: 'Ficha curada de Nexo.',
+          releaseYear: 2021,
+        },
+        {
+          ...candidate('The Left Hand of Darkness', 'book', 'openLibrary', { isbn: '978-0-441-47812-5' }),
+          releaseYear: 1969,
+        },
+        {
+          ...candidate('The Left Hand of Darkness', 'book', 'googleBooks', { isbn: '9780441478125' }),
+          releaseYear: 1969,
+        },
+        {
+          ...candidate('Control', 'game', 'wikidata', { wikidataId: 'q54820300' }),
+          releaseYear: 2019,
+        },
+        {
+          ...candidate('Control', 'game', 'rawg', { wikidataId: ' Q54820300 ' }),
+          releaseYear: 2019,
+        },
+      ]),
+      'Dune',
+      'any',
+    )
+
+    expect(ranked).toHaveLength(1)
+    expect(ranked[0]).toEqual(expect.objectContaining({ source: 'nexo', title: 'Dune' }))
+
+    const deduped = dedupeCatalogSearchCandidates([
+      candidate('The Left Hand of Darkness', 'book', 'openLibrary', { isbn: '978-0-441-47812-5' }),
+      candidate('The Left Hand of Darkness', 'book', 'googleBooks', { isbn: '9780441478125' }),
+      candidate('Control', 'game', 'wikidata', { wikidataId: 'q54820300' }),
+      candidate('Control', 'game', 'rawg', { wikidataId: ' Q54820300 ' }),
+    ])
+
+    expect(deduped).toHaveLength(2)
+    expect(deduped).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ title: 'The Left Hand of Darkness' }),
+        expect.objectContaining({ title: 'Control' }),
+      ]),
+    )
+  })
+
   it('keeps the real catalog audit list findable through exact titles or curated aliases', () => {
     const fixtures = [
       ['akatsuki no yona', 'Yona of the Dawn', ['Akatsuki no Yona']],
@@ -287,7 +340,7 @@ describe('catalog search relevance', () => {
 function candidate(
   title: string,
   type: 'anime' | 'book' | 'game' | 'manga' | 'manhwa' | 'movie' | 'series',
-  source: 'anilist' | 'googleBooks' | 'jikan' | 'kitsu' | 'mangaDex' | 'nexo' | 'openLibrary' | 'rawg' | 'tmdb',
+  source: 'anilist' | 'googleBooks' | 'jikan' | 'kitsu' | 'mangaDex' | 'nexo' | 'openLibrary' | 'rawg' | 'tmdb' | 'wikidata',
   externalRefs = {},
 ) {
   return {
