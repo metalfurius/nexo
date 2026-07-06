@@ -48,8 +48,8 @@ function normalizeExternalCandidate(value: unknown): ExternalCandidate[] {
       sourceId,
       overview: optionalString(candidate.overview),
       posterUrl: optionalString(candidate.posterUrl),
-      releaseYear: typeof candidate.releaseYear === 'number' ? candidate.releaseYear : undefined,
-      progressTotal: typeof candidate.progressTotal === 'number' ? candidate.progressTotal : undefined,
+      releaseYear: finiteNumber(candidate.releaseYear),
+      progressTotal: positiveNumber(candidate.progressTotal),
       progressUnit: normalizeProgressUnit(candidate.progressUnit),
       genres: normalizeCatalogStringList(candidate.genres).slice(0, 8),
       searchAliases: Array.isArray(candidate.searchAliases)
@@ -108,6 +108,15 @@ function normalizeProgressUnit(unit: unknown): ProgressUnit | undefined {
     unit === 'items'
     ? unit
     : undefined
+}
+
+function finiteNumber(value: unknown) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+}
+
+function positiveNumber(value: unknown) {
+  const number = finiteNumber(value)
+  return number !== undefined && number > 0 ? number : undefined
 }
 
 function readRecord(value: unknown): Record<string, unknown> {
