@@ -928,7 +928,7 @@ function readNumber(value: unknown) {
 
 function cleanIsbn(value: string | undefined) {
   if (!value) return undefined
-  const cleaned = value.replace(/[="']/g, '').replace(/\s+/g, '').trim()
+  const cleaned = value.replace(/[="']/g, '').replace(/[^0-9xX]/g, '').toUpperCase()
   return cleaned || undefined
 }
 

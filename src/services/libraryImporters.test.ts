@@ -42,12 +42,13 @@ describe('library importers', () => {
     const csv = [
       'Book Id,Title,Author,ISBN13,My Rating,Exclusive Shelf,Bookshelves,Original Publication Year,My Review',
       '42,The Left Hand of Darkness,Ursula K. Le Guin,"=""9780441478125""",5,read,"sci-fi, favorites",1969,Gran lectura',
-      '99,A Psalm for the Wild-Built,Becky Chambers,9781250236210,4,to-read,hopepunk,2021,',
+      '99,A Psalm for the Wild-Built,Becky Chambers,978-1-250-23621-0,4,to-read,hopepunk,2021,',
+      '100,Watchmen,Alan Moore,0-930289-23-x,5,read,comics,1987,',
     ].join('\n')
 
     const result = parseGoodreadsCsv(csv)
 
-    expect(result.drafts).toHaveLength(2)
+    expect(result.drafts).toHaveLength(3)
     expect(result.drafts[0]).toEqual(
       expect.objectContaining({
         sourceId: 'goodreads',
@@ -63,7 +64,14 @@ describe('library importers', () => {
         }),
       }),
     )
-    expect(result.drafts[1]).toEqual(expect.objectContaining({ status: 'wishlist', rating: 8 }))
+    expect(result.drafts[1]).toEqual(
+      expect.objectContaining({
+        status: 'wishlist',
+        rating: 8,
+        externalRefs: expect.objectContaining({ isbn: '9781250236210' }),
+      }),
+    )
+    expect(result.drafts[2]).toEqual(expect.objectContaining({ externalRefs: expect.objectContaining({ isbn: '093028923X' }) }))
   })
 
   it('reads Letterboxd ZIP exports and merges repeated film rows', () => {
