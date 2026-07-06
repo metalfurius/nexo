@@ -3,7 +3,7 @@ import type { DiscoveryCandidate, ExternalCandidate, ExternalSource, ItemType, P
 import { externalCandidateToDiscovery, publicItemToDiscovery } from '../lib/catalog'
 import { dedupeCatalogSearchCandidates, rankCatalogSearchCandidates } from '../lib/catalogSearch'
 import { getFirebaseFunctionsClient } from './firebaseFunctions'
-import { normalizePublicCatalogItems } from './publicCatalog'
+import { normalizeCatalogStringList, normalizePublicCatalogItems } from './publicCatalog'
 
 export async function searchRemoteCatalog(query: string, type = 'any'): Promise<DiscoveryCandidate[] | undefined> {
   const functionsClient = getFirebaseFunctionsClient()
@@ -51,8 +51,10 @@ function normalizeExternalCandidate(value: unknown): ExternalCandidate[] {
       releaseYear: typeof candidate.releaseYear === 'number' ? candidate.releaseYear : undefined,
       progressTotal: typeof candidate.progressTotal === 'number' ? candidate.progressTotal : undefined,
       progressUnit: normalizeProgressUnit(candidate.progressUnit),
-      genres: Array.isArray(candidate.genres) ? candidate.genres.map(String).filter(Boolean).slice(0, 8) : [],
-      searchAliases: Array.isArray(candidate.searchAliases) ? candidate.searchAliases.map(String).filter(Boolean).slice(0, 24) : undefined,
+      genres: normalizeCatalogStringList(candidate.genres).slice(0, 8),
+      searchAliases: Array.isArray(candidate.searchAliases)
+        ? normalizeCatalogStringList(candidate.searchAliases).slice(0, 24)
+        : undefined,
       externalRefs: readExternalRefs(candidate.externalRefs),
       createdAt: optionalString(candidate.createdAt) ?? new Date().toISOString(),
     },
