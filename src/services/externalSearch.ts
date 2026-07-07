@@ -262,27 +262,29 @@ async function searchOpenLibrary(query: string): Promise<ExternalCandidate[]> {
   if (!response.ok) return []
   const payload = (await response.json()) as { docs?: Array<Record<string, unknown>> }
 
-  return (payload.docs ?? []).map((entry) => {
+  return (payload.docs ?? []).flatMap((entry) => {
+    const key = optionalString(entry.key)
+    if (!key) return []
     const authors = Array.isArray(entry.author_name) ? entry.author_name.map(String).slice(0, 2) : []
     const title = [String(entry.title ?? 'Sin titulo'), authors.join(', ')].filter(Boolean).join(' - ')
     const pageCount = positiveNumber(entry.number_of_pages_median)
-    return {
-      id: `open-library-${String(entry.key).replace(/\//g, '-')}`,
+    return [{
+      id: `open-library-${key.replace(/\//g, '-')}`,
       title,
       type: 'book',
       source: 'openLibrary',
-      sourceId: String(entry.key),
+      sourceId: key,
       posterUrl: entry.cover_i ? `https://covers.openlibrary.org/b/id/${entry.cover_i}-M.jpg` : undefined,
       releaseYear: finiteNumber(entry.first_publish_year),
       progressTotal: pageCount,
       progressUnit: pageCount === undefined ? undefined : 'pages',
       genres: Array.isArray(entry.subject) ? entry.subject.map(String).slice(0, 5) : [],
       externalRefs: {
-        openLibraryKey: String(entry.key),
-        sourceUrl: `https://openlibrary.org${entry.key}`,
+        openLibraryKey: key,
+        sourceUrl: `https://openlibrary.org${key}`,
       },
       createdAt: nowIso(),
-    } satisfies ExternalCandidate
+    } satisfies ExternalCandidate]
   })
 }
 

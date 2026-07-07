@@ -594,6 +594,54 @@ describe('external search', () => {
     expect(results[0]?.progressUnit).toBeUndefined()
   })
 
+  it('ignores Open Library docs without usable keys before ranking book candidates', async () => {
+    mockCatalogFetch(() => ({
+      docs: [
+        {
+          title: 'Missing Key',
+          author_name: ['Ghost Author'],
+        },
+        {
+          key: '   ',
+          title: 'Blank Key',
+          author_name: ['Blank Author'],
+        },
+        {
+          key: 42,
+          title: 'Numeric Key',
+          author_name: ['Numeric Author'],
+        },
+        {
+          key: '/works/OL123W',
+          title: 'Valid Key',
+          author_name: ['Present Author'],
+          first_publish_year: 2026,
+          cover_i: 8327756,
+          subject: ['Reference'],
+          number_of_pages_median: 321,
+        },
+      ],
+    }))
+
+    const results = await searchExternalSources('valid key', 'book')
+
+    expect(results).toHaveLength(1)
+    expect(results[0]).toEqual(
+      expect.objectContaining({
+        id: 'open-library--works-OL123W',
+        source: 'openLibrary',
+        sourceId: '/works/OL123W',
+        title: 'Valid Key - Present Author',
+      }),
+    )
+    expect(results[0]?.externalRefs).toEqual(
+      expect.objectContaining({
+        openLibraryKey: '/works/OL123W',
+        sourceUrl: 'https://openlibrary.org/works/OL123W',
+      }),
+    )
+  })
+
   it('falls back to free discovery sources when the proxy request fails', async () => {
     vi.stubEnv('VITE_CATALOG_PROXY_URL', 'https://catalog-proxy.example')
     mockCatalogFetch((url) => {
