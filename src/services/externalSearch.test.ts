@@ -536,6 +536,39 @@ describe('external search', () => {
     expect('relatedItems' in (results[0] ?? {})).toBe(false)
   })
 
+  it('drops malformed proxy genre and alias entries', async () => {
+    vi.stubEnv('VITE_CATALOG_PROXY_URL', 'https://catalog-proxy.example')
+    mockCatalogFetch((url) => {
+      if (url.hostname === 'catalog-proxy.example') {
+        return {
+          results: [
+            {
+              id: 'tmdb-movie-999',
+              title: 'Proxy Malformed Lists',
+              type: 'movie',
+              source: 'tmdb',
+              sourceId: '999',
+              genres: [' Ciencia ficcion ', ' ', { bad: true }, false, true, null, 1999, 0, Number.NaN, Infinity, -Infinity],
+              searchAliases: [' Proxy Lists ', '', { bad: true }, false, true, null, 2026, 0, Infinity],
+              externalRefs: { tmdbId: '999' },
+              createdAt: '2026-06-14T00:00:00.000Z',
+            },
+          ],
+        }
+      }
+      return jikanPayload([])
+    })
+
+    const results = await searchExternalSources('proxy malformed lists', 'movie')
+
+    expect(results[0]).toEqual(
+      expect.objectContaining({
+        genres: ['Ciencia ficcion', '1999', '0'],
+        searchAliases: ['Proxy Lists', '2026', '0'],
+      }),
+    )
+  })
+
   it('drops invalid proxy progress totals before ranking candidates', async () => {
     vi.stubEnv('VITE_CATALOG_PROXY_URL', 'https://catalog-proxy.example')
     mockCatalogFetch((url) => {

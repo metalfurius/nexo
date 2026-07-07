@@ -629,12 +629,27 @@ function normalizeProxyCandidate(value: unknown): ExternalCandidate[] {
       releaseYear: finiteNumber(candidate.releaseYear),
       progressTotal: positiveNumber(candidate.progressTotal),
       progressUnit: normalizeProgressUnit(candidate.progressUnit),
-      genres: Array.isArray(candidate.genres) ? candidate.genres.map(String).filter(Boolean).slice(0, 8) : [],
-      searchAliases: Array.isArray(candidate.searchAliases) ? candidate.searchAliases.map(String).filter(Boolean).slice(0, 24) : undefined,
+      genres: normalizeProxyStringList(candidate.genres, 8),
+      searchAliases: Array.isArray(candidate.searchAliases) ? normalizeProxyStringList(candidate.searchAliases, 24) : undefined,
       externalRefs: readProxyExternalRefs(candidate.externalRefs),
       createdAt: optionalString(candidate.createdAt) ?? nowIso(),
     },
   ]
+}
+
+function normalizeProxyStringList(value: unknown, maxLength: number) {
+  if (!Array.isArray(value)) return []
+
+  return value
+    .flatMap((entry) => {
+      if (typeof entry === 'string') {
+        const text = entry.trim()
+        return text ? [text] : []
+      }
+      if (typeof entry === 'number' && Number.isFinite(entry)) return [String(entry)]
+      return []
+    })
+    .slice(0, maxLength)
 }
 
 function readProxyExternalRefs(value: unknown) {
