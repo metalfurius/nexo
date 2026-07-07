@@ -235,6 +235,22 @@ describe('public catalog service', () => {
     expect(results[0].externalRefs).toEqual({ anilistId: '154587' })
   })
 
+  it('normalizes fallback canonical keys for remote catalog entries', () => {
+    const results = normalizePublicCatalogItems([
+      {
+        id: 'book-epic-scifi',
+        title: '  Ciencia-ficcion: Epica!  ',
+        type: 'book',
+      },
+    ])
+
+    expect(results[0]).toEqual(
+      expect.objectContaining({
+        canonicalKey: 'book:ciencia ficcion epica',
+      }),
+    )
+  })
+
   it('applies defaults and uses the same fallback timestamp for missing createdAt and updatedAt', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-07-05T12:34:56.000Z'))

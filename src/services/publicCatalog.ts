@@ -1,4 +1,5 @@
 import { ITEM_TYPES, PROGRESS_UNITS, type ItemType, type ProgressUnit, type PublicCatalogItem } from '../domain/types'
+import { createCanonicalKey } from '../lib/catalog'
 
 const defaultPublicCatalogLimit = 24
 const maxPublicCatalogLimit = 100
@@ -51,7 +52,7 @@ function normalizePublicCatalogItem(value: unknown): PublicCatalogItem[] {
       externalRefs: readExternalRefs(item.externalRefs),
       posterUrl: optionalString(item.posterUrl),
       searchTokens: normalizeCatalogStringList(item.searchTokens),
-      canonicalKey: optionalString(item.canonicalKey) ?? `${type}:${title.toLowerCase()}`,
+      canonicalKey: optionalString(item.canonicalKey) ?? createCanonicalKey(title, type),
       createdAt: optionalString(item.createdAt) ?? timestamp,
       updatedAt: optionalString(item.updatedAt) ?? timestamp,
       createdBy: optionalString(item.createdBy) ?? 'public-catalog',
