@@ -23,6 +23,10 @@ async function expectFocusWithin(scope: Locator) {
   expect(hasFocusWithin).toBe(true)
 }
 
+function getItemEditorDialog(page: Page, name: string | RegExp) {
+  return page.getByRole('dialog', { name })
+}
+
 async function expectDialogAnimationsSettled(dialog: Locator) {
   await expect(dialog).toBeVisible()
   await dialog.evaluate(async (element) => {
@@ -60,9 +64,9 @@ async function openManualEntryEditor(page: Page) {
   await expect(quickSearch).toBeVisible()
   await quickSearch.getByLabel('Buscar en Nexo').fill('anadir entrada')
   await quickSearch.getByRole('button', { name: 'Ejecutar Anadir entrada' }).click()
-  const editor = page.getByRole('dialog', { name: 'Entrada' })
+  const editor = getItemEditorDialog(page, 'Nueva entrada')
   await expectDialogAnimationsSettled(editor)
-  return editor
+  return getItemEditorDialog(page, /.+/)
 }
 
 async function fillLibraryTextSearch(page: Page, value: string) {
@@ -1501,7 +1505,7 @@ test('library saves Frieren from external search without candidate permission no
   await expect(page.getByTestId('library-grid')).toContainText('Frieren: Tras finalizar el viaje')
 
   await page.locator('.item-main').filter({ hasText: 'Frieren: Tras finalizar el viaje' }).click()
-  const editor = page.getByRole('dialog', { name: 'Entrada' })
+  const editor = getItemEditorDialog(page, 'Frieren: Tras finalizar el viaje')
   await expect(editor.getByLabel('Titulo')).toHaveCount(0)
   await expect(editor.getByLabel('Tipo')).toHaveCount(0)
   await expect(editor.getByLabel('Poster o portada')).toHaveCount(0)
@@ -1519,7 +1523,7 @@ test('library saves Frieren from external search without candidate permission no
 
   await expect(page.getByRole('status').filter({ hasText: 'Frieren: Tras finalizar el viaje guardada en Biblioteca' })).toBeVisible()
   await page.locator('.item-main').filter({ hasText: 'Frieren: Tras finalizar el viaje' }).click()
-  const savedEditor = page.getByRole('dialog', { name: 'Entrada' })
+  const savedEditor = getItemEditorDialog(page, 'Frieren: Tras finalizar el viaje')
   await expect(savedEditor.getByRole('button', { name: 'Cambiar estado a En progreso' })).toHaveAttribute('aria-pressed', 'true')
   await expect(savedEditor.getByRole('textbox', { name: 'Progreso' })).toHaveValue('Episodio 4')
   await expect(savedEditor.getByRole('group', { name: 'Rating' })).toContainText('8/10')
@@ -1542,7 +1546,7 @@ test('library saves Solo Leveling series with default episodes and no related re
   await expect(page.getByRole('status').filter({ hasText: 'Solo Leveling guardado en Biblioteca' })).toBeVisible()
   await page.locator('.item-main').filter({ hasText: 'Solo Leveling' }).click()
 
-  const editor = page.getByRole('dialog', { name: 'Entrada' })
+  const editor = getItemEditorDialog(page, 'Solo Leveling')
   await expect(editor.getByRole('group', { name: 'Progreso' })).toContainText('0/25 episodios')
   await expect(editor.getByLabel('Obras relacionadas')).toHaveCount(0)
   await expect(editor.locator('.related-items-panel')).toHaveCount(0)
@@ -1771,7 +1775,7 @@ test('library and weighted dice work in demo mode', async ({ page }) => {
   await expect(page.getByTestId('session-activity')).toContainText('Manual de prueba')
   await expect(page.getByTestId('library-grid')).toContainText('Manual de prueba')
   await page.locator('.item-main').filter({ hasText: 'Outer Wilds' }).click()
-  const outerWildsEditor = page.getByRole('dialog', { name: 'Entrada' })
+  const outerWildsEditor = getItemEditorDialog(page, 'Outer Wilds')
   await expect(outerWildsEditor).toBeVisible()
   await expectDialogAnimationsSettled(outerWildsEditor)
   await expect(outerWildsEditor.locator('#item-editor-title')).toHaveText('Outer Wilds')
@@ -1862,10 +1866,10 @@ test('library and weighted dice work in demo mode', async ({ page }) => {
   await expect(page.getByLabel('Sorpresa')).toHaveCount(0)
   await outerWildsEditor.getByRole('spinbutton', { name: 'Horas jugadas' }).fill('3.5')
   await page.mouse.click(8, 8)
-  await expect(page.getByRole('dialog', { name: 'Entrada' })).not.toBeVisible()
+  await expect(getItemEditorDialog(page, 'Outer Wilds')).not.toBeVisible()
   await expect(page.getByRole('status').filter({ hasText: 'Outer Wilds guardada en Biblioteca' })).toBeVisible()
   await page.locator('.item-main').filter({ hasText: 'Outer Wilds' }).click()
-  const savedOuterWildsEditor = page.getByRole('dialog', { name: 'Entrada' })
+  const savedOuterWildsEditor = getItemEditorDialog(page, 'Outer Wilds')
   await expect(savedOuterWildsEditor.getByRole('spinbutton', { name: 'Horas jugadas' })).toHaveValue('3.5')
   await expect(savedOuterWildsEditor.getByRole('button', { name: 'Eliminar entrada' })).toBeVisible()
   await savedOuterWildsEditor.getByRole('button', { name: 'Eliminar entrada' }).click()
@@ -1971,7 +1975,8 @@ test('library and weighted dice work in demo mode', async ({ page }) => {
   await page.getByRole('button', { name: 'Deshacer gustos' }).click()
   await expect(page.getByText('Gustos del dado recuperados')).toBeVisible()
   await page.getByRole('button', { name: 'Afinar ficha recomendada' }).click()
-  const diceEditor = page.getByRole('dialog', { name: 'Entrada' })
+  const diceEditor = getItemEditorDialog(page, /.+/)
+  const diceEditorTitle = (await diceEditor.locator('#item-editor-title').textContent()) ?? ''
   await expect(diceEditor.getByTestId('personal-readiness')).toContainText('Preparacion')
   await openEditorAdvanced(diceEditor)
   await diceEditor.getByLabel('Notas').fill('Afinada desde el dado.')
@@ -1979,7 +1984,7 @@ test('library and weighted dice work in demo mode', async ({ page }) => {
   await expect(page.getByText(/afinada desde el dado\./)).toBeVisible()
   await expect(page.getByTestId('recent-rolls')).toContainText('Ahora mismo')
   await page.getByTestId('recent-rolls').getByRole('button', { name: /Afinar tirada reciente/ }).click()
-  const recentEditor = page.getByRole('dialog', { name: 'Entrada' })
+  const recentEditor = getItemEditorDialog(page, diceEditorTitle)
   await openEditorAdvanced(recentEditor)
   await expect(recentEditor.getByLabel('Notas')).toHaveValue('Afinada desde el dado.')
   if (await recentEditor.getByRole('textbox', { name: 'Progreso' }).count()) {
@@ -2075,7 +2080,7 @@ test('library review session keeps guided queues actionable', async ({ page }) =
   await expect(page.getByTestId('library-review-session')).toContainText('Dar contexto')
   await expect(page.getByTestId('library-review-session')).toContainText('Siguiente:')
   await expect(page.getByLabel('Proximas entradas del repaso')).toContainText('Inception')
-  await expect(page.getByRole('dialog', { name: 'Entrada' })).toBeVisible()
+  await expect(getItemEditorDialog(page, 'Inception')).toBeVisible()
   await page.getByRole('button', { name: 'Cerrar', exact: true }).click()
 
   await openLibraryAdvanced(page)
@@ -2106,7 +2111,7 @@ test('library review session celebrates completed queues', async ({ page }) => {
 
   await openLibraryAdvanced(page)
   await page.getByTestId('library-review-queue').getByRole('button', { name: 'Completar ficha' }).click()
-  const reviewEditor = page.getByRole('dialog', { name: 'Entrada' })
+  const reviewEditor = getItemEditorDialog(page, 'Repaso Final')
   await expect(reviewEditor.locator('#item-editor-title')).toHaveText('Repaso Final')
   await openEditorAdvanced(reviewEditor)
   await reviewEditor.getByLabel('Notas').fill('Contexto suficiente para cerrar este repaso.')
@@ -2136,7 +2141,7 @@ test('library empty search can create a prefilled item', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Sin resultados' })).toBeVisible()
   await page.getByRole('button', { name: 'Crear entrada Manual sombra' }).click()
 
-  const searchDraftEditor = page.getByRole('dialog', { name: 'Entrada' })
+  const searchDraftEditor = getItemEditorDialog(page, 'Manual sombra')
   await expect(searchDraftEditor.getByLabel('Titulo')).toHaveValue('Manual sombra')
   await openEditorAdvanced(searchDraftEditor)
   await searchDraftEditor.getByLabel('Notas').fill('Creada desde una busqueda vacia.')
@@ -2635,7 +2640,7 @@ test('quick search opens library items through the pending-change guard', async 
   await expect(page).toHaveURL(/tab=dice/)
   await page.getByLabel('Salida con cambios pendientes').getByRole('button', { name: 'Descartar cambios' }).click()
   await expect(page).toHaveURL(/item=game-outer-wilds/)
-  await expect(page.getByRole('dialog', { name: 'Entrada' }).locator('#item-editor-title')).toHaveText('Outer Wilds')
+  await expect(getItemEditorDialog(page, 'Outer Wilds').locator('#item-editor-title')).toHaveText('Outer Wilds')
 })
 
 test('quick search opens the active result from the keyboard', async ({ page }) => {
@@ -2653,7 +2658,7 @@ test('quick search opens the active result from the keyboard', async ({ page }) 
   await expect(quickSearch.getByRole('button', { name: 'Abrir Outer Wilds' })).toHaveAttribute('aria-current', 'true')
   await searchInput.press('Enter')
   await expect(page).toHaveURL(/item=game-outer-wilds/)
-  await expect(page.getByRole('dialog', { name: 'Entrada' }).locator('#item-editor-title')).toHaveText('Outer Wilds')
+  await expect(getItemEditorDialog(page, 'Outer Wilds').locator('#item-editor-title')).toHaveText('Outer Wilds')
 })
 
 test('quick search keyboard shortcuts avoid normal text entry', async ({ page }) => {
@@ -2693,7 +2698,7 @@ test('dialogs support escape without losing unsaved edits', async ({ page }) => 
   await expect(privateEditor).toBeVisible()
   await expect(privateEditor.getByLabel('Titulo')).toBeFocused()
   await page.keyboard.press('Escape')
-  await expect(page.getByRole('dialog', { name: 'Entrada' })).not.toBeVisible()
+  await expect(getItemEditorDialog(page, 'Nueva entrada')).not.toBeVisible()
 
   privateEditor = await openManualEntryEditor(page)
   await expect(privateEditor.getByLabel('Titulo')).toBeFocused()
@@ -2702,7 +2707,7 @@ test('dialogs support escape without losing unsaved edits', async ({ page }) => 
   await page.keyboard.press('Tab')
   await expectFocusWithin(privateEditor)
   await page.keyboard.press('Escape')
-  await expect(page.getByRole('dialog', { name: 'Entrada' })).not.toBeVisible()
+  await expect(getItemEditorDialog(page, 'Borrador con Escape')).not.toBeVisible()
   await expect(page.getByText('Borrador con Escape guardada en Biblioteca')).toBeVisible()
   await expect(page.getByTestId('library-grid')).toContainText('Borrador con Escape')
 
@@ -2738,7 +2743,7 @@ test('quick search runs command actions', async ({ page }) => {
   let quickSearch = page.getByRole('dialog', { name: 'Abrir en Nexo' })
   await expect(quickSearch.getByRole('button', { name: 'Ejecutar Anadir entrada' })).toBeVisible()
   await quickSearch.getByRole('button', { name: 'Ejecutar Anadir entrada' }).click()
-  const draftEditor = page.getByRole('dialog', { name: 'Entrada' })
+  const draftEditor = getItemEditorDialog(page, 'Nueva entrada')
   await expect(draftEditor.getByLabel('Titulo')).toHaveValue('')
   await draftEditor.getByRole('button', { name: 'Cerrar', exact: true }).click()
 
@@ -3152,7 +3157,7 @@ test('quick search starts guided library review through the pending-change guard
 
   await expect(page.getByTestId('library-review-session')).toContainText('Repaso activo')
   await expect(page.getByTestId('library-review-session')).toContainText('Dar contexto')
-  await expect(page.getByRole('dialog', { name: 'Entrada' }).locator('#item-editor-title')).toHaveText('Inception')
+  await expect(getItemEditorDialog(page, 'Inception').locator('#item-editor-title')).toHaveText('Inception')
 })
 
 test('quick search can start a specific guided review queue', async ({ page }) => {
@@ -3497,7 +3502,7 @@ test('quick search can create a prefilled item through the pending-change guard'
   await expect(page).toHaveURL(/tab=dice/)
   await page.getByLabel('Salida con cambios pendientes').getByRole('button', { name: 'Descartar cambios' }).click()
 
-  const createdEditor = page.getByRole('dialog', { name: 'Entrada' })
+  const createdEditor = getItemEditorDialog(page, 'Manual global')
   await expect(createdEditor.getByLabel('Titulo')).toHaveValue('Manual global')
   await openEditorAdvanced(createdEditor)
   await createdEditor.getByLabel('Notas').fill('Creada desde busqueda rapida global.')
@@ -3525,7 +3530,7 @@ test('activity entries navigate through the pending-change guard', async ({ page
   await page.getByLabel('Salida con cambios pendientes').getByRole('button', { name: 'Descartar cambios' }).click()
   await expectLibrarySurface(page)
   await expect(page).toHaveURL(/item=movie-actividad-navegable/)
-  const focusedEditor = page.getByRole('dialog', { name: 'Entrada' })
+  const focusedEditor = getItemEditorDialog(page, 'Actividad navegable')
   await expect(focusedEditor.locator('#item-editor-title')).toHaveText('Actividad navegable')
 })
 
@@ -3552,7 +3557,7 @@ test('quick search resumes recent activity through the pending-change guard', as
   await expect(page.getByLabel('Salida con cambios pendientes')).toContainText('Cambios pendientes en Dado')
   await page.getByLabel('Salida con cambios pendientes').getByRole('button', { name: 'Descartar cambios' }).click()
   await expect(page).toHaveURL(/item=movie-actividad-paleta/)
-  await expect(page.getByRole('dialog', { name: 'Entrada' }).locator('#item-editor-title')).toHaveText('Actividad paleta')
+  await expect(getItemEditorDialog(page, 'Actividad paleta').locator('#item-editor-title')).toHaveText('Actividad paleta')
 })
 
 test('quick search can clear and restore recent activity', async ({ page }) => {
@@ -3667,23 +3672,23 @@ test('quick search can repair private taxonomy through the pending-change guard'
 
 test('library item deep links open and close the focused editor', async ({ page }) => {
   await page.goto('/?item=game-outer-wilds')
-  const editor = page.getByRole('dialog', { name: 'Entrada' })
+  const editor = getItemEditorDialog(page, 'Outer Wilds')
   await expect(editor.locator('#item-editor-title')).toHaveText('Outer Wilds')
   await expect(page).toHaveURL(/item=game-outer-wilds/)
   await editor.getByRole('button', { name: 'Copiar enlace a Outer Wilds' }).click()
   await expect(editor.getByLabel('Enlace de ficha')).toHaveValue(/item=game-outer-wilds/)
 
   await editor.getByRole('button', { name: 'Cerrar', exact: true }).click()
-  await expect(page.getByRole('dialog', { name: 'Entrada' })).not.toBeVisible()
+  await expect(getItemEditorDialog(page, 'Outer Wilds')).not.toBeVisible()
   await expect(page).not.toHaveURL(/item=game-outer-wilds/)
 
   await page.goBack()
-  await expect(page.getByRole('dialog', { name: 'Entrada' }).locator('#item-editor-title')).toHaveText('Outer Wilds')
+  await expect(getItemEditorDialog(page, 'Outer Wilds').locator('#item-editor-title')).toHaveText('Outer Wilds')
 })
 
 test('library editor uses type-specific progress controls for games and movies', async ({ page }) => {
   await page.goto('/?item=game-outer-wilds')
-  const gameEditor = page.getByRole('dialog', { name: 'Entrada' })
+  const gameEditor = getItemEditorDialog(page, 'Outer Wilds')
   await expect(gameEditor.locator('#item-editor-title')).toHaveText('Outer Wilds')
   await expect(gameEditor.getByRole('group', { name: 'Horas jugadas' })).toBeVisible()
   await expect(gameEditor.getByRole('group', { name: 'Progreso' })).toHaveCount(0)
@@ -3691,12 +3696,12 @@ test('library editor uses type-specific progress controls for games and movies',
   await gameEditor.getByRole('button', { name: 'Cerrar', exact: true }).click()
 
   await page.locator('.item-main').filter({ hasText: 'Outer Wilds' }).click()
-  const savedGameEditor = page.getByRole('dialog', { name: 'Entrada' })
+  const savedGameEditor = getItemEditorDialog(page, 'Outer Wilds')
   await expect(savedGameEditor.getByRole('spinbutton', { name: 'Horas jugadas' })).toHaveValue('4.5')
   await savedGameEditor.getByRole('button', { name: 'Cerrar', exact: true }).click()
 
   await page.goto('/?item=movie-inception')
-  const movieEditor = page.getByRole('dialog', { name: 'Entrada' })
+  const movieEditor = getItemEditorDialog(page, 'Inception')
   await expect(movieEditor.locator('#item-editor-title')).toHaveText('Inception')
   await expect(movieEditor.locator('.editor-progress-heading')).toContainText('Estado')
   await expect(movieEditor.getByRole('group', { name: 'Progreso' })).toHaveCount(0)
@@ -3719,7 +3724,7 @@ test('dice item activity opens the linked library editor', async ({ page }) => {
   await expect(page.getByTestId('recommendation-result')).toBeVisible()
   await page.getByRole('button', { name: 'Afinar ficha recomendada' }).click()
 
-  const diceEditor = page.getByRole('dialog', { name: 'Entrada' })
+  const diceEditor = getItemEditorDialog(page, /.+/)
   const recommendedTitle = (await diceEditor.locator('#item-editor-title').textContent()) ?? ''
   if (await diceEditor.getByRole('textbox', { name: 'Progreso' }).count()) {
     await diceEditor.getByRole('textbox', { name: 'Progreso' }).fill('Vuelta desde actividad del dado.')
@@ -3737,7 +3742,7 @@ test('dice item activity opens the linked library editor', async ({ page }) => {
     .getByRole('button', { name: 'Abrir Ficha afinada en Biblioteca' })
     .click()
   await expect(page).toHaveURL(/item=/)
-  await expect(page.getByRole('dialog', { name: 'Entrada' }).locator('#item-editor-title')).toHaveText(recommendedTitle)
+  await expect(getItemEditorDialog(page, recommendedTitle).locator('#item-editor-title')).toHaveText(recommendedTitle)
 })
 
 test('pwa metadata is present', async ({ page }) => {
@@ -4356,7 +4361,7 @@ test('explorer searches public catalog and saves to private library', async ({ p
   await openExplorerTools(page)
   await expect(page.getByRole('button', { name: 'Afinar ficha guardada Odisea' })).toBeVisible()
   await page.getByRole('button', { name: 'Afinar ficha guardada Odisea' }).click()
-  const savedEditor = page.getByRole('dialog', { name: 'Entrada' })
+  const savedEditor = getItemEditorDialog(page, 'Odisea')
   await expect(savedEditor.getByLabel('Titulo')).toHaveCount(0)
   await openEditorAdvanced(savedEditor)
   await savedEditor.getByLabel('Notas').fill('Afinada desde Explorador.')
@@ -4376,7 +4381,7 @@ test('explorer searches public catalog and saves to private library', async ({ p
   await page.getByRole('button', { name: 'Biblioteca', exact: true }).click()
   await expect(page.getByTestId('library-grid')).toContainText('Odisea')
   await page.locator('.item-main').filter({ hasText: 'Odisea' }).click()
-  const editor = page.getByRole('dialog', { name: 'Entrada' })
+  const editor = getItemEditorDialog(page, 'Odisea')
   await expect(editor).toContainText('Origen')
   await expect(editor).toContainText('API externa')
   await expect(editor).toContainText('Esta ficha vive solo en tu biblioteca privada.')
@@ -4467,7 +4472,7 @@ test('library editor explains private copies from the Nexo catalog', async ({ pa
   await expect(page.getByTestId('library-grid')).toContainText('Odisea')
   await page.locator('.item-main').filter({ hasText: 'Odisea' }).click()
 
-  const editor = page.getByRole('dialog', { name: 'Entrada' })
+  const editor = getItemEditorDialog(page, 'Odisea')
   await expect(editor).toContainText('Catalogo Nexo')
   await expect(editor).toContainText('Tus notas, rating, estado, progreso y pesos del dado no cambian el catalogo publico.')
   await expect(editor).toContainText('Referencias')
@@ -4582,7 +4587,7 @@ test('moderator curation can create a public catalog item in demo mode', async (
 
   await openCurationTools(page)
   await page.getByRole('button', { name: 'Crear Libros' }).click()
-  const editor = page.locator('.item-editor')
+  const editor = page.getByRole('dialog', { name: 'Catalogo Nexo' })
   await expect(editor.getByLabel('Tipo')).toHaveValue('book')
   await expect(editor.getByRole('group', { name: 'Medio publico de la entrada' })).toContainText('Libros')
   await expect(editor.getByLabel('Recetas rapidas para Libros')).toContainText('Ideas grandes')
@@ -4769,7 +4774,7 @@ test('entry dialog locks background scroll while open', async ({ page }, testInf
     window.history.pushState({}, '', '/?item=movie-inception')
     window.dispatchEvent(new PopStateEvent('popstate'))
   })
-  const dialog = page.getByRole('dialog', { name: 'Entrada' })
+  const dialog = getItemEditorDialog(page, 'Inception')
   await expect(dialog).toBeVisible()
   await expect
     .poll(() =>
@@ -4967,7 +4972,7 @@ test('library cards fit the mobile PWA viewport', async ({ page }, testInfo) => 
   expect(metrics.cards[0]?.top).toBeLessThanOrEqual(metrics.viewportHeight)
 
   await page.locator('.item-main').filter({ hasText: 'Outer Wilds' }).click()
-  const entryDialog = page.getByRole('dialog', { name: 'Entrada' })
+  const entryDialog = getItemEditorDialog(page, 'Outer Wilds')
   await expectDialogAnimationsSettled(entryDialog)
   const dialogMetrics = await entryDialog.evaluate((dialog) => {
     const backdrop = dialog.closest('.modal-backdrop') as HTMLElement | null
