@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'nexo-v1.0.34'
+const CACHE_VERSION = 'nexo-v1.0.35'
 const APP_SHELL = [
   '/',
   '/manifest.webmanifest',
