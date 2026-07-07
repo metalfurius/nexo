@@ -255,6 +255,24 @@ describe('CatalogTab', () => {
     expect(screen.queryByRole('heading', { name: 'Arrival' })).not.toBeInTheDocument()
   })
 
+  it('uses search-specific empty copy when the catalog has no matches', async () => {
+    const publicItems = [
+      createPublicCatalogItem(1, { id: 'movie-arrival', title: 'Arrival', type: 'movie' }),
+    ]
+    const { library } = createLibrarySurface({ publicItems })
+
+    renderCatalog(library)
+
+    await screen.findByRole('heading', { name: 'Arrival' })
+    await userEvent.type(screen.getByLabelText('Buscar en el catalogo publico'), 'Solaris')
+    await userEvent.click(screen.getByRole('button', { name: 'Buscar' }))
+
+    await waitFor(() => expect(library.searchPublicCatalog).toHaveBeenCalledWith('Solaris', 'any'))
+    expect(screen.getByRole('heading', { name: 'Sin resultados' })).toBeVisible()
+    expect(screen.queryByRole('heading', { name: 'Catalogo en blanco' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Reintentar busqueda' })).toBeVisible()
+  })
+
   it('hydrates public search from the URL instead of loading the default catalog', async () => {
     window.history.replaceState(null, '', '/?catalogQ=Dune')
     const initialCatalog = [

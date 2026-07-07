@@ -54,6 +54,17 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
   const hasMoreCandidates = visibleCandidates.length < candidates.length
   const showCatalogRail = !isSignedIn || adsEnabled
   const hasActiveCatalogRoute = hasCatalogRouteState({ query, type })
+  const emptyCatalogCopy = hasActiveCatalogRoute
+    ? {
+        actionLabel: 'Reintentar busqueda',
+        detail: 'No encontramos obras para esa busqueda o filtro. Prueba otro termino o limpia la busqueda.',
+        title: 'Sin resultados',
+      }
+    : {
+        actionLabel: 'Recargar catalogo',
+        detail: 'Prueba una busqueda o vuelve a cargar las fichas publicas disponibles.',
+        title: 'Catalogo en blanco',
+      }
   const isCandidateSaved = (candidate: DiscoveryCandidate) =>
     isSignedIn && Boolean(getSavedLibraryItemForCandidate(candidate, library.items))
 
@@ -305,11 +316,11 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
             action={
               <button className="secondary-button" type="button" onClick={submitCatalogSearch}>
                 <Sparkles size={16} />
-                Recargar catalogo
+                {emptyCatalogCopy.actionLabel}
               </button>
             }
-            detail="Prueba una busqueda o vuelve a cargar las fichas publicas disponibles."
-            title="Catalogo en blanco"
+            detail={emptyCatalogCopy.detail}
+            title={emptyCatalogCopy.title}
           />
         )}
       </div>
