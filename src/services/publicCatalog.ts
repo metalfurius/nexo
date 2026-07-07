@@ -94,9 +94,11 @@ function normalizePublicCatalogLimit(value: number) {
 function readExternalRefs(value: unknown) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
   return Object.fromEntries(
-    Object.entries(value as Record<string, unknown>)
-      .map(([key, entry]) => [key, String(entry ?? '').trim()])
-      .filter(([, entry]) => entry),
+    Object.entries(value as Record<string, unknown>).flatMap(([key, entry]) => {
+      if (typeof entry !== 'string') return []
+      const text = entry.trim()
+      return text ? [[key, text]] : []
+    }),
   )
 }
 

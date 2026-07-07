@@ -216,6 +216,25 @@ describe('public catalog service', () => {
     )
   })
 
+  it('drops malformed public catalog external refs', () => {
+    const results = normalizePublicCatalogItems([
+      {
+        id: 'anime-frieren',
+        title: 'Frieren',
+        type: 'anime',
+        externalRefs: {
+          anilistId: ' 154587 ',
+          empty: '   ',
+          numeric: 2023,
+          enabled: true,
+          nested: { value: 'bad' },
+        },
+      },
+    ])
+
+    expect(results[0].externalRefs).toEqual({ anilistId: '154587' })
+  })
+
   it('applies defaults and uses the same fallback timestamp for missing createdAt and updatedAt', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-07-05T12:34:56.000Z'))
