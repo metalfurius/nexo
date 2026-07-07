@@ -1,7 +1,7 @@
 import { type DiscoveryCandidate, type ExplorerSearchType } from '../domain/types'
 import { discoverySourceLabels as sourceLabels } from '../lib/explorerInsights'
 import { getDiscoveryCandidateEffortSignal, itemTypeLabels as typeLabels } from '../lib/libraryItemInsights'
-import { Check, CheckCircle2, Eye, Library, LogIn, Plus, Search, Sparkles, X } from 'lucide-react'
+import { Check, CheckCircle2, Eye, Library, LoaderCircle, LogIn, Plus, Search, Sparkles, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   CoverArt,
@@ -39,7 +39,7 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
   const [visibleLimit, setVisibleLimit] = useState(catalogPublicPageSize)
   const [catalogResultLabel, setCatalogResultLabel] = useState('obras del catalogo')
   const [selectedCandidate, setSelectedCandidate] = useState<DiscoveryCandidate | undefined>()
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [status, setStatus] = useState<string | undefined>()
   const libraryRef = useRef(library)
   const catalogRequestId = useRef(0)
@@ -65,6 +65,16 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
         detail: 'Prueba una busqueda o vuelve a cargar las fichas publicas disponibles.',
         title: 'Catalogo en blanco',
       }
+  const loadingCatalogCopy = hasActiveCatalogRoute
+    ? {
+        detail: 'Comprobando coincidencias para la busqueda actual.',
+        title: 'Buscando en el catalogo',
+      }
+    : {
+        detail: 'Preparando fichas publicas disponibles.',
+        title: 'Cargando catalogo',
+      }
+  const catalogEmptyCopy = loading ? loadingCatalogCopy : emptyCatalogCopy
   const isCandidateSaved = (candidate: DiscoveryCandidate) =>
     isSignedIn && Boolean(getSavedLibraryItemForCandidate(candidate, library.items))
 
@@ -313,14 +323,16 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
           </>
         ) : (
           <EmptyState
-            action={
+            action={!loading && (
               <button className="secondary-button" type="button" onClick={submitCatalogSearch}>
                 <Sparkles size={16} />
                 {emptyCatalogCopy.actionLabel}
               </button>
-            }
-            detail={emptyCatalogCopy.detail}
-            title={emptyCatalogCopy.title}
+            )}
+            detail={catalogEmptyCopy.detail}
+            icon={loading ? LoaderCircle : Sparkles}
+            title={catalogEmptyCopy.title}
+            tone={loading ? 'loading' : 'neutral'}
           />
         )}
       </div>

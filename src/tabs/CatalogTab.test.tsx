@@ -273,6 +273,43 @@ describe('CatalogTab', () => {
     expect(screen.getByRole('button', { name: 'Reintentar busqueda' })).toBeVisible()
   })
 
+  it('shows a loading state before declaring the public catalog empty', async () => {
+    const initialLoad = createDeferred<PublicCatalogItem[]>()
+    const { library } = createLibrarySurface({ publicItems: [] })
+    library.listPublicCatalog = vi.fn(() => initialLoad.promise)
+
+    renderCatalog(library)
+
+    expect(screen.getByRole('heading', { name: 'Cargando catalogo' })).toBeVisible()
+    expect(screen.queryByRole('heading', { name: 'Catalogo en blanco' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Recargar catalogo' })).not.toBeInTheDocument()
+
+    initialLoad.resolve([])
+
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Catalogo en blanco' })).toBeVisible())
+    expect(screen.queryByRole('heading', { name: 'Cargando catalogo' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Recargar catalogo' })).toBeVisible()
+  })
+
+  it('shows a routed search loading state before declaring no catalog results', async () => {
+    window.history.replaceState(null, '', '/?catalogQ=Solaris')
+    const searchLoad = createDeferred<PublicCatalogItem[]>()
+    const { library } = createLibrarySurface({ publicItems: [] })
+    library.searchPublicCatalog = vi.fn(() => searchLoad.promise)
+
+    renderCatalog(library)
+
+    expect(screen.getByRole('heading', { name: 'Buscando en el catalogo' })).toBeVisible()
+    expect(screen.queryByRole('heading', { name: 'Sin resultados' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Reintentar busqueda' })).not.toBeInTheDocument()
+
+    searchLoad.resolve([])
+
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Sin resultados' })).toBeVisible())
+    expect(screen.queryByRole('heading', { name: 'Buscando en el catalogo' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Reintentar busqueda' })).toBeVisible()
+  })
+
   it('hydrates public search from the URL instead of loading the default catalog', async () => {
     window.history.replaceState(null, '', '/?catalogQ=Dune')
     const initialCatalog = [
