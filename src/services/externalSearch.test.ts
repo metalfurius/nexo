@@ -481,7 +481,9 @@ describe('external search', () => {
               progressUnit: 'hours',
               genres: ['Ciencia ficcion'],
               externalRefs: {
-                tmdbId: '603',
+                tmdbId: ' 603 ',
+                empty: '   ',
+                malformed: 603,
                 wikidataId: 'Q83495',
                 sourceUrl: 'https://www.themoviedb.org/movie/603',
               },
@@ -524,6 +526,11 @@ describe('external search', () => {
         source: 'tmdb',
         progressTotal: 2.3,
         progressUnit: 'hours',
+        externalRefs: {
+          sourceUrl: 'https://www.themoviedb.org/movie/603',
+          tmdbId: '603',
+          wikidataId: 'Q83495',
+        },
       }),
     )
     expect('relatedItems' in (results[0] ?? {})).toBe(false)
