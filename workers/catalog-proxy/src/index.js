@@ -354,12 +354,13 @@ async function searchOpenLibrary(query) {
   if (!response.ok) return []
 
   const payload = await response.json()
-  return (payload.docs ?? []).slice(0, 8).map((entry) => {
+  return (payload.docs ?? []).flatMap((entry) => {
+    const key = optionalString(entry.key)
+    if (!key) return []
     const authors = Array.isArray(entry.author_name) ? entry.author_name.map(String).slice(0, 2) : []
     const title = [String(entry.title || 'Sin titulo'), authors.join(', ')].filter(Boolean).join(' - ')
-    const key = String(entry.key || '')
     const releaseYear = typeof entry.first_publish_year === 'number' ? entry.first_publish_year : undefined
-    return {
+    return [{
       id: `open-library-${key.replace(/\//g, '-')}`,
       title,
       type: 'book',
@@ -375,8 +376,8 @@ async function searchOpenLibrary(query) {
         sourceUrl: `https://openlibrary.org${key}`,
       },
       createdAt: new Date().toISOString(),
-    }
-  })
+    }]
+  }).slice(0, 8)
 }
 
 async function searchGoogleBooks(query, env) {

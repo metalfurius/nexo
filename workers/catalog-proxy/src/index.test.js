@@ -280,4 +280,77 @@ describe('catalog proxy worker', () => {
     expect(payload.result).toEqual(expect.objectContaining({ source: 'anilist' }))
     expect(fetchedUrls().some((url) => url.hostname === 'api.mangadex.org')).toBe(false)
   })
+
+  it('ignores Open Library docs without usable keys before returning book candidates', async () => {
+    vi.stubGlobal('caches', {
+      default: {
+        match: vi.fn(async () => undefined),
+        put: vi.fn(async () => undefined),
+      },
+    })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input) => {
+        const url = new URL(input instanceof Request ? input.url : String(input))
+
+        if (url.hostname === 'openlibrary.org') {
+          return jsonResponse({
+            docs: [
+              {
+                title: 'Missing Key',
+                author_name: ['Ghost Author'],
+              },
+              {
+                key: '   ',
+                title: 'Blank Key',
+                author_name: ['Blank Author'],
+              },
+              {
+                key: 42,
+                title: 'Numeric Key',
+                author_name: ['Numeric Author'],
+              },
+              {
+                key: '/works/OL123W',
+                title: 'Valid Key',
+                author_name: ['Present Author'],
+                first_publish_year: 2026,
+                cover_i: 8327756,
+                subject: ['Reference'],
+                number_of_pages_median: 321,
+              },
+            ],
+          })
+        }
+
+        throw new Error(`Unexpected fetch: ${url.href}`)
+      }),
+    )
+
+    const response = await worker.fetch(
+      new Request('https://proxy.example/search?q=valid%20key&type=book', {
+        headers: { origin: 'http://localhost:5173' },
+      }),
+      {
+        ALLOWED_ORIGINS: 'http://localhost:5173',
+      },
+    )
+    const payload = await response.json()
+
+    expect(payload.results).toHaveLength(1)
+    expect(payload.results[0]).toEqual(
+      expect.objectContaining({
+        id: 'open-library--works-OL123W',
+        source: 'openLibrary',
+        sourceId: '/works/OL123W',
+        title: 'Valid Key - Present Author',
+      }),
+    )
+    expect(payload.results[0].externalRefs).toEqual(
+      expect.objectContaining({
+        openLibraryKey: '/works/OL123W',
+        sourceUrl: 'https://openlibrary.org/works/OL123W',
+      }),
+    )
+  })
 })
