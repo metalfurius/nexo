@@ -160,7 +160,7 @@ describe('CatalogTab', () => {
     expect(within(screen.getByTestId('catalog-public-masthead')).getByText('1 guardada')).toBeVisible()
     const savedButton = card.getByRole('button', { name: 'Guardado' })
     expect(savedButton).toBeDisabled()
-    expect(card.getByRole('button', { name: `Explorar ${publicItem.title}` })).toBeEnabled()
+    expect(card.getByRole('button', { name: `Mandar al Explorador ${publicItem.title}` })).toBeEnabled()
     expect(card.getByRole('button', { name: `Ver ficha de ${publicItem.title}` })).toBeEnabled()
     expect(screen.queryByText('Biblioteca conectada')).not.toBeInTheDocument()
 
