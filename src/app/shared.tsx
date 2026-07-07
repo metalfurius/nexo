@@ -6338,8 +6338,7 @@ export function ItemEditor({
         className="item-editor"
         role="dialog"
         aria-modal="true"
-        aria-label="Entrada"
-        aria-describedby="item-editor-title"
+        aria-labelledby="item-editor-title"
         tabIndex={-1}
         onKeyDown={(event) => handleDialogKeyDown(event, requestClose)}
         onSubmit={(event) => {
