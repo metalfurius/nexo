@@ -32,4 +32,22 @@ describe('external refs', () => {
     expect(getExternalRefEntries()).toEqual([])
     expect(compactExternalRefValue('short-value')).toBe('short-value')
   })
+
+  it('labels unknown runtime refs and ignores malformed values', () => {
+    expect(
+      getExternalRefEntries({
+        igdbId: ' 42 ',
+        malformed: { bad: true },
+        source_url: ' https://example.com/source ',
+      } as unknown as Parameters<typeof getExternalRefEntries>[0]),
+    ).toEqual([
+      { label: 'Igdb ID', value: '42' },
+      { label: 'Source URL', value: 'https://example.com/source' },
+    ])
+  })
+
+  it('ignores malformed top-level runtime refs', () => {
+    expect(getExternalRefEntries(['bad'] as unknown as Parameters<typeof getExternalRefEntries>[0])).toEqual([])
+    expect(getExternalRefEntries('bad' as unknown as Parameters<typeof getExternalRefEntries>[0])).toEqual([])
+  })
 })
