@@ -156,6 +156,7 @@ describe('shared dialogs', () => {
 
     render(createElement(ItemEditor, { item, onClose: vi.fn(), onSave: vi.fn() }))
 
+    expect(screen.getByRole('dialog', { name: item.title })).toBeVisible()
     expect(screen.getByRole('button', { name: `Cerrar y guardar ${item.title}` })).toBeVisible()
   })
 
