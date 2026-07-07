@@ -893,7 +893,14 @@ export default function SettingsTab({
                 UID
                 <div className="inline-control">
                   <input readOnly value={user?.uid ?? 'Demo local'} />
-                  <button className="icon-button" disabled={!user} type="button" onClick={copyUserId} title="Copiar UID">
+                  <button
+                    aria-label="Copiar UID de usuario"
+                    className="icon-button"
+                    disabled={!user}
+                    type="button"
+                    onClick={copyUserId}
+                    title="Copiar UID"
+                  >
                     <Copy size={17} />
                   </button>
                 </div>
