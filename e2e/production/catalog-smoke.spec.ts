@@ -31,7 +31,6 @@ test('production anonymous UI searches Dune in Todo', async ({ page }) => {
   await page.getByRole('button', { name: /^Buscar$/ }).click()
 
   await expect(page).toHaveURL(/catalogQ=Dune/)
-  await page.waitForTimeout(3000)
   await expect
     .poll(() =>
       page.evaluate(() => {
