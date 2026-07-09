@@ -4915,9 +4915,7 @@ test('library cards stay legible at 1920x1080', async ({ page }, testInfo) => {
   }
 
   const firstCard = page.getByTestId('library-grid').locator('.item-card').first()
-  await firstCard.hover()
-  await page.waitForTimeout(180)
-  const hoverMetrics = await firstCard.evaluate((card) => {
+  const readHoverMetrics = () => firstCard.evaluate((card) => {
     const primaryAction = card.querySelector('.card-primary-action') as HTMLElement | null
     const primaryLabel = primaryAction?.querySelector('span') as HTMLElement | null
     const primaryRect = primaryAction?.getBoundingClientRect()
@@ -4930,6 +4928,19 @@ test('library cards stay legible at 1920x1080', async ({ page }, testInfo) => {
       primaryWidth: primaryRect?.width ?? 0,
     }
   })
+  await firstCard.hover()
+  await expect
+    .poll(async () => {
+      const hoverMetrics = await readHoverMetrics()
+      return (
+        hoverMetrics.primaryLabelOpacity >= 0.9 &&
+        hoverMetrics.primaryLabelWidth >= 42 &&
+        hoverMetrics.primaryWidth >= 128 &&
+        hoverMetrics.primaryWidth <= 360
+      )
+    })
+    .toBe(true)
+  const hoverMetrics = await readHoverMetrics()
 
   expect(hoverMetrics.primaryLabelOpacity).toBeGreaterThanOrEqual(0.9)
   expect(hoverMetrics.primaryLabelWidth).toBeGreaterThanOrEqual(42)
