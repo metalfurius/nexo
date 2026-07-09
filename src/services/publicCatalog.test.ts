@@ -36,6 +36,16 @@ describe('public catalog service', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
+  it('does not fetch when the public catalog endpoint is malformed', async () => {
+    vi.stubEnv('VITE_PUBLIC_CATALOG_URL', 'not a url')
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(fetchPublicCatalog('Dune')).resolves.toBeUndefined()
+
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('requests the configured catalog endpoint with trimmed query, type, limit and JSON accept header', async () => {
     vi.stubEnv('VITE_PUBLIC_CATALOG_URL', 'https://catalog.example/publicCatalog')
     const fetchMock = installFetchMock(() => ({
