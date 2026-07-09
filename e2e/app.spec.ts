@@ -49,6 +49,14 @@ async function expectLibraryGridAnimationsSettled(page: Page) {
   })
 }
 
+function createDeferred<T = void>() {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  const promise = new Promise<T>((nextResolve) => {
+    resolve = nextResolve
+  })
+  return { promise, resolve }
+}
+
 async function openLibraryAdvanced(page: Page) {
   const advancedPanel = page.locator('details.library-advanced-panel')
   await expect(advancedPanel).toBeVisible()
@@ -4236,8 +4244,9 @@ test('import tab is addressable and grouped with settings utilities', async ({ p
 })
 
 test('import tab shows a dedicated loading dialog while reading AniList', async ({ page }) => {
+  const anilistResponse = createDeferred()
   await page.route('https://graphql.anilist.co', async (route) => {
-    await new Promise((resolve) => setTimeout(resolve, 500))
+    await anilistResponse.promise
     await route.fulfill({
       contentType: 'application/json',
       json: { data: { MediaListCollection: { lists: [] } } },
@@ -4252,6 +4261,9 @@ test('import tab shows a dedicated loading dialog while reading AniList', async 
   const dialog = page.getByRole('dialog', { name: 'AniList' })
   await expect(dialog).toContainText('Leyendo perfil de AniList')
   await expect(dialog.getByRole('button', { name: 'Cancelar' })).toBeVisible()
+
+  anilistResponse.resolve()
+  await expect(dialog).toContainText('AniList: 0 nuevas')
 })
 
 test('import tab imports every new valid row beyond the rendered preview', async ({ page }) => {
