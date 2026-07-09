@@ -230,6 +230,7 @@ export interface DiscoveryCandidate {
   genres: string[]
   tags: string[]
   moodTags: string[]
+  searchAliases?: string[]
   externalRefs: ExternalRefs
   publicItemId?: string
   publicSnapshot?: PublicCatalogSnapshot

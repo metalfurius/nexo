@@ -80,8 +80,40 @@ describe('searchRemoteCatalog', () => {
       expect.objectContaining({
         externalRefs: { anilistId: '154587' },
         genres: ['Fantasy', '2023'],
+        searchAliases: ['Sousou no Frieren'],
         tags: ['anime', 'anilist', 'Fantasy', '2023'],
         title: 'Frieren: Beyond Journey End',
+      }),
+    ])
+  })
+
+  it('matches remote external candidates by normalized search aliases', async () => {
+    mocks.searchCatalog.mockResolvedValueOnce({
+      data: {
+        candidates: [
+          {
+            id: 'anilist-161645',
+            title: 'The Apothecary Diaries',
+            type: 'anime',
+            source: 'anilist',
+            sourceId: '161645',
+            genres: ['Mystery'],
+            searchAliases: [' Kusuriya no Hitorigoto ', '', undefined],
+            externalRefs: { anilistId: '161645' },
+            createdAt: '2026-01-01T00:00:00.000Z',
+          },
+        ],
+        ingestedItems: [],
+        items: [],
+      },
+    })
+
+    const results = await searchRemoteCatalog('Kusuriya', 'anime')
+
+    expect(results).toEqual([
+      expect.objectContaining({
+        searchAliases: ['Kusuriya no Hitorigoto'],
+        title: 'The Apothecary Diaries',
       }),
     ])
   })

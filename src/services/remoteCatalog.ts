@@ -52,9 +52,7 @@ function normalizeExternalCandidate(value: unknown): ExternalCandidate[] {
       progressTotal: positiveNumber(candidate.progressTotal),
       progressUnit: normalizeProgressUnit(candidate.progressUnit),
       genres: normalizeCatalogStringList(candidate.genres).slice(0, 8),
-      searchAliases: Array.isArray(candidate.searchAliases)
-        ? normalizeCatalogStringList(candidate.searchAliases).slice(0, 24)
-        : undefined,
+      searchAliases: normalizeCatalogStringList(candidate.searchAliases).slice(0, 24),
       externalRefs: readExternalRefs(candidate.externalRefs),
       createdAt: optionalString(candidate.createdAt) ?? new Date().toISOString(),
     },

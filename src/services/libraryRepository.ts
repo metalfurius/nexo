@@ -764,7 +764,7 @@ function buildAutoIngestedPublicItem(
 ) {
   const sourceRefKey = externalSourceRefKey(candidate.source)
   const sourceLabel = externalSourceLabel(candidate.source)
-  const searchAliases = candidate.publicSnapshot?.searchAliases ?? []
+  const searchAliases = candidate.publicSnapshot?.searchAliases ?? candidate.searchAliases ?? []
 
   return buildPublicCatalogItem(
     {
