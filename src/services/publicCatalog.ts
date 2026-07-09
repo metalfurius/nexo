@@ -1,5 +1,6 @@
 import { ITEM_TYPES, PROGRESS_UNITS, type ItemType, type ProgressUnit, type PublicCatalogItem } from '../domain/types'
 import { createCanonicalKey } from '../lib/catalog'
+import { uniqueNormalizedValues } from '../lib/strings'
 
 const defaultPublicCatalogLimit = 24
 const maxPublicCatalogLimit = 100
@@ -111,7 +112,7 @@ function optionalString(value: unknown) {
 export function normalizeCatalogStringList(value: unknown) {
   if (!Array.isArray(value)) return []
 
-  return value.flatMap((entry) => {
+  return uniqueNormalizedValues(value.flatMap((entry) => {
     if (typeof entry === 'string') {
       const text = entry.trim()
       return text ? [text] : []
@@ -120,5 +121,5 @@ export function normalizeCatalogStringList(value: unknown) {
       return [String(entry)]
     }
     return []
-  })
+  }))
 }
