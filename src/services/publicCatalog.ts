@@ -6,10 +6,9 @@ const defaultPublicCatalogLimit = 24
 const maxPublicCatalogLimit = 100
 
 export async function fetchPublicCatalog(query = '', type = 'any', limit = 24): Promise<PublicCatalogItem[] | undefined> {
-  const endpoint = String(import.meta.env.VITE_PUBLIC_CATALOG_URL ?? '').trim()
-  if (!endpoint) return undefined
+  const url = readPublicCatalogUrl()
+  if (!url) return undefined
 
-  const url = new URL(endpoint)
   if (query.trim()) url.searchParams.set('q', query.trim())
   if (type) url.searchParams.set('type', type)
   url.searchParams.set('limit', String(normalizePublicCatalogLimit(limit)))
@@ -21,6 +20,16 @@ export async function fetchPublicCatalog(query = '', type = 'any', limit = 24): 
   if (!Array.isArray(payload.items)) return undefined
 
   return normalizePublicCatalogItems(payload.items)
+}
+
+function readPublicCatalogUrl() {
+  const endpoint = String(import.meta.env.VITE_PUBLIC_CATALOG_URL ?? '').trim()
+  if (!endpoint) return undefined
+  try {
+    return new URL(endpoint)
+  } catch {
+    return undefined
+  }
 }
 
 export function normalizePublicCatalogItems(value: unknown): PublicCatalogItem[] {
