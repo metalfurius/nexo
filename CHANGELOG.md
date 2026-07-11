@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.1.50 - 2026-07-11
+
+- Added the private Inicio surface with the Tu ruta roadmap across Ahora, Después and Más adelante.
+- Added persisted roadmap ordering, automatic suggestions, hiding, status transitions and reversible actions.
+- Unified Catálogo and Explorador into Descubrir with Buscar, Sorpréndeme and Pendientes modes.
+- Simplified navigation to Inicio, Descubrir, Biblioteca and Dado, with secondary destinations under Más.
+- Added a shared Añadir flow, account creation and email password recovery.
+- Simplified Biblioteca and Dado around their primary actions, including roadmap-aware rolls and qualitative fit.
+- Preserved legacy URLs and schema-version-1 backups while keeping roadmap data additive and optional.
+- Added lazy feature boundaries, recoverable view errors and release gates for the direct 1.1.50 target.
+
 ## 1.0.0 - 2026-06-01
 
 - Added the 1.0 tab structure: Biblioteca, Dado, Explorador, Ajustes and moderator-only Curacion.

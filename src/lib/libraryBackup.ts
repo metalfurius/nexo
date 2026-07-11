@@ -17,6 +17,7 @@ import {
   nowIso,
 } from '../domain/types'
 import { slugify, uniqueValues } from './strings'
+import { cleanupRoadmapPreferences, normalizeRoadmapPreferences } from './roadmap'
 
 export const LIBRARY_EXPORT_SCHEMA_VERSION = 1
 
@@ -55,7 +56,7 @@ export function createLibraryExportPayload(
     schemaVersion: LIBRARY_EXPORT_SCHEMA_VERSION,
     exportedAt,
     items: items.map(cloneListItem),
-    ...(settings ? { settings } : {}),
+    ...(settings ? { settings: cloneUserSettingsSnapshot(settings) } : {}),
   }
 }
 
@@ -112,9 +113,10 @@ export function parseLibraryImportPayload(payload: unknown, importedAt = nowIso(
     throw new Error('El archivo no tiene una lista de items valida')
   }
 
+  const items = root.items.map((item, index) => normalizeListItem(item, index, importedAt))
   return {
-    items: root.items.map((item, index) => normalizeListItem(item, index, importedAt)),
-    settings: root.settings ? normalizeSettings(root.settings) : undefined,
+    items,
+    settings: root.settings ? normalizeSettings(root.settings, items) : undefined,
   }
 }
 
@@ -156,6 +158,12 @@ function cloneUserSettingsSnapshot(settings: UserSettings): UserSettings {
     favoriteGenres: [...settings.favoriteGenres],
     favoriteTags: [...settings.favoriteTags],
     recommendationPreferences: { ...settings.recommendationPreferences },
+    roadmap: {
+      now: [...settings.roadmap.now],
+      next: [...settings.roadmap.next],
+      later: [...settings.roadmap.later],
+      hidden: [...settings.roadmap.hidden],
+    },
   }
 }
 
@@ -197,7 +205,7 @@ function normalizeListItem(value: unknown, index: number, importedAt: string): L
   }
 }
 
-function normalizeSettings(value: unknown): UserSettings {
+function normalizeSettings(value: unknown, items: readonly ListItem[]): UserSettings {
   const settings = asRecord(value, 'Los ajustes del backup no son validos')
   const recommendationPreferences = normalizeRecommendationPreferences(settings.recommendationPreferences)
 
@@ -215,6 +223,7 @@ function normalizeSettings(value: unknown): UserSettings {
         ? settings.libraryViewMode
         : DEFAULT_SETTINGS.libraryViewMode,
     libraryCardsPerRow: readLibraryCardsPerRow(settings.libraryCardsPerRow),
+    roadmap: cleanupRoadmapPreferences(normalizeRoadmapPreferences(settings.roadmap), items),
   }
 }
 
@@ -231,7 +240,7 @@ function readLibraryCardsPerRow(value: unknown) {
 function normalizeRecommendationPreferences(value: unknown): RecommendationPreferences {
   const preferences = asOptionalRecord(value)
 
-  if (!preferences) return DEFAULT_RECOMMENDATION_PREFERENCES
+  if (!preferences) return { ...DEFAULT_RECOMMENDATION_PREFERENCES }
 
   return {
     medium: readExplorerDefaultType(preferences.medium),

@@ -1,7 +1,7 @@
 {
   "name": "nexo-functions",
   "private": true,
-  "version": "1.0.50",
+  "version": "1.1.50",
   "type": "module",
   "engines": {
     "node": "22"

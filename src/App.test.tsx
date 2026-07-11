@@ -11,6 +11,8 @@ const authMock = vi.hoisted(() => ({
     loading: false,
     isFirebaseConfigured: true,
     error: undefined as string | undefined,
+    createAccount: vi.fn(),
+    resetPassword: vi.fn(),
     signInWithEmail: vi.fn(),
     signInWithGoogle: vi.fn(),
     signOut: vi.fn(),
@@ -35,6 +37,14 @@ vi.mock('./services/firebaseAnalytics', () => ({
 
 vi.mock('./tabs/CatalogTab', () => ({
   default: () => <section aria-label="Catalogo mock">Catalog tab</section>,
+}))
+
+vi.mock('./tabs/HomeTab', () => ({
+  default: () => <section aria-label="Inicio mock">Home tab</section>,
+}))
+
+vi.mock('./tabs/DiscoverTab', () => ({
+  default: () => <section aria-label="Descubrir mock">Discover tab</section>,
 }))
 
 function createLibrarySurface(): LibrarySurface {
@@ -67,6 +77,7 @@ function createLibrarySurface(): LibrarySurface {
     listPublicCatalog: vi.fn(async () => []),
     searchPublicCatalog: vi.fn(async () => []),
     saveSettings: vi.fn(async () => undefined),
+    applyRoadmapMutation: vi.fn(async () => undefined),
     queueDiscoveryCandidates: vi.fn(async () => 0),
     dismissDiscoveryCandidate: vi.fn(async () => undefined),
     restoreDiscoveryCandidate: vi.fn(async () => undefined),
@@ -110,6 +121,10 @@ describe('App sign-in dialog', () => {
     authMock.state.loading = false
     authMock.state.isFirebaseConfigured = true
     authMock.state.error = undefined
+    authMock.state.createAccount.mockReset()
+    authMock.state.createAccount.mockResolvedValue(undefined)
+    authMock.state.resetPassword.mockReset()
+    authMock.state.resetPassword.mockResolvedValue(undefined)
     authMock.state.signInWithEmail.mockReset()
     authMock.state.signInWithEmail.mockResolvedValue(undefined)
     authMock.state.signInWithGoogle.mockReset()
@@ -155,6 +170,119 @@ describe('App sign-in dialog', () => {
 
     const dialog = await screen.findByRole('dialog', { name: 'Entrar en Nexo' })
     expect(within(dialog).getByRole('button', { name: 'Cerrar acceso a Nexo' })).toBeVisible()
+  })
+
+  it('keeps anonymous users on public Discover at the clean root', async () => {
+    render(<App />)
+
+    expect(await screen.findByRole('region', { name: 'Descubrir mock' })).toBeVisible()
+    const navigation = screen.getByRole('navigation', { name: 'Secciones de Nexo' })
+    expect(within(navigation).getByRole('button', { name: 'Descubrir' })).toHaveAttribute('aria-current', 'page')
+    expect(within(navigation).getByRole('button', { name: 'Inicio' })).toBeVisible()
+    expect(within(navigation).getByRole('button', { name: 'Biblioteca' })).toBeVisible()
+    expect(within(navigation).getByRole('button', { name: 'Dado' })).toBeVisible()
+  })
+
+  it('asks anonymous users to sign in before entering a private destination', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await screen.findByRole('region', { name: 'Descubrir mock' })
+
+    await user.click(screen.getByRole('button', { name: 'Inicio' }))
+
+    expect(await screen.findByRole('dialog', { name: 'Entrar en Nexo' })).toBeVisible()
+    expect(screen.getByRole('region', { name: 'Descubrir mock' })).toBeVisible()
+    expect(window.location.search).toBe('')
+  })
+
+  it('canonicalizes a legacy Catalog deep link without losing its search', async () => {
+    window.history.replaceState(null, '', '/?tab=catalog&catalogQ=Dune&catalogType=book#legacy')
+    render(<App />)
+
+    expect(await screen.findByRole('region', { name: 'Descubrir mock' })).toBeVisible()
+    await waitFor(() => expect(window.location.search).toBe('?tab=discover&mode=search&q=Dune&type=book'))
+    expect(window.location.hash).toBe('#legacy')
+  })
+
+  it('uses Home as the authenticated default while preserving an explicit Discover route', async () => {
+    authMock.state.user = { uid: 'user-1' }
+    const { unmount } = render(<App />)
+
+    expect(await screen.findByRole('region', { name: 'Inicio mock' })).toBeVisible()
+    expect(window.location.search).toBe('?tab=home')
+
+    unmount()
+    window.history.replaceState(null, '', '/?tab=discover&mode=queue')
+    render(<App />)
+
+    expect(await screen.findByRole('region', { name: 'Descubrir mock' })).toBeVisible()
+    expect(window.location.search).toBe('?tab=discover&mode=queue')
+  })
+
+  it('does not redirect a private route while Firebase restores the session', async () => {
+    window.history.replaceState(null, '', '/?tab=home')
+    authMock.state.loading = true
+    const { rerender } = render(<App />)
+
+    expect(screen.getByText('Cargando acceso')).toBeVisible()
+    await new Promise((resolve) => window.setTimeout(resolve, 0))
+    expect(window.location.search).toBe('?tab=home')
+
+    authMock.state.loading = false
+    authMock.state.user = { uid: 'user-1' }
+    rerender(<App />)
+
+    expect(await screen.findByRole('region', { name: 'Inicio mock' })).toBeVisible()
+    expect(window.location.search).toBe('?tab=home')
+  })
+
+  it('keeps utility destinations under More and hides Curar from regular users', async () => {
+    const user = userEvent.setup()
+    authMock.state.user = { uid: 'user-1' }
+    render(<App />)
+    await screen.findByRole('region', { name: 'Inicio mock' })
+
+    const navigation = screen.getByRole('navigation', { name: 'Secciones de Nexo' })
+    await user.click(within(navigation).getByLabelText(/secciones/i))
+
+    expect(within(navigation).getByRole('menuitem', { name: /Importar/ })).toBeVisible()
+    expect(within(navigation).getByRole('menuitem', { name: /Ajustes/ })).toBeVisible()
+    expect(within(navigation).queryByRole('menuitem', { name: /Curar/ })).not.toBeInTheDocument()
+  })
+
+  it('creates an email account from the same access dialog', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(await screen.findByRole('button', { name: 'Entrar' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Entrar en Nexo' })
+    await user.click(within(dialog).getByRole('tab', { name: 'Crear cuenta' }))
+    expect(dialog).toHaveAccessibleName('Crear cuenta')
+
+    await user.type(within(dialog).getByLabelText('Email'), 'new-user@nexo.test')
+    await user.type(within(dialog).getByLabelText(/Contrase/), 'safe-password')
+    await user.click(within(dialog).getByRole('button', { name: 'Crear cuenta' }))
+
+    await waitFor(() => expect(authMock.state.createAccount).toHaveBeenCalledWith('new-user@nexo.test', 'safe-password'))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Crear cuenta' })).not.toBeInTheDocument())
+  })
+
+  it('requests password recovery without closing the dialog or exposing account existence', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(await screen.findByRole('button', { name: 'Entrar' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Entrar en Nexo' })
+    await user.click(within(dialog).getByRole('button', { name: /olvidado mi contrase/ }))
+    expect(dialog).toHaveAccessibleName('Recuperar acceso')
+    expect(within(dialog).queryByLabelText(/Contrase/)).not.toBeInTheDocument()
+
+    await user.type(within(dialog).getByLabelText('Email'), 'possible-user@nexo.test')
+    await user.click(within(dialog).getByRole('button', { name: 'Enviar recuperacion' }))
+
+    await waitFor(() => expect(authMock.state.resetPassword).toHaveBeenCalledWith('possible-user@nexo.test'))
+    expect(within(dialog).getByRole('status')).toHaveTextContent(/Si existe una cuenta/)
+    expect(dialog).toBeVisible()
   })
 
   it('keeps the sign-in dialog open while email sign-in is pending', async () => {

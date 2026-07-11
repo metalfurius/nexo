@@ -2,14 +2,15 @@
 
 Nexo is a public catalog plus private media library and weighted recommendation tool for games, books, movies, series, anime, manga, manhwa and comics.
 
-Version 1.0 opens on the public `Catalogo` tab. Visitors can explore Nexo before signing in, while every signed-in user gets a private library under `users/{uid}`. The shared Nexo catalog lives in `publicItems`.
+Version 1.1.50 opens on public `Descubrir` for visitors and on the private `Inicio` roadmap for signed-in users. Every signed-in user gets a private library under `users/{uid}`, while the shared Nexo catalog lives in `publicItems`.
 
 ## Core Flows
 
-- `Catalogo`: public discovery surface, public item search and login-gated personal actions.
-- `Biblioteca`: private items, status tracking, JSON import/export and personal notes.
-- `Dado`: weighted recommendation roll using time, energy, novelty and surprise preferences.
-- `Explorador`: searches the curated Nexo catalog and external providers, then queues candidates to save or dismiss.
+- `Inicio`: private visual roadmap across Ahora, Después and Más adelante, with recent completions and activity.
+- `Descubrir`: one surface for catalog search, surprise discovery and the pending candidate queue.
+- `Biblioteca`: private saved-item search, status tracking, filters, JSON import/export and personal notes.
+- `Dado`: weighted recommendation roll that can prioritize the roadmap's Después lane.
+- `Más`: Importar, Ajustes and role-gated Curacion destinations without crowding primary navigation.
 - `Ajustes`: private taste signals, default explorer type and theme.
 - `Curacion`: moderator-only public catalog editing.
 - `Catalog seed`: admin-side import of reviewed public catalog entries from `seed/public-catalog.seed.json`.
@@ -88,6 +89,7 @@ npm run build
 npm run check:build-output
 npm run build:functions
 npm run test:e2e
+npm run check:release-tools
 npm run check:release-files
 ```
 
@@ -95,8 +97,12 @@ npm run check:release-files
 
 `npm run check:release-files` validates launch metadata such as package versions, PWA manifest shortcuts, CNAME, Firebase config, required docs and the public catalog seed.
 
-`npm run check:build-output` validates the generated `dist` folder before deploy, including clean-subdomain asset paths, copied PWA files and `CNAME`.
+`npm run check:build-output` validates the generated `dist` folder before deploy, including clean-subdomain asset paths, copied PWA files and `CNAME`. It also enforces initial first-party budgets below 200 KiB for JavaScript and CSS and rejects public-entry preloads of Home, Biblioteca or importers.
+
+`npm run check:release-tools` verifies the exclusive `release:1.1.50` label contract, exact target updates, idempotency and downgrade protection.
 
 `npm run release:check` runs the launch gate used before tagging a release. It gates high severity audit findings; the current moderate Firebase-tooling transitive `uuid` advisories are documented in `docs/release-checklist.md`.
 
 GitHub Actions runs the same gate for pull requests and repeats it before deploying `main` to GitHub Pages.
+
+The 1.1.50 release PR must use only the `release:1.1.50` label. The version script accepts only `1.1.50` and synchronizes the root package, Functions package, lockfiles and service worker cache in the same run.

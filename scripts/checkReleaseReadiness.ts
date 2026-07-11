@@ -25,12 +25,17 @@ const requiredFiles = [
   'firestore.indexes.json',
   'public/CNAME',
   'public/manifest.webmanifest',
+  'public/screenshots/nexo-narrow.png',
+  'public/screenshots/nexo-wide.png',
   'public/sw.js',
   'seed/public-catalog.seed.json',
   '.github/workflows/ci.yml',
   '.github/workflows/deploy-functions.yml',
   '.github/workflows/deploy-pages.yml',
   '.github/workflows/version-bump.yml',
+  'scripts/bumpVersion.mjs',
+  'scripts/releaseTools.test.mjs',
+  'scripts/resolveVersionBump.mjs',
 ]
 
 const failures: string[] = []
@@ -70,6 +75,8 @@ check(functionsLock.packages?.['']?.version === rootPackage.version, 'Functions 
 check(rootPackage.scripts?.['check:build-output'], 'package.json must expose check:build-output.')
 check(rootPackage.scripts?.check?.includes('check:build-output'), 'npm run check must include check:build-output.')
 check(rootPackage.scripts?.['check:release-files'], 'package.json must expose check:release-files.')
+check(rootPackage.scripts?.['check:release-tools'], 'package.json must expose check:release-tools.')
+check(rootPackage.scripts?.check?.includes('check:release-tools'), 'npm run check must include check:release-tools.')
 check(rootPackage.scripts?.['catalog:write:prod'], 'package.json must expose catalog:write:prod.')
 check(rootPackage.scripts?.['test:e2e:firebase'], 'package.json must expose test:e2e:firebase.')
 check(rootPackage.scripts?.['test:e2e:prod'], 'package.json must expose test:e2e:prod.')
@@ -116,6 +123,17 @@ check(
   manifest.icons?.some((icon) => icon.src === '/icons/nexo.svg' && icon.purpose?.includes('maskable')),
   'Manifest must include the maskable Nexo SVG icon.',
 )
+
+async function readPngDimensions(path: string) {
+  const data = await readFile(path)
+  if (data.length < 24 || data.toString('ascii', 1, 4) !== 'PNG') return undefined
+  return { width: data.readUInt32BE(16), height: data.readUInt32BE(20) }
+}
+
+const wideScreenshot = await readPngDimensions('public/screenshots/nexo-wide.png')
+const narrowScreenshot = await readPngDimensions('public/screenshots/nexo-narrow.png')
+check(wideScreenshot?.width === 1280 && wideScreenshot.height === 720, 'Wide PWA screenshot must be 1280x720.')
+check(narrowScreenshot?.width === 390 && narrowScreenshot.height === 844, 'Narrow PWA screenshot must be 390x844.')
 check(
   manifest.icons?.some((icon) => icon.src === '/icons/nexo-192.png') &&
     manifest.icons?.some((icon) => icon.src === '/icons/nexo-512.png') &&
@@ -128,10 +146,10 @@ check(
   'Manifest must include wide and narrow screenshots.',
 )
 check(
-  manifest.shortcuts?.some((shortcut) => shortcut.url === '/?tab=dice') &&
-    manifest.shortcuts?.some((shortcut) => shortcut.url === '/?tab=explorer') &&
-    manifest.shortcuts?.some((shortcut) => shortcut.url === '/?tab=import'),
-  'Manifest must include dice, explorer and import shortcuts.',
+  manifest.shortcuts?.some((shortcut) => shortcut.url === '/?tab=home') &&
+    manifest.shortcuts?.some((shortcut) => shortcut.url === '/?tab=dice') &&
+    manifest.shortcuts?.some((shortcut) => shortcut.url === '/?tab=discover&mode=search'),
+  'Manifest must include home, dice and discover shortcuts.',
 )
 
 const serviceWorker = await readText('public/sw.js')
@@ -146,10 +164,13 @@ check(serviceWorker.includes('NEXO_SKIP_WAITING'), 'Service worker should suppor
 
 const changelog = await readText('CHANGELOG.md')
 check(changelog.includes('## 1.0.0'), 'CHANGELOG.md must include 1.0.0 release notes.')
+const currentVersionHeading = new RegExp(`^## ${String(rootPackage.version).replaceAll('.', '\\.')}(?:\\s+-|\\s*$)`, 'm')
+check(currentVersionHeading.test(changelog), `CHANGELOG.md must include release notes for ${rootPackage.version}.`)
 
 const releaseChecklist = await readText('docs/release-checklist.md')
 check(releaseChecklist.includes('npm run release:check'), 'Release checklist must mention npm run release:check.')
-check(releaseChecklist.includes('patch') && releaseChecklist.includes('minor') && releaseChecklist.includes('major'), 'Release checklist must mention version labels.')
+check(releaseChecklist.includes('release:1.1.50'), 'Release checklist must require the release:1.1.50 label.')
+check(releaseChecklist.includes('v1.1.50'), 'Release checklist must identify the v1.1.50 release tag.')
 
 const ciWorkflow = await readText('.github/workflows/ci.yml')
 check(ciWorkflow.includes('pull_request:'), 'CI workflow must run on pull requests.')
@@ -196,11 +217,20 @@ check(!deployWorkflow.includes('npm audit --audit-level=high'), 'Deploy workflow
 const versionWorkflow = await readText('.github/workflows/version-bump.yml')
 check(versionWorkflow.includes('types: [opened, synchronize, reopened, labeled, unlabeled]'), 'Version workflow must sync version bumps inside pull requests.')
 check(versionWorkflow.includes('scripts/bumpVersion.mjs'), 'Version workflow must bump package versions.')
+check(versionWorkflow.includes('steps.resolve.outputs.target'), 'Version workflow must pass the resolved exact target to the bump script.')
 check(versionWorkflow.includes('VERSION_BUMP_TOKEN'), 'Version workflow must use VERSION_BUMP_TOKEN for PR version commits.')
 check(versionWorkflow.includes('public/sw.js'), 'Version workflow must commit the service worker cache version.')
 check(versionWorkflow.includes('--base-version'), 'Version workflow must calculate PR bumps from the main package version.')
 check(!versionWorkflow.includes('gh pr create') && !versionWorkflow.includes('gh pr merge'), 'Version workflow must not create a second version bump PR.')
 check(!versionWorkflow.includes('gh workflow run deploy-pages.yml'), 'Version workflow must not dispatch a duplicate Pages deploy.')
+
+const versionResolver = await readText('scripts/resolveVersionBump.mjs')
+check(versionResolver.includes("const releaseTarget = '1.1.50'"), 'Version resolver must target only 1.1.50.')
+check(versionResolver.includes("const legacyLabels = ['patch', 'minor', 'major']"), 'Version resolver must reject legacy bump labels.')
+
+const versionBumpScript = await readText('scripts/bumpVersion.mjs')
+check(versionBumpScript.includes("const releaseTarget = '1.1.50'"), 'Version bump script must target only 1.1.50.')
+check(versionBumpScript.includes('Refusing to downgrade'), 'Version bump script must reject downgrades.')
 
 const seed = await readJson<unknown>('seed/public-catalog.seed.json')
 const seedResult = parsePublicCatalogSeed(seed, 'release-check')

@@ -1,6 +1,7 @@
 import { initializeApp } from 'firebase-admin/app'
 import { getAuth } from 'firebase-admin/auth'
 import { getFirestore } from 'firebase-admin/firestore'
+import { DEFAULT_SETTINGS, type ListItem } from '../src/domain/types'
 import { buildPublicCatalogItem } from '../src/lib/catalog'
 
 const projectId = process.env.GCLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT || 'recomendaciones-78eb7'
@@ -20,6 +21,7 @@ const db = getFirestore()
 db.settings({ ignoreUndefinedProperties: true })
 
 await upsertModeratorUser()
+await seedModeratorLibrary()
 await seedPublicCatalog()
 
 console.log(`Seeded Firebase E2E data in ${projectId}`)
@@ -52,6 +54,61 @@ async function upsertModeratorUser() {
     updatedAt: timestamp,
     lastSeenAt: timestamp,
   })
+}
+
+async function seedModeratorLibrary() {
+  const items: ListItem[] = [
+    roadmapItem('e2e-roadmap-now', 'E2E En curso', 'game', 'in_progress', 5),
+    roadmapItem('e2e-roadmap-next-a', 'E2E Pendiente A', 'book', 'wishlist', 4),
+    roadmapItem('e2e-roadmap-next-b', 'E2E Pendiente B', 'movie', 'wishlist', 3),
+    roadmapItem('e2e-roadmap-later', 'E2E Mas adelante', 'series', 'wishlist', 2),
+  ]
+
+  const user = db.collection('users').doc(moderatorUid)
+  for (const item of items) {
+    await user.collection('items').doc(item.id).set(item)
+  }
+
+  await user.collection('userSettings').doc('preferences').set({
+    ...DEFAULT_SETTINGS,
+    favoriteGenres: [...DEFAULT_SETTINGS.favoriteGenres],
+    favoriteTags: [...DEFAULT_SETTINGS.favoriteTags],
+    blockedTags: [...DEFAULT_SETTINGS.blockedTags],
+    recommendationPreferences: { ...DEFAULT_SETTINGS.recommendationPreferences },
+    roadmap: {
+      now: ['e2e-roadmap-now'],
+      next: ['e2e-roadmap-next-a', 'e2e-roadmap-next-b'],
+      later: ['e2e-roadmap-later'],
+      hidden: [],
+    },
+    updatedAt: timestamp,
+  })
+}
+
+function roadmapItem(
+  id: string,
+  title: string,
+  type: ListItem['type'],
+  status: ListItem['status'],
+  priority: number,
+): ListItem {
+  return {
+    id,
+    title,
+    type,
+    status,
+    genres: ['e2e'],
+    tags: ['roadmap'],
+    moodTags: ['prueba'],
+    weights: {
+      priority,
+      surprise: 0.35,
+      challenge: 0.5,
+    },
+    source: 'manual',
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  }
 }
 
 async function seedPublicCatalog() {

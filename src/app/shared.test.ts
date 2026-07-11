@@ -9,8 +9,11 @@ import {
   PublicItemEditor,
   QuickSearchDialog,
   SourceCreditsDialog,
+  canonicalizeLegacyAppRoute,
   hasCatalogRouteState,
+  hasExplicitAppRoute,
   readCatalogRouteState,
+  readDiscoverMode,
   readInitialAppTab,
   writeAppTabToUrl,
   writeCatalogRouteState,
@@ -21,36 +24,73 @@ describe('app tab routing', () => {
     window.history.replaceState(null, '', '/')
   })
 
-  it('opens the public catalog by default', () => {
-    expect(readInitialAppTab()).toBe('catalog')
+  it('opens Discover at the clean public root', () => {
+    expect(readInitialAppTab()).toBe('discover')
+    expect(readDiscoverMode()).toBe('search')
+    expect(hasExplicitAppRoute()).toBe(false)
   })
 
-  it('keeps private tabs URL-addressable', () => {
-    window.history.replaceState(null, '', '/?tab=library')
+  it.each(['home', 'library', 'dice', 'import', 'settings', 'curation'] as const)(
+    'keeps %s URL-addressable',
+    (tab) => {
+      window.history.replaceState(null, '', `/?tab=${tab}`)
+
+      expect(readInitialAppTab()).toBe(tab)
+      expect(hasExplicitAppRoute()).toBe(true)
+    },
+  )
+
+  it('keeps item deep links on Library', () => {
+    window.history.replaceState(null, '', '/?item=movie-dune')
 
     expect(readInitialAppTab()).toBe('library')
+
+    writeAppTabToUrl('library', 'replace', { kind: 'item', id: 'movie-dune' })
+    expect(window.location.search).toBe('?item=movie-dune&tab=library')
   })
 
-  it('uses the clean root URL for the catalog tab', () => {
-    window.history.replaceState(null, '', '/?tab=library')
+  it.each([
+    ['catalog', 'search'],
+    ['explorer', 'surprise'],
+  ] as const)('maps the legacy %s tab to Discover/%s', (legacyTab, mode) => {
+    window.history.replaceState(null, '', `/?tab=${legacyTab}`)
 
-    writeAppTabToUrl('catalog', 'replace')
-
-    expect(window.location.search).toBe('')
+    expect(readInitialAppTab()).toBe('discover')
+    expect(readDiscoverMode()).toBe(mode)
   })
 
-  it('writes non-default tabs into the URL', () => {
-    writeAppTabToUrl('explorer', 'replace')
-
-    expect(window.location.search).toBe('?tab=explorer')
-  })
-
-  it('reads catalog query and type from URL state', () => {
+  it('reads legacy catalog query and type before canonicalization', () => {
     window.history.replaceState(null, '', '/?catalogQ=Dune&catalogType=watch')
 
-    expect(readInitialAppTab()).toBe('catalog')
+    expect(readInitialAppTab()).toBe('discover')
+    expect(readDiscoverMode()).toBe('search')
     expect(readCatalogRouteState()).toEqual({ query: 'Dune', type: 'watch' })
     expect(hasCatalogRouteState()).toBe(true)
+  })
+
+  it('canonicalizes legacy Catalog state with replaceState while preserving hash and unrelated state', () => {
+    window.history.replaceState(null, '', '/?tab=catalog&catalogQ=%20Dune%20&catalogType=book&ref=activity#catalog')
+
+    expect(canonicalizeLegacyAppRoute()).toBe(true)
+    expect(window.location.search).toBe('?tab=discover&ref=activity&mode=search&q=Dune&type=book')
+    expect(window.location.hash).toBe('#catalog')
+    expect(readCatalogRouteState()).toEqual({ query: 'Dune', type: 'book' })
+  })
+
+  it('canonicalizes legacy Explorer state to Surprise', () => {
+    window.history.replaceState(null, '', '/?tab=explorer&catalogQ=ignored')
+
+    expect(canonicalizeLegacyAppRoute()).toBe(true)
+    expect(window.location.search).toBe('?tab=discover&mode=surprise&q=ignored')
+    expect(readDiscoverMode()).toBe('surprise')
+  })
+
+  it('leaves already canonical routes untouched', () => {
+    window.history.replaceState(null, '', '/?tab=discover&mode=queue')
+    const replaceState = vi.spyOn(window.history, 'replaceState')
+
+    expect(canonicalizeLegacyAppRoute()).toBe(false)
+    expect(replaceState).not.toHaveBeenCalled()
   })
 
   it('normalizes invalid catalog route types to Todo', () => {
@@ -64,14 +104,14 @@ describe('app tab routing', () => {
 
     writeCatalogRouteState({ query: 'Dune', type: 'any' }, 'replace')
 
-    expect(window.location.search).toBe('?catalogQ=Dune')
+    expect(window.location.search).toBe('?tab=discover&mode=search&q=Dune')
     expect(window.location.hash).toBe('#catalog')
   })
 
   it('writes catalog type when filtering without a query', () => {
     writeCatalogRouteState({ query: '', type: 'book' }, 'replace')
 
-    expect(window.location.search).toBe('?catalogType=book')
+    expect(window.location.search).toBe('?tab=discover&mode=search&type=book')
   })
 
   it('clears catalog URL state when navigating away from catalog', () => {
@@ -80,6 +120,14 @@ describe('app tab routing', () => {
     writeAppTabToUrl('library', 'replace')
 
     expect(window.location.search).toBe('?tab=library')
+  })
+
+  it('writes Home and Discover as first-class routes', () => {
+    writeAppTabToUrl('home', 'replace')
+    expect(window.location.search).toBe('?tab=home')
+
+    writeAppTabToUrl('discover', 'replace')
+    expect(window.location.search).toBe('?tab=discover')
   })
 })
 

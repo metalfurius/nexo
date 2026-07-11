@@ -1,4 +1,4 @@
-# Nexo 1.0 Release Checklist
+# Nexo 1.1.50 Release Checklist
 
 ## Required Gate
 
@@ -10,6 +10,7 @@
 - `npm run build`
 - `npm run check:build-output`
 - `npm run build:functions`
+- `npm run check:release-tools`
 - `npm run test:e2e`
 - `npm run test:e2e:firebase`
 - `npm run check:release-files`
@@ -23,7 +24,7 @@ GitHub Actions mirrors the gate:
 - `.github/workflows/ci.yml` also gates pushes to `main` with the full release check before any Pages deploy starts.
 - `.github/workflows/deploy-pages.yml` runs after successful `CI` push runs on `main`, builds the production Pages artifact, deploys GitHub Pages and runs the production smoke.
 - `.github/workflows/deploy-functions.yml` deploys Firebase Functions and writes the public catalog seed when Functions/catalog paths change, and also supports manual dispatch.
-- `.github/workflows/version-bump.yml` commits package, lockfile and service worker cache version updates into open PRs labelled `patch`, `minor` or `major`, so the original PR is the only PR that needs normal verification.
+- `.github/workflows/version-bump.yml` commits package, lockfile and service worker cache updates into the open PR labelled `release:1.1.50`, so the original PR is the only PR that needs normal verification.
 - Repository secret `VERSION_BUMP_TOKEN` must be present with `repo` permissions so automated version commits trigger normal PR checks.
 
 ## Firebase
@@ -44,20 +45,25 @@ Firebase Functions are required for the anonymous public catalog endpoint. GitHu
 
 ## Release Steps
 
-- Put exactly one version label on the PR before merge: `patch`, `minor` or `major`.
+- Put exactly one version label on the PR before merge: `release:1.1.50`. Remove `patch`, `minor`, `major` and every other `release:*` label.
+- Run `node scripts/bumpVersion.mjs 1.1.50 --dry-run --base-version 1.0.50` and confirm that any other target or downgrade is rejected.
 - Verify package versions stay synchronized across root package files, functions package files and `public/sw.js`.
 - Review `CHANGELOG.md`.
 - Run the required gate.
+- Review Home at 390x844, 768x1024, 1440x900 and 1920x1080; at 390x844, `Tu ruta` and its primary action must appear before scrolling and navigation must remain on one row.
+- Exercise Home, Descubrir, Biblioteca and Dado in all seven themes and with reduced motion; Axe must report no serious/critical or new moderate violations.
+- Confirm `npm run check:build-output` reports first-party initial JavaScript and CSS below 200 KiB and no public preload of Home, Biblioteca or importers.
+- Confirm the wide/narrow PWA screenshots show the final `Tu ruta` surface at 1280x720 and 390x844.
 - Build with `GITHUB_PAGES=true`.
 - Let Deploy Pages run after CI is green on `main`, or dispatch it manually when republishing the current build.
 - Deploy Functions/catalog seed when public catalog logic or seed changes.
-- Tag the merged version, for example `v1.0.1`.
+- Tag the merged version `v1.1.50`.
 - Create a GitHub Release from the tag.
 - Watch GitHub Pages deploy and confirm the production smoke covers anonymous catalog search and moderator email login.
-- Install from browser/PWA prompt once and confirm standalone launch reaches Biblioteca.
+- Install from browser/PWA prompt once and confirm standalone launch reaches Inicio after authentication and Descubrir anonymously.
 
 ## Known Launch Notes
 
-- Firebase Auth, Firestore and Analytics are split behind lazy imports. `npm run build` should not emit Vite's 500 kB chunk warning; if it returns, inspect the initial `index-*.js` chunk before tagging.
+- Firebase Auth, Firestore and Analytics are split behind lazy imports. The release gate keeps the first-party entry and initial CSS each below 200 KiB, excluding vendor chunks.
 - The service worker only caches same-origin app shell/assets and should not intercept Firebase or external API calls.
-- `npm audit --audit-level=moderate` reports transitive `uuid` advisories through Firebase Admin/Tools dependency chains. High severity audit is clean-gated for 1.0; revisit after Firebase packages publish non-breaking patched dependency trees.
+- `npm audit --audit-level=moderate` reports transitive `uuid` advisories through Firebase Admin/Tools dependency chains. High severity audit is clean-gated for 1.1.50; revisit after Firebase packages publish non-breaking patched dependency trees.

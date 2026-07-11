@@ -1,6 +1,9 @@
-import { type DiscoveryCandidate, type ExplorerSearchType } from '../domain/types'
+import './CatalogTab.css'
+
+import { type DiscoveryCandidate, type ExplorerSearchType, type ListItem } from '../domain/types'
 import { discoverySourceLabels as sourceLabels } from '../lib/explorerInsights'
 import { getDiscoveryCandidateEffortSignal, itemTypeLabels as typeLabels } from '../lib/libraryItemInsights'
+import { moveRoadmapItem } from '../lib/roadmap'
 import { Check, CheckCircle2, Eye, Library, LoaderCircle, LogIn, Plus, Search, Sparkles, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
@@ -41,6 +44,7 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
   const [selectedCandidate, setSelectedCandidate] = useState<DiscoveryCandidate | undefined>()
   const [loading, setLoading] = useState(true)
   const [status, setStatus] = useState<string | undefined>()
+  const [recentlySavedItem, setRecentlySavedItem] = useState<ListItem>()
   const libraryRef = useRef(library)
   const catalogRequestId = useRef(0)
   const visibleCandidates = useMemo(() => candidates.slice(0, visibleLimit), [candidates, visibleLimit])
@@ -104,11 +108,14 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
     }
     setLoading(true)
     setStatus(undefined)
+    setRecentlySavedItem(undefined)
     try {
       const currentLibrary = libraryRef.current
       const nextCandidates =
         cleanedQuery.length >= 2
-          ? (await currentLibrary.searchPublicCatalog(cleanedQuery, nextType)).map(currentLibrary.publicItemToDiscovery)
+          ? isSignedIn
+            ? await currentLibrary.searchCatalog(cleanedQuery, nextType)
+            : (await currentLibrary.searchPublicCatalog(cleanedQuery, nextType)).map(currentLibrary.publicItemToDiscovery)
           : nextType === 'any'
             ? (await currentLibrary.listPublicCatalog()).map(currentLibrary.publicItemToDiscovery)
             : (await currentLibrary.searchPublicCatalog('', nextType)).map(currentLibrary.publicItemToDiscovery)
@@ -122,13 +129,15 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
       setStatus(
         nextCandidates.length
           ? formatCatalogVisibleStatus(nextVisibleCount, nextCandidates.length, nextResultLabel, isSignedIn)
-          : 'Sin resultados en el catalogo publico.',
+          : isSignedIn
+            ? 'Sin resultados en Nexo ni en las fuentes disponibles.'
+            : 'Sin resultados en el catalogo publico.',
       )
       if (isSignedIn && cleanedQuery.length >= 2 && nextCandidates.length) {
         onActivity({
           detail: `${nextCandidates.length} resultados para "${cleanedQuery}"`,
           label: 'Catalogo explorado',
-          tab: 'catalog',
+          tab: 'discover',
           tone: 'success',
         })
       }
@@ -153,7 +162,7 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
     function syncCatalogFromUrl() {
       const searchParams = new URLSearchParams(window.location.search)
       const routedTab = searchParams.get('tab')
-      if (searchParams.get('item') || (routedTab && routedTab !== 'catalog')) return
+      if (searchParams.get('item') || (routedTab && routedTab !== 'catalog' && routedTab !== 'discover')) return
 
       const routeState = readCatalogRouteState()
       void runCatalogRequest(routeState.query, routeState.type, { syncInputs: true })
@@ -194,6 +203,7 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
         persistDiscoveryCandidate: false,
         registerPublicCatalog: false,
       })
+      setRecentlySavedItem(item)
       setStatus(`${item.title} guardado en Biblioteca.`)
       onActivity({
         detail: item.title,
@@ -216,7 +226,34 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
 
     const queuedCount = await library.queueDiscoveryCandidates([candidate])
     setStatus(queuedCount ? `${candidate.title} enviado al Explorador.` : `${candidate.title} ya estaba en tu Explorador.`)
-    onNavigate('explorer')
+    onNavigate('discover')
+    const url = new URL(window.location.href)
+    url.searchParams.set('tab', 'discover')
+    url.searchParams.set('mode', 'queue')
+    url.searchParams.delete('q')
+    url.searchParams.delete('type')
+    window.history.pushState(null, '', `${url.pathname}${url.search}${url.hash}`)
+    window.dispatchEvent(new PopStateEvent('popstate'))
+  }
+
+  async function putRecentlySavedItemNext() {
+    if (!recentlySavedItem) return
+    try {
+      await library.applyRoadmapMutation({
+        roadmap: moveRoadmapItem(library.settings.roadmap, recentlySavedItem.id, 'next'),
+      })
+      setStatus(`${recentlySavedItem.title} queda en Despues.`)
+      onActivity({
+        detail: recentlySavedItem.title,
+        label: 'Guardado en Despues',
+        tab: 'discover',
+        target: { kind: 'item', id: recentlySavedItem.id },
+        tone: 'success',
+      })
+      setRecentlySavedItem(undefined)
+    } catch (reason) {
+      setStatus(reason instanceof Error ? reason.message : 'No se pudo colocar la obra en Despues.')
+    }
   }
 
   function showMoreCandidates() {
@@ -290,7 +327,16 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
           </div>
         </section>
 
-        {status && <FeedbackMessage tone={feedbackToneFromText(status)}>{status}</FeedbackMessage>}
+        {status && (
+          <div className="catalog-save-confirmation">
+            <FeedbackMessage tone={feedbackToneFromText(status)}>{status}</FeedbackMessage>
+            {recentlySavedItem && (
+              <button className="secondary-button" type="button" onClick={() => void putRecentlySavedItemNext()}>
+                Poner en Despues
+              </button>
+            )}
+          </div>
+        )}
 
         {candidates.length ? (
           <>

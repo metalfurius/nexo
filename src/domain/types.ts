@@ -36,7 +36,16 @@ export type LibraryCardsPerRow = 4 | 5 | 6
 export type ExplorerSearchType = ItemType | 'watch' | 'animeManga' | 'any'
 export type DiscoveryOrigin = 'publicCatalog' | 'externalSearch' | 'prompt' | 'roll'
 export type DiscoveryStatus = 'queued' | 'saved' | 'dismissed'
-export type ActivityTab = 'catalog' | 'library' | 'dice' | 'explorer' | 'import' | 'settings' | 'curation'
+export type ActivityTab =
+  | 'home'
+  | 'discover'
+  | 'catalog'
+  | 'library'
+  | 'dice'
+  | 'explorer'
+  | 'import'
+  | 'settings'
+  | 'curation'
 export type ActivityTone = 'info' | 'success' | 'danger' | 'loading'
 export type ImportSourceId = 'anilist' | 'myanimelist' | 'letterboxd' | 'goodreads'
 export type ExternalSource =
@@ -240,6 +249,26 @@ export interface DiscoveryCandidate {
   updatedAt: string
 }
 
+export type RoadmapLane = 'now' | 'next' | 'later'
+
+export interface RoadmapPreferences {
+  now: string[]
+  next: string[]
+  later: string[]
+  hidden: string[]
+}
+
+export type RoadmapItemMutation =
+  | { kind: 'status'; itemId: string; status: ItemStatus }
+  | { kind: 'delete'; itemId: string }
+  | { item: ListItem; kind: 'upsert' }
+  | { item: ListItem; kind: 'restore' }
+
+export interface RoadmapMutation {
+  roadmap: RoadmapPreferences
+  item?: RoadmapItemMutation
+}
+
 export interface UserSettings {
   surprisePercent: number
   favoriteTags: string[]
@@ -251,6 +280,7 @@ export interface UserSettings {
   explorerDefaultType: ExplorerSearchType
   libraryViewMode: LibraryViewMode
   libraryCardsPerRow: LibraryCardsPerRow
+  roadmap: RoadmapPreferences
 }
 
 export interface LibrarySyncState {
@@ -322,6 +352,13 @@ export const DEFAULT_RECOMMENDATION_PREFERENCES: RecommendationPreferences = {
   seed: 'nexo',
 }
 
+export const DEFAULT_ROADMAP_PREFERENCES: RoadmapPreferences = {
+  now: [],
+  next: [],
+  later: [],
+  hidden: [],
+}
+
 export const DEFAULT_SETTINGS: UserSettings = {
   surprisePercent: 25,
   favoriteTags: [],
@@ -333,6 +370,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   explorerDefaultType: 'watch',
   libraryViewMode: 'mosaic',
   libraryCardsPerRow: 4,
+  roadmap: DEFAULT_ROADMAP_PREFERENCES,
 }
 
 export const nowIso = () => new Date().toISOString()

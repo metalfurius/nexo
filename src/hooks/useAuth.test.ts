@@ -3,6 +3,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from './useAuth'
 
 const authMocks = vi.hoisted(() => ({
+  createAccount: vi.fn(),
+  getFirebaseAuthErrorMessage: vi.fn((_reason: unknown, operation: string) => `Error seguro: ${operation}`),
+  resetPassword: vi.fn(),
   signInWithEmail: vi.fn(),
   signInWithGoogle: vi.fn(),
   signOutCurrentUser: vi.fn(),
@@ -17,6 +20,9 @@ vi.mock('../services/firebaseAuth', () => authMocks)
 
 describe('useAuth', () => {
   beforeEach(() => {
+    authMocks.createAccount.mockReset()
+    authMocks.getFirebaseAuthErrorMessage.mockClear()
+    authMocks.resetPassword.mockReset()
     authMocks.signInWithEmail.mockReset()
     authMocks.signInWithGoogle.mockReset()
     authMocks.signOutCurrentUser.mockReset()
@@ -39,8 +45,8 @@ describe('useAuth', () => {
     expect(result.current.error).toBeUndefined()
   })
 
-  it('exposes Firebase email sign-in failures', async () => {
-    const failure = new Error('Credenciales invalidas')
+  it('exposes a safe Firebase email sign-in failure', async () => {
+    const failure = new Error('Internal Firebase detail for private@example.test')
     authMocks.signInWithEmail.mockRejectedValueOnce(failure)
     const { result } = renderHook(() => useAuth())
     await waitFor(() => expect(result.current.loading).toBe(false))
@@ -54,8 +60,45 @@ describe('useAuth', () => {
       }
     })
 
-    expect(thrown).toBe(failure)
-    expect(result.current.error).toBe('Credenciales invalidas')
+    expect(thrown).toEqual(new Error('Error seguro: sign-in'))
+    expect(result.current.error).toBe('Error seguro: sign-in')
+    expect(result.current.error).not.toContain('private@example.test')
+    expect(authMocks.getFirebaseAuthErrorMessage).toHaveBeenCalledWith(failure, 'sign-in')
+  })
+
+  it('creates an account and clears a previous error', async () => {
+    authMocks.signInWithEmail.mockRejectedValueOnce(new Error('internal'))
+    const { result } = renderHook(() => useAuth())
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    await act(async () => {
+      await expect(result.current.signInWithEmail('user@example.test', 'wrong')).rejects.toThrow()
+    })
+    expect(result.current.error).toBe('Error seguro: sign-in')
+
+    await act(async () => {
+      await result.current.createAccount('new@example.test', 'safe-password')
+    })
+
+    expect(authMocks.createAccount).toHaveBeenCalledWith('new@example.test', 'safe-password')
+    expect(result.current.error).toBeUndefined()
+  })
+
+  it('requests a password reset and exposes a safe failure', async () => {
+    const failure = new Error('SMTP or account detail')
+    authMocks.resetPassword.mockRejectedValueOnce(failure)
+    const { result } = renderHook(() => useAuth())
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    await act(async () => {
+      await expect(result.current.resetPassword('user@example.test')).rejects.toThrow(
+        'Error seguro: reset-password',
+      )
+    })
+
+    expect(authMocks.resetPassword).toHaveBeenCalledWith('user@example.test')
+    expect(result.current.error).toBe('Error seguro: reset-password')
+    expect(authMocks.getFirebaseAuthErrorMessage).toHaveBeenCalledWith(failure, 'reset-password')
   })
 
   it('keeps Google sign-in available', async () => {

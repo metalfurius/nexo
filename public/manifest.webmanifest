@@ -43,17 +43,24 @@
       "sizes": "1280x720",
       "type": "image/png",
       "form_factor": "wide",
-      "label": "Biblioteca Nexo"
+      "label": "Tu ruta de Nexo"
     },
     {
       "src": "/screenshots/nexo-narrow.png",
       "sizes": "390x844",
       "type": "image/png",
       "form_factor": "narrow",
-      "label": "Nexo movil"
+      "label": "Tu ruta de Nexo en movil"
     }
   ],
   "shortcuts": [
+    {
+      "name": "Tu ruta",
+      "short_name": "Inicio",
+      "description": "Abrir tu plan personal Ahora, Despues y Mas adelante.",
+      "url": "/?tab=home",
+      "icons": [{ "src": "/icons/nexo.svg", "sizes": "any", "type": "image/svg+xml" }]
+    },
     {
       "name": "Dado ponderado",
       "short_name": "Dado",
@@ -62,17 +69,10 @@
       "icons": [{ "src": "/icons/nexo.svg", "sizes": "any", "type": "image/svg+xml" }]
     },
     {
-      "name": "Explorador",
-      "short_name": "Explorar",
-      "description": "Buscar catalogo Nexo y fuentes externas.",
-      "url": "/?tab=explorer",
-      "icons": [{ "src": "/icons/nexo.svg", "sizes": "any", "type": "image/svg+xml" }]
-    },
-    {
-      "name": "Importar",
-      "short_name": "Importar",
-      "description": "Traer bibliotecas externas.",
-      "url": "/?tab=import",
+      "name": "Descubrir",
+      "short_name": "Descubrir",
+      "description": "Buscar en Nexo, sorprenderte o decidir pendientes.",
+      "url": "/?tab=discover&mode=search",
       "icons": [{ "src": "/icons/nexo.svg", "sizes": "any", "type": "image/svg+xml" }]
     }
   ]

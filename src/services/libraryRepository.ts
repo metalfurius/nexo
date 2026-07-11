@@ -17,6 +17,7 @@ import {
   writeBatch,
 } from 'firebase/firestore'
 import {
+  DEFAULT_ROADMAP_PREFERENCES,
   type ActivityEntry,
   type DiscoveryCandidate,
   type ExternalCandidate,
@@ -24,6 +25,7 @@ import {
   type ItemStatus,
   type ListItem,
   type PublicCatalogItem,
+  type RoadmapMutation,
   type UserProfile,
   type UserRole,
   type UserSettings,
@@ -32,6 +34,7 @@ import {
 import { buildPublicCatalogItem, externalCandidateToDiscovery, publicItemToDiscovery, shouldPreserveDiscoveryDecision } from '../lib/catalog'
 import { dedupeCatalogSearchCandidates, rankCatalogSearchCandidates, scoreCatalogSearchCandidate } from '../lib/catalogSearch'
 import { normalizeKey, slugify, uniqueValues } from '../lib/strings'
+import { normalizeRoadmapPreferences } from '../lib/roadmap'
 import { searchExternalSources } from './externalSearch'
 import { getFirebaseServices } from './firebaseDb'
 import { searchRemoteCatalog } from './remoteCatalog'
@@ -64,6 +67,7 @@ export interface LibraryRepository {
     onError: (error: Error) => void,
   ) => () => void
   saveSettings: (settings: Partial<UserSettings>) => Promise<void>
+  applyRoadmapMutation: (mutation: RoadmapMutation) => Promise<void>
   subscribeDiscoveryCandidates: (
     onCandidates: (candidates: DiscoveryCandidate[], snapshotState: RepositorySnapshotState) => void,
     onError: (error: Error) => void,
@@ -133,11 +137,26 @@ export function createFirestoreRepository(userId: string): LibraryRepository | u
     },
     async deleteAllItems() {
       const snapshot = await getDocs(itemCollection)
-      for (const docsChunk of chunk(snapshot.docs, 450)) {
+      const documentChunks = chunk(snapshot.docs, 449)
+      if (documentChunks.length === 0) documentChunks.push([])
+      for (const docsChunk of documentChunks) {
         const batch = writeBatch(services.db)
         for (const itemDoc of docsChunk) {
           batch.delete(itemDoc.ref)
         }
+        batch.set(
+          settingsDocument,
+          {
+            roadmap: {
+              now: [...DEFAULT_ROADMAP_PREFERENCES.now],
+              next: [...DEFAULT_ROADMAP_PREFERENCES.next],
+              later: [...DEFAULT_ROADMAP_PREFERENCES.later],
+              hidden: [...DEFAULT_ROADMAP_PREFERENCES.hidden],
+            },
+            updatedAt: nowIso(),
+          },
+          { merge: true },
+        )
         await batch.commit()
       }
     },
@@ -261,6 +280,41 @@ export function createFirestoreRepository(userId: string): LibraryRepository | u
         },
         { merge: true },
       )
+    },
+    async applyRoadmapMutation(mutation) {
+      const batch = writeBatch(services.db)
+      const updatedAt = nowIso()
+      batch.set(
+        settingsDocument,
+        {
+          roadmap: normalizeRoadmapPreferences(mutation.roadmap),
+          updatedAt,
+        },
+        { merge: true },
+      )
+
+      if (mutation.item?.kind === 'status') {
+        batch.set(
+          itemDocument(mutation.item.itemId),
+          {
+            status: mutation.item.status,
+            updatedAt,
+          },
+          { merge: true },
+        )
+      } else if (mutation.item?.kind === 'delete') {
+        batch.delete(itemDocument(mutation.item.itemId))
+      } else if (mutation.item?.kind === 'restore' || mutation.item?.kind === 'upsert') {
+        batch.set(
+          itemDocument(mutation.item.item.id),
+          {
+            ...withoutUndefined(mutation.item.item),
+            updatedAt,
+          },
+        )
+      }
+
+      await batch.commit()
     },
     subscribeDiscoveryCandidates(onCandidates, onError) {
       const candidatesQuery = query(discoveryCandidateCollection, orderBy('updatedAt', 'desc'))

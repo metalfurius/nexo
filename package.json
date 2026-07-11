@@ -1,7 +1,7 @@
 {
   "name": "nexo",
   "private": true,
-  "version": "1.0.50",
+  "version": "1.1.50",
   "type": "module",
   "scripts": {
     "dev": "vite --host localhost",
@@ -17,10 +17,11 @@
     "preview": "vite preview",
     "deploy:firestore": "firebase deploy --only firestore:rules,firestore:indexes",
     "delete:legacy": "tsx scripts/deleteLegacyFirestore.ts",
-    "check": "npm run lint && npm run test && npm run test:rules && npm run build && npm run check:build-output && npm run check:functions",
+    "check": "npm run lint && npm run test && npm run check:release-tools && npm run test:rules && npm run build && npm run check:build-output && npm run check:functions",
     "check:functions": "npm run build:functions",
     "check:build-output": "tsx scripts/checkBuildOutput.ts",
     "check:release-files": "tsx scripts/checkReleaseReadiness.ts",
+    "check:release-tools": "node --test scripts/releaseTools.test.mjs",
     "version:bump": "node scripts/bumpVersion.mjs",
     "release:check": "npm run check && npm run test:e2e && npm run test:e2e:firebase && npm run check:release-files && npm audit --audit-level=high",
     "test:rules": "tsx scripts/runFirestoreRulesTests.ts",

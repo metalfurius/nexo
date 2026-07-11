@@ -1,12 +1,22 @@
+import './DiceTab.css'
+
 import { DEFAULT_RECOMMENDATION_PREFERENCES, type ListItem, type RecommendationPreferences, type RecommendationResult } from '../domain/types'
 import { getActiveDiceFilters, getDiceEligibilityBreakdown, getDiceScoreMeterWidth, getRecommendationLearningSignals, getRecommendationSessionPlan, diceIntensityLabels as intensityLabels } from '../lib/diceInsights'
 import { isItemInCooldown, itemStatusLabels as statusLabels, itemTypeLabels as typeLabels } from '../lib/libraryItemInsights'
 import { formatRecentRecommendationTime, getRecentRecommendationItems } from '../lib/privateDataInsights'
 import { recommendItem, scoreCandidates } from '../lib/recommendations'
+import { cloneRoadmapPreferences, createRoadmapUndoMutation, deriveRoadmap } from '../lib/roadmap'
 import { normalizeKey, uniqueNormalizedValues } from '../lib/strings'
 import { AlertTriangle, CheckCircle2, Dice5, Info, Library, LockKeyhole, Moon, Play, RotateCcw, Save, Sparkles, X } from 'lucide-react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { CoverArt, DiceEligibilityPanel, EmptyState, FeedbackMessage, ItemEditor, ItemIdentity, PreferenceControls, RecommendationSessionPlanView, cloneRecommendationPreferences, dicePreferencePresets, feedbackToneFromText, getPosterBackplateStyle, sameRecommendationPreferences, typeIcons, type ActivityRecorder, type DiceCooldownReactivateRequest, type DiceDecisionSummary, type DicePreferencesSaveRequest, type DiceRecoveryAction, type DiceRollRequest, type DiceRollSummary, type DiceSettingsUndo, type DiceUndoAction, type LibrarySurface } from '../app/shared'
+
+function getDiceFitLabel(score: number, maximum: number) {
+  const ratio = maximum > 0 ? score / maximum : 0
+  if (ratio >= 0.75) return 'Alto'
+  if (ratio >= 0.45) return 'Medio'
+  return 'Bajo'
+}
 
 export default function DiceTab({
   library,
@@ -40,6 +50,7 @@ export default function DiceTab({
   const [diceUndoAction, setDiceUndoAction] = useState<DiceUndoAction | undefined>()
   const [diceSettingsUndo, setDiceSettingsUndo] = useState<DiceSettingsUndo | undefined>()
   const [diceDecisionSummary, setDiceDecisionSummary] = useState<DiceDecisionSummary | undefined>()
+  const [lastRollScope, setLastRollScope] = useState<'roadmap-next' | 'all'>('all')
   const handledCooldownReactivateRequestId = useRef<number | undefined>(undefined)
   const handledSaveRequestId = useRef<number | undefined>(undefined)
   const handledRollRequestId = useRef<number | undefined>(undefined)
@@ -146,9 +157,19 @@ export default function DiceTab({
     }
   }
 
-  const rollRecommendation = useCallback(async (excludedItemId?: string) => {
-    const rollItems = excludedItemId ? library.items.filter((item) => item.id !== excludedItemId) : library.items
-    const rollCandidates = scoreCandidates(rollItems, preferences, library.settings)
+  const rollRecommendation = useCallback(async (
+    excludedItemId?: string,
+    requestedScope: 'roadmap-next' | 'all' = 'all',
+  ) => {
+    const allRollItems = excludedItemId ? library.items.filter((item) => item.id !== excludedItemId) : library.items
+    const roadmapNextIds = new Set(deriveRoadmap(library.items, library.settings.roadmap).next.map((entry) => entry.item.id))
+    const scopedItems = requestedScope === 'roadmap-next'
+      ? allRollItems.filter((item) => roadmapNextIds.has(item.id))
+      : allRollItems
+    const scopedCandidates = scoreCandidates(scopedItems, preferences, library.settings)
+    const fellBackToAll = requestedScope === 'roadmap-next' && scopedCandidates.length === 0
+    const rollItems = fellBackToAll ? allRollItems : scopedItems
+    const rollCandidates = fellBackToAll ? scoreCandidates(allRollItems, preferences, library.settings) : scopedCandidates
 
     if (!rollCandidates.length) {
       setRecommendation(undefined)
@@ -161,8 +182,15 @@ export default function DiceTab({
       return
     }
 
+    setLastRollScope(fellBackToAll ? 'all' : requestedScope)
     setIsRolling(true)
-    setStatus(undefined)
+    setStatus(
+      fellBackToAll
+        ? 'No habia candidatas disponibles en Despues; el Dado amplio la eleccion a toda tu biblioteca.'
+        : requestedScope === 'roadmap-next'
+          ? 'Eligiendo primero entre las obras de Despues.'
+          : undefined,
+    )
     setDiceUndoAction(undefined)
     setDiceSettingsUndo(undefined)
     setDiceDecisionSummary(undefined)
@@ -193,7 +221,7 @@ export default function DiceTab({
 
   async function rollAnotherRecommendation() {
     if (!recommendation) return
-    await rollRecommendation(recommendation.item.id)
+    await rollRecommendation(recommendation.item.id, lastRollScope)
   }
 
   const savePreferences = useCallback(async () => {
@@ -286,12 +314,14 @@ export default function DiceTab({
 
   async function startRecommendation() {
     if (!recommendation) return
+    const previousRoadmap = cloneRoadmapPreferences(library.settings.roadmap)
     try {
       await library.setStatus(recommendation.item.id, 'in_progress')
       setDiceSettingsUndo(undefined)
       setDiceUndoAction({
         kind: 'status',
         itemId: recommendation.item.id,
+        previousRoadmap,
         previousStatus: recommendation.item.status,
         title: recommendation.item.title,
       })
@@ -452,7 +482,10 @@ export default function DiceTab({
 
     try {
       if (diceUndoAction.kind === 'status') {
-        await library.setStatus(diceUndoAction.itemId, diceUndoAction.previousStatus)
+        await library.applyRoadmapMutation(createRoadmapUndoMutation(diceUndoAction.previousRoadmap, {
+          id: diceUndoAction.itemId,
+          status: diceUndoAction.previousStatus,
+        }))
         setStatus(`${diceUndoAction.title} recuperado como ${statusLabels[diceUndoAction.previousStatus]}`)
         onActivity({
           detail: `${diceUndoAction.title} -> ${statusLabels[diceUndoAction.previousStatus]}`,
@@ -511,7 +544,7 @@ export default function DiceTab({
       if (handledRollRequestId.current === rollRequest.requestId) return
 
       handledRollRequestId.current = rollRequest.requestId
-      void rollRecommendation().finally(onRollRequestHandled)
+      void rollRecommendation(undefined, rollRequest.scope ?? 'all').finally(onRollRequestHandled)
     }, 0)
 
     return () => window.clearTimeout(timeoutId)
@@ -628,7 +661,7 @@ export default function DiceTab({
             </span>
             <span className="dice-featured-score">
               <small>Encaje</small>
-              <strong>{topCandidate.score}</strong>
+              <strong>{getDiceFitLabel(topCandidate.score, maxCandidateScore)}</strong>
             </span>
           </button>
         )}
@@ -662,9 +695,10 @@ export default function DiceTab({
                       ))}
                     </span>
                   </span>
-                  <span className="dice-candidate-score" aria-label={`Encaje ${candidate.score} de ${candidate.item.title}`}>
+                  <span className="dice-candidate-score" aria-label={`Encaje ${getDiceFitLabel(candidate.score, maxCandidateScore)} de ${candidate.item.title}; valor ${candidate.score}`}>
                     <span>Encaje</span>
-                    <strong>{candidate.score}</strong>
+                    <strong>{getDiceFitLabel(candidate.score, maxCandidateScore)}</strong>
+                    <small>Valor {candidate.score}</small>
                     <span className="dice-score-meter" aria-hidden="true">
                       <span style={{ width: getDiceScoreMeterWidth(candidate.score, maxCandidateScore) }} />
                     </span>
@@ -877,7 +911,7 @@ export default function DiceTab({
                 <div className="recommendation-scoreboard" aria-label="Resumen de la tirada">
                   <div className="score-card primary">
                     <span>Encaje</span>
-                    <strong>{recommendation.score}</strong>
+                    <strong>{getDiceFitLabel(recommendation.score, maxCandidateScore)}</strong>
                   </div>
                   <div className="score-card">
                     <span>Entre</span>
@@ -888,6 +922,14 @@ export default function DiceTab({
                     <strong>{intensityLabels[preferences.intensity]}</strong>
                   </div>
                 </div>
+                <details className="dice-score-details">
+                  <summary>Desglose de puntuacion</summary>
+                  <div>
+                    <span>Valor tecnico <strong>{recommendation.score}</strong></span>
+                    <span>Pool considerado <strong>{recommendation.poolSize}</strong></span>
+                    {recommendation.reasons.slice(0, 3).map((reason) => <span key={reason}>{reason}</span>)}
+                  </div>
+                </details>
               </div>
             </div>
             <div className="recommendation-detail-grid" aria-label="Detalles de la tirada">

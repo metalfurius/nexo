@@ -38,8 +38,9 @@ describe('activity insights', () => {
     ])
   })
 
-  it('uses the original tab when an activity has no item target', () => {
-    expect(getActivityDestinationTab(activity({ tab: 'explorer' }))).toBe('explorer')
+  it('maps legacy discovery activity and keeps current destinations', () => {
+    expect(getActivityDestinationTab(activity({ tab: 'explorer' }))).toBe('discover')
+    expect(getActivityDestinationTab(activity({ tab: 'catalog' }))).toBe('discover')
     expect(getActivityDestinationTab(activity({ tab: 'dice', target: { kind: 'item', id: 'item-1' } }))).toBe(
       'library',
     )

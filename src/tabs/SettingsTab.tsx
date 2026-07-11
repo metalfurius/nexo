@@ -1,3 +1,5 @@
+import './SettingsTab.css'
+
 import { catalogTaxonomyTemplates } from '../data/catalogPresets'
 import { type ExplorerSearchType, type ListItem, type ThemeMode, type UserSettings } from '../domain/types'
 import { getLibraryImportRollbackPlan, getLibraryImportSummary, type LibraryImportRollbackPlan, type ParsedLibraryImport, parseLibraryImportPayload } from '../lib/libraryBackup'
@@ -579,14 +581,14 @@ export default function SettingsTab({
           Icon: Sparkles,
           id: 'explorer',
           label: 'Decidir cola',
-          onClick: () => onNavigate('explorer'),
+          onClick: () => onNavigate('discover'),
         }
       : {
           detail: 'Buscar en Nexo y APIs',
           Icon: Search,
           id: 'explorer',
           label: 'Explorar catalogo',
-          onClick: () => onNavigate('explorer'),
+          onClick: () => onNavigate('discover'),
         },
     {
       detail: 'Descargar copia privada',

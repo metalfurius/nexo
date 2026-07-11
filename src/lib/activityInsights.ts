@@ -1,9 +1,11 @@
 import type { ActivityEntry, ActivityTab } from '../domain/types'
 
+export type ActivityDestinationTab = 'home' | 'discover' | 'library' | 'dice' | 'import' | 'settings' | 'curation'
+
 export interface ActivityContinuityGroup {
   count: number
   entry: ActivityEntry
-  tab: ActivityTab
+  tab: ActivityDestinationTab
 }
 
 export interface ActivityContinuitySummary {
@@ -17,7 +19,7 @@ export function getActivityContinuitySummary(entries: ActivityEntry[], limit = 4
   if (!entries.length) return undefined
 
   const primaryEntry = entries.find((entry) => entry.target?.kind === 'item') ?? entries[0]
-  const groupsByTab = new Map<ActivityTab, ActivityContinuityGroup>()
+  const groupsByTab = new Map<ActivityDestinationTab, ActivityContinuityGroup>()
 
   for (const entry of entries) {
     const tab = getActivityDestinationTab(entry)
@@ -39,6 +41,8 @@ export function getActivityContinuitySummary(entries: ActivityEntry[], limit = 4
   }
 }
 
-export function getActivityDestinationTab(entry: ActivityEntry): ActivityTab {
-  return entry.target?.kind === 'item' ? 'library' : entry.tab
+export function getActivityDestinationTab(entry: ActivityEntry): ActivityDestinationTab {
+  if (entry.target?.kind === 'item') return 'library'
+  if (entry.tab === 'catalog' || entry.tab === 'explorer') return 'discover'
+  return entry.tab as Exclude<ActivityTab, 'catalog' | 'explorer'>
 }

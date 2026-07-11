@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   addDoc: vi.fn(),
   batchCommit: vi.fn(),
   batchDelete: vi.fn(),
+  batchSet: vi.fn(),
   deleteDoc: vi.fn(),
   deleteField: vi.fn(),
   getDoc: vi.fn(),
@@ -68,6 +69,7 @@ vi.mock('firebase/firestore', () => ({
   writeBatch: vi.fn(() => ({
     commit: mocks.batchCommit,
     delete: mocks.batchDelete,
+    set: mocks.batchSet,
   })),
 }))
 
@@ -189,6 +191,11 @@ describe('createFirestoreRepository', () => {
 
     expect(mocks.getDocs).toHaveBeenCalledWith(expect.objectContaining({ path: 'users/user-1/items' }))
     expect(mocks.batchDelete).toHaveBeenCalledWith(docRef)
+    expect(mocks.batchSet).toHaveBeenCalledWith(
+      expect.objectContaining({ path: 'users/user-1/userSettings/preferences' }),
+      expect.objectContaining({ roadmap: { now: [], next: [], later: [], hidden: [] } }),
+      { merge: true },
+    )
     expect(mocks.batchCommit).toHaveBeenCalled()
   })
 
@@ -592,6 +599,117 @@ describe('createFirestoreRepository', () => {
       expect.objectContaining({ path: 'publicItems/movie-arrival' }),
       expect.objectContaining({ title: 'Arrival', updatedBy: 'user-1' }),
     )
+  })
+
+  it('commits roadmap and status changes in one atomic batch', async () => {
+    const repository = createFirestoreRepository('user-1')
+
+    await repository?.applyRoadmapMutation({
+      roadmap: { now: ['movie-arrival'], next: [], later: [], hidden: [] },
+      item: { kind: 'status', itemId: 'movie-arrival', status: 'in_progress' },
+    })
+
+    expect(mocks.batchSet).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ path: 'users/user-1/userSettings/preferences' }),
+      expect.objectContaining({
+        roadmap: { now: ['movie-arrival'], next: [], later: [], hidden: [] },
+        updatedAt: expect.any(String),
+      }),
+      { merge: true },
+    )
+    expect(mocks.batchSet).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ path: 'users/user-1/items/movie-arrival' }),
+      expect.objectContaining({ status: 'in_progress', updatedAt: expect.any(String) }),
+      { merge: true },
+    )
+    expect(mocks.batchCommit).toHaveBeenCalledTimes(1)
+  })
+
+  it('commits a full edited item and its roadmap placement in one atomic batch', async () => {
+    const repository = createFirestoreRepository('user-1')
+    const item: ListItem = {
+      id: 'movie-arrival',
+      title: 'Arrival',
+      type: 'movie',
+      status: 'in_progress',
+      progressCurrent: 42,
+      progressTotal: 116,
+      progressUnit: 'minutes',
+      genres: ['Ciencia ficcion'],
+      tags: [],
+      moodTags: [],
+      weights: DEFAULT_WEIGHTS,
+      source: 'manual',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-02T00:00:00.000Z',
+    }
+
+    await repository?.applyRoadmapMutation({
+      roadmap: { now: ['movie-arrival'], next: [], later: [], hidden: [] },
+      item: { item, kind: 'upsert' },
+    })
+
+    expect(mocks.batchSet).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ path: 'users/user-1/items/movie-arrival' }),
+      expect.objectContaining({
+        id: 'movie-arrival',
+        progressCurrent: 42,
+        status: 'in_progress',
+        updatedAt: expect.any(String),
+      }),
+    )
+    expect(mocks.batchCommit).toHaveBeenCalledTimes(1)
+  })
+
+  it('commits roadmap cleanup and item deletion in one atomic batch', async () => {
+    const repository = createFirestoreRepository('user-1')
+
+    await repository?.applyRoadmapMutation({
+      roadmap: { now: [], next: [], later: [], hidden: [] },
+      item: { kind: 'delete', itemId: 'movie-arrival' },
+    })
+
+    expect(mocks.batchSet).toHaveBeenCalledWith(
+      expect.objectContaining({ path: 'users/user-1/userSettings/preferences' }),
+      expect.objectContaining({ roadmap: { now: [], next: [], later: [], hidden: [] } }),
+      { merge: true },
+    )
+    expect(mocks.batchDelete).toHaveBeenCalledWith(
+      expect.objectContaining({ path: 'users/user-1/items/movie-arrival' }),
+    )
+    expect(mocks.batchCommit).toHaveBeenCalledTimes(1)
+    expect(mocks.deleteDoc).not.toHaveBeenCalled()
+  })
+
+  it('restores a deleted item and its roadmap placement in one atomic batch', async () => {
+    const repository = createFirestoreRepository('user-1')
+    const item: ListItem = {
+      id: 'movie-arrival',
+      title: 'Arrival',
+      type: 'movie',
+      status: 'paused',
+      genres: ['Ciencia ficcion'],
+      tags: [],
+      moodTags: [],
+      weights: DEFAULT_WEIGHTS,
+      source: 'manual',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-02T00:00:00.000Z',
+    }
+
+    await repository?.applyRoadmapMutation({
+      roadmap: { now: [], next: [], later: ['movie-arrival'], hidden: [] },
+      item: { item, kind: 'restore' },
+    })
+
+    expect(mocks.batchSet).toHaveBeenCalledWith(
+      expect.objectContaining({ path: 'users/user-1/items/movie-arrival' }),
+      expect.objectContaining({ id: 'movie-arrival', status: 'paused', updatedAt: expect.any(String) }),
+    )
+    expect(mocks.batchCommit).toHaveBeenCalledTimes(1)
   })
 
   it('returns signed-in public catalog searches without the old twelve item cutoff', async () => {

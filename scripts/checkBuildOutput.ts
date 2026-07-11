@@ -1,4 +1,4 @@
-import { access, readFile, readdir } from 'node:fs/promises'
+import { access, readFile, readdir, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 
 const distDir = 'dist'
@@ -39,6 +39,40 @@ async function checkReferencedFiles(indexHtml: string) {
   }
 }
 
+async function checkInitialCssBudget(indexHtml: string) {
+  const initialCssReferences = [...indexHtml.matchAll(/\bhref="([^"]+\.css(?:\?[^"]*)?)"/g)]
+    .map((match) => match[1])
+    .filter((reference) => reference.startsWith('/') && !reference.startsWith('//'))
+  const initialCssBytes = (await Promise.all(initialCssReferences.map(async (reference) => {
+    const path = toDistPath(reference)
+    return (await exists(path)) ? (await stat(path)).size : 0
+  }))).reduce((total, size) => total + size, 0)
+
+  check(
+    initialCssBytes < 200 * 1024,
+    `Initial first-party CSS must stay below 200 KiB (received ${(initialCssBytes / 1024).toFixed(2)} KiB).`,
+  )
+}
+
+async function checkInitialJsBudget(indexHtml: string) {
+  const entryScriptReferences = [...indexHtml.matchAll(/<script\b[^>]*\bsrc="([^"]+\.js(?:\?[^"]*)?)"[^>]*>/g)]
+    .map((match) => match[1])
+    .filter((reference) => reference.startsWith('/') && !reference.startsWith('//') && !reference.includes('-vendor-'))
+  const entryScriptBytes = (await Promise.all(entryScriptReferences.map(async (reference) => {
+    const path = toDistPath(reference)
+    return (await exists(path)) ? (await stat(path)).size : 0
+  }))).reduce((total, size) => total + size, 0)
+
+  check(
+    entryScriptBytes < 200 * 1024,
+    `Initial first-party JavaScript entry must stay below 200 KiB (received ${(entryScriptBytes / 1024).toFixed(2)} KiB).`,
+  )
+  check(
+    !/(?:HomeTab|LibraryTab|ImportTab|library-importers)-[^"']+\.js/.test(indexHtml),
+    'The public entry must not preload Home, Library or importer JavaScript chunks.',
+  )
+}
+
 async function main() {
   check(await exists(distDir), 'dist directory must exist. Run npm run build first.')
 
@@ -51,6 +85,8 @@ async function main() {
   check(!indexHtml.includes('http://127.0.0.1'), 'dist/index.html must not contain local dev server URLs.')
   check(!indexHtml.includes('localhost'), 'dist/index.html must not contain localhost URLs.')
   await checkReferencedFiles(indexHtml)
+  await checkInitialCssBudget(indexHtml)
+  await checkInitialJsBudget(indexHtml)
 
   const assetsDir = join(distDir, 'assets')
   check(await exists(assetsDir), 'dist/assets must exist.')

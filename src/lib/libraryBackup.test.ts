@@ -23,7 +23,11 @@ const baseItem: ListItem = {
 
 describe('library backup schema', () => {
   it('creates a versioned export payload with items and settings', () => {
-    const payload = createLibraryExportPayload([baseItem], DEFAULT_SETTINGS, '2026-01-02T00:00:00.000Z')
+    const settings = {
+      ...DEFAULT_SETTINGS,
+      roadmap: { now: [], next: ['game-outer-wilds'], later: [], hidden: [] },
+    }
+    const payload = createLibraryExportPayload([baseItem], settings, '2026-01-02T00:00:00.000Z')
 
     expect(payload.schemaVersion).toBe(1)
     expect(payload.exportedAt).toBe('2026-01-02T00:00:00.000Z')
@@ -31,6 +35,10 @@ describe('library backup schema', () => {
     expect(payload.settings.theme).toBe('dark')
     expect(payload.settings.libraryViewMode).toBe('mosaic')
     expect(payload.settings.libraryCardsPerRow).toBe(4)
+    expect(payload.settings.roadmap).toEqual(settings.roadmap)
+    expect(payload.settings).not.toBe(settings)
+    expect(payload.settings.roadmap).not.toBe(settings.roadmap)
+    expect(payload.settings.roadmap.next).not.toBe(settings.roadmap.next)
   })
 
   it('creates a scoped export payload without private settings', () => {
@@ -53,6 +61,38 @@ describe('library backup schema', () => {
     expect(parsed.settings?.explorerDefaultType).toBe('watch')
     expect(parsed.settings?.libraryViewMode).toBe('mosaic')
     expect(parsed.settings?.libraryCardsPerRow).toBe(4)
+    expect(parsed.settings?.roadmap).toEqual({ now: [], next: [], later: [], hidden: [] })
+  })
+
+  it('preserves and normalizes an additive roadmap in schemaVersion 1 backups', () => {
+    const parsed = parseLibraryImportPayload(
+      {
+        schemaVersion: 1,
+        exportedAt: '2026-01-02T00:00:00.000Z',
+        items: [
+          baseItem,
+          { ...baseItem, id: 'book-solaris', title: 'Solaris', type: 'book' },
+          { ...baseItem, id: 'book-done', title: 'Done', type: 'book', status: 'completed' },
+        ],
+        settings: {
+          ...DEFAULT_SETTINGS,
+          roadmap: {
+            hidden: ['game-outer-wilds'],
+            now: ['game-outer-wilds', 'missing'],
+            next: ['book-solaris', 'book-solaris'],
+            later: ['book-done'],
+          },
+        },
+      },
+      '2026-01-03T00:00:00.000Z',
+    )
+
+    expect(parsed.settings?.roadmap).toEqual({
+      hidden: ['game-outer-wilds'],
+      now: [],
+      next: ['book-solaris'],
+      later: [],
+    })
   })
 
   it('preserves every supported external ref when parsing backups', () => {
@@ -260,6 +300,8 @@ describe('library backup schema', () => {
     expect(rollback.previousSettings).toEqual(currentSettings)
     expect(rollback.previousSettings).not.toBe(currentSettings)
     expect(rollback.previousSettings?.favoriteTags).not.toBe(currentSettings.favoriteTags)
+    expect(rollback.previousSettings?.roadmap).not.toBe(currentSettings.roadmap)
+    expect(rollback.previousSettings?.roadmap.now).not.toBe(currentSettings.roadmap.now)
   })
 
   it('normalizes missing optional arrays and weights from older backups', () => {

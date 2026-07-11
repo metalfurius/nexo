@@ -33,7 +33,7 @@ jobs:
         with:
           node-version: 24
 
-      - name: Resolve bump type
+      - name: Resolve release target
         id: resolve
         run: node scripts/resolveVersionBump.mjs
 
@@ -55,10 +55,10 @@ jobs:
           version="$(git show origin/main:package.json | node -e "const fs = require('node:fs'); console.log(JSON.parse(fs.readFileSync(0, 'utf8')).version)")"
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
-      - name: Bump package versions
+      - name: Set package release version
         id: bump
         if: steps.resolve.outputs.should_bump == 'true'
-        run: node scripts/bumpVersion.mjs "${{ steps.resolve.outputs.bump }}" --base-version "${{ steps.base.outputs.version }}"
+        run: node scripts/bumpVersion.mjs "${{ steps.resolve.outputs.target }}" --base-version "${{ steps.base.outputs.version }}"
 
       - name: Commit version files to PR
         if: steps.resolve.outputs.should_bump == 'true'

@@ -1,8 +1,11 @@
+import './ExplorerTab.css'
+
 import { type DiscoveryCandidate, type DiscoveryStatus, type ExplorerSearchType, type ListItem, type PublicCatalogItem } from '../domain/types'
 import { promptToDiscovery } from '../lib/catalog'
 import { blankPublicCatalogItem, publicCatalogDraftFromCandidate } from '../lib/catalogInsights'
 import { discoveryEmptyCopy, discoveryStatusLabels, type ExplorerSourceFilter, explorerSourceFilters, getCandidateDecisionBrief, getDiscoverySourceFilter, getExplorerDecisionState, getExplorerSourceFilterLabel, discoverySourceLabels as sourceLabels } from '../lib/explorerInsights'
 import { getDiscoveryCandidateEffortSignal, itemTypeLabels as typeLabels } from '../lib/libraryItemInsights'
+import { moveRoadmapItem } from '../lib/roadmap'
 import { normalizeKey } from '../lib/strings'
 import { type ExternalDiscoverDuration, type ExternalDiscoverType } from '../services/externalSourceCredits'
 import { CheckCircle2, Eye, Info, Plus, Search, ShieldCheck, SlidersHorizontal, Sparkles, X } from 'lucide-react'
@@ -14,16 +17,19 @@ export default function ExplorerTab({
   candidateRequest,
   candidateSaveRequest,
   library,
+  requiresSignIn = false,
   onActivity,
   onCandidateDismissRequestHandled,
   onCandidateRequestHandled,
   onCandidateSaveRequestHandled,
   onPromptCardRequestHandled,
   onSearchRequestHandled,
+  onSignIn,
   onVisibleDismissRequestHandled,
   onVisibleSaveRequestHandled,
   promptCardRequest,
   searchRequest,
+  surfaceMode = 'surprise',
   visibleDismissRequest,
   visibleSaveRequest,
 }: {
@@ -31,16 +37,19 @@ export default function ExplorerTab({
   candidateRequest?: ExplorerCandidateRequest
   candidateSaveRequest?: ExplorerCandidateSaveRequest
   library: LibrarySurface
+  requiresSignIn?: boolean
   onActivity: ActivityRecorder
   onCandidateDismissRequestHandled: () => void
   onCandidateRequestHandled: () => void
   onCandidateSaveRequestHandled: () => void
   onPromptCardRequestHandled: () => void
   onSearchRequestHandled: () => void
+  onSignIn: () => void
   onVisibleDismissRequestHandled: () => void
   onVisibleSaveRequestHandled: () => void
   promptCardRequest?: ExplorerPromptCardRequest
   searchRequest?: ExplorerSearchRequest
+  surfaceMode?: 'surprise' | 'queue'
   visibleDismissRequest?: ExplorerVisibleDismissRequest
   visibleSaveRequest?: ExplorerVisibleSaveRequest
 }) {
@@ -69,6 +78,12 @@ export default function ExplorerTab({
   const handledVisibleDismissRequestId = useRef<number | undefined>(undefined)
   const handledVisibleSaveRequestId = useRef<number | undefined>(undefined)
   const type = library.settings.explorerDefaultType
+  const requestPrivateAccess = useCallback((message = 'Entra en Nexo para guardar cambios en tu espacio privado.') => {
+    if (!requiresSignIn) return true
+    setMessage(message)
+    onSignIn()
+    return false
+  }, [onSignIn, requiresSignIn])
   const explorerDecision = useMemo(
     () => getExplorerDecisionState(library.discoveryCandidates, view, sourceFilter),
     [library.discoveryCandidates, sourceFilter, view],
@@ -180,6 +195,7 @@ export default function ExplorerTab({
       setMessage('Escribe al menos 2 caracteres para buscar.')
       return
     }
+    if (!requestPrivateAccess('Entra en Nexo para enviar resultados a tus pendientes.')) return
 
     setLoading(true)
     try {
@@ -206,7 +222,7 @@ export default function ExplorerTab({
     } finally {
       setLoading(false)
     }
-  }, [clearExplorerRecentActions, library, onActivity, query, type])
+  }, [clearExplorerRecentActions, library, onActivity, query, requestPrivateAccess, type])
 
   const runExternalDiscovery = useCallback(async () => {
     setMessage(undefined)
@@ -238,6 +254,7 @@ export default function ExplorerTab({
   }, [clearExplorerRecentActions, discoverDuration, discoverType, library, onActivity])
 
   const addPromptCard = useCallback(async () => {
+    if (!requestPrivateAccess('Entra en Nexo para anadir pistas a tus pendientes.')) return
     try {
       clearExplorerRecentActions()
       const title = promptDeck[Math.floor(Math.random() * promptDeck.length)]
@@ -253,7 +270,7 @@ export default function ExplorerTab({
     } catch (reason) {
       setMessage(reason instanceof Error ? reason.message : 'No se pudo anadir la carta.')
     }
-  }, [clearExplorerRecentActions, library, onActivity])
+  }, [clearExplorerRecentActions, library, onActivity, requestPrivateAccess])
 
   const startExplorerIdea = useCallback(async (idea: (typeof explorerStarterIdeas)[number]) => {
     setQuery(idea.query)
@@ -274,6 +291,7 @@ export default function ExplorerTab({
   }, [addPromptCard, explorerShelfItems, explorerStarterIdeas, startExplorerIdea])
 
   const saveCandidate = useCallback(async (candidate: DiscoveryCandidate) => {
+    if (!requestPrivateAccess()) return false
     const completedQueue = candidateCompletesVisibleQueue(candidate) ? getCompletedExplorerQueue(1, 'saved') : undefined
     try {
       setBulkDismissUndo([])
@@ -295,9 +313,10 @@ export default function ExplorerTab({
       setMessage(reason instanceof Error ? reason.message : 'No se pudo guardar el hallazgo.')
       return false
     }
-  }, [candidateCompletesVisibleQueue, getCompletedExplorerQueue, library, onActivity])
+  }, [candidateCompletesVisibleQueue, getCompletedExplorerQueue, library, onActivity, requestPrivateAccess])
 
   const saveDiscoverCandidate = useCallback(async (candidate: DiscoveryCandidate) => {
+    if (!requestPrivateAccess()) return false
     try {
       setBulkDismissUndo([])
       setBulkSaveUndo([])
@@ -318,7 +337,27 @@ export default function ExplorerTab({
       setMessage(reason instanceof Error ? reason.message : 'No se pudo guardar el hallazgo.')
       return false
     }
-  }, [library, onActivity])
+  }, [library, onActivity, requestPrivateAccess])
+
+  const putSavedItemNext = useCallback(async () => {
+    if (!savedExplorerItem) return
+    try {
+      await library.applyRoadmapMutation({
+        roadmap: moveRoadmapItem(library.settings.roadmap, savedExplorerItem.id, 'next'),
+      })
+      setMessage(`${savedExplorerItem.title} queda en Despues.`)
+      onActivity({
+        detail: savedExplorerItem.title,
+        label: 'Guardado en Despues',
+        tab: 'discover',
+        target: { kind: 'item', id: savedExplorerItem.id },
+        tone: 'success',
+      })
+      setSavedExplorerItem(undefined)
+    } catch (reason) {
+      setMessage(reason instanceof Error ? reason.message : 'No se pudo colocar la obra en Despues.')
+    }
+  }, [library, onActivity, savedExplorerItem])
 
   function dismissDiscoverCandidate(candidate: DiscoveryCandidate) {
     setDiscoverCandidate(undefined)
@@ -332,6 +371,7 @@ export default function ExplorerTab({
   }
 
   const dismissCandidate = useCallback(async (candidate: DiscoveryCandidate) => {
+    if (!requestPrivateAccess('Entra en Nexo para decidir tus hallazgos pendientes.')) return false
     const completedQueue = candidateCompletesVisibleQueue(candidate) ? getCompletedExplorerQueue(1, 'dismissed') : undefined
     try {
       clearExplorerRecentActions()
@@ -350,9 +390,10 @@ export default function ExplorerTab({
       setMessage(reason instanceof Error ? reason.message : 'No se pudo descartar el hallazgo.')
       return false
     }
-  }, [candidateCompletesVisibleQueue, clearExplorerRecentActions, getCompletedExplorerQueue, library, onActivity])
+  }, [candidateCompletesVisibleQueue, clearExplorerRecentActions, getCompletedExplorerQueue, library, onActivity, requestPrivateAccess])
 
   async function restoreCandidate(candidate: DiscoveryCandidate) {
+    if (!requestPrivateAccess('Entra en Nexo para recuperar hallazgos pendientes.')) return false
     try {
       clearExplorerRecentActions()
       await library.restoreDiscoveryCandidate(candidate.id)
@@ -372,6 +413,7 @@ export default function ExplorerTab({
   }
 
   const dismissVisibleQueueForFilter = useCallback(async (targetFilter: ExplorerSourceFilter) => {
+    if (!requestPrivateAccess('Entra en Nexo para decidir tus hallazgos pendientes.')) return
     setView('queued')
     setSourceFilter(targetFilter)
     setSelected(undefined)
@@ -407,7 +449,7 @@ export default function ExplorerTab({
     } catch (reason) {
       setMessage(reason instanceof Error ? reason.message : 'No se pudo limpiar la vista.')
     }
-  }, [getCompletedExplorerQueue, library, onActivity])
+  }, [getCompletedExplorerQueue, library, onActivity, requestPrivateAccess])
 
   async function dismissVisibleQueue() {
     if (view !== 'queued') return
@@ -415,6 +457,7 @@ export default function ExplorerTab({
   }
 
   const saveVisibleQueueForFilter = useCallback(async (targetFilter: ExplorerSourceFilter) => {
+    if (!requestPrivateAccess()) return
     setView('queued')
     setSourceFilter(targetFilter)
     setSelected(undefined)
@@ -455,7 +498,7 @@ export default function ExplorerTab({
       setMessage(reason instanceof Error ? reason.message : 'No se pudo guardar la vista.')
       if (savedPairs.length) setBulkSaveUndo(savedPairs)
     }
-  }, [getCompletedExplorerQueue, library, onActivity])
+  }, [getCompletedExplorerQueue, library, onActivity, requestPrivateAccess])
 
   async function saveVisibleQueue() {
     if (view !== 'queued') return
@@ -807,7 +850,7 @@ export default function ExplorerTab({
   return (
     <section className={totalDiscoveryCount > 0 ? 'content-grid explorer-grid' : 'content-grid explorer-focus-grid explorer-grid'}>
       <section className="workspace-panel wide">
-        <div className="explorer-command">
+        {surfaceMode !== 'queue' && <div className="explorer-command">
           <div className="explorer-command-main">
             <div className="explorer-command-heading">
               <div>
@@ -855,11 +898,25 @@ export default function ExplorerTab({
               </button>
             </form>
           </div>
-        </div>
+        </div>}
 
         <ToastStack label="Accion reciente del explorador Notificaciones" toasts={explorerToasts} onDismiss={dismissExplorerToast} />
 
-        {discoverCandidate && (
+        {savedExplorerItem && (
+          <section className="explorer-save-followup" aria-label="Siguiente paso de la obra guardada">
+            <span><CheckCircle2 size={17} />{savedExplorerItem.title} ya esta en tu Biblioteca.</span>
+            <div>
+              <button className="primary-button" type="button" onClick={() => void putSavedItemNext()}>
+                Poner en Despues
+              </button>
+              <button className="secondary-button" type="button" onClick={() => setEditingSavedItem(savedExplorerItem)}>
+                <Info size={16} />Afinar ficha
+              </button>
+            </div>
+          </section>
+        )}
+
+        {surfaceMode !== 'queue' && discoverCandidate && (
           <section className="candidate-spotlight explorer-random-result" aria-label="Resultado random externo" data-testid="explorer-random-result">
             <div className="candidate-spotlight-media">
               <CoverArt title={discoverCandidate.title} type={discoverCandidate.type} posterUrl={discoverCandidate.posterUrl} />
@@ -897,7 +954,7 @@ export default function ExplorerTab({
           </section>
         )}
 
-        <details className="explorer-tools-panel explorer-history-panel">
+        <details className="explorer-tools-panel explorer-history-panel" open={surfaceMode === 'queue'}>
           <summary aria-label="Abrir historial avanzado del explorador">
             <span>
               <SlidersHorizontal size={16} />
@@ -941,18 +998,6 @@ export default function ExplorerTab({
                 {loading ? 'Buscando' : 'Buscar'}
               </button>
             </form>
-
-            {savedExplorerItem && (
-              <button
-                aria-label={`Afinar ficha guardada ${savedExplorerItem.title}`}
-                className="secondary-button"
-                type="button"
-                onClick={() => setEditingSavedItem(savedExplorerItem)}
-              >
-                <Info size={16} />
-                Afinar ficha guardada
-              </button>
-            )}
 
         {totalDiscoveryCount > 0 && (
           <>

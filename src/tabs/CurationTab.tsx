@@ -1,3 +1,5 @@
+import './CurationTab.css'
+
 import { type CatalogTaxonomyTemplate, catalogTaxonomyTemplates } from '../data/catalogPresets'
 import { ITEM_TYPES, type ItemType, nowIso, type PublicCatalogItem } from '../domain/types'
 import { blankPublicCatalogItem, type CatalogIssueFilter, type CatalogIssueKey, catalogIssueLabels, type CatalogQualityFilter, catalogQualityIssueKeys, catalogQualityWarnings, catalogSortLabels, type CatalogSortMode, getCatalogDiagnostics, getCatalogRepairDraft, getCatalogReviewQueue, publicCatalogDraftFromTemplate, sortCatalogItems, upsertVisibleCatalogItem } from '../lib/catalogInsights'
