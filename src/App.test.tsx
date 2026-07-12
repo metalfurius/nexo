@@ -354,6 +354,23 @@ describe('App sign-in dialog', () => {
     expect(within(navigation).queryByRole('menuitem', { name: /Curar/ })).not.toBeInTheDocument()
   })
 
+  it('closes More on an outside click', async () => {
+    const user = userEvent.setup()
+    authMock.state.user = { uid: 'user-1' }
+    render(<App />)
+    const home = await screen.findByRole('region', { name: 'Inicio mock' })
+    const navigation = screen.getByRole('navigation', { name: 'Secciones de Nexo' })
+    const more = within(navigation).getByLabelText(/más secciones/i)
+    const details = more.closest('details')
+    expect(details).not.toBeNull()
+
+    await user.click(more)
+    expect(within(navigation).getByRole('menuitem', { name: /Importar/ })).toBeVisible()
+
+    await user.click(home)
+    await waitFor(() => expect(details).not.toHaveAttribute('open'))
+  })
+
   it('creates an email account from the same access dialog', async () => {
     const user = userEvent.setup()
     render(<App />)
