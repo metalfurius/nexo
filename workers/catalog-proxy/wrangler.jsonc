@@ -2,12 +2,56 @@
   "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
   "name": "nexo-catalog-proxy",
   "main": "src/index.js",
-  "compatibility_date": "2026-06-06",
+  "compatibility_date": "2026-07-11",
   "workers_dev": true,
+  "routes": [
+    {
+      "pattern": "catalog-api.nexo.codeoverdose.es",
+      "custom_domain": true
+    }
+  ],
   "observability": {
-    "enabled": true
+    "enabled": true,
+    "logs": {
+      "head_sampling_rate": 1
+    },
+    "traces": {
+      "enabled": true,
+      "head_sampling_rate": 0.05
+    }
   },
+  "version_metadata": {
+    "binding": "CF_VERSION_METADATA"
+  },
+  "ratelimits": [
+    {
+      "name": "SEARCH_RATE_LIMITER",
+      "namespace_id": "1150501",
+      "simple": {
+        "limit": 60,
+        "period": 60
+      }
+    },
+    {
+      "name": "DISCOVER_RATE_LIMITER",
+      "namespace_id": "1150502",
+      "simple": {
+        "limit": 20,
+        "period": 60
+      }
+    }
+  ],
   "vars": {
-    "ALLOWED_ORIGINS": "https://nexo.codeoverdose.es,http://localhost:5173,http://127.0.0.1:5173"
+    "ALLOWED_ORIGINS": "https://nexo.codeoverdose.es",
+    "ENVIRONMENT": "production"
+  },
+  "env": {
+    "development": {
+      "name": "nexo-catalog-proxy-development",
+      "vars": {
+        "ALLOWED_ORIGINS": "http://localhost:5173,http://127.0.0.1:5173",
+        "ENVIRONMENT": "development"
+      }
+    }
   }
 }

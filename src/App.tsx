@@ -6,149 +6,41 @@ import { useLibrary } from './hooks/useLibrary'
 import { getActivityDestinationTab } from './lib/activityInsights'
 import { type ExplorerSourceFilter, getDiscoverySourceFilter, getExplorerSourceFilterLabel, discoverySourceLabels as sourceLabels } from './lib/explorerInsights'
 import { getLibraryFocusItems, getLibraryFocusReason, getLibraryReviewQueues, getLibrarySmartViewOptions, type LibrarySmartView } from './lib/libraryInsights'
+import { activateLibraryImportRollbackOwner } from './lib/libraryImportRollbackStore'
 import { isItemInCooldown, itemStatusLabels as statusLabels, itemTypeLabels as typeLabels } from './lib/libraryItemInsights'
 import { type LibrarySortMode } from './lib/librarySorting'
 import { getPrivateDataHealth, getPrivateTaxonomyRepairDraft } from './lib/privateDataInsights'
-import { scoreCandidates } from './lib/recommendations'
 import { normalizeKey, slugify, uniqueNormalizedValues } from './lib/strings'
-import { notifyAppUpdateReady } from './services/notificationService'
-import { applyServiceWorkerUpdate, SERVICE_WORKER_UPDATE_READY_EVENT } from './services/serviceWorker'
-import { Archive, BookOpen, Check, CheckCircle2, Dice5, Download, Library, List, LogIn, LogOut, Moon, Palette, Pause, Play, Plus, RotateCcw, Save, Search, ShieldCheck, Sparkles, Trash2, Upload, X } from 'lucide-react'
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
-import { DialogFocusReturn, LibraryTab, NavigationDiscardPrompt, NexoMark, QuickSearchDialog, SessionActivityPanel, ShellPulse, ShellState, activityTabLabels, blankItem, cloneActivityEntry, downloadLibraryBackup, getActivityFocus, getActivityIcon, getLibraryReviewQueueIcon, getLibrarySelectionSignals, getPrimaryItemAction, handleDialogKeyDown, isStandalonePwa, isThemeMode, libraryPriorityOptions, librarySelectionSignalLabels, librarySortLabels, readInitialActivityFocus, readInitialAppTab, roleLabels, sessionActivityLimit, themeMetaColors, themeOptions, themeStorageKey, typeIcons, useCloseDetailsOnOutsideClick, writeAppTabToUrl, type ActivityFocus, type AppTab, type BeforeInstallPromptEvent, type DiceCooldownReactivateRequest, type DicePreferencesSaveRequest, type DiceRollRequest, type DiceRollSummary, type ExplorerCandidateDismissRequest, type ExplorerCandidateRequest, type ExplorerCandidateSaveRequest, type ExplorerPromptCardRequest, type ExplorerSearchRequest, type ExplorerVisibleDismissRequest, type ExplorerVisibleSaveRequest, type LibraryImportRequest, type LibraryPrimaryActionRequest, type LibraryPriorityLevel, type LibraryResetViewRequest, type LibraryReviewRequest, type LibrarySelectedDiceActionRequest, type LibrarySelectedExportRequest, type LibrarySelectedPriorityRequest, type LibrarySelectedSignalsRequest, type LibrarySelectedStatusRequest, type LibrarySelectionSignalAction, type LibrarySelectionSignalKind, type LibrarySmartViewRequest, type LibrarySortModeRequest, type LibraryStatusFilterRequest, type LibraryTypeFilterRequest, type LibraryVisibleSelectionRequest, type LibraryVisibleSelectionSummary, type PendingNavigation, type QuickSearchCommand, type SettingsSaveRequest, type SettingsTasteSuggestionsRequest, type SettingsTaxonomyRepairRequest, type ShellNavItem } from './app/shared'
+import { Archive, Check, CheckCircle2, Dice5, Download, Home, Library, List, LogIn, LogOut, Moon, MoreHorizontal, Palette, Pause, Play, Plus, RotateCcw, Save, Search, ShieldCheck, Sparkles, Trash2, Upload, X } from 'lucide-react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
+import { NavigationDiscardPrompt, NexoMark, ShellPulse, ShellState, activityTabLabels, blankItem, canonicalizeLegacyAppRoute, cloneActivityEntry, downloadLibraryBackup, getActivityFocus, getActivityIcon, getLibraryReviewQueueIcon, getLibrarySelectionSignals, getPrimaryItemAction, hasExplicitAppRoute, isStandalonePwa, isThemeMode, libraryPriorityOptions, librarySelectionSignalLabels, librarySortLabels, readInitialActivityFocus, readInitialAppTab, roleLabels, themeMetaColors, themeOptions, themeStorageKey, typeIcons, useCloseDetailsOnOutsideClick, writeAppTabToUrl, type ActivityFocus, type AppTab, type BeforeInstallPromptEvent, type DiceCooldownReactivateRequest, type DicePreferencesSaveRequest, type DiceRollRequest, type DiceRollSummary, type ExplorerCandidateDismissRequest, type ExplorerCandidateRequest, type ExplorerCandidateSaveRequest, type ExplorerPromptCardRequest, type ExplorerSearchRequest, type ExplorerVisibleDismissRequest, type ExplorerVisibleSaveRequest, type LibraryImportRequest, type LibraryPrimaryActionRequest, type LibraryPriorityLevel, type LibraryResetViewRequest, type LibraryReviewRequest, type LibrarySelectedDiceActionRequest, type LibrarySelectedExportRequest, type LibrarySelectedPriorityRequest, type LibrarySelectedSignalsRequest, type LibrarySelectedStatusRequest, type LibrarySelectionSignalAction, type LibrarySelectionSignalKind, type LibrarySmartViewRequest, type LibrarySortModeRequest, type LibraryStatusFilterRequest, type LibraryTypeFilterRequest, type LibraryVisibleSelectionRequest, type LibraryVisibleSelectionSummary, type PendingNavigation, type QuickSearchCommand, type SettingsSaveRequest, type SettingsTasteSuggestionsRequest, type SettingsTaxonomyRepairRequest, type ShellNavItem } from './app/shared'
+import FeatureErrorBoundary from './app/FeatureErrorBoundary'
+import { appIntentReducer, type AppIntent, type AppIntentDraft } from './app/intents'
+import { useGuardedSignOut } from './app/useGuardedSignOut'
 
 const DiceTab = lazy(() => import('./tabs/DiceTab'))
-const CatalogTab = lazy(() => import('./tabs/CatalogTab'))
-const ExplorerTab = lazy(() => import('./tabs/ExplorerTab'))
+const HomeTab = lazy(() => import('./tabs/HomeTab'))
+const DiscoverTab = lazy(() => import('./tabs/DiscoverTab'))
+const LibraryTab = lazy(() => import('./tabs/LibraryTab'))
 const ImportTab = lazy(() => import('./tabs/ImportTab'))
 const SettingsTab = lazy(() => import('./tabs/SettingsTab'))
 const CurationTab = lazy(() => import('./tabs/CurationTab'))
+const SignInDialog = lazy(() => import('./app/SignInDialog'))
+const QuickSearchDialog = lazy(() => import('./app/QuickSearchDialog'))
+const AddDialog = lazy(() => import('./app/AddDialog'))
 
 const appVersion = String(import.meta.env.VITE_APP_VERSION ?? '0.0.0').trim() || '0.0.0'
+const serviceWorkerUpdateReadyEvent = 'nexo:service-worker-update-ready'
 
 function LazyTabFallback() {
   return <ShellState title="Cargando vista" detail="Preparando modulos de Nexo." />
-}
-
-function SignInDialog({
-  error,
-  onClose,
-  onEmailSignIn,
-  onGoogleSignIn,
-}: {
-  error?: string
-  onClose: () => void
-  onEmailSignIn: (email: string, password: string) => Promise<void>
-  onGoogleSignIn: () => Promise<void>
-}) {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [pendingProvider, setPendingProvider] = useState<'email' | 'google' | undefined>()
-  const [localError, setLocalError] = useState<string | undefined>()
-  const pending = Boolean(pendingProvider)
-  const feedback = localError ?? error
-
-  async function submitEmail(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    if (!email.trim() || !password) return
-
-    setPendingProvider('email')
-    setLocalError(undefined)
-    try {
-      await onEmailSignIn(email, password)
-      onClose()
-    } catch (reason) {
-      setLocalError(reason instanceof Error ? reason.message : 'No se pudo iniciar sesion')
-    } finally {
-      setPendingProvider(undefined)
-    }
-  }
-
-  async function submitGoogle() {
-    setPendingProvider('google')
-    setLocalError(undefined)
-    try {
-      await onGoogleSignIn()
-      onClose()
-    } catch (reason) {
-      setLocalError(reason instanceof Error ? reason.message : 'No se pudo iniciar sesion')
-    } finally {
-      setPendingProvider(undefined)
-    }
-  }
-
-  return (
-    <div className="modal-backdrop" role="presentation">
-      <DialogFocusReturn />
-      <section
-        aria-labelledby="sign-in-dialog-title"
-        aria-modal="true"
-        className="auth-login-dialog"
-        role="dialog"
-        onKeyDown={(event) => handleDialogKeyDown(event, pending ? () => undefined : onClose)}
-      >
-        <button
-          className="icon-button dialog-close"
-          aria-label="Cerrar acceso a Nexo"
-          disabled={pending}
-          type="button"
-          onClick={onClose}
-          title="Cerrar"
-        >
-          <X size={18} />
-        </button>
-        <div className="panel-heading compact">
-          <div>
-            <span className="eyebrow">Acceso</span>
-            <h2 id="sign-in-dialog-title">Entrar en Nexo</h2>
-          </div>
-        </div>
-        <form className="auth-login-form" onSubmit={submitEmail}>
-          <label>
-            Email
-            <input
-              autoFocus
-              autoComplete="email"
-              inputMode="email"
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-            />
-          </label>
-          <label>
-            Contraseña
-            <input
-              autoComplete="current-password"
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-            />
-          </label>
-          {feedback && (
-            <p className="auth-login-error" role="alert">
-              {feedback}
-            </p>
-          )}
-          <div className="auth-login-actions">
-            <button className="primary-button" disabled={pending || !email.trim() || !password} type="submit">
-              <LogIn size={16} />
-              {pendingProvider === 'email' ? 'Entrando' : 'Entrar con email'}
-            </button>
-            <button className="secondary-button" disabled={pending} type="button" onClick={() => void submitGoogle()}>
-              <LogIn size={16} />
-              {pendingProvider === 'google' ? 'Entrando' : 'Entrar con Google'}
-            </button>
-          </div>
-        </form>
-      </section>
-    </div>
-  )
 }
 
 function App() {
   const auth = useAuth()
   const library = useLibrary(auth.user)
   const [activeTab, setActiveTabState] = useState<AppTab>(() => readInitialAppTab())
+  const explicitRouteRef = useRef(hasExplicitAppRoute())
   const [signInDialogOpen, setSignInDialogOpen] = useState(false)
   const [pendingNavigation, setPendingNavigation] = useState<PendingNavigation | undefined>()
   const [activityFocus, setActivityFocus] = useState<ActivityFocus | undefined>(() => readInitialActivityFocus())
@@ -186,13 +78,17 @@ function App() {
     LibraryVisibleSelectionSummary | undefined
   >()
   const [diceRollSummary, setDiceRollSummary] = useState<DiceRollSummary | undefined>()
+  const [fallbackDiceCandidateCount, setFallbackDiceCandidateCount] = useState(0)
   const [quickSearchOpen, setQuickSearchOpen] = useState(false)
-  const [signOutPending, setSignOutPending] = useState(false)
-  const [signOutError, setSignOutError] = useState<string | undefined>()
+  const [appIntentState, dispatchAppIntentState] = useReducer(appIntentReducer, {})
+  const appIntentId = useRef(0)
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false)
   const [serviceWorkerUpdateReady, setServiceWorkerUpdateReady] = useState(false)
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | undefined>()
   const [isOffline, setIsOffline] = useState(() => 'onLine' in navigator && !navigator.onLine)
   const [tabsWithUnsavedChanges, setTabsWithUnsavedChanges] = useState<Partial<Record<AppTab, boolean>>>({})
+  const privateSessionKey = auth.isFirebaseConfigured ? auth.user?.uid : 'demo'
+  const previousPrivateSessionKey = useRef(privateSessionKey)
   const libraryImportRequestId = useRef(0)
   const libraryReviewRequestId = useRef(0)
   const librarySmartViewRequestId = useRef(0)
@@ -204,7 +100,6 @@ function App() {
   const diceRollRequestId = useRef(0)
   const dicePreferencesSaveRequestId = useRef(0)
   const diceCooldownReactivateRequestId = useRef(0)
-  const explorerSearchRequestId = useRef(0)
   const explorerPromptCardRequestId = useRef(0)
   const explorerCandidateRequestId = useRef(0)
   const explorerCandidateSaveRequestId = useRef(0)
@@ -232,19 +127,86 @@ function App() {
     activeTab === 'library' && libraryVisibleSelectionSummary
       ? libraryVisibleSelectionSummary
       : fallbackLibraryVisibleSelectionSummary
-  const fallbackDiceRollSummary = useMemo<DiceRollSummary>(
-    () => ({
-      candidateCount: scoreCandidates(
-        library.items,
-        library.settings.recommendationPreferences ?? DEFAULT_RECOMMENDATION_PREFERENCES,
-        library.settings,
-      ).length,
-    }),
-    [library.items, library.settings],
-  )
+  const fallbackDiceRollSummary: DiceRollSummary = { candidateCount: fallbackDiceCandidateCount }
   const quickSearchDiceRollSummary =
     activeTab === 'dice' && diceRollSummary ? diceRollSummary : fallbackDiceRollSummary
+  const hasUnsavedChanges = Object.values(tabsWithUnsavedChanges).some(Boolean)
+  const guardedSignOut = useGuardedSignOut({ hasUnsavedChanges, sessionKey: privateSessionKey, signOut: auth.signOut })
   useCloseDetailsOnOutsideClick()
+
+  useEffect(() => {
+    if (!quickSearchOpen) return undefined
+    let active = true
+    void import('./lib/recommendations').then(({ scoreCandidates }) => {
+      if (!active) return
+      setFallbackDiceCandidateCount(
+        scoreCandidates(
+          library.items,
+          library.settings.recommendationPreferences ?? DEFAULT_RECOMMENDATION_PREFERENCES,
+          library.settings,
+        ).length,
+      )
+    })
+    return () => {
+      active = false
+    }
+  }, [library.items, library.settings, quickSearchOpen])
+
+  useEffect(() => {
+    if (auth.loading) return
+    activateLibraryImportRollbackOwner(privateSessionKey)
+    if (previousPrivateSessionKey.current === privateSessionKey) return
+    previousPrivateSessionKey.current = privateSessionKey
+    setActivityClearUndo([])
+    setActivityFocus(undefined)
+    setLibraryDraftRequest(undefined)
+    setLibraryImportRequest(undefined)
+    setLibraryPrimaryActionRequest(undefined)
+    setLibraryReviewRequest(undefined)
+    setLibraryResetViewRequest(undefined)
+    setLibrarySelectedDiceActionRequest(undefined)
+    setLibrarySelectedExportRequest(undefined)
+    setLibrarySelectedPriorityRequest(undefined)
+    setLibrarySelectedStatusRequest(undefined)
+    setLibrarySelectedSignalsRequest(undefined)
+    setLibrarySortModeRequest(undefined)
+    setLibraryStatusFilterRequest(undefined)
+    setLibrarySmartViewRequest(undefined)
+    setLibraryTypeFilterRequest(undefined)
+    setLibraryVisibleSelectionRequest(undefined)
+    setLibraryVisibleSelectionSummary(undefined)
+    setSelectedLibraryItemIds([])
+    setDiceRollRequest(undefined)
+    setDicePreferencesSaveRequest(undefined)
+    setDiceCooldownReactivateRequest(undefined)
+    setDiceRollSummary(undefined)
+    setExplorerSearchRequest(undefined)
+    setExplorerPromptCardRequest(undefined)
+    setExplorerCandidateRequest(undefined)
+    setExplorerCandidateSaveRequest(undefined)
+    setExplorerCandidateDismissRequest(undefined)
+    setExplorerVisibleSaveRequest(undefined)
+    setExplorerVisibleDismissRequest(undefined)
+    setSettingsTaxonomyRepairRequest(undefined)
+    setSettingsTasteSuggestionsRequest(undefined)
+    setSettingsSaveRequest(undefined)
+    setPendingNavigation(undefined)
+    setTabsWithUnsavedChanges({})
+  }, [auth.loading, privateSessionKey])
+
+  useEffect(() => {
+    if (!hasUnsavedChanges) return undefined
+    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', warnBeforeUnload)
+    return () => window.removeEventListener('beforeunload', warnBeforeUnload)
+  }, [hasUnsavedChanges])
+
+  useEffect(() => {
+    canonicalizeLegacyAppRoute()
+  }, [])
 
   useEffect(() => {
     if (!auth.isFirebaseConfigured) return
@@ -265,24 +227,36 @@ function App() {
   }, [activeTab])
 
   useEffect(() => {
-    if (auth.isFirebaseConfigured && !auth.user && activeTab !== 'catalog') {
+    if (auth.loading) return undefined
+    const privateSession = Boolean(auth.user) || !auth.isFirebaseConfigured
+    if (!explicitRouteRef.current && privateSession && activeTab === 'discover') {
       const timeoutId = window.setTimeout(() => {
-        setActiveTabState('catalog')
-        writeAppTabToUrl('catalog', 'replace')
+        explicitRouteRef.current = true
+        setActiveTabState('home')
+        writeAppTabToUrl('home', 'replace')
+      }, 0)
+      return () => window.clearTimeout(timeoutId)
+    }
+    if (auth.isFirebaseConfigured && !auth.user && activeTab !== 'discover') {
+      const timeoutId = window.setTimeout(() => {
+        setActiveTabState('discover')
+        writeAppTabToUrl('discover', 'replace')
       }, 0)
       return () => window.clearTimeout(timeoutId)
     }
     return undefined
-  }, [activeTab, auth.isFirebaseConfigured, auth.user])
+  }, [activeTab, auth.isFirebaseConfigured, auth.loading, auth.user])
 
   useEffect(() => {
     function handleServiceWorkerUpdateReady() {
       setServiceWorkerUpdateReady(true)
-      void notifyAppUpdateReady()
+      void import('./services/notificationService')
+        .then(({ notifyAppUpdateReady }) => notifyAppUpdateReady())
+        .catch(() => undefined)
     }
 
-    window.addEventListener(SERVICE_WORKER_UPDATE_READY_EVENT, handleServiceWorkerUpdateReady)
-    return () => window.removeEventListener(SERVICE_WORKER_UPDATE_READY_EVENT, handleServiceWorkerUpdateReady)
+    window.addEventListener(serviceWorkerUpdateReadyEvent, handleServiceWorkerUpdateReady)
+    return () => window.removeEventListener(serviceWorkerUpdateReadyEvent, handleServiceWorkerUpdateReady)
   }, [])
 
   useEffect(() => {
@@ -337,16 +311,17 @@ function App() {
 
   useEffect(() => {
     function syncTabFromUrl() {
+      explicitRouteRef.current = true
       const nextTab = readInitialAppTab()
       const nextFocus = readInitialActivityFocus()
-      if (nextTab === activeTab) {
-        setActivityFocus(nextFocus)
-        return
-      }
-
       if (tabsWithUnsavedChanges[activeTab]) {
         setPendingNavigation({ focus: nextFocus, source: 'history', tab: nextTab })
         writeAppTabToUrl(activeTab, 'replace', activityFocus)
+        return
+      }
+
+      if (nextTab === activeTab) {
+        setActivityFocus(nextFocus)
         return
       }
 
@@ -383,22 +358,12 @@ function App() {
     await prompt.userChoice.catch(() => undefined)
   }
 
-  async function handleSignOut() {
-    if (signOutPending) return
-
-    setSignOutPending(true)
-    setSignOutError(undefined)
-    try {
-      await auth.signOut()
-    } catch {
-      setSignOutError('No se pudo salir')
-    } finally {
-      setSignOutPending(false)
-    }
-  }
-
   const reportDiceUnsavedChanges = useCallback(
     (hasUnsavedChanges: boolean) => reportUnsavedChanges('dice', hasUnsavedChanges),
+    [reportUnsavedChanges],
+  )
+  const reportLibraryUnsavedChanges = useCallback(
+    (hasUnsavedChanges: boolean) => reportUnsavedChanges('library', hasUnsavedChanges),
     [reportUnsavedChanges],
   )
   const reportSettingsUnsavedChanges = useCallback(
@@ -444,18 +409,43 @@ function App() {
     setActivityClearUndo([])
   }
 
+  function sendAppIntent(draft: AppIntentDraft) {
+    appIntentId.current += 1
+    const intent = { ...draft, id: appIntentId.current } as AppIntent
+    dispatchAppIntentState({ intent, type: 'dispatch' })
+    if (intent.kind === 'add') return
+
+    if (intent.kind === 'open-item') {
+      changeActiveTab('library', { kind: 'item', id: intent.itemId })
+    } else if (intent.kind === 'discover') {
+      if (intent.mode === 'search' && intent.query) openExplorerSearchFromPalette(intent.query)
+      else {
+        setActiveTabState('discover')
+        writeDiscoverLocation(intent.mode)
+      }
+    } else {
+      rollDiceFromAction(intent.scope)
+    }
+    window.setTimeout(() => dispatchAppIntentState({ id: intent.id, type: 'consume' }), 0)
+  }
+
+  function closeAddIntent() {
+    const intent = appIntentState.current
+    if (intent?.kind === 'add') dispatchAppIntentState({ id: intent.id, type: 'consume' })
+  }
+
   if (auth.loading) {
     return <ShellState title="Cargando acceso" />
   }
 
   const navItems: ShellNavItem[] = [
-    { id: 'catalog', label: 'Catalogo', shortLabel: 'Catalogo', description: 'Explorar Nexo', icon: BookOpen },
-    { id: 'library', label: 'Biblioteca', displayLabel: 'Estanteria', shortLabel: 'Inicio', description: 'Guardadas', icon: Library },
+    { id: 'home', label: 'Inicio', shortLabel: 'Inicio', description: 'Tu ruta', icon: Home },
+    { id: 'discover', label: 'Descubrir', shortLabel: 'Descubre', description: 'Buscar obras nuevas', icon: Sparkles },
+    { id: 'library', label: 'Biblioteca', shortLabel: 'Biblioteca', description: 'Tus obras guardadas', icon: Library },
     { id: 'dice', label: 'Dado', shortLabel: 'Dado', description: 'De tus guardadas', icon: Dice5 },
-    { id: 'explorer', label: 'Explorador', displayLabel: 'Explorar', shortLabel: 'Explora', description: 'Fuera de tu estanteria', icon: Sparkles },
     { id: 'import', label: 'Importar', shortLabel: 'Importar', description: 'Traer bibliotecas externas', icon: Upload, group: 'utility' },
     { id: 'settings', label: 'Ajustes', shortLabel: 'Ajustes', description: 'Cuenta y temas', icon: Palette, group: 'utility' },
-    { id: 'curation', label: 'Curacion', displayLabel: 'Curar', shortLabel: 'Curar', description: 'Catalogo publico', icon: ShieldCheck, hidden: !library.isModerator },
+    { id: 'curation', label: 'Curacion', displayLabel: 'Curar', shortLabel: 'Curar', description: 'Catalogo publico', icon: ShieldCheck, group: 'utility', hidden: !library.isModerator },
   ]
   const visibleNavItems = navItems.filter((item) => !item.hidden)
   const primaryNavItems = visibleNavItems.filter((item) => item.group !== 'utility')
@@ -470,15 +460,23 @@ function App() {
   }
 
   function changeActiveTab(nextTab: AppTab, focus?: ActivityFocus) {
+    explicitRouteRef.current = true
     if (nextTab === 'curation' && !library.isModerator) return
-    if (auth.isFirebaseConfigured && !auth.user && nextTab !== 'catalog') {
+    if (auth.isFirebaseConfigured && !auth.user && nextTab !== 'discover') {
       requestSignIn()
+      return
+    }
+    if (nextTab === activeTab && focus && tabsWithUnsavedChanges[activeTab]) {
+      setPendingNavigation({ focus, source: 'app', tab: nextTab })
       return
     }
     if (nextTab === activeTab) {
       if (focus) {
         setActivityFocus(focus)
         writeAppTabToUrl(nextTab, 'push', focus)
+      } else if (activityFocus || new URL(window.location.href).searchParams.has('item')) {
+        setActivityFocus(undefined)
+        writeAppTabToUrl(nextTab, 'replace')
       }
       return
     }
@@ -493,17 +491,20 @@ function App() {
 
   function openLibraryDraft(draft: ListItem) {
     setQuickSearchOpen(false)
-    if (activeTab === 'library') {
-      setActivityFocus(undefined)
-      setLibraryDraftRequest(draft)
-      writeAppTabToUrl('library', 'push')
+    if (auth.isFirebaseConfigured && !auth.user) {
+      requestSignIn()
       return
     }
     if (tabsWithUnsavedChanges[activeTab]) {
       setPendingNavigation({ draftItem: draft, source: 'app', tab: 'library' })
       return
     }
-
+    if (activeTab === 'library') {
+      setActivityFocus(undefined)
+      setLibraryDraftRequest(draft)
+      writeAppTabToUrl('library', 'push')
+      return
+    }
     setActivityFocus(undefined)
     setLibraryDraftRequest(draft)
     setActiveTabState('library')
@@ -578,9 +579,9 @@ function App() {
     }))
   }
 
-  function requestDiceRoll() {
+  function requestDiceRoll(scope: 'roadmap-next' | 'all' = 'all') {
     diceRollRequestId.current += 1
-    setDiceRollRequest({ requestId: diceRollRequestId.current })
+    setDiceRollRequest({ requestId: diceRollRequestId.current, scope })
   }
 
   function requestDicePreferencesSave() {
@@ -591,14 +592,6 @@ function App() {
   function requestDiceCooldownReactivate() {
     diceCooldownReactivateRequestId.current += 1
     setDiceCooldownReactivateRequest({ requestId: diceCooldownReactivateRequestId.current })
-  }
-
-  function requestExplorerSearch(query: string) {
-    const trimmedQuery = query.trim()
-    if (trimmedQuery.length < 2) return
-
-    explorerSearchRequestId.current += 1
-    setExplorerSearchRequest({ query: trimmedQuery, requestId: explorerSearchRequestId.current })
   }
 
   function requestExplorerPromptCard() {
@@ -646,18 +639,22 @@ function App() {
     setSettingsSaveRequest({ requestId: settingsSaveRequestId.current })
   }
 
-  function rollDiceFromAction() {
+  function rollDiceFromAction(scope: 'roadmap-next' | 'all' = 'all') {
     setQuickSearchOpen(false)
+    if (auth.isFirebaseConfigured && !auth.user) {
+      requestSignIn()
+      return
+    }
     if (activeTab === 'dice') {
-      requestDiceRoll()
+      requestDiceRoll(scope)
       return
     }
     if (tabsWithUnsavedChanges[activeTab]) {
-      setPendingNavigation({ diceRoll: true, source: 'app', tab: 'dice' })
+      setPendingNavigation({ diceRollScope: scope, source: 'app', tab: 'dice' })
       return
     }
 
-    requestDiceRoll()
+    requestDiceRoll(scope)
     setActiveTabState('dice')
     writeAppTabToUrl('dice', 'push')
   }
@@ -667,140 +664,156 @@ function App() {
     changeActiveTab('dice')
   }
 
+  function writeDiscoverLocation(
+    mode: 'search' | 'surprise' | 'queue',
+    options: { historyMode?: 'push' | 'replace'; query?: string } = {},
+  ) {
+    const url = new URL(window.location.href)
+    url.searchParams.set('tab', 'discover')
+    url.searchParams.set('mode', mode)
+    url.searchParams.delete('item')
+    url.searchParams.delete('catalogQ')
+    url.searchParams.delete('catalogType')
+    if (mode === 'search' && options.query?.trim()) url.searchParams.set('q', options.query.trim())
+    else if (mode !== 'search') url.searchParams.delete('q')
+    const nextUrl = `${url.pathname}${url.search}${url.hash}`
+    if ((options.historyMode ?? 'push') === 'push') window.history.pushState(null, '', nextUrl)
+    else window.history.replaceState(null, '', nextUrl)
+    window.dispatchEvent(new PopStateEvent('popstate'))
+  }
+
   function openExplorerSearchFromPalette(query: string) {
     const trimmedQuery = query.trim()
     if (trimmedQuery.length < 2) return
 
     setQuickSearchOpen(false)
-    if (activeTab === 'explorer') {
+    if (activeTab === 'discover') {
       setActivityFocus(undefined)
-      requestExplorerSearch(trimmedQuery)
-      writeAppTabToUrl('explorer', 'push')
+      writeDiscoverLocation('search', { query: trimmedQuery })
       return
     }
     if (tabsWithUnsavedChanges[activeTab]) {
-      setPendingNavigation({ explorerSearchQuery: trimmedQuery, source: 'app', tab: 'explorer' })
+      setPendingNavigation({ explorerSearchQuery: trimmedQuery, source: 'app', tab: 'discover' })
       return
     }
 
     setActivityFocus(undefined)
-    requestExplorerSearch(trimmedQuery)
-    setActiveTabState('explorer')
-    writeAppTabToUrl('explorer', 'push')
+    setActiveTabState('discover')
+    writeDiscoverLocation('search', { query: trimmedQuery })
   }
 
   function addExplorerPromptCardFromPalette() {
     setQuickSearchOpen(false)
-    if (activeTab === 'explorer') {
+    if (activeTab === 'discover') {
       setActivityFocus(undefined)
       requestExplorerPromptCard()
-      writeAppTabToUrl('explorer', 'push')
+      writeDiscoverLocation('queue')
       return
     }
     if (tabsWithUnsavedChanges[activeTab]) {
-      setPendingNavigation({ explorerPromptCard: true, source: 'app', tab: 'explorer' })
+      setPendingNavigation({ explorerPromptCard: true, source: 'app', tab: 'discover' })
       return
     }
 
     setActivityFocus(undefined)
     requestExplorerPromptCard()
-    setActiveTabState('explorer')
-    writeAppTabToUrl('explorer', 'push')
+    setActiveTabState('discover')
+    writeDiscoverLocation('queue')
   }
 
   function openExplorerCandidateFromPalette(candidate: DiscoveryCandidate) {
     setQuickSearchOpen(false)
-    if (activeTab === 'explorer') {
+    if (activeTab === 'discover') {
       setActivityFocus(undefined)
       requestExplorerCandidate(candidate.id)
-      writeAppTabToUrl('explorer', 'push')
+      writeDiscoverLocation('queue')
       return
     }
     if (tabsWithUnsavedChanges[activeTab]) {
-      setPendingNavigation({ explorerCandidateId: candidate.id, source: 'app', tab: 'explorer' })
+      setPendingNavigation({ explorerCandidateId: candidate.id, source: 'app', tab: 'discover' })
       return
     }
 
     setActivityFocus(undefined)
     requestExplorerCandidate(candidate.id)
-    setActiveTabState('explorer')
-    writeAppTabToUrl('explorer', 'push')
+    setActiveTabState('discover')
+    writeDiscoverLocation('queue')
   }
 
   function saveExplorerCandidateFromPalette(candidate: DiscoveryCandidate) {
     setQuickSearchOpen(false)
-    if (activeTab === 'explorer') {
+    if (activeTab === 'discover') {
       setActivityFocus(undefined)
       requestExplorerCandidateSave(candidate.id)
-      writeAppTabToUrl('explorer', 'push')
+      writeDiscoverLocation('queue')
       return
     }
     if (tabsWithUnsavedChanges[activeTab]) {
-      setPendingNavigation({ explorerCandidateSaveId: candidate.id, source: 'app', tab: 'explorer' })
+      setPendingNavigation({ explorerCandidateSaveId: candidate.id, source: 'app', tab: 'discover' })
       return
     }
 
     setActivityFocus(undefined)
     requestExplorerCandidateSave(candidate.id)
-    setActiveTabState('explorer')
-    writeAppTabToUrl('explorer', 'push')
+    setActiveTabState('discover')
+    writeDiscoverLocation('queue')
   }
 
   function dismissExplorerCandidateFromPalette(candidate: DiscoveryCandidate) {
     setQuickSearchOpen(false)
-    if (activeTab === 'explorer') {
+    if (activeTab === 'discover') {
       setActivityFocus(undefined)
       requestExplorerCandidateDismiss(candidate.id)
-      writeAppTabToUrl('explorer', 'push')
+      writeDiscoverLocation('queue')
       return
     }
     if (tabsWithUnsavedChanges[activeTab]) {
-      setPendingNavigation({ explorerCandidateDismissId: candidate.id, source: 'app', tab: 'explorer' })
+      setPendingNavigation({ explorerCandidateDismissId: candidate.id, source: 'app', tab: 'discover' })
       return
     }
 
     setActivityFocus(undefined)
     requestExplorerCandidateDismiss(candidate.id)
-    setActiveTabState('explorer')
-    writeAppTabToUrl('explorer', 'push')
+    setActiveTabState('discover')
+    writeDiscoverLocation('queue')
   }
 
   function saveExplorerVisibleQueueFromPalette(sourceFilter: ExplorerSourceFilter) {
     setQuickSearchOpen(false)
-    if (activeTab === 'explorer') {
+    if (activeTab === 'discover') {
       setActivityFocus(undefined)
       requestExplorerVisibleSave(sourceFilter)
-      writeAppTabToUrl('explorer', 'push')
+      writeDiscoverLocation('queue')
       return
     }
     if (tabsWithUnsavedChanges[activeTab]) {
-      setPendingNavigation({ explorerVisibleSaveSourceFilter: sourceFilter, source: 'app', tab: 'explorer' })
+      setPendingNavigation({ explorerVisibleSaveSourceFilter: sourceFilter, source: 'app', tab: 'discover' })
       return
     }
 
     setActivityFocus(undefined)
     requestExplorerVisibleSave(sourceFilter)
-    setActiveTabState('explorer')
-    writeAppTabToUrl('explorer', 'push')
+    setActiveTabState('discover')
+    writeDiscoverLocation('queue')
   }
 
   function dismissExplorerVisibleQueueFromPalette(sourceFilter: ExplorerSourceFilter) {
     setQuickSearchOpen(false)
-    if (activeTab === 'explorer') {
+    if (activeTab === 'discover') {
       setActivityFocus(undefined)
       requestExplorerVisibleDismiss(sourceFilter)
-      writeAppTabToUrl('explorer', 'push')
+      writeDiscoverLocation('queue')
       return
     }
     if (tabsWithUnsavedChanges[activeTab]) {
-      setPendingNavigation({ explorerVisibleDismissSourceFilter: sourceFilter, source: 'app', tab: 'explorer' })
+      setPendingNavigation({ explorerVisibleDismissSourceFilter: sourceFilter, source: 'app', tab: 'discover' })
       return
     }
 
     setActivityFocus(undefined)
     requestExplorerVisibleDismiss(sourceFilter)
-    setActiveTabState('explorer')
-    writeAppTabToUrl('explorer', 'push')
+    setActiveTabState('discover')
+    writeDiscoverLocation('queue')
   }
 
   function repairPrivateTaxonomyFromPalette() {
@@ -1197,7 +1210,7 @@ function App() {
 
     const {
       diceReactivateCooldowns,
-      diceRoll,
+      diceRollScope,
       draftItem,
       explorerCandidateId,
       explorerCandidateDismissId,
@@ -1228,8 +1241,8 @@ function App() {
     } = pendingNavigation
     setTabsWithUnsavedChanges((current) => ({ ...current, [activeTab]: false }))
     setPendingNavigation(undefined)
-    if (diceRoll) {
-      requestDiceRoll()
+    if (diceRollScope) {
+      requestDiceRoll(diceRollScope)
     }
     if (diceReactivateCooldowns) {
       requestDiceCooldownReactivate()
@@ -1245,9 +1258,6 @@ function App() {
     }
     if (explorerPromptCard) {
       requestExplorerPromptCard()
-    }
-    if (explorerSearchQuery) {
-      requestExplorerSearch(explorerSearchQuery)
     }
     if (explorerVisibleDismissSourceFilter) {
       requestExplorerVisibleDismiss(explorerVisibleDismissSourceFilter)
@@ -1312,7 +1322,22 @@ function App() {
     }
     setActivityFocus(focus)
     setActiveTabState(nextTab)
-    writeAppTabToUrl(nextTab, source === 'history' ? 'replace' : 'push', focus)
+    if (nextTab === 'discover') {
+      const hasQueueIntent = Boolean(
+        explorerCandidateId ||
+          explorerCandidateDismissId ||
+          explorerCandidateSaveId ||
+          explorerPromptCard ||
+          explorerVisibleDismissSourceFilter ||
+          explorerVisibleSaveSourceFilter,
+      )
+      writeDiscoverLocation(explorerSearchQuery ? 'search' : hasQueueIntent ? 'queue' : 'search', {
+        historyMode: source === 'history' ? 'replace' : 'push',
+        query: explorerSearchQuery,
+      })
+    } else {
+      writeAppTabToUrl(nextTab, source === 'history' ? 'replace' : 'push', focus)
+    }
   }
 
   const quickSearchFocusItem = getLibraryFocusItems(library.items)[0]
@@ -1900,7 +1925,9 @@ function App() {
               type="button"
               onClick={() => {
                 setServiceWorkerUpdateReady(false)
-                applyServiceWorkerUpdate()
+                void import('./services/serviceWorker')
+                  .then(({ applyServiceWorkerUpdate }) => applyServiceWorkerUpdate())
+                  .catch(() => setServiceWorkerUpdateReady(true))
               }}
             >
               <RotateCcw size={16} />
@@ -1914,6 +1941,12 @@ function App() {
             >
               Rol: {roleLabels[library.userRole]}
             </span>
+          )}
+          {(auth.user || !auth.isFirebaseConfigured) && (
+            <button className="global-add-button" type="button" onClick={() => sendAppIntent({ kind: 'add' })}>
+              <Plus size={17} />
+              <span>Añadir</span>
+            </button>
           )}
           <button
             aria-label="Busqueda rapida"
@@ -1929,18 +1962,18 @@ function App() {
           </button>
           {auth.user && (
             <>
-              {signOutError && (
-                <span aria-label={`Error al salir: ${signOutError}`} className="mode-pill warning" role="alert">
-                  {signOutError}
+              {guardedSignOut.error && (
+                <span aria-label={`Error al salir: ${guardedSignOut.error}`} className="mode-pill warning" role="alert">
+                  {guardedSignOut.error}
                 </span>
               )}
               <button
                 aria-label="Salir"
                 className="icon-button"
-                disabled={signOutPending}
+                disabled={guardedSignOut.pending}
                 type="button"
-                onClick={() => void handleSignOut()}
-                title={signOutPending ? 'Saliendo' : 'Salir'}
+                onClick={guardedSignOut.request}
+                title={guardedSignOut.pending ? 'Saliendo' : 'Salir'}
               >
                 <LogOut size={18} />
               </button>
@@ -1955,21 +1988,40 @@ function App() {
         </div>
       </header>
       {signInDialogOpen && (
-        <SignInDialog
-          error={auth.error}
-          onClose={() => setSignInDialogOpen(false)}
-          onEmailSignIn={auth.signInWithEmail}
-          onGoogleSignIn={auth.signInWithGoogle}
-        />
+        <Suspense fallback={<ShellState title="Cargando acceso" detail="Preparando el inicio de sesion." />}>
+          <SignInDialog
+            error={auth.error}
+            onClose={() => setSignInDialogOpen(false)}
+            onCreateAccount={auth.createAccount}
+            onEmailSignIn={auth.signInWithEmail}
+            onGoogleSignIn={auth.signInWithGoogle}
+            onResetPassword={auth.resetPassword}
+          />
+        </Suspense>
+      )}
+      {appIntentState.current?.kind === 'add' && (
+        <Suspense fallback={null}>
+          <AddDialog
+            onClose={closeAddIntent}
+            onImport={() => {
+              closeAddIntent()
+              changeActiveTab('import')
+            }}
+            onManual={() => {
+              closeAddIntent()
+              openLibraryDraft(blankItem())
+            }}
+            onSearch={(query) => {
+              closeAddIntent()
+              sendAppIntent({ kind: 'discover', mode: 'search', query })
+            }}
+          />
+        </Suspense>
       )}
 
       <nav className="tabbar" aria-label="Secciones de Nexo">
-        {[primaryNavItems, utilityNavItems].map((group, groupIndex) => (
-          <div
-            className={groupIndex === 0 ? 'tabbar-group primary' : 'tabbar-group utility'}
-            key={groupIndex === 0 ? 'primary' : 'utility'}
-          >
-            {group.map((item) => {
+        <div className="tabbar-group primary">
+          {primaryNavItems.map((item) => {
             const Icon = item.icon
             return (
               <button
@@ -1987,29 +2039,73 @@ function App() {
               </button>
             )
           })}
+        </div>
+        <details
+          className="tabbar-more"
+          data-close-on-outside
+          open={moreMenuOpen}
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') {
+              event.preventDefault()
+              event.currentTarget.open = false
+              setMoreMenuOpen(false)
+              event.currentTarget.querySelector('summary')?.focus()
+            }
+          }}
+          onToggle={(event) => setMoreMenuOpen(event.currentTarget.open)}
+        >
+          <summary
+            aria-label="Más secciones"
+            className={utilityNavItems.some((item) => item.id === activeTab) ? 'tab-button active' : 'tab-button'}
+          >
+            <MoreHorizontal size={18} />
+            <span className="tab-label"><span>Más</span></span>
+          </summary>
+          <div className="tabbar-more-menu" role="menu">
+            {utilityNavItems.map((item) => {
+              const Icon = item.icon
+              return (
+                <button
+                  aria-current={activeTab === item.id ? 'page' : undefined}
+                  className={activeTab === item.id ? 'active' : undefined}
+                  key={item.id}
+                  role="menuitem"
+                  type="button"
+                  onClick={() => {
+                    setMoreMenuOpen(false)
+                    changeActiveTab(item.id)
+                  }}
+                >
+                  <Icon size={17} />
+                  <span><strong>{item.displayLabel ?? item.label}</strong><small>{item.description}</small></span>
+                </button>
+              )
+            })}
           </div>
-        ))}
+        </details>
       </nav>
 
       {quickSearchOpen && (
-        <QuickSearchDialog
-          commands={quickSearchCommands}
-          candidates={library.discoveryCandidates}
-          items={library.items}
-          navItems={visibleNavItems}
-          onClose={() => setQuickSearchOpen(false)}
-          onCreateItem={createLibraryDraftFromTitle}
-          onExploreQuery={openExplorerSearchFromPalette}
-          onOpenCandidate={openExplorerCandidateFromPalette}
-          onOpenItem={(item) => {
-            setQuickSearchOpen(false)
-            changeActiveTab('library', { kind: 'item', id: item.id })
-          }}
-          onOpenTab={(tab) => {
-            setQuickSearchOpen(false)
-            changeActiveTab(tab)
-          }}
-        />
+        <Suspense fallback={null}>
+          <QuickSearchDialog
+            commands={quickSearchCommands}
+            candidates={library.discoveryCandidates}
+            items={library.items}
+            navItems={visibleNavItems}
+            onClose={() => setQuickSearchOpen(false)}
+            onCreateItem={createLibraryDraftFromTitle}
+            onExploreQuery={openExplorerSearchFromPalette}
+            onOpenCandidate={openExplorerCandidateFromPalette}
+            onOpenItem={(item) => {
+              setQuickSearchOpen(false)
+              changeActiveTab('library', { kind: 'item', id: item.id })
+            }}
+            onOpenTab={(tab) => {
+              setQuickSearchOpen(false)
+              changeActiveTab(tab)
+            }}
+          />
+        </Suspense>
       )}
 
       <section className="tab-stage">
@@ -2021,19 +2117,61 @@ function App() {
             onKeepEditing={() => setPendingNavigation(undefined)}
           />
         )}
+        {guardedSignOut.discardPromptOpen && (
+          <NavigationDiscardPrompt
+            currentLabel={activeNavItem.label}
+            nextLabel="salir de Nexo"
+            onDiscard={guardedSignOut.discardAndContinue}
+            onKeepEditing={guardedSignOut.keepEditing}
+          />
+        )}
         <Suspense fallback={<LazyTabFallback />}>
-          {activeTab === 'catalog' && (
-            <CatalogTab
-              isSignedIn={Boolean(auth.user)}
-              library={library}
-              onActivity={recordVisibleActivity}
-              onNavigate={changeActiveTab}
-              onSignIn={requestSignIn}
-            />
+          {activeTab === 'home' && (
+            <FeatureErrorBoundary key={`home:${privateSessionKey ?? 'anonymous'}`} label="Inicio">
+              <HomeTab
+                activityClearCount={activityClearUndo.length}
+                library={library}
+                onActivity={recordVisibleActivity}
+                onAdd={() => sendAppIntent({ kind: 'add' })}
+                onClearActivity={() => void clearSessionActivity()}
+                onNavigate={changeActiveTab}
+                onOpenItem={(item) => sendAppIntent({ kind: 'open-item', itemId: item.id })}
+                onRollDice={(scope) => sendAppIntent({ kind: 'roll', scope })}
+                onUndoClearActivity={() => void undoClearSessionActivity()}
+              />
+            </FeatureErrorBoundary>
+          )}
+          {activeTab === 'discover' && (
+            <FeatureErrorBoundary key={`discover:${privateSessionKey ?? 'anonymous'}`} label="Descubrir">
+              <DiscoverTab
+                candidateDismissRequest={explorerCandidateDismissRequest}
+                candidateRequest={explorerCandidateRequest}
+                candidateSaveRequest={explorerCandidateSaveRequest}
+                isSignedIn={Boolean(auth.user)}
+                library={library}
+                requiresSignIn={auth.isFirebaseConfigured && !auth.user}
+                promptCardRequest={explorerPromptCardRequest}
+                searchRequest={explorerSearchRequest}
+                visibleDismissRequest={explorerVisibleDismissRequest}
+                visibleSaveRequest={explorerVisibleSaveRequest}
+                onActivity={recordVisibleActivity}
+                onCandidateDismissRequestHandled={clearExplorerCandidateDismissRequest}
+                onCandidateRequestHandled={clearExplorerCandidateRequest}
+                onCandidateSaveRequestHandled={clearExplorerCandidateSaveRequest}
+                onNavigate={changeActiveTab}
+                onPromptCardRequestHandled={clearExplorerPromptCardRequest}
+                onSearchRequestHandled={clearExplorerSearchRequest}
+                onSignIn={requestSignIn}
+                onVisibleDismissRequestHandled={clearExplorerVisibleDismissRequest}
+                onVisibleSaveRequestHandled={clearExplorerVisibleSaveRequest}
+              />
+            </FeatureErrorBoundary>
           )}
         </Suspense>
-        {activeTab === 'library' && (
-          <LibraryTab
+        <Suspense fallback={<LazyTabFallback />}>
+          {activeTab === 'library' && (
+            <FeatureErrorBoundary key={`library:${privateSessionKey ?? 'anonymous'}`} label="Biblioteca">
+              <LibraryTab
             activityFocusItemId={activityFocus?.kind === 'item' ? activityFocus.id : undefined}
             draftRequest={libraryDraftRequest}
             importRequest={libraryImportRequest}
@@ -2061,13 +2199,17 @@ function App() {
             onDraftRequestHandled={clearLibraryDraftRequest}
             onNavigate={changeActiveTab}
             onRollDice={rollDiceFromAction}
+            onUnsavedChange={reportLibraryUnsavedChanges}
             setSelectedItemIds={setSelectedLibraryItemIds}
             setTheme={setTheme}
-          />
-        )}
+              />
+            </FeatureErrorBoundary>
+          )}
+        </Suspense>
         <Suspense fallback={<LazyTabFallback />}>
           {activeTab === 'dice' && (
-            <DiceTab
+            <FeatureErrorBoundary key={`dice:${privateSessionKey ?? 'anonymous'}`} label="Dado">
+              <DiceTab
               library={library}
               cooldownReactivateRequest={diceCooldownReactivateRequest}
               saveRequest={dicePreferencesSaveRequest}
@@ -2078,38 +2220,24 @@ function App() {
               onRollRequestHandled={clearDiceRollRequest}
               onRollSummaryChange={setDiceRollSummary}
               onUnsavedChange={reportDiceUnsavedChanges}
-            />
-          )}
-          {activeTab === 'explorer' && (
-            <ExplorerTab
-              library={library}
-              candidateDismissRequest={explorerCandidateDismissRequest}
-              candidateRequest={explorerCandidateRequest}
-              candidateSaveRequest={explorerCandidateSaveRequest}
-              promptCardRequest={explorerPromptCardRequest}
-              searchRequest={explorerSearchRequest}
-              visibleDismissRequest={explorerVisibleDismissRequest}
-              visibleSaveRequest={explorerVisibleSaveRequest}
-              onActivity={recordVisibleActivity}
-              onCandidateDismissRequestHandled={clearExplorerCandidateDismissRequest}
-              onCandidateRequestHandled={clearExplorerCandidateRequest}
-              onCandidateSaveRequestHandled={clearExplorerCandidateSaveRequest}
-              onPromptCardRequestHandled={clearExplorerPromptCardRequest}
-              onSearchRequestHandled={clearExplorerSearchRequest}
-              onVisibleDismissRequestHandled={clearExplorerVisibleDismissRequest}
-              onVisibleSaveRequestHandled={clearExplorerVisibleSaveRequest}
-            />
+              />
+            </FeatureErrorBoundary>
           )}
           {activeTab === 'import' && (
-            <ImportTab
-              library={library}
-              onActivity={recordVisibleActivity}
-              onNavigate={changeActiveTab}
-            />
+            <FeatureErrorBoundary key={`import:${privateSessionKey ?? 'anonymous'}`} label="Importar">
+              <ImportTab
+                library={library}
+                onActivity={recordVisibleActivity}
+                onNavigate={changeActiveTab}
+                sessionKey={privateSessionKey}
+              />
+            </FeatureErrorBoundary>
           )}
           {activeTab === 'settings' && (
-            <SettingsTab
+            <FeatureErrorBoundary key={`settings:${privateSessionKey ?? 'anonymous'}`} label="Ajustes">
+              <SettingsTab
               library={library}
+              sessionKey={privateSessionKey}
               saveRequest={settingsSaveRequest}
               tasteSuggestionsRequest={settingsTasteSuggestionsRequest}
               taxonomyRepairRequest={settingsTaxonomyRepairRequest}
@@ -2123,19 +2251,15 @@ function App() {
               setTheme={setTheme}
               theme={theme}
               user={auth.user}
-            />
+              />
+            </FeatureErrorBoundary>
           )}
           {activeTab === 'curation' && library.isModerator && (
-            <CurationTab library={library} onActivity={recordVisibleActivity} />
+            <FeatureErrorBoundary key={`curation:${privateSessionKey ?? 'anonymous'}`} label="Curar">
+              <CurationTab library={library} onActivity={recordVisibleActivity} />
+            </FeatureErrorBoundary>
           )}
         </Suspense>
-        <SessionActivityPanel
-          entries={library.activityEntries.slice(0, sessionActivityLimit)}
-          clearedCount={activityClearUndo.length}
-          onClear={() => void clearSessionActivity()}
-          onUndoClear={() => void undoClearSessionActivity()}
-          onSelect={(entry) => changeActiveTab(getActivityDestinationTab(entry), getActivityFocus(entry))}
-        />
       </section>
     </main>
   )

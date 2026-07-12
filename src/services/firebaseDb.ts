@@ -28,7 +28,7 @@ export function getFirebaseServices() {
       : {}),
   })
 
-  if (import.meta.env.DEV && import.meta.env.VITE_USE_FIREBASE_EMULATORS === 'true' && !emulatorsConnected) {
+  if (import.meta.env.VITE_USE_FIREBASE_EMULATORS === 'true' && !emulatorsConnected) {
     connectFirestoreEmulator(db, '127.0.0.1', 8080)
     emulatorsConnected = true
   }

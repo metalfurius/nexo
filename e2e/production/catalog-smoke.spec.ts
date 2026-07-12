@@ -1,8 +1,41 @@
 import { expect, test } from '@playwright/test'
 
 const publicCatalogUrl = process.env.E2E_PUBLIC_CATALOG_URL || process.env.VITE_PUBLIC_CATALOG_URL
+const catalogProxyUrl = process.env.E2E_CATALOG_API_URL || process.env.E2E_CATALOG_PROXY_URL
+const backendHealthUrl = process.env.E2E_BACKEND_HEALTH_URL
+const expectedRevision = process.env.E2E_EXPECTED_REVISION
 const modEmail = process.env.E2E_PROD_MOD_EMAIL
 const modPassword = process.env.E2E_PROD_MOD_PASSWORD
+
+test('production backends expose the approved revision', async ({ request }) => {
+  expect(expectedRevision, 'E2E_EXPECTED_REVISION must be configured').toBeTruthy()
+  expect(catalogProxyUrl, 'E2E_CATALOG_API_URL must be configured').toBeTruthy()
+  expect(backendHealthUrl, 'E2E_BACKEND_HEALTH_URL must be configured').toBeTruthy()
+
+  const proxyHealthUrl = new URL('/health', catalogProxyUrl as string)
+  for (const endpoint of [proxyHealthUrl.toString(), backendHealthUrl as string]) {
+    const response = await request.get(endpoint)
+    expect(response.ok(), endpoint).toBe(true)
+    await expect(response.json()).resolves.toEqual(expect.objectContaining({ revision: expectedRevision }))
+  }
+})
+
+test('production catalog Worker searches Dune through the v1 gateway', async ({ request }) => {
+  expect(catalogProxyUrl, 'E2E_CATALOG_API_URL must be configured').toBeTruthy()
+
+  const endpoint = new URL('/v1/catalog/search', catalogProxyUrl as string)
+  endpoint.searchParams.set('q', 'Dune')
+  endpoint.searchParams.set('type', 'any')
+  endpoint.searchParams.set('limit', '24')
+  const response = await request.get(endpoint.toString(), {
+    headers: { origin: 'https://nexo.codeoverdose.es' },
+  })
+
+  expect(response.ok()).toBe(true)
+  expect(response.headers()['access-control-allow-origin']).toBe('https://nexo.codeoverdose.es')
+  const payload = (await response.json()) as { results?: Array<{ title?: string }> }
+  expect(payload.results?.some((item) => item.title?.toLocaleLowerCase('es').includes('dune'))).toBe(true)
+})
 
 test('production public catalog endpoint returns Dune in Todo', async ({ request }) => {
   expect(publicCatalogUrl, 'E2E_PUBLIC_CATALOG_URL or VITE_PUBLIC_CATALOG_URL must be configured').toBeTruthy()
@@ -30,7 +63,9 @@ test('production anonymous UI searches Dune in Todo', async ({ page }) => {
   })
   await page.getByRole('button', { name: /^Buscar$/ }).click()
 
-  await expect(page).toHaveURL(/catalogQ=Dune/)
+  await expect(page).toHaveURL(/[?&]tab=discover(?:&|$)/)
+  await expect(page).toHaveURL(/[?&]mode=search(?:&|$)/)
+  await expect(page).toHaveURL(/[?&]q=Dune(?:&|$)/)
   await expect
     .poll(() =>
       page.evaluate(() => {
@@ -46,24 +81,30 @@ test('production anonymous UI searches Dune in Todo', async ({ page }) => {
 
   await page.reload()
   const reloadedCatalogSearch = page.getByLabel('Buscar en el catalogo publico')
-  await expect(page).toHaveURL(/catalogQ=Dune/)
+  await expect(page).toHaveURL(/[?&]tab=discover(?:&|$)/)
+  await expect(page).toHaveURL(/[?&]mode=search(?:&|$)/)
+  await expect(page).toHaveURL(/[?&]q=Dune(?:&|$)/)
   await expect(reloadedCatalogSearch).toHaveValue('Dune')
   await expect(page.locator('article.catalog-public-card').filter({ hasText: 'Dune' }).first()).toBeVisible()
   await expect(page.getByRole('status').filter({ hasText: 'resultados para explorar' })).toBeVisible()
 })
 
 test('production moderator signs in with email without Google', async ({ page }) => {
-  test.skip(!modEmail || !modPassword, 'Production moderator credentials are not configured.')
+  expect(modEmail, 'E2E_PROD_MOD_EMAIL must be configured').toBeTruthy()
+  expect(modPassword, 'E2E_PROD_MOD_PASSWORD must be configured').toBeTruthy()
 
   await page.goto('/')
-  await page.getByRole('button', { name: 'Entrar' }).click()
+  await page.locator('.topbar').getByRole('button', { name: 'Entrar' }).click()
 
   const dialog = page.getByRole('dialog', { name: 'Entrar en Nexo' })
   await expect(dialog).toBeVisible()
   await dialog.getByLabel('Email').fill(modEmail as string)
   await dialog.getByLabel('Contraseña').fill(modPassword as string)
-  await dialog.getByRole('button', { name: 'Entrar con email' }).click({ force: true })
+  await dialog.getByRole('button', { name: 'Entrar con email' }).click()
 
   await expect(page.getByLabel(/Rol: (Admin|Moderador)/)).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Curacion' })).toBeVisible()
+  await page.getByLabel('Más secciones').click()
+  await page.getByRole('menuitem', { name: /Curar/ }).click()
+  await expect(page).toHaveURL(/[?&]tab=curation(?:&|$)/)
+  await expect(page.getByRole('heading', { name: 'Catalogo Nexo' })).toBeVisible()
 })

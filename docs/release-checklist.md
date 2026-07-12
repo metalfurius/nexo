@@ -1,63 +1,81 @@
-# Nexo 1.0 Release Checklist
+# Nexo release checklist
 
-## Required Gate
+## Required gate
 
 - `npm ci`
 - `npm --prefix functions ci`
-- `npm run lint`
-- `npm run test`
-- `npm run test:rules`
-- `npm run build`
-- `npm run check:build-output`
-- `npm run build:functions`
-- `npm run test:e2e`
-- `npm run test:e2e:firebase`
-- `npm run check:release-files`
+- `npm run release:check`
+- `npm run worker:check`
 - `npm audit --audit-level=high`
+- `npm run audit:functions`
 
-`npm run release:check` covers the full local gate and expects Java/Firebase emulators to be available for Firestore rules tests. If a Firestore emulator is already running on `127.0.0.1:8080`, `npm run test:rules` reuses it instead of trying to start a second emulator. `npm run check:build-output` validates the generated `dist` asset paths for the clean subdomain and confirms PWA/static files were copied. `npm run check:release-files` validates release metadata and static launch contracts such as CNAME, manifest shortcuts, required docs, Firebase config and the public catalog seed.
+`npm run release:check` covers lint, application/test typechecks, unit and rules tests, production build validation, local Playwright, the Workbox offline smoke, Firebase emulator E2E (including a real pending Firestore write) and both dependency audits. Java and the Firebase emulators must be available. The build gate counts the entry `<script>` and every application `modulepreload`, rejects eager private/search chunks and requires initial first-party application JavaScript and CSS below 200 KiB.
 
-GitHub Actions mirrors the gate:
+GitHub Actions mirrors this gate. CI has per-PR/ref concurrency, one retry only in CI, `retain-on-failure` traces and uploads `test-results` plus `playwright-report` on failure. All external Actions are pinned to commit SHAs and Dependabot covers root npm, Functions npm and GitHub Actions.
 
-- `.github/workflows/ci.yml` runs on pull requests and manual dispatch.
-- `.github/workflows/ci.yml` also gates pushes to `main` with the full release check before any Pages deploy starts.
-- `.github/workflows/deploy-pages.yml` runs after successful `CI` push runs on `main`, builds the production Pages artifact, deploys GitHub Pages and runs the production smoke.
-- `.github/workflows/deploy-functions.yml` deploys Firebase Functions and writes the public catalog seed when Functions/catalog paths change, and also supports manual dispatch.
-- `.github/workflows/version-bump.yml` commits package, lockfile and service worker cache version updates into open PRs labelled `patch`, `minor` or `major`, so the original PR is the only PR that needs normal verification.
-- Repository secret `VERSION_BUMP_TOKEN` must be present with `repo` permissions so automated version commits trigger normal PR checks.
+## Production identity and credentials
 
-## Firebase
+Firebase deployment uses `google-github-actions/auth` with Workload Identity Federation. Configure the provider with this attribute condition before enabling production deploys:
 
-- Confirm GitHub Pages variables match `.env.example`.
-- Confirm Firebase Auth Google provider is enabled.
-- Confirm Firebase Auth Email/Password provider is enabled for admin/mod smoke accounts.
-- Confirm Firestore rules and indexes are deployed.
-- Bootstrap the first admin manually by setting `users/{uid}.role` to `admin`.
-- Create the production smoke moderator/admin account and set `E2E_PROD_MOD_EMAIL` and `E2E_PROD_MOD_PASSWORD` as GitHub Secrets.
-- Set `FIREBASE_SERVICE_ACCOUNT_RECOMENDACIONES_78EB7` as a GitHub Secret for Functions and catalog deploys.
-- Confirm normal sign-in creates `users/{uid}` profiles with `role: "user"`.
-- Run `npm run catalog:normalize` and review `seed/public-catalog.normalized.json`.
-- Run `npm run catalog:write:prod` after reviewing seed changes, or dispatch the Functions/catalog workflow.
-- Confirm `VITE_PUBLIC_CATALOG_URL?q=dune&type=any&limit=24` returns Dune before sharing beta access.
+```text
+assertion.repository_id == '1255487355' &&
+assertion.repository_owner_id == '75508084' &&
+assertion.ref == 'refs/heads/main'
+```
 
-Firebase Functions are required for the anonymous public catalog endpoint. GitHub Pages deploys do not update `publicCatalog`.
+Set `GCP_WORKLOAD_IDENTITY_PROVIDER` and `GCP_SERVICE_ACCOUNT` as protected `production` environment variables. Grant the service account only the Firebase Functions, Firestore rules/indexes and seed permissions used by the workflow. Once one WIF deployment and smoke pass, remove the legacy JSON service-account secret from GitHub and Google Cloud.
 
-## Release Steps
+Set `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` as protected production secrets. The Cloudflare token must be account-scoped, restricted to the Nexo Worker and required zone only, and rotated with a maximum TTL of 90 days. Set the required Firebase/catalog `VITE_*` values plus `E2E_BACKEND_HEALTH_URL`, `E2E_PROD_MOD_EMAIL` and `E2E_PROD_MOD_PASSWORD`. Missing identity, backend, required frontend or smoke credentials must fail the workflow; no deployment job may be silently skipped.
 
-- Put exactly one version label on the PR before merge: `patch`, `minor` or `major`.
-- Verify package versions stay synchronized across root package files, functions package files and `public/sw.js`.
-- Review `CHANGELOG.md`.
-- Run the required gate.
-- Build with `GITHUB_PAGES=true`.
-- Let Deploy Pages run after CI is green on `main`, or dispatch it manually when republishing the current build.
-- Deploy Functions/catalog seed when public catalog logic or seed changes.
-- Tag the merged version, for example `v1.0.1`.
-- Create a GitHub Release from the tag.
-- Watch GitHub Pages deploy and confirm the production smoke covers anonymous catalog search and moderator email login.
-- Install from browser/PWA prompt once and confirm standalone launch reaches Biblioteca.
+`VITE_RECAPTCHA_ENTERPRISE_SITE_KEY` is optional during the observational App Check rollout. Once configured, collect seven full days of App Check metrics without enforcement; enable enforcement for Functions first and Firestore only after Functions traffic remains healthy.
 
-## Known Launch Notes
+## Version and PR
 
-- Firebase Auth, Firestore and Analytics are split behind lazy imports. `npm run build` should not emit Vite's 500 kB chunk warning; if it returns, inspect the initial `index-*.js` chunk before tagging.
-- The service worker only caches same-origin app shell/assets and should not intercept Firebase or external API calls.
-- `npm audit --audit-level=moderate` reports transitive `uuid` advisories through Firebase Admin/Tools dependency chains. High severity audit is clean-gated for 1.0; revisit after Firebase packages publish non-breaking patched dependency trees.
+- Put exactly one SemVer label on the PR: `release:x.y.z`.
+- Remove legacy `patch`, `minor`, `major` and every conflicting `release:*` label.
+- Confirm the version workflow synchronizes root and Functions packages and lockfiles from that label.
+- Review `CHANGELOG.md` and ensure it has a heading for the package version.
+- Run the required gate and resolve every high/critical root or Functions advisory.
+
+Version tooling accepts any valid, increasing SemVer target and contains no release-specific service-worker cache constant. Workbox derives cache names from the package version during the build.
+
+## Functional and accessibility acceptance
+
+- With 1,000 Biblioteca entries, confirm only 24 cards render initially and “Mostrar 24 más” is keyboard/screen-reader accessible.
+- Exercise an unsaved editor through close, Escape, backdrop, browser navigation and `beforeunload`; explicitly save or discard.
+- Verify a cold Biblioteca deep link waits for Firebase before deciding whether the item exists.
+- Switch account A→B and verify selections, drafts, undo data and private requests from A disappear.
+- Reload after a bulk roadmap mutation and verify the order/status remains persisted.
+- Run Home, Descubrir, Biblioteca, Dado and Ajustes in all seven themes. Axe must report zero moderate-or-higher release violations and accent controls must meet WCAG AA.
+- Exercise 390×844, 768×1024, 1440×900 and 1920×1080 with reduced motion and no horizontal overflow.
+
+## PWA and offline acceptance
+
+- Install the production build and wait until the generated `sw.js` controls the page.
+- Confirm every Cache Storage entry starts with `nexo-` and old Nexo caches are removed without deleting unrelated origin caches.
+- Reload a deep route offline and read the IndexedDB-backed private library.
+- Make a Firestore write offline, observe “Sincronizando cambios”, reconnect and verify the emulator/backend document receives it.
+- Confirm navigation uses `NetworkFirst` with a three-second timeout and an app-shell fallback.
+- Confirm an available update is announced but activates only after the user chooses to update.
+- Confirm notification clicks can focus/navigate only to same-origin Nexo URLs.
+
+## Ordered production deployment
+
+`.github/workflows/deploy-production.yml` runs only after successful `CI` on a push to `main`, or via `workflow_dispatch(ref, skip_seed)`. It deploys one immutable SHA in this order:
+
+1. Functions, Firestore rules and indexes; optionally write the idempotent normalized catalog seed.
+2. The Cloudflare Worker.
+3. The verified GitHub Pages artifact.
+4. Wait until `/version.json`, Worker `/health` and Functions `backendHealth` all expose the approved SHA.
+5. Run anonymous catalog and authenticated moderator production smoke tests.
+6. Create `v<version>` and its GitHub Release only after the smoke succeeds.
+
+Any backend, credential, revision or smoke failure stops the chain and prevents tagging. A manual redeploy must be launched from `main`, must target an existing SemVer release tag reachable from `main`, and may set `skip_seed`; arbitrary branches and commit SHAs are rejected, and the workflow never performs a destructive catalog rollback.
+
+## Final production checks
+
+- Verify `?tab=discover&mode=search&q=Dune` returns the expected catalog cards after reload.
+- Verify moderator login from the top bar and open Curar through “Más secciones”.
+- Confirm Worker CORS permits only the production origin, `/health` has no PII and structured logs contain no IP, query or user content.
+- Confirm `version.json`, Worker health and Functions health expose the same merged revision and package version.
+- Inspect Firebase/Google Cloud and Cloudflare built-in logs, traces and metrics; no paid observability dependency is required.

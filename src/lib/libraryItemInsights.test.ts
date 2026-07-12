@@ -35,7 +35,9 @@ const baseItem: ListItem = {
   updatedAt: '2026-06-03T10:00:00.000Z',
 }
 
-function item(overrides: Partial<ListItem>): ListItem {
+type ItemOverrides = Omit<Partial<ListItem>, 'weights'> & { weights?: Partial<ListItem['weights']> }
+
+function item(overrides: ItemOverrides): ListItem {
   return { ...baseItem, ...overrides, weights: { ...baseItem.weights, ...overrides.weights } }
 }
 

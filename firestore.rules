@@ -30,24 +30,400 @@ service cloud.firestore {
       return type in ['game', 'book', 'movie', 'series', 'anime', 'manga', 'manhwa', 'comic', 'other'];
     }
 
-    function isValidProgressUnit(unit) {
-      return unit in ['episodes', 'chapters', 'pages', 'hours', 'volumes', 'percent', 'items'];
+    function isValidItemStatus(status) {
+      return status in ['wishlist', 'in_progress', 'paused', 'completed', 'dropped'];
     }
 
-    function optionalString(field) {
-      return !(field in request.resource.data) || request.resource.data[field] is string;
+    function isValidProgressUnit(unit) {
+      return unit in ['episodes', 'chapters', 'pages', 'hours', 'volumes', 'percent', 'items'];
     }
 
     function optionalNumber(field) {
       return !(field in request.resource.data) || request.resource.data[field] is number;
     }
 
-    function optionalStringList(field) {
-      return !(field in request.resource.data) || request.resource.data[field] is list;
+    function optionalBoundedString(field, maximum) {
+      return !(field in request.resource.data)
+        || (request.resource.data[field] is string && request.resource.data[field].size() <= maximum);
     }
 
-    function isAutoCatalogCreate(publicItemId) {
-      return isSignedIn()
+    function optionalBoundedList(field, maximum) {
+      return !(field in request.resource.data)
+        || (request.resource.data[field] is list && request.resource.data[field].size() <= maximum);
+    }
+
+    function optionalBoundedMapString(data, field, maximum) {
+      return !(field in data)
+        || (data[field] is string && data[field].size() <= maximum);
+    }
+
+    function optionalMapNumber(data, field) {
+      return !(field in data) || data[field] is number;
+    }
+
+    function optionalBoundedMapList(data, field, maximum) {
+      return !(field in data)
+        || (data[field] is list && data[field].size() <= maximum);
+    }
+
+    function hasValidExternalRefs(data) {
+      return !('externalRefs' in data)
+        || (
+          data.externalRefs is map
+          && data.externalRefs.keys().hasOnly([
+            'tmdbId',
+            'rawgId',
+            'openLibraryKey',
+            'googleBooksId',
+            'anilistId',
+            'mangaDexId',
+            'kitsuId',
+            'malId',
+            'goodreadsBookId',
+            'isbn',
+            'letterboxdSlug',
+            'wikidataId',
+            'sourceUrl'
+          ])
+          && optionalBoundedMapString(data.externalRefs, 'tmdbId', 120)
+          && optionalBoundedMapString(data.externalRefs, 'rawgId', 120)
+          && optionalBoundedMapString(data.externalRefs, 'openLibraryKey', 120)
+          && optionalBoundedMapString(data.externalRefs, 'googleBooksId', 120)
+          && optionalBoundedMapString(data.externalRefs, 'anilistId', 120)
+          && optionalBoundedMapString(data.externalRefs, 'mangaDexId', 120)
+          && optionalBoundedMapString(data.externalRefs, 'kitsuId', 120)
+          && optionalBoundedMapString(data.externalRefs, 'malId', 120)
+          && optionalBoundedMapString(data.externalRefs, 'goodreadsBookId', 120)
+          && optionalBoundedMapString(data.externalRefs, 'isbn', 120)
+          && optionalBoundedMapString(data.externalRefs, 'letterboxdSlug', 120)
+          && optionalBoundedMapString(data.externalRefs, 'wikidataId', 120)
+          && optionalBoundedMapString(data.externalRefs, 'sourceUrl', 2000)
+        );
+    }
+
+    function isValidWeights(data) {
+      return !('weights' in data)
+        || (
+          data.weights is map
+          && data.weights.keys().hasOnly(['priority', 'surprise', 'challenge'])
+          && optionalMapNumber(data.weights, 'priority')
+          && optionalMapNumber(data.weights, 'surprise')
+          && optionalMapNumber(data.weights, 'challenge')
+        );
+    }
+
+    function isValidPublicSnapshot(data) {
+      return !('publicSnapshot' in data)
+        || (
+          data.publicSnapshot is map
+          && data.publicSnapshot.keys().hasOnly([
+            'id',
+            'title',
+            'type',
+            'description',
+            'releaseYear',
+            'progressTotal',
+            'progressUnit',
+            'genres',
+            'tags',
+            'moodTags',
+            'searchAliases',
+            'externalRefs',
+            'posterUrl',
+            'canonicalKey',
+            'updatedAt'
+          ])
+          && optionalBoundedMapString(data.publicSnapshot, 'id', 120)
+          && optionalBoundedMapString(data.publicSnapshot, 'title', 200)
+          && (!('type' in data.publicSnapshot) || isValidItemType(data.publicSnapshot.type))
+          && optionalBoundedMapString(data.publicSnapshot, 'description', 20000)
+          && optionalMapNumber(data.publicSnapshot, 'releaseYear')
+          && optionalMapNumber(data.publicSnapshot, 'progressTotal')
+          && (!('progressUnit' in data.publicSnapshot) || isValidProgressUnit(data.publicSnapshot.progressUnit))
+          && optionalBoundedMapList(data.publicSnapshot, 'genres', 64)
+          && optionalBoundedMapList(data.publicSnapshot, 'tags', 64)
+          && optionalBoundedMapList(data.publicSnapshot, 'moodTags', 64)
+          && optionalBoundedMapList(data.publicSnapshot, 'searchAliases', 64)
+          && optionalBoundedMapString(data.publicSnapshot, 'posterUrl', 2000)
+          && optionalBoundedMapString(data.publicSnapshot, 'canonicalKey', 240)
+          && optionalBoundedMapString(data.publicSnapshot, 'updatedAt', 64)
+          && hasValidExternalRefs(data.publicSnapshot)
+        );
+    }
+
+    function isValidRecommendationPreferences(data) {
+      return !('recommendationPreferences' in data)
+        || (
+          data.recommendationPreferences is map
+          && data.recommendationPreferences.keys().hasOnly([
+            'medium',
+            'timeBudgetHours',
+            'energy',
+            'intensity',
+            'novelty',
+            'includePaused',
+            'surprisePercent',
+            'seed'
+          ])
+          && (!('medium' in data.recommendationPreferences) || data.recommendationPreferences.medium in ['game', 'book', 'movie', 'series', 'anime', 'manga', 'manhwa', 'comic', 'other', 'watch', 'animeManga', 'any'])
+          && optionalMapNumber(data.recommendationPreferences, 'timeBudgetHours')
+          && (!('energy' in data.recommendationPreferences) || data.recommendationPreferences.energy in ['low', 'medium', 'high'])
+          && (!('intensity' in data.recommendationPreferences) || data.recommendationPreferences.intensity in ['soft', 'balanced', 'intense'])
+          && (!('novelty' in data.recommendationPreferences) || data.recommendationPreferences.novelty in ['comfort', 'balanced', 'surprise'])
+          && (!('includePaused' in data.recommendationPreferences) || data.recommendationPreferences.includePaused is bool)
+          && optionalMapNumber(data.recommendationPreferences, 'surprisePercent')
+          && optionalBoundedMapString(data.recommendationPreferences, 'seed', 200)
+        );
+    }
+
+    function isValidActivityTarget(data) {
+      return !('target' in data)
+        || (
+          data.target is map
+          && data.target.keys().hasOnly(['kind', 'id'])
+          && data.target.kind == 'item'
+          && data.target.id is string
+          && data.target.id.size() <= 120
+        );
+    }
+
+    function isValidRoadmap(data) {
+      // Rules cannot apply a generic type/length predicate to every list member.
+      // The release auditor rejects empty, non-string and >120-character ids before these rules deploy.
+      return !('roadmap' in data)
+        || (
+          data.roadmap is map
+          && data.roadmap.keys().hasOnly(['now', 'next', 'later', 'hidden'])
+          && (!('now' in data.roadmap) || (data.roadmap.now is list && data.roadmap.now.size() <= 5000))
+          && (!('next' in data.roadmap) || (data.roadmap.next is list && data.roadmap.next.size() <= 5000))
+          && (!('later' in data.roadmap) || (data.roadmap.later is list && data.roadmap.later.size() <= 5000))
+          && (!('hidden' in data.roadmap) || (data.roadmap.hidden is list && data.roadmap.hidden.size() <= 5000))
+          && (
+            (!('now' in data.roadmap) ? 0 : data.roadmap.now.size())
+            + (!('next' in data.roadmap) ? 0 : data.roadmap.next.size())
+            + (!('later' in data.roadmap) ? 0 : data.roadmap.later.size())
+            + (!('hidden' in data.roadmap) ? 0 : data.roadmap.hidden.size())
+          ) <= 5000
+        );
+    }
+
+    function isValidPrivateDocument(collectionName, documentId) {
+      return documentId.size() <= 120
+        && request.resource.data.keys().size() <= 64
+        && (
+          collectionName == 'items'
+            ? isValidPrivateItem(documentId)
+            : collectionName == 'userSettings'
+              ? isValidPrivateSettings(documentId)
+              : collectionName == 'externalCandidates'
+                ? isValidPrivateCandidate(documentId)
+                : collectionName == 'activityEntries'
+                  ? isValidActivityEntry(documentId)
+                  : collectionName == 'recommendationRuns'
+                    ? isValidRecommendationRun()
+                    : collectionName == 'tags' && isValidTagDocument(documentId)
+        );
+    }
+
+    function isValidPrivateItem(documentId) {
+      return request.resource.data.keys().hasOnly([
+          'id',
+          'title',
+          'type',
+          'status',
+          'rating',
+          'durationMinHours',
+          'durationMaxHours',
+          'progress',
+          'progressCurrent',
+          'progressTotal',
+          'progressUnit',
+          'genres',
+          'tags',
+          'moodTags',
+          'weights',
+          'notes',
+          'source',
+          'rawText',
+          'importNotes',
+          'externalRefs',
+          'posterUrl',
+          'publicItemId',
+          'publicSnapshot',
+          'createdAt',
+          'updatedAt',
+          'lastRecommendedAt',
+          'recommendationCooldownUntil'
+        ])
+        && request.resource.data.keys().hasAll([
+          'id',
+          'title',
+          'type',
+          'status',
+          'genres',
+          'tags',
+          'moodTags',
+          'weights',
+          'source',
+          'createdAt',
+          'updatedAt'
+        ])
+        && request.resource.data.id == documentId
+        && request.resource.data.id.size() <= 120
+        && optionalBoundedString('title', 200)
+        && (!('type' in request.resource.data) || isValidItemType(request.resource.data.type))
+        && (!('status' in request.resource.data) || isValidItemStatus(request.resource.data.status))
+        && optionalNumber('rating')
+        && optionalNumber('durationMinHours')
+        && optionalNumber('durationMaxHours')
+        && optionalNumber('progressCurrent')
+        && optionalNumber('progressTotal')
+        && (!('progressUnit' in request.resource.data) || isValidProgressUnit(request.resource.data.progressUnit))
+        && optionalBoundedString('notes', 20000)
+        && optionalBoundedString('rawText', 20000)
+        && optionalBoundedString('progress', 1000)
+        && optionalBoundedString('posterUrl', 2000)
+        && optionalBoundedString('publicItemId', 120)
+        && optionalBoundedString('createdAt', 64)
+        && optionalBoundedString('updatedAt', 64)
+        && optionalBoundedString('lastRecommendedAt', 64)
+        && optionalBoundedString('recommendationCooldownUntil', 64)
+        && (!('source' in request.resource.data) || request.resource.data.source in ['manual', 'markdown', 'external', 'public'])
+        && optionalBoundedList('genres', 64)
+        && optionalBoundedList('tags', 64)
+        && optionalBoundedList('moodTags', 64)
+        && optionalBoundedList('importNotes', 64)
+        && isValidWeights(request.resource.data)
+        && isValidPublicSnapshot(request.resource.data)
+        && hasValidExternalRefs(request.resource.data);
+    }
+
+    function isValidPrivateSettings(documentId) {
+      return documentId == 'preferences'
+        && request.resource.data.keys().hasOnly([
+          'surprisePercent',
+          'favoriteTags',
+          'favoriteGenres',
+          'blockedTags',
+          'allowPausedByDefault',
+          'theme',
+          'recommendationPreferences',
+          'explorerDefaultType',
+          'libraryViewMode',
+          'libraryCardsPerRow',
+          'roadmap',
+          'updatedAt'
+        ])
+        && optionalBoundedList('favoriteTags', 64)
+        && optionalBoundedList('favoriteGenres', 64)
+        && optionalBoundedList('blockedTags', 64)
+        && optionalNumber('surprisePercent')
+        && (!('allowPausedByDefault' in request.resource.data) || request.resource.data.allowPausedByDefault is bool)
+        && (!('theme' in request.resource.data) || request.resource.data.theme in ['dark', 'light', 'rose', 'forest', 'ocean', 'mint', 'aurora'])
+        && (!('explorerDefaultType' in request.resource.data) || request.resource.data.explorerDefaultType in ['game', 'book', 'movie', 'series', 'anime', 'manga', 'manhwa', 'comic', 'other', 'watch', 'animeManga', 'any'])
+        && (!('libraryViewMode' in request.resource.data) || request.resource.data.libraryViewMode in ['mosaic', 'cards', 'list'])
+        && (!('libraryCardsPerRow' in request.resource.data) || request.resource.data.libraryCardsPerRow in [4, 5, 6])
+        && optionalBoundedString('updatedAt', 64)
+        && isValidRecommendationPreferences(request.resource.data)
+        && isValidRoadmap(request.resource.data);
+    }
+
+    function isValidPrivateCandidate(documentId) {
+      return request.resource.data.keys().hasOnly([
+          'id',
+          'title',
+          'type',
+          'status',
+          'origin',
+          'source',
+          'sourceId',
+          'overview',
+          'posterUrl',
+          'releaseYear',
+          'progressTotal',
+          'progressUnit',
+          'genres',
+          'tags',
+          'moodTags',
+          'searchAliases',
+          'externalRefs',
+          'publicItemId',
+          'publicSnapshot',
+          'savedItemId',
+          'dismissedAt',
+          'createdAt',
+          'updatedAt'
+        ])
+        && request.resource.data.keys().hasAll([
+          'id',
+          'title',
+          'type',
+          'status',
+          'origin',
+          'source',
+          'sourceId',
+          'genres',
+          'tags',
+          'moodTags',
+          'externalRefs',
+          'createdAt',
+          'updatedAt'
+        ])
+        && request.resource.data.id == documentId
+        && optionalBoundedString('title', 200)
+        && (!('type' in request.resource.data) || isValidItemType(request.resource.data.type))
+        && (!('status' in request.resource.data) || request.resource.data.status in ['queued', 'saved', 'dismissed'])
+        && (!('origin' in request.resource.data) || request.resource.data.origin in ['publicCatalog', 'externalSearch', 'prompt', 'roll'])
+        && (!('source' in request.resource.data) || request.resource.data.source in ['nexo', 'prompt', 'tmdb', 'rawg', 'openLibrary', 'googleBooks', 'anilist', 'mangaDex', 'kitsu', 'jikan', 'wikidata'])
+        && optionalBoundedString('sourceId', 120)
+        && optionalBoundedString('overview', 20000)
+        && optionalBoundedString('posterUrl', 2000)
+        && optionalNumber('releaseYear')
+        && optionalNumber('progressTotal')
+        && (!('progressUnit' in request.resource.data) || isValidProgressUnit(request.resource.data.progressUnit))
+        && optionalBoundedString('publicItemId', 120)
+        && optionalBoundedString('savedItemId', 120)
+        && optionalBoundedString('dismissedAt', 64)
+        && optionalBoundedString('createdAt', 64)
+        && optionalBoundedString('updatedAt', 64)
+        && optionalBoundedList('genres', 64)
+        && optionalBoundedList('tags', 64)
+        && optionalBoundedList('moodTags', 64)
+        && optionalBoundedList('searchAliases', 64)
+        && isValidPublicSnapshot(request.resource.data)
+        && hasValidExternalRefs(request.resource.data);
+    }
+
+    function isValidActivityEntry(documentId) {
+      return request.resource.data.keys().hasOnly(['id', 'label', 'detail', 'tab', 'tone', 'createdAt', 'target'])
+        && (!('id' in request.resource.data) || request.resource.data.id == documentId)
+        && optionalBoundedString('label', 200)
+        && optionalBoundedString('detail', 2000)
+        && (!('tab' in request.resource.data) || request.resource.data.tab in ['home', 'discover', 'catalog', 'library', 'dice', 'explorer', 'import', 'settings', 'curation'])
+        && (!('tone' in request.resource.data) || request.resource.data.tone in ['info', 'success', 'danger', 'loading'])
+        && optionalBoundedString('createdAt', 64)
+        && isValidActivityTarget(request.resource.data);
+    }
+
+    function isValidRecommendationRun() {
+      return request.resource.data.keys().hasOnly(['itemId', 'reasons', 'createdAt'])
+        && optionalBoundedString('itemId', 120)
+        && optionalBoundedList('reasons', 64)
+        && optionalBoundedString('createdAt', 64);
+    }
+
+    function isValidTagDocument(documentId) {
+      return request.resource.data.keys().hasOnly(['id', 'name', 'label', 'color', 'createdAt', 'updatedAt'])
+        && (!('id' in request.resource.data) || request.resource.data.id == documentId)
+        && optionalBoundedString('name', 120)
+        && optionalBoundedString('label', 120)
+        && optionalBoundedString('color', 64)
+        && optionalBoundedString('createdAt', 64)
+        && optionalBoundedString('updatedAt', 64);
+    }
+
+    function isValidPublicCatalogShape(publicItemId) {
+      return publicItemId.size() <= 120
         && request.resource.data.keys().hasOnly([
           'id',
           'title',
@@ -68,91 +444,45 @@ service cloud.firestore {
           'updatedAt',
           'createdBy',
           'updatedBy',
+          'archivedAt',
           'autoIngestedAt',
           'demandCount',
           'lastDemandAt'
         ])
-        && request.resource.data.id == publicItemId
-        && request.resource.data.title is string
-        && isValidItemType(request.resource.data.type)
-        && request.resource.data.createdAt is string
-        && request.resource.data.updatedAt is string
-        && request.resource.data.createdBy == request.auth.uid
-        && request.resource.data.updatedBy == request.auth.uid
-        && request.resource.data.autoIngestedAt is string
-        && request.resource.data.demandCount == 1
-        && request.resource.data.lastDemandAt == request.resource.data.autoIngestedAt
-        && request.resource.data.canonicalKey is string
-        && request.resource.data.searchTokens is list
-        && request.resource.data.genres is list
-        && request.resource.data.tags is list
-        && request.resource.data.moodTags is list
-        && request.resource.data.externalRefs is map
-        && optionalString('description')
+        && (!('id' in request.resource.data) || (request.resource.data.id is string && request.resource.data.id == publicItemId))
+        && optionalBoundedString('title', 200)
+        && (!('type' in request.resource.data) || isValidItemType(request.resource.data.type))
+        && optionalBoundedString('description', 20000)
+        && optionalBoundedString('posterUrl', 2000)
+        && optionalBoundedString('canonicalKey', 240)
+        && optionalBoundedString('createdAt', 64)
+        && optionalBoundedString('updatedAt', 64)
+        && optionalBoundedString('createdBy', 120)
+        && optionalBoundedString('updatedBy', 120)
+        && optionalBoundedString('archivedAt', 64)
+        && optionalBoundedString('autoIngestedAt', 64)
+        && optionalBoundedString('lastDemandAt', 64)
         && optionalNumber('releaseYear')
         && optionalNumber('progressTotal')
+        && optionalNumber('demandCount')
         && (!('progressUnit' in request.resource.data) || isValidProgressUnit(request.resource.data.progressUnit))
-        && optionalStringList('searchAliases')
-        && optionalString('posterUrl');
-    }
-
-    function isCatalogDemandUpdate() {
-      return isSignedIn()
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'demandCount',
-          'lastDemandAt',
-          'updatedAt',
-          'updatedBy',
-          'description',
-          'releaseYear',
-          'progressTotal',
-          'progressUnit',
-          'posterUrl',
-          'externalRefs'
-        ])
-        && (
-          (resource.data.demandCount is number && request.resource.data.demandCount == resource.data.demandCount + 1) ||
-          (!('demandCount' in resource.data) && request.resource.data.demandCount == 1)
-        )
-        && request.resource.data.lastDemandAt is string
-        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['updatedAt']) || request.resource.data.updatedAt is string)
-        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['updatedBy']) || request.resource.data.updatedBy == request.auth.uid)
-        && isMissingStringFill('description')
-        && isMissingStringFill('posterUrl')
-        && isMissingNumberFill('releaseYear')
-        && isMissingNumberFill('progressTotal')
-        && isMissingProgressUnitFill()
-        && isSafeExternalRefsMerge();
-    }
-
-    function isMissingStringFill(field) {
-      return !request.resource.data.diff(resource.data).affectedKeys().hasAny([field])
-        || (!(field in resource.data) && request.resource.data[field] is string);
-    }
-
-    function isMissingNumberFill(field) {
-      return !request.resource.data.diff(resource.data).affectedKeys().hasAny([field])
-        || (!(field in resource.data) && request.resource.data[field] is number);
-    }
-
-    function isMissingProgressUnitFill() {
-      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['progressUnit'])
-        || (!('progressUnit' in resource.data) && isValidProgressUnit(request.resource.data.progressUnit));
-    }
-
-    function isSafeExternalRefsMerge() {
-      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['externalRefs'])
-        || (
-          resource.data.externalRefs is map
-          && request.resource.data.externalRefs is map
-          && request.resource.data.externalRefs.diff(resource.data.externalRefs).removedKeys().size() == 0
-          && request.resource.data.externalRefs.diff(resource.data.externalRefs).changedKeys().size() == 0
-        );
+        && optionalBoundedList('genres', 64)
+        && optionalBoundedList('tags', 64)
+        && optionalBoundedList('moodTags', 64)
+        && optionalBoundedList('searchAliases', 64)
+        && optionalBoundedList('searchTokens', 30)
+        && hasValidExternalRefs(request.resource.data);
     }
 
     function isValidUserProfile(userId) {
       return request.resource.data.uid == userId
         && isValidRole(request.resource.data.role)
+        && optionalBoundedString('email', 320)
+        && optionalBoundedString('displayName', 200)
+        && optionalBoundedString('photoURL', 2000)
+        && request.resource.data.createdAt is string
+        && request.resource.data.updatedAt is string
+        && optionalBoundedString('lastSeenAt', 64)
         && request.resource.data.keys().hasOnly([
           'uid',
           'role',
@@ -197,21 +527,21 @@ service cloud.firestore {
     }
 
     match /users/{userId}/{collectionName}/{documentId} {
-      allow read, write: if isOwner(userId) && isUserCollection(collectionName);
+      allow read: if isOwner(userId) && isUserCollection(collectionName);
+      allow create, update: if isOwner(userId)
+        && isUserCollection(collectionName)
+        && isValidPrivateDocument(collectionName, documentId);
+      allow delete: if isOwner(userId) && isUserCollection(collectionName);
     }
 
     match /publicItems/{publicItemId} {
       allow read: if isSignedIn();
-      allow create: if canCurateCatalog() || isAutoCatalogCreate(publicItemId);
-      allow update: if canCurateCatalog() || isCatalogDemandUpdate() || isAutoCatalogRevive(publicItemId);
+      allow create, update: if canCurateCatalog() && isValidPublicCatalogShape(publicItemId);
       allow delete: if canCurateCatalog();
     }
 
-    function isAutoCatalogRevive(publicItemId) {
-      return isSignedIn()
-        && ('archivedAt' in resource.data)
-        && !('archivedAt' in request.resource.data)
-        && isAutoCatalogCreate(publicItemId);
+    match /publicItems/{publicItemId}/demands/{userId} {
+      allow read, write: if false;
     }
 
     match /users/{userId} {

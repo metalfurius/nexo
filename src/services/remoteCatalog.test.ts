@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { searchRemoteCatalog } from './remoteCatalog'
+import { recordCatalogDemands, searchRemoteCatalog } from './remoteCatalog'
 
 const mocks = vi.hoisted(() => ({
   functionsClient: { name: 'functions' },
   httpsCallable: vi.fn(),
   searchCatalog: vi.fn(),
+  recordCatalogDemands: vi.fn(),
 }))
 
 vi.mock('./firebaseFunctions', () => ({
@@ -18,7 +19,9 @@ vi.mock('firebase/functions', () => ({
 describe('searchRemoteCatalog', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.httpsCallable.mockReturnValue(mocks.searchCatalog)
+    mocks.httpsCallable.mockImplementation((_client, name) =>
+      name === 'recordCatalogDemands' ? mocks.recordCatalogDemands : mocks.searchCatalog,
+    )
     mocks.searchCatalog.mockResolvedValue({
       data: {
         candidates: [],
@@ -146,5 +149,24 @@ describe('searchRemoteCatalog', () => {
     expect(results?.[0]).toEqual(expect.objectContaining({ title: 'Invalid Numbers' }))
     expect(results?.[0]?.releaseYear).toBeUndefined()
     expect(results?.[0]?.progressTotal).toBeUndefined()
+  })
+
+  it('fragments catalog demands into sequential callable requests of at most 100 items', async () => {
+    mocks.recordCatalogDemands.mockResolvedValue({ data: { recorded: 1 } })
+    const items = Array.from({ length: 205 }, (_, index) => ({
+      id: `book-${index}`,
+      title: `Book ${index}`,
+      type: 'book' as const,
+    }))
+
+    await recordCatalogDemands(items)
+
+    expect(mocks.httpsCallable).toHaveBeenCalledWith(mocks.functionsClient, 'recordCatalogDemands')
+    expect(mocks.recordCatalogDemands).toHaveBeenCalledTimes(3)
+    expect(mocks.recordCatalogDemands.mock.calls.map(([payload]) => payload.items)).toEqual([
+      items.slice(0, 100),
+      items.slice(100, 200),
+      items.slice(200),
+    ])
   })
 })

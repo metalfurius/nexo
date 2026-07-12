@@ -6,9 +6,10 @@ export default defineConfig({
   expect: {
     timeout: 12_000,
   },
+  retries: process.env.CI ? 1 : 0,
   use: {
     baseURL: process.env.E2E_PROD_BASE_URL || 'https://nexo.codeoverdose.es',
-    trace: 'on-first-retry',
+    trace: 'retain-on-failure',
   },
   projects: [
     {

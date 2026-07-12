@@ -1,5 +1,8 @@
+import './ImportTab.css'
+
 import { type ImportPreview, type ImportSourceId, type ItemStatus, type ListItem } from '../domain/types'
-import { getLibraryImportRollbackPlan, type LibraryImportRollbackPlan } from '../lib/libraryBackup'
+import { assertLibraryImportItemLimit, getLibraryImportRollbackPlan, type LibraryImportRollbackPlan } from '../lib/libraryBackup'
+import { clearLibraryImportRollback, persistLibraryImportRollback, readLibraryImportRollback } from '../lib/libraryImportRollbackStore'
 import { normalizeKey, uniqueValues } from '../lib/strings'
 import { importSourceLabels } from '../services/importSourceLabels'
 import { BookOpen, Film, HelpCircle, Library, LoaderCircle, RotateCcw, Search, Sparkles, Upload } from 'lucide-react'
@@ -7,16 +10,17 @@ import { type DragEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { FeedbackMessage, ServiceImportDialog, feedbackToneFromText, formatLibraryImportRollbackDetail, formatLibraryImportRollbackStatus, getImportPreviewNewItems, serviceImportPreviewRenderLimit, type ActivityRecorder, type AppTab, type LibrarySurface, type ServiceImportApplyProgress, type ServiceImportDialogPhase } from '../app/shared'
 
 export const publicCatalogImportRecordLimit = 500
-export const publicCatalogImportRecordConcurrency = 4
 
 export default function ImportTab({
   library,
   onActivity,
   onNavigate,
+  sessionKey,
 }: {
   library: LibrarySurface
   onActivity: ActivityRecorder
   onNavigate: (tab: AppTab) => void
+  sessionKey?: string
 }) {
   const [status, setStatus] = useState<string | undefined>()
   const [serviceImportPreview, setServiceImportPreview] = useState<ImportPreview | undefined>()
@@ -29,12 +33,16 @@ export default function ImportTab({
   const [serviceImportDialogSource, setServiceImportDialogSource] = useState<ImportSourceId | undefined>()
   const [serviceImportMessage, setServiceImportMessage] = useState<string | undefined>()
   const [serviceImportApplyProgress, setServiceImportApplyProgress] = useState<ServiceImportApplyProgress | undefined>()
-  const [serviceImportUndo, setServiceImportUndo] = useState<LibraryImportRollbackPlan | undefined>()
+  const [serviceImportUndo, setServiceImportUndo] = useState<LibraryImportRollbackPlan | undefined>(() =>
+    readLibraryImportRollback('service', sessionKey),
+  )
   const [anilistImportInput, setAnilistImportInput] = useState('')
   const [myAnimeListImportInput, setMyAnimeListImportInput] = useState('')
   const importRequestId = useRef(0)
   const mountedRef = useRef(true)
   const serviceImportFeedbackRunId = useRef(0)
+  const serviceImportSessionToken = useMemo(() => Symbol(sessionKey ?? 'local'), [sessionKey])
+  const activeServiceImportSessionTokenRef = useRef<symbol | undefined>(serviceImportSessionToken)
   const serviceImportVisibleItems = useMemo(() => {
     if (!serviceImportPreview) return []
     return serviceImportPreview.items.filter(
@@ -67,11 +75,15 @@ export default function ImportTab({
 
   useEffect(() => {
     mountedRef.current = true
+    activeServiceImportSessionTokenRef.current = serviceImportSessionToken
     return () => {
       mountedRef.current = false
+      if (activeServiceImportSessionTokenRef.current === serviceImportSessionToken) {
+        activeServiceImportSessionTokenRef.current = undefined
+      }
       serviceImportFeedbackRunId.current += 1
     }
-  }, [])
+  }, [serviceImportSessionToken])
 
   function resetServiceImportPreview() {
     setServiceImportPreview(undefined)
@@ -87,6 +99,7 @@ export default function ImportTab({
     setServiceImportVisibleLimit(serviceImportPreviewRenderLimit)
     setServiceImportSelectedIds(getImportPreviewNewItems(preview).map((item) => item.id))
     setServiceImportUndo(undefined)
+    clearLibraryImportRollback('service', sessionKey)
     setServiceImportDialogPhase('preview')
     setServiceImportMessage(
       `${preview.sourceLabel}: ${preview.newItems} nuevas, ${preview.duplicateItems} posibles duplicadas, ${preview.invalidItems} invalidas`,
@@ -185,30 +198,39 @@ export default function ImportTab({
 
   async function applyServiceImport(mode: 'all' | 'selected') {
     if (!serviceImportPreview) return
+    const importSessionToken = serviceImportSessionToken
     const previewItemsToImport = mode === 'all' ? serviceImportAllNewItems : serviceImportSelectedItems
     if (!previewItemsToImport.length) {
       setServiceImportMessage('Selecciona al menos una entrada nueva para importar.')
       return
     }
 
-    const { importPreviewItemsToListItems } = await import('../services/libraryImporters')
-    const itemsToImport = importPreviewItemsToListItems(previewItemsToImport)
-    const rollbackPlan = getLibraryImportRollbackPlan({ items: itemsToImport }, library.items, library.settings)
-    setServiceImportUndo(rollbackPlan)
     setServiceImportDialogPhase('applying')
-    setServiceImportApplyProgress({ current: 0, total: itemsToImport.length })
-    setServiceImportMessage(`Importando 0/${itemsToImport.length} desde ${serviceImportPreview.sourceLabel}...`)
-    const shouldRecordPublicCatalog = library.syncState.remote
-    const publicCatalogRecordableItems = shouldRecordPublicCatalog
-      ? dedupePublicCatalogRecordItems(itemsToImport).slice(0, publicCatalogImportRecordLimit)
-      : []
     try {
+      assertLibraryImportItemLimit(previewItemsToImport.length)
+      const { importPreviewItemsToListItems } = await import('../services/libraryImporters')
+      if (!isServiceImportSessionActive(importSessionToken)) return
+      const itemsToImport = importPreviewItemsToListItems(previewItemsToImport)
+      const rollbackPlan = getLibraryImportRollbackPlan({ items: itemsToImport }, library.items, library.settings)
+      persistLibraryImportRollback('service', sessionKey, rollbackPlan)
+      setServiceImportUndo(rollbackPlan)
+      setServiceImportApplyProgress({ current: 0, total: itemsToImport.length })
+      setServiceImportMessage(`Importando 0/${itemsToImport.length} desde ${serviceImportPreview.sourceLabel}...`)
+      const shouldRecordPublicCatalog = library.syncState.remote
+      const publicCatalogRecordableItems = shouldRecordPublicCatalog
+        ? dedupePublicCatalogRecordItems(itemsToImport).slice(0, publicCatalogImportRecordLimit)
+        : []
+
       for (const [index, item] of itemsToImport.entries()) {
+        if (!isServiceImportSessionActive(importSessionToken)) return
         await library.saveItem(item)
+        if (!isServiceImportSessionActive(importSessionToken)) return
         const current = index + 1
         setServiceImportApplyProgress({ current, total: itemsToImport.length })
         setServiceImportMessage(`Importando ${current}/${itemsToImport.length} desde ${serviceImportPreview.sourceLabel}...`)
       }
+
+      if (!isServiceImportSessionActive(importSessionToken)) return
 
       const feedbackRunId = serviceImportFeedbackRunId.current + 1
       serviceImportFeedbackRunId.current = feedbackRunId
@@ -232,9 +254,11 @@ export default function ImportTab({
           serviceImportPreview.sourceLabel,
           itemsToImport.length,
           feedbackRunId,
+          importSessionToken,
         )
       }
     } catch (reason) {
+      if (!isServiceImportSessionActive(importSessionToken)) return
       setServiceImportDialogPhase('error')
       const errorMessage = reason instanceof Error ? reason.message : 'No se pudo aplicar la importacion.'
       setServiceImportMessage(`${errorMessage} Puedes deshacer cualquier cambio aplicado.`)
@@ -246,6 +270,7 @@ export default function ImportTab({
     sourceLabel: string,
     importedCount: number,
     feedbackRunId: number,
+    importSessionToken: symbol,
   ) {
     let completed = 0
     let records = 0
@@ -253,31 +278,32 @@ export default function ImportTab({
     const total = itemsToRecord.length
 
     const updateBackgroundMessage = () => {
-      if (!canUpdateServiceImportFeedback(feedbackRunId)) return
+      if (!canContinuePublicCatalogRegistration(feedbackRunId, importSessionToken)) return
       setServiceImportMessage(
         `Importadas ${importedCount} entradas desde ${sourceLabel}. Registrando catalogo publico... ${completed}/${total}`,
       )
     }
 
     updateBackgroundMessage()
-    const workerCount = Math.min(publicCatalogImportRecordConcurrency, total)
-    await Promise.all(
-      Array.from({ length: workerCount }, async (_entry, workerIndex) => {
-        for (let index = workerIndex; index < total; index += workerCount) {
-          try {
-            await library.recordImportedItemToPublicCatalog(itemsToRecord[index])
-            records += 1
-          } catch {
-            failures += 1
-          } finally {
-            completed += 1
-            updateBackgroundMessage()
-          }
+    for (let index = 0; index < total; index += 100) {
+      if (!canContinuePublicCatalogRegistration(feedbackRunId, importSessionToken)) return
+      const chunk = itemsToRecord.slice(index, index + 100)
+      try {
+        if (library.recordImportedItemsToPublicCatalog) {
+          await library.recordImportedItemsToPublicCatalog(chunk)
+        } else {
+          for (const item of chunk) await library.recordImportedItemToPublicCatalog(item)
         }
-      }),
-    )
+        records += chunk.length
+      } catch {
+        failures += chunk.length
+      } finally {
+        completed += chunk.length
+        updateBackgroundMessage()
+      }
+    }
 
-    if (!canUpdateServiceImportFeedback(feedbackRunId)) return
+    if (!canContinuePublicCatalogRegistration(feedbackRunId, importSessionToken)) return
     const completionMessage = formatServiceImportCatalogCompletionMessage({
       failures,
       imported: importedCount,
@@ -288,8 +314,12 @@ export default function ImportTab({
     setStatus(completionMessage)
   }
 
-  function canUpdateServiceImportFeedback(feedbackRunId: number) {
-    return mountedRef.current && serviceImportFeedbackRunId.current === feedbackRunId
+  function isServiceImportSessionActive(importSessionToken: symbol) {
+    return mountedRef.current && activeServiceImportSessionTokenRef.current === importSessionToken
+  }
+
+  function canContinuePublicCatalogRegistration(feedbackRunId: number, importSessionToken: symbol) {
+    return isServiceImportSessionActive(importSessionToken) && serviceImportFeedbackRunId.current === feedbackRunId
   }
 
   async function undoServiceImport() {
@@ -315,6 +345,7 @@ export default function ImportTab({
         tone: 'success',
       })
       setServiceImportUndo(undefined)
+      clearLibraryImportRollback('service', sessionKey)
       setServiceImportDialogPhase('complete')
     } catch (reason) {
       setServiceImportDialogPhase('error')
@@ -410,7 +441,7 @@ export default function ImportTab({
               <Film size={17} />
               <div>
                 <strong>Letterboxd</strong>
-                <small>ZIP oficial de exportacion</small>
+                <small>ZIP oficial · max. 10 MB / 5.000 entradas</small>
               </div>
             </div>
             <details className="service-import-guide">
@@ -447,7 +478,7 @@ export default function ImportTab({
               <BookOpen size={17} />
               <div>
                 <strong>Goodreads</strong>
-                <small>CSV oficial de exportacion</small>
+                <small>CSV oficial · max. 10 MB / 5.000 entradas</small>
               </div>
             </div>
             <details className="service-import-guide">

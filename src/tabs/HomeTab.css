@@ -1,0 +1,621 @@
+/* Styles loaded with home. */
+.home-surface {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+
+.home-hero {
+  background:
+    radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--accent-soft) 86%, transparent), transparent 38%),
+    radial-gradient(circle at 92% 100%, color-mix(in srgb, var(--accent-warm-soft) 78%, transparent), transparent 34%),
+    linear-gradient(145deg, color-mix(in srgb, var(--surface-raised) 96%, var(--surface)), color-mix(in srgb, var(--surface-muted) 88%, transparent));
+  border: 1px solid color-mix(in srgb, var(--accent) 26%, var(--border));
+  border-radius: 14px;
+  box-shadow: 0 18px 48px color-mix(in srgb, var(--surface) 44%, transparent);
+  min-width: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.home-hero {
+  align-items: end;
+  display: grid;
+  gap: 24px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 24px;
+}
+
+.home-hero::after {
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--accent) 78%, transparent), transparent 58%),
+    linear-gradient(90deg, transparent 58%, color-mix(in srgb, var(--accent-warm) 56%, transparent));
+  bottom: 0;
+  content: '';
+  height: 3px;
+  left: 0;
+  pointer-events: none;
+  position: absolute;
+  right: 0;
+}
+
+.home-hero > div:first-child {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.home-hero h2 {
+  color: var(--text-strong);
+  font-size: clamp(30px, 4vw, 46px);
+  letter-spacing: -0.035em;
+  line-height: 1.02;
+  margin: 0;
+}
+
+.home-hero p {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.48;
+  margin: 0;
+  max-width: 66ch;
+}
+
+.home-hero.empty {
+  align-items: center;
+  min-height: 210px;
+}
+
+.home-hero-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.home-hero-actions > button,
+.home-hero.empty > .primary-button {
+  min-height: 46px;
+  white-space: nowrap;
+}
+
+.home-onboarding {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.home-onboarding > button {
+  align-items: center;
+  background:
+    linear-gradient(140deg, color-mix(in srgb, var(--accent-soft) 42%, transparent), transparent 64%),
+    var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--text);
+  cursor: pointer;
+  display: grid;
+  font: inherit;
+  gap: 12px;
+  grid-template-columns: 38px minmax(0, 1fr);
+  min-height: 78px;
+  padding: 13px;
+  text-align: left;
+  transition:
+    background var(--motion-fast) ease,
+    border-color var(--motion-fast) ease,
+    transform var(--motion-fast) var(--motion-ease);
+}
+
+.home-onboarding > button:hover:not(:disabled) {
+  background:
+    linear-gradient(140deg, color-mix(in srgb, var(--accent-soft) 88%, transparent), transparent 72%),
+    var(--surface-raised);
+  border-color: color-mix(in srgb, var(--accent) 46%, var(--border));
+  transform: translateY(-2px);
+}
+
+.home-onboarding > button > svg {
+  background: color-mix(in srgb, var(--accent-soft) 76%, var(--surface-muted));
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+  border-radius: 10px;
+  color: var(--accent-dark);
+  height: 38px;
+  padding: 9px;
+  width: 38px;
+}
+
+.home-onboarding > button > span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.home-onboarding strong {
+  color: var(--text-strong);
+  font-size: 14px;
+}
+
+.home-onboarding small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.home-status {
+  align-items: center;
+  background: color-mix(in srgb, var(--accent-soft) 72%, var(--surface-raised));
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--border));
+  border-radius: 10px;
+  color: var(--text);
+  display: flex;
+  font-size: 13px;
+  font-weight: 750;
+  margin: -6px 0 0;
+  min-height: 40px;
+  padding: 8px 12px;
+}
+
+.roadmap-board {
+  align-items: start;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  min-width: 0;
+}
+
+.roadmap-lane {
+  --roadmap-lane-color: var(--muted);
+  --roadmap-lane-soft: var(--surface-muted);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--roadmap-lane-soft) 52%, transparent), transparent 150px),
+    color-mix(in srgb, var(--surface-muted) 72%, transparent);
+  border: 1px solid color-mix(in srgb, var(--roadmap-lane-color) 22%, var(--border));
+  border-radius: 13px;
+  box-shadow: inset 0 3px 0 color-mix(in srgb, var(--roadmap-lane-color) 76%, transparent);
+  display: grid;
+  min-width: 0;
+  padding: 0 10px 10px;
+}
+
+.roadmap-lane.now {
+  --roadmap-lane-color: var(--accent);
+  --roadmap-lane-soft: var(--accent-soft);
+}
+
+.roadmap-lane.next {
+  --roadmap-lane-color: var(--accent-warm);
+  --roadmap-lane-soft: var(--accent-warm-soft);
+}
+
+.roadmap-lane.later {
+  --roadmap-lane-color: var(--muted);
+  --roadmap-lane-soft: var(--surface-elevated);
+}
+
+.roadmap-lane > header {
+  display: grid;
+  gap: 3px;
+  padding: 17px 4px 12px;
+}
+
+.roadmap-lane > header > div {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+}
+
+.roadmap-lane > header span {
+  align-items: center;
+  background: color-mix(in srgb, var(--roadmap-lane-soft) 76%, var(--surface-raised));
+  border: 1px solid color-mix(in srgb, var(--roadmap-lane-color) 30%, var(--border));
+  border-radius: 999px;
+  color: var(--roadmap-lane-color);
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 900;
+  height: 24px;
+  justify-content: center;
+  min-width: 24px;
+  padding: 0 6px;
+}
+
+.roadmap-lane h3 {
+  color: var(--text-strong);
+  font-size: 18px;
+  line-height: 1.2;
+  margin: 0;
+}
+
+.roadmap-lane > header p {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
+  margin: 0 0 0 32px;
+}
+
+.roadmap-list {
+  display: grid;
+  gap: 9px;
+  min-width: 0;
+}
+
+.roadmap-card {
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--surface-raised) 96%, transparent), color-mix(in srgb, var(--surface) 74%, transparent)),
+    var(--surface-raised);
+  border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
+  border-radius: 11px;
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--surface) 32%, transparent);
+  display: grid;
+  min-width: 0;
+  padding: 7px;
+  position: relative;
+  transition:
+    border-color var(--motion-fast) ease,
+    box-shadow var(--motion-fast) ease,
+    transform var(--motion-fast) var(--motion-ease);
+}
+
+.roadmap-card:hover,
+.roadmap-card:focus-within {
+  border-color: color-mix(in srgb, var(--roadmap-lane-color) 42%, var(--border));
+  box-shadow: 0 12px 28px color-mix(in srgb, var(--surface) 42%, transparent);
+}
+
+.roadmap-card-main {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  color: inherit;
+  cursor: pointer;
+  display: grid;
+  font: inherit;
+  gap: 10px;
+  grid-template-columns: 50px minmax(0, 1fr);
+  min-width: 0;
+  padding: 2px;
+  text-align: left;
+  width: 100%;
+}
+
+.roadmap-card-main:hover {
+  background: color-mix(in srgb, var(--roadmap-lane-soft) 34%, transparent);
+}
+
+.roadmap-card-main .cover-art {
+  aspect-ratio: 2 / 3;
+  border-radius: 7px;
+  box-shadow: 0 7px 16px color-mix(in srgb, var(--surface) 56%, transparent);
+  height: 72px;
+  width: 50px;
+}
+
+.roadmap-card-main .cover-art-letter,
+.roadmap-card-main .cover-art-title,
+.roadmap-card-main .cover-art-type,
+.roadmap-card-main .cover-art-icon {
+  display: none;
+}
+
+.roadmap-card-main > span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.roadmap-card-main small,
+.roadmap-card-main strong,
+.roadmap-card-main em {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.roadmap-card-main small {
+  color: var(--roadmap-lane-color);
+  font-size: 9px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.roadmap-card-main strong {
+  color: var(--text-strong);
+  font-size: 13px;
+  line-height: 1.24;
+}
+
+.roadmap-card-main em {
+  color: var(--muted);
+  font-size: 11px;
+  font-style: normal;
+}
+
+.roadmap-card-actions {
+  align-items: center;
+  display: grid;
+  gap: 6px;
+  grid-template-columns: minmax(0, 1fr) 38px;
+  margin-top: 7px;
+  min-width: 0;
+}
+
+.roadmap-card-actions > .primary-button,
+.roadmap-card-actions > .secondary-button {
+  font-size: 11px;
+  min-height: 38px;
+  min-width: 0;
+  padding: 0 8px;
+  width: 100%;
+}
+
+.roadmap-card-menu {
+  position: relative;
+}
+
+.roadmap-card-menu > summary {
+  align-items: center;
+  background: color-mix(in srgb, var(--surface-muted) 82%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  font-size: 17px;
+  font-weight: 900;
+  height: 38px;
+  justify-content: center;
+  letter-spacing: 1px;
+  list-style: none;
+  width: 38px;
+}
+
+.roadmap-card-menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.roadmap-card-menu > summary:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.roadmap-card-menu[open] > summary {
+  background: var(--roadmap-lane-soft);
+  border-color: color-mix(in srgb, var(--roadmap-lane-color) 42%, var(--border));
+  color: var(--roadmap-lane-color);
+}
+
+.roadmap-card-menu > div {
+  animation: menu-enter var(--motion-fast) var(--motion-ease) both;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  bottom: calc(100% + 7px);
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 3px;
+  min-width: 215px;
+  padding: 6px;
+  position: absolute;
+  right: 0;
+  z-index: 24;
+}
+
+.roadmap-card-menu > div > button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+  color: var(--text);
+  cursor: pointer;
+  display: flex;
+  font: inherit;
+  font-size: 12px;
+  gap: 8px;
+  justify-content: flex-start;
+  min-height: 34px;
+  padding: 5px 8px;
+  text-align: left;
+  width: 100%;
+}
+
+.roadmap-card-menu > div > button:hover:not(:disabled) {
+  background: var(--surface-muted);
+}
+
+.roadmap-empty {
+  align-items: center;
+  border: 1px dashed color-mix(in srgb, var(--roadmap-lane-color) 28%, var(--border));
+  border-radius: 10px;
+  color: var(--muted);
+  display: flex;
+  font-size: 12px;
+  justify-content: center;
+  margin: 0;
+  min-height: 88px;
+  padding: 16px;
+  text-align: center;
+}
+
+.roadmap-expand {
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  color: var(--roadmap-lane-color);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 850;
+  justify-self: center;
+  margin-top: 8px;
+  min-height: 34px;
+  padding: 4px 10px;
+}
+
+.roadmap-expand:hover {
+  background: color-mix(in srgb, var(--roadmap-lane-soft) 72%, transparent);
+}
+
+.home-completed {
+  align-items: center;
+  background: color-mix(in srgb, var(--surface-raised) 76%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  border-radius: 12px;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(190px, 0.45fr) minmax(0, 1fr);
+  padding: 14px 16px;
+}
+
+.home-completed > div:first-child {
+  display: grid;
+  gap: 2px;
+}
+
+.home-completed h3 {
+  color: var(--text-strong);
+  font-size: 16px;
+  margin: 0;
+}
+
+.home-completed > div:last-child {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  justify-content: flex-end;
+}
+
+.home-completed > div:last-child button {
+  align-items: center;
+  background: color-mix(in srgb, var(--accent-soft) 54%, var(--surface-muted));
+  border: 1px solid color-mix(in srgb, var(--accent) 26%, var(--border));
+  border-radius: 999px;
+  color: var(--text);
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 12px;
+  gap: 6px;
+  min-height: 34px;
+  padding: 5px 10px;
+}
+
+.home-completed svg {
+  color: var(--accent-dark);
+}
+
+.home-surface > .session-activity-panel {
+  margin-top: 0;
+}
+
+@media (max-width: 900px) {
+  .roadmap-board {
+    grid-template-columns: 1fr;
+  }
+
+  .roadmap-lane {
+    width: 100%;
+  }
+}
+
+@media (max-width: 760px) {
+  .home-surface {
+    gap: 12px;
+  }
+
+  .home-hero {
+    border-radius: 12px;
+    gap: 13px;
+    grid-template-columns: 1fr;
+    padding: 14px;
+  }
+
+  .home-hero.empty {
+    align-items: stretch;
+    min-height: 0;
+  }
+
+  .home-hero h2 {
+    font-size: 29px;
+  }
+
+  .home-hero p {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    font-size: 12px;
+    line-height: 1.38;
+    overflow: hidden;
+  }
+
+  .home-hero-actions {
+    display: grid;
+    gap: 7px;
+    grid-template-columns: minmax(0, 0.72fr) minmax(0, 1.28fr);
+    justify-content: stretch;
+  }
+
+  .home-hero-actions > button,
+.home-hero.empty > .primary-button {
+    font-size: 11px;
+    min-height: 42px;
+    min-width: 0;
+    padding-inline: 8px;
+    width: 100%;
+  }
+
+  .home-onboarding {
+    gap: 8px;
+    grid-template-columns: 1fr;
+  }
+
+  .home-onboarding > button {
+    min-height: 64px;
+    padding: 9px 11px;
+  }
+
+  .roadmap-board {
+    gap: 11px;
+    grid-template-columns: 1fr;
+  }
+
+  .roadmap-lane {
+    border-radius: 11px;
+    padding: 0 8px 8px;
+  }
+
+  .roadmap-lane > header {
+    padding: 14px 3px 10px;
+  }
+
+  .roadmap-card-main {
+    grid-template-columns: 48px minmax(0, 1fr);
+  }
+
+  .roadmap-card-main .cover-art {
+    height: 68px;
+    width: 48px;
+  }
+
+  .home-completed {
+    align-items: stretch;
+    gap: 9px;
+    grid-template-columns: 1fr;
+    padding: 12px;
+  }
+
+  .home-completed > div:last-child {
+    display: grid;
+    grid-template-columns: 1fr;
+    justify-content: stretch;
+  }
+
+  .home-completed > div:last-child button {
+    justify-content: flex-start;
+    width: 100%;
+  }
+}

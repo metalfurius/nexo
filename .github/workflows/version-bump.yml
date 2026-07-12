@@ -22,18 +22,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout PR branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 0
           token: ${{ secrets.VERSION_BUMP_TOKEN || github.token }}
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
 
-      - name: Resolve bump type
+      - name: Resolve release target
         id: resolve
         run: node scripts/resolveVersionBump.mjs
 
@@ -55,17 +55,17 @@ jobs:
           version="$(git show origin/main:package.json | node -e "const fs = require('node:fs'); console.log(JSON.parse(fs.readFileSync(0, 'utf8')).version)")"
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
-      - name: Bump package versions
+      - name: Set package release version
         id: bump
         if: steps.resolve.outputs.should_bump == 'true'
-        run: node scripts/bumpVersion.mjs "${{ steps.resolve.outputs.bump }}" --base-version "${{ steps.base.outputs.version }}"
+        run: node scripts/bumpVersion.mjs "${{ steps.resolve.outputs.target }}" --base-version "${{ steps.base.outputs.version }}"
 
       - name: Commit version files to PR
         if: steps.resolve.outputs.should_bump == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package.json package-lock.json functions/package.json functions/package-lock.json public/sw.js
+          git add package.json package-lock.json functions/package.json functions/package-lock.json
           if git diff --cached --quiet; then
             echo "Version files already match v${{ steps.bump.outputs.version }}."
             exit 0

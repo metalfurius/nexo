@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { DEFAULT_SETTINGS, type ItemType, type ListItem, type PublicCatalogItem } from '../domain/types'
+import { DEFAULT_SETTINGS, type DiscoveryCandidate, type ItemType, type ListItem, type PublicCatalogItem } from '../domain/types'
 import { buildPublicCatalogItem, discoveryToListItem, externalCandidateToDiscovery, publicItemToDiscovery } from '../lib/catalog'
 import { scoreCatalogSearchCandidate } from '../lib/catalogSearch'
 import type { LibrarySurface } from '../app/shared'
@@ -66,14 +66,19 @@ function createLibrarySurface(options: { items?: ListItem[]; publicItems: Public
     },
     saveItem: vi.fn(async () => undefined),
     deleteItem: vi.fn(async () => undefined),
-    deleteAllItems: vi.fn(async () => undefined),
+    deleteAllItems: vi.fn(async () => ({ complete: true, deletedItemIds: [], roadmap: DEFAULT_SETTINGS.roadmap, total: 0 })),
     setStatus: vi.fn(async () => undefined),
     snoozeRecommendation: vi.fn(async () => undefined),
     reactivateRecommendation: vi.fn(async () => undefined),
     setRecommendationCooldown: vi.fn(async () => undefined),
     recordRecommendation: vi.fn(async () => undefined),
     searchExternal: vi.fn(async () => []),
-    searchCatalog: vi.fn(async () => []),
+    searchCatalog: vi.fn(async (query, type) =>
+      options.publicItems
+        .filter((item) => matchesPublicCatalogTestType(item.type, type))
+        .filter((item) => !query.trim() || scoreCatalogSearchCandidate(query, item, type) > 0)
+        .map(publicItemToDiscovery),
+    ),
     listPublicCatalog: vi.fn(async () => options.publicItems),
     searchPublicCatalog: vi.fn(async (query, type) =>
       options.publicItems
@@ -81,6 +86,7 @@ function createLibrarySurface(options: { items?: ListItem[]; publicItems: Public
         .filter((item) => !query.trim() || scoreCatalogSearchCandidate(query, item, type) > 0),
     ),
     saveSettings: vi.fn(async () => undefined),
+    applyRoadmapMutation: vi.fn(async () => undefined),
     queueDiscoveryCandidates: vi.fn(async () => 1),
     dismissDiscoveryCandidate: vi.fn(async () => undefined),
     restoreDiscoveryCandidate: vi.fn(async () => undefined),
@@ -202,6 +208,21 @@ describe('CatalogTab', () => {
     expect(screen.getByRole('status')).toHaveTextContent(`${publicItem.title} ya esta en tu Biblioteca.`)
   })
 
+  it('offers to place a newly saved result in Despues from the confirmation', async () => {
+    const publicItem = createPublicCatalogItem()
+    const savedItem = discoveryToListItem(publicItemToDiscovery(publicItem))
+    const { library } = createLibrarySurface({ publicItems: [publicItem] })
+    renderCatalog(library)
+
+    const card = await getCatalogCard(publicItem.title)
+    await userEvent.click(card.getByRole('button', { name: 'Guardar' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Poner en Despues' }))
+
+    expect(library.applyRoadmapMutation).toHaveBeenCalledWith({
+      roadmap: { now: [], next: [savedItem.id], later: [], hidden: [] },
+    })
+  })
+
   it('shows public catalog entries in an incremental window', async () => {
     const publicItems = Array.from({ length: 30 }, (_entry, index) => createPublicCatalogItem(index + 1))
     const { library } = createLibrarySurface({ publicItems })
@@ -230,7 +251,7 @@ describe('CatalogTab', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Buscar' }))
 
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Mostrando 24 de 30 resultados para explorar.'))
-    expect(library.searchPublicCatalog).toHaveBeenCalledWith('Catalog', 'any')
+    expect(library.searchCatalog).toHaveBeenCalledWith('Catalog', 'any')
     expect(screen.getByRole('heading', { name: 'Catalog Item 24' })).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Catalog Item 25' })).not.toBeInTheDocument()
   })
@@ -249,8 +270,8 @@ describe('CatalogTab', () => {
     await userEvent.type(screen.getByLabelText('Buscar en el catalogo publico'), 'Dune')
     await userEvent.click(screen.getByRole('button', { name: 'Buscar' }))
 
-    await waitFor(() => expect(library.searchPublicCatalog).toHaveBeenCalledWith('Dune', 'any'))
-    expect(window.location.search).toBe('?catalogQ=Dune')
+    await waitFor(() => expect(library.searchCatalog).toHaveBeenCalledWith('Dune', 'any'))
+    expect(window.location.search).toBe('?tab=discover&mode=search&q=Dune')
     expect(screen.getAllByRole('heading', { name: 'Dune' })).toHaveLength(2)
     expect(screen.queryByRole('heading', { name: 'Arrival' })).not.toBeInTheDocument()
   })
@@ -267,7 +288,7 @@ describe('CatalogTab', () => {
     await userEvent.type(screen.getByLabelText('Buscar en el catalogo publico'), 'Solaris')
     await userEvent.click(screen.getByRole('button', { name: 'Buscar' }))
 
-    await waitFor(() => expect(library.searchPublicCatalog).toHaveBeenCalledWith('Solaris', 'any'))
+    await waitFor(() => expect(library.searchCatalog).toHaveBeenCalledWith('Solaris', 'any'))
     expect(screen.getByRole('heading', { name: 'Sin resultados' })).toBeVisible()
     expect(screen.queryByRole('heading', { name: 'Catalogo en blanco' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Reintentar busqueda' })).toBeVisible()
@@ -293,9 +314,9 @@ describe('CatalogTab', () => {
 
   it('shows a routed search loading state before declaring no catalog results', async () => {
     window.history.replaceState(null, '', '/?catalogQ=Solaris')
-    const searchLoad = createDeferred<PublicCatalogItem[]>()
+    const searchLoad = createDeferred<DiscoveryCandidate[]>()
     const { library } = createLibrarySurface({ publicItems: [] })
-    library.searchPublicCatalog = vi.fn(() => searchLoad.promise)
+    library.searchCatalog = vi.fn(() => searchLoad.promise)
 
     renderCatalog(library)
 
@@ -321,11 +342,11 @@ describe('CatalogTab', () => {
     ]
     const { library } = createLibrarySurface({ publicItems: initialCatalog })
     library.listPublicCatalog = vi.fn(async () => initialCatalog)
-    library.searchPublicCatalog = vi.fn(async () => duneResults)
+    library.searchCatalog = vi.fn(async () => duneResults.map(publicItemToDiscovery))
 
     renderCatalog(library)
 
-    await waitFor(() => expect(library.searchPublicCatalog).toHaveBeenCalledWith('Dune', 'any'))
+    await waitFor(() => expect(library.searchCatalog).toHaveBeenCalledWith('Dune', 'any'))
     expect(library.listPublicCatalog).not.toHaveBeenCalled()
     expect(screen.getByLabelText('Buscar en el catalogo publico')).toHaveValue('Dune')
     expect(screen.getAllByRole('heading', { name: 'Dune' })).toHaveLength(2)
@@ -345,7 +366,7 @@ describe('CatalogTab', () => {
     await userEvent.selectOptions(screen.getByLabelText('Tipo de obra'), 'book')
 
     await waitFor(() => expect(library.searchPublicCatalog).toHaveBeenCalledWith('', 'book'))
-    expect(window.location.search).toBe('?catalogType=book')
+    expect(window.location.search).toBe('?tab=discover&mode=search&type=book')
     expect(screen.getByRole('heading', { name: 'Dune' })).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Chainsaw Man' })).not.toBeInTheDocument()
   })
@@ -366,7 +387,7 @@ describe('CatalogTab', () => {
       window.dispatchEvent(new PopStateEvent('popstate'))
     })
 
-    await waitFor(() => expect(library.searchPublicCatalog).toHaveBeenCalledWith('Dune', 'watch'))
+    await waitFor(() => expect(library.searchCatalog).toHaveBeenCalledWith('Dune', 'watch'))
     expect(screen.getByLabelText('Buscar en el catalogo publico')).toHaveValue('Dune')
     expect(screen.getByLabelText('Tipo de obra')).toHaveValue('watch')
     expect(screen.getAllByRole('heading', { name: 'Dune' })).toHaveLength(1)
@@ -385,11 +406,11 @@ describe('CatalogTab', () => {
     await screen.findByRole('heading', { name: 'Arrival' })
     await userEvent.type(screen.getByLabelText('Buscar en el catalogo publico'), 'Dune')
     await userEvent.click(screen.getByRole('button', { name: 'Buscar' }))
-    await waitFor(() => expect(window.location.search).toBe('?catalogQ=Dune'))
+    await waitFor(() => expect(window.location.search).toBe('?tab=discover&mode=search&q=Dune'))
 
     await userEvent.click(screen.getByRole('button', { name: 'Limpiar busqueda del catalogo' }))
 
-    await waitFor(() => expect(window.location.search).toBe(''))
+    await waitFor(() => expect(window.location.search).toBe('?tab=discover&mode=search'))
     expect(screen.getByLabelText('Buscar en el catalogo publico')).toHaveValue('')
     expect(screen.getByLabelText('Tipo de obra')).toHaveValue('any')
     expect(screen.getByRole('heading', { name: 'Arrival' })).toBeInTheDocument()
@@ -406,7 +427,7 @@ describe('CatalogTab', () => {
     const initialLoad = createDeferred<PublicCatalogItem[]>()
     const { library } = createLibrarySurface({ publicItems: initialCatalog })
     library.listPublicCatalog = vi.fn(() => initialLoad.promise)
-    library.searchPublicCatalog = vi.fn(async () => duneResults)
+    library.searchCatalog = vi.fn(async () => duneResults.map(publicItemToDiscovery))
 
     renderCatalog(library)
 
@@ -414,7 +435,7 @@ describe('CatalogTab', () => {
     await userEvent.type(searchInput, 'Dune')
     fireEvent.submit(searchInput.closest('form') as HTMLFormElement)
 
-    await waitFor(() => expect(library.searchPublicCatalog).toHaveBeenCalledWith('Dune', 'any'))
+    await waitFor(() => expect(library.searchCatalog).toHaveBeenCalledWith('Dune', 'any'))
     await waitFor(() => expect(screen.getAllByRole('heading', { name: 'Dune' })).toHaveLength(2))
     expect(searchInput).toHaveValue('Dune')
     expect(screen.getByRole('status')).toHaveTextContent('Mostrando 2 de 2 resultados para explorar.')

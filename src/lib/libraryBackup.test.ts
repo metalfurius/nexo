@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_SETTINGS, DEFAULT_WEIGHTS, type ListItem } from '../domain/types'
 import {
+  assertLibraryImportFileLimit,
   createLibraryExportPayload,
   getLibraryImportRollbackPlan,
   getLibraryImportSummary,
   parseLibraryImportPayload,
+  LIBRARY_IMPORT_MAX_FILE_BYTES,
+  LIBRARY_IMPORT_MAX_ITEMS,
 } from './libraryBackup'
 
 const baseItem: ListItem = {
@@ -23,14 +26,23 @@ const baseItem: ListItem = {
 
 describe('library backup schema', () => {
   it('creates a versioned export payload with items and settings', () => {
-    const payload = createLibraryExportPayload([baseItem], DEFAULT_SETTINGS, '2026-01-02T00:00:00.000Z')
+    const settings = {
+      ...DEFAULT_SETTINGS,
+      roadmap: { now: [], next: ['game-outer-wilds'], later: [], hidden: [] },
+    }
+    const payload = createLibraryExportPayload([baseItem], settings, '2026-01-02T00:00:00.000Z')
 
     expect(payload.schemaVersion).toBe(1)
     expect(payload.exportedAt).toBe('2026-01-02T00:00:00.000Z')
     expect(payload.items).toEqual([baseItem])
-    expect(payload.settings.theme).toBe('dark')
-    expect(payload.settings.libraryViewMode).toBe('mosaic')
-    expect(payload.settings.libraryCardsPerRow).toBe(4)
+    const exportedSettings = payload.settings!
+    expect(exportedSettings.theme).toBe('dark')
+    expect(exportedSettings.libraryViewMode).toBe('mosaic')
+    expect(exportedSettings.libraryCardsPerRow).toBe(4)
+    expect(exportedSettings.roadmap).toEqual(settings.roadmap)
+    expect(exportedSettings).not.toBe(settings)
+    expect(exportedSettings.roadmap).not.toBe(settings.roadmap)
+    expect(exportedSettings.roadmap.next).not.toBe(settings.roadmap.next)
   })
 
   it('creates a scoped export payload without private settings', () => {
@@ -53,6 +65,38 @@ describe('library backup schema', () => {
     expect(parsed.settings?.explorerDefaultType).toBe('watch')
     expect(parsed.settings?.libraryViewMode).toBe('mosaic')
     expect(parsed.settings?.libraryCardsPerRow).toBe(4)
+    expect(parsed.settings?.roadmap).toEqual({ now: [], next: [], later: [], hidden: [] })
+  })
+
+  it('preserves and normalizes an additive roadmap in schemaVersion 1 backups', () => {
+    const parsed = parseLibraryImportPayload(
+      {
+        schemaVersion: 1,
+        exportedAt: '2026-01-02T00:00:00.000Z',
+        items: [
+          baseItem,
+          { ...baseItem, id: 'book-solaris', title: 'Solaris', type: 'book' },
+          { ...baseItem, id: 'book-done', title: 'Done', type: 'book', status: 'completed' },
+        ],
+        settings: {
+          ...DEFAULT_SETTINGS,
+          roadmap: {
+            hidden: ['game-outer-wilds'],
+            now: ['game-outer-wilds', 'missing'],
+            next: ['book-solaris', 'book-solaris'],
+            later: ['book-done'],
+          },
+        },
+      },
+      '2026-01-03T00:00:00.000Z',
+    )
+
+    expect(parsed.settings?.roadmap).toEqual({
+      hidden: ['game-outer-wilds'],
+      now: [],
+      next: ['book-solaris'],
+      later: [],
+    })
   })
 
   it('preserves every supported external ref when parsing backups', () => {
@@ -260,6 +304,8 @@ describe('library backup schema', () => {
     expect(rollback.previousSettings).toEqual(currentSettings)
     expect(rollback.previousSettings).not.toBe(currentSettings)
     expect(rollback.previousSettings?.favoriteTags).not.toBe(currentSettings.favoriteTags)
+    expect(rollback.previousSettings?.roadmap).not.toBe(currentSettings.roadmap)
+    expect(rollback.previousSettings?.roadmap.now).not.toBe(currentSettings.roadmap.now)
   })
 
   it('normalizes missing optional arrays and weights from older backups', () => {
@@ -299,5 +345,17 @@ describe('library backup schema', () => {
         items: [{ title: 'Broken', type: 'boardgame', status: 'wishlist' }],
       }),
     ).toThrow('tipo no soportado')
+  })
+
+  it('rejects oversized backups and item collections before normalizing entries', () => {
+    expect(() => assertLibraryImportFileLimit({ size: LIBRARY_IMPORT_MAX_FILE_BYTES + 1 })).toThrow(
+      'El backup JSON supera el limite de 10 MB.',
+    )
+    expect(() =>
+      parseLibraryImportPayload({
+        schemaVersion: 1,
+        items: Array.from({ length: LIBRARY_IMPORT_MAX_ITEMS + 1 }, () => null),
+      }),
+    ).toThrow('La importacion supera el limite de 5.000 entradas.')
   })
 })

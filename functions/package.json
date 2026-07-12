@@ -1,7 +1,7 @@
 {
   "name": "nexo-functions",
   "private": true,
-  "version": "1.0.50",
+  "version": "1.1.50",
   "type": "module",
   "engines": {
     "node": "22"
@@ -9,6 +9,9 @@
   "main": "lib/index.js",
   "scripts": {
     "build": "tsc",
+    "typecheck": "tsc -p tsconfig.test.json",
+    "test": "vitest run --root . --config vitest.config.ts",
+    "audit:prod": "npm audit --omit=dev --audit-level=high",
     "serve": "npm run build && firebase emulators:start --only functions",
     "deploy": "firebase deploy --only functions"
   },
@@ -17,6 +20,10 @@
     "firebase-functions": "^7.1.0"
   },
   "devDependencies": {
-    "typescript": "~6.0.2"
+    "typescript": "~6.0.2",
+    "vitest": "^4.1.7"
+  },
+  "overrides": {
+    "form-data": "2.5.6"
   }
 }
