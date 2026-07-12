@@ -13,4 +13,6 @@ Copy the two outputs into variables on the GitHub `production` environment named
 
 The deployer receives `Service Account User` only on the configured Gen2 runtime identity and the project's App Engine default service account. Firebase CLI checks the latter while deploying Functions even when the functions use the configured Gen2 runtime identity.
 
+The module also keeps the Cloud Billing API enabled because Firebase CLI reads the project's billing state before deploying Functions. Enabling the API does not attach a billing account or change the project's billing plan.
+
 The module never creates or stores a service-account key.

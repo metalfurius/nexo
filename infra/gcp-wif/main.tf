@@ -8,6 +8,7 @@ locals {
 
 resource "google_project_service" "wif_apis" {
   for_each = toset([
+    "cloudbilling.googleapis.com",
     "iam.googleapis.com",
     "iamcredentials.googleapis.com",
     "sts.googleapis.com",
