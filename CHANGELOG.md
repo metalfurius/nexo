@@ -10,6 +10,12 @@
 - Simplified Biblioteca and Dado around their primary actions, including roadmap-aware rolls and qualitative fit.
 - Preserved legacy URLs and schema-version-1 backups while keeping roadmap data additive and optional.
 - Added lazy feature boundaries, recoverable view errors and release gates for the direct 1.1.50 target.
+- Hardened unsaved editor navigation, cold deep links, account isolation and serialized atomic roadmap batches.
+- Limited the initial Library render to 24 cards while preserving full-set filters and bulk actions.
+- Replaced the hand-written service worker with Workbox `injectManifest`, real offline-write E2E coverage and voluntary updates.
+- Added bounded catalog queries, idempotent demand receipts, restrictive per-collection rules and a read-only production data audit.
+- Hardened the catalog Worker with partial responses, timeouts, concurrency/subrequest budgets, rate bindings, strict CORS and PII-free logs.
+- Added immutable multi-backend deployment by revision, WIF/Cloudflare credential gates, production health checks and post-smoke release tagging.
 
 ## 1.0.0 - 2026-06-01
 

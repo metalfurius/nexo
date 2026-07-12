@@ -505,7 +505,7 @@
   box-shadow:
     0 24px 54px color-mix(in srgb, var(--accent-warm) 28%, transparent),
     inset 0 0 0 1px color-mix(in srgb, white 22%, transparent);
-  color: #fff;
+  color: var(--on-accent-warm);
   cursor: pointer;
   display: inline-flex;
   flex-direction: column;

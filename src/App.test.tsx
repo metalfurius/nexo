@@ -66,7 +66,7 @@ function createLibrarySurface(): LibrarySurface {
     },
     saveItem: vi.fn(async () => undefined),
     deleteItem: vi.fn(async () => undefined),
-    deleteAllItems: vi.fn(async () => undefined),
+    deleteAllItems: vi.fn(async () => ({ complete: true, deletedItemIds: [], roadmap: DEFAULT_SETTINGS.roadmap, total: 0 })),
     setStatus: vi.fn(async () => undefined),
     snoozeRecommendation: vi.fn(async () => undefined),
     reactivateRecommendation: vi.fn(async () => undefined),
@@ -217,6 +217,110 @@ describe('App sign-in dialog', () => {
 
     expect(await screen.findByRole('region', { name: 'Descubrir mock' })).toBeVisible()
     expect(window.location.search).toBe('?tab=discover&mode=queue')
+  })
+
+  it('blocks navigation and beforeunload while Biblioteca has an unsaved editor draft', async () => {
+    const user = userEvent.setup()
+    authMock.state.user = { uid: 'user-1' }
+    window.history.replaceState(null, '', '/?tab=library')
+    render(<App />)
+
+    await user.click(await screen.findByRole('button', { name: 'Anadir manualmente' }))
+    await user.type(screen.getByRole('dialog', { name: 'Anadir manualmente' }).querySelector('input') as HTMLInputElement, 'Pendiente')
+
+    await waitFor(() => {
+      const event = new Event('beforeunload', { cancelable: true })
+      window.dispatchEvent(event)
+      expect(event.defaultPrevented).toBe(true)
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Inicio' }))
+    expect(screen.getByText('Cambios pendientes en Biblioteca')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Seguir editando' }))
+    expect(screen.getByRole('dialog', { name: 'Anadir manualmente' })).toBeVisible()
+
+    await user.click(screen.getByRole('button', { name: 'Inicio' }))
+    await user.click(screen.getByRole('button', { name: 'Descartar cambios' }))
+    expect(await screen.findByRole('region', { name: 'Inicio mock' })).toBeVisible()
+  })
+
+  it('blocks same-tab history deep links while Biblioteca has an unsaved editor draft', async () => {
+    const user = userEvent.setup()
+    authMock.state.user = { uid: 'user-1' }
+    window.history.replaceState(null, '', '/?tab=library')
+    render(<App />)
+
+    await user.click(await screen.findByRole('button', { name: 'Anadir manualmente' }))
+    await user.type(
+      screen.getByRole('dialog', { name: 'Anadir manualmente' }).querySelector('input') as HTMLInputElement,
+      'Pendiente',
+    )
+
+    window.history.pushState(null, '', '/?tab=library&item=otra-ficha')
+    window.dispatchEvent(new PopStateEvent('popstate'))
+
+    expect(await screen.findByText('Cambios pendientes en Biblioteca')).toBeVisible()
+    expect(window.location.search).toBe('?tab=library')
+    expect(screen.getByRole('dialog', { name: 'Anadir manualmente' })).toBeVisible()
+  })
+
+  it('routes sign-out through the unsaved-change guard before discarding the private draft', async () => {
+    const user = userEvent.setup()
+    authMock.state.user = { uid: 'user-1' }
+    window.history.replaceState(null, '', '/?tab=library')
+    render(<App />)
+
+    await user.click(await screen.findByRole('button', { name: 'Anadir manualmente' }))
+    const editor = screen.getByRole('dialog', { name: 'Anadir manualmente' })
+    await user.type(within(editor).getByLabelText('Titulo'), 'Borrador privado')
+
+    await user.click(screen.getByRole('button', { name: 'Salir' }))
+
+    expect(await screen.findByText('Cambios pendientes en Biblioteca')).toBeVisible()
+    expect(authMock.state.signOut).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'Seguir editando' }))
+    expect(editor).toBeVisible()
+    expect(within(editor).getByLabelText('Titulo')).toHaveValue('Borrador privado')
+
+    await user.click(screen.getByRole('button', { name: 'Salir' }))
+    await user.click(await screen.findByRole('button', { name: 'Descartar cambios' }))
+
+    await waitFor(() => expect(authMock.state.signOut).toHaveBeenCalledTimes(1))
+  })
+
+  it('clears private Biblioteca selection and editor drafts when the authenticated UID changes', async () => {
+    const user = userEvent.setup()
+    authMock.state.user = { uid: 'user-1' }
+    window.history.replaceState(null, '', '/?tab=library')
+    libraryMock.current = {
+      ...createLibrarySurface(),
+      items: [{
+        id: 'private-item',
+        title: 'Privada',
+        type: 'book',
+        status: 'wishlist',
+        genres: [],
+        tags: [],
+        moodTags: [],
+        weights: { priority: 1, surprise: 0.35, challenge: 0.5 },
+        source: 'manual',
+        createdAt: '2026-07-11T10:00:00.000Z',
+        updatedAt: '2026-07-11T10:00:00.000Z',
+      }],
+    }
+    const { rerender } = render(<App />)
+
+    await user.click(await screen.findByRole('button', { name: 'Filtros' }))
+    await user.click(screen.getByRole('button', { name: 'Seleccionar visibles' }))
+    expect(screen.getByLabelText('Seleccion de biblioteca')).toHaveTextContent('1 seleccionadas')
+    await user.click(screen.getByRole('button', { name: 'Editar Privada' }))
+    await user.type(within(screen.getByRole('dialog', { name: 'Editar Privada' })).getByLabelText('Notas'), 'Solo A')
+
+    authMock.state.user = { uid: 'user-2' }
+    rerender(<App />)
+
+    await waitFor(() => expect(screen.queryByLabelText('Seleccion de biblioteca')).not.toBeInTheDocument())
+    expect(screen.queryByRole('dialog', { name: 'Editar Privada' })).not.toBeInTheDocument()
   })
 
   it('does not redirect a private route while Firebase restores the session', async () => {

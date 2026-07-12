@@ -1,18 +1,15 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
-  type ExternalRefs,
   type ActivityEntry,
-  DEFAULT_RECOMMENDATION_PREFERENCES,
   DEFAULT_SETTINGS,
-  THEME_MODES,
   type DiscoveryCandidate,
   type ExternalCandidate,
   type ItemStatus,
+  type LibraryBulkDeleteResult,
   type LibrarySyncState,
-  type LibraryCardsPerRow,
-  type LibraryViewMode,
   type ListItem,
   type PublicCatalogItem,
+  type RoadmapItemMutation,
   type RoadmapMutation,
   type UserProfile,
   type UserRole,
@@ -25,30 +22,22 @@ import {
   buildPublicCatalogItem,
   discoveryToListItem,
   externalCandidateToDiscovery,
-  mergeDiscoveryCandidate,
   publicItemToDiscovery,
   shouldPreserveDiscoveryDecision,
 } from '../lib/catalog'
-import { dedupeCatalogSearchCandidates, rankCatalogSearchCandidates, scoreCatalogSearchCandidate } from '../lib/catalogSearch'
 import {
   applyRoadmapMutationToLibrary,
   cleanupRoadmapPreferences,
-  createRoadmapDeleteMutation,
+  getRoadmapForItemMutation,
   normalizeRoadmapPreferences,
-  transitionRoadmapItem,
+  prepareRoadmapBatchMutation,
 } from '../lib/roadmap'
-import { slugify, uniqueValues } from '../lib/strings'
+import { uniqueValues } from '../lib/strings'
 import { isFirebaseConfigured } from '../services/firebaseConfig'
 import { isFirestoreOfflinePersistenceEnabled } from '../services/devicePreferences'
 import { fetchPublicCatalog } from '../services/publicCatalog'
 import type { LibraryRepository, RepositorySnapshotState } from '../services/libraryRepository'
-
-interface SignedInUserProfile {
-  uid: string
-  email: string | null
-  displayName: string | null
-  photoURL?: string | null
-}
+import { demoExternalCandidates, getSyncErrorMessage, isPermissionDeniedError, limitActivityEntries, matchesSearchType, mergeActivityEntries, mergeCandidates, mergeSettings, preserveLockedCatalogFields, requireRemotePublicCatalog, toUserProfileSeed, upsertCatalogItem, upsertItem, type SignedInUserProfile } from './libraryState'
 
 const demoUserProfiles: UserProfile[] = [
   {
@@ -78,8 +67,8 @@ const demoUserProfiles: UserProfile[] = [
 ]
 
 type ActivityDraft = Omit<ActivityEntry, 'createdAt' | 'id'>
-const activityEntryLimit = 25
 const anonymousPublicCatalogLimit = 48
+const emptyLibraryItems: ListItem[] = []
 type SyncSliceId = 'items' | 'settings' | 'discovery' | 'activity' | 'profile' | 'profiles'
 interface SaveDiscoveryOptions {
   persistDiscoveryCandidate?: boolean
@@ -108,10 +97,17 @@ export function useLibrary(user?: SignedInUserProfile | null) {
   const repositoryLoading = Boolean(expectsRemote && repositoryState.userId !== userId)
   const remoteReady = Boolean(repository && userId && remoteUserId === userId)
   const loading = Boolean(repositoryLoading || (repository && !remoteReady))
-  const items = expectsRemote ? (remoteReady ? remoteItems : []) : usesDemoMode ? demoLibrary : []
-  const visibleSettings = expectsRemote || usesDemoMode ? settings : DEFAULT_SETTINGS
-  const visibleDiscoveryCandidates = expectsRemote || usesDemoMode ? discoveryCandidates : []
-  const visibleActivityEntries = expectsRemote || usesDemoMode ? activityEntries : []
+  const items = expectsRemote ? (remoteReady ? remoteItems : emptyLibraryItems) : usesDemoMode ? demoLibrary : emptyLibraryItems
+  const privateSliceOwnerMatches = Boolean(expectsRemote && repositoryState.userId === userId)
+  const visibleSettings = expectsRemote
+    ? privateSliceOwnerMatches ? settings : DEFAULT_SETTINGS
+    : usesDemoMode ? settings : DEFAULT_SETTINGS
+  const visibleDiscoveryCandidates = expectsRemote
+    ? privateSliceOwnerMatches ? discoveryCandidates : []
+    : usesDemoMode ? discoveryCandidates : []
+  const visibleActivityEntries = expectsRemote
+    ? privateSliceOwnerMatches ? activityEntries : []
+    : usesDemoMode ? activityEntries : []
   const activeError = expectsRemote ? error : undefined
   const userRole = expectsRemote
     ? (profileRole.userId === userId ? profileRole.role : 'user')
@@ -132,6 +128,33 @@ export function useLibrary(user?: SignedInUserProfile | null) {
     pendingWriteCount: expectsRemote ? pendingWriteCount : 0,
     remote: expectsRemote,
   }
+  const itemsRef = useRef(items)
+  const settingsRef = useRef(settings)
+  const roadmapMutationQueueRef = useRef<Promise<void>>(Promise.resolve())
+  const roadmapMutationSessionRef = useRef(userId)
+  const activePrivateSessionRef = useRef(userId)
+
+  if (activePrivateSessionRef.current !== userId) {
+    activePrivateSessionRef.current = userId
+    itemsRef.current = emptyLibraryItems
+    settingsRef.current = mergeSettings({})
+    roadmapMutationSessionRef.current = userId
+    roadmapMutationQueueRef.current = Promise.resolve()
+  }
+
+  useEffect(() => {
+    itemsRef.current = items
+  }, [items])
+
+  useEffect(() => {
+    settingsRef.current = settings
+  }, [settings])
+
+  useEffect(() => {
+    if (roadmapMutationSessionRef.current === userId) return
+    roadmapMutationSessionRef.current = userId
+    roadmapMutationQueueRef.current = Promise.resolve()
+  }, [userId])
 
   const updateSyncSlice = useCallback((sliceId: SyncSliceId, snapshotState?: RepositorySnapshotState) => {
     if (!snapshotState) return
@@ -139,14 +162,19 @@ export function useLibrary(user?: SignedInUserProfile | null) {
   }, [])
 
   const trackRepositoryWrite = useCallback(async (promise: Promise<void>, fallback: string) => {
+    const requestedSession = activePrivateSessionRef.current
     setLocalPendingWriteCount((current) => current + 1)
     try {
       await promise
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : fallback)
+      if (activePrivateSessionRef.current === requestedSession) {
+        setError(reason instanceof Error ? reason.message : fallback)
+      }
       throw reason
     } finally {
-      setLocalPendingWriteCount((current) => Math.max(0, current - 1))
+      if (activePrivateSessionRef.current === requestedSession) {
+        setLocalPendingWriteCount((current) => Math.max(0, current - 1))
+      }
     }
   }, [])
 
@@ -185,14 +213,20 @@ export function useLibrary(user?: SignedInUserProfile | null) {
     void import('../services/libraryRepository')
       .then(({ createFirestoreRepository }) => {
         if (disposed) return
+        const emptySettings = mergeSettings({})
+        itemsRef.current = emptyLibraryItems
+        settingsRef.current = emptySettings
         setRemoteItems([])
         setRemoteUserId(undefined)
+        setSettings(emptySettings)
         setDiscoveryCandidates([])
         setActivityEntries([])
         setProfileRole({ role: 'user', userId })
+        setUserProfiles([])
         setSyncSlices({})
         setLocalPendingWriteCount(0)
         setLastSyncedAt(undefined)
+        setError(undefined)
         setRepositoryState({ repository: createFirestoreRepository(userId), userId })
       })
       .catch((reason) => {
@@ -209,19 +243,29 @@ export function useLibrary(user?: SignedInUserProfile | null) {
   useEffect(() => {
     if (!repository || !userId) return undefined
 
-    return repository.subscribeItems(
+    let active = true
+
+    const unsubscribe = repository.subscribeItems(
       (nextItems, snapshotState) => {
+        if (!active || activePrivateSessionRef.current !== userId) return
+        itemsRef.current = nextItems
         setRemoteItems(nextItems)
         setRemoteUserId(userId)
         updateSyncSlice('items', snapshotState)
         setError(undefined)
       },
       (reason) => {
+        if (!active || activePrivateSessionRef.current !== userId) return
+        itemsRef.current = emptyLibraryItems
         setRemoteItems([])
         setRemoteUserId(userId)
         setError(getSyncErrorMessage(reason, 'No se pudo cargar la biblioteca.'))
       },
     )
+    return () => {
+      active = false
+      unsubscribe()
+    }
   }, [repository, updateSyncSlice, userId])
 
   useEffect(() => {
@@ -229,34 +273,55 @@ export function useLibrary(user?: SignedInUserProfile | null) {
       return undefined
     }
 
+    let active = true
+
     const unsubscribers = [
       repository.subscribeUserProfile(
         (profile, snapshotState) => {
+          if (!active || activePrivateSessionRef.current !== userId) return
           setProfileRole({ role: profile?.role ?? 'user', userId })
           updateSyncSlice('profile', snapshotState)
         },
-        (reason) => setError(getSyncErrorMessage(reason, 'No se pudo cargar el perfil.')),
+        (reason) => {
+          if (active && activePrivateSessionRef.current === userId) {
+            setError(getSyncErrorMessage(reason, 'No se pudo cargar el perfil.'))
+          }
+        },
       ),
       repository.subscribeSettings(
         (remoteSettings, snapshotState) => {
-          setSettings(mergeSettings(remoteSettings))
+          if (!active || activePrivateSessionRef.current !== userId) return
+          const nextSettings = mergeSettings(remoteSettings)
+          settingsRef.current = nextSettings
+          setSettings(nextSettings)
           updateSyncSlice('settings', snapshotState)
         },
-        (reason) => setError(getSyncErrorMessage(reason, 'No se pudieron cargar los ajustes.')),
+        (reason) => {
+          if (active && activePrivateSessionRef.current === userId) {
+            setError(getSyncErrorMessage(reason, 'No se pudieron cargar los ajustes.'))
+          }
+        },
       ),
       repository.subscribeDiscoveryCandidates(
         (nextCandidates, snapshotState) => {
+          if (!active || activePrivateSessionRef.current !== userId) return
           setDiscoveryCandidates((current) => mergeCandidates(nextCandidates, current))
           updateSyncSlice('discovery', snapshotState)
         },
-        (reason) => setError(getSyncErrorMessage(reason, 'No se pudo cargar la cola de exploracion.')),
+        (reason) => {
+          if (active && activePrivateSessionRef.current === userId) {
+            setError(getSyncErrorMessage(reason, 'No se pudo cargar la cola de exploracion.'))
+          }
+        },
       ),
       repository.subscribeActivityEntries(
         (nextEntries, snapshotState) => {
+          if (!active || activePrivateSessionRef.current !== userId) return
           setActivityEntries(nextEntries)
           updateSyncSlice('activity', snapshotState)
         },
         (reason) => {
+          if (!active || activePrivateSessionRef.current !== userId) return
           setActivityEntries([])
           if (!isPermissionDeniedError(reason)) {
             setError(getSyncErrorMessage(reason, 'No se pudo cargar la actividad reciente.'))
@@ -267,9 +332,16 @@ export function useLibrary(user?: SignedInUserProfile | null) {
 
     void repository
       .ensureUserProfile(toUserProfileSeed(user))
-      .catch((reason) => setError(getSyncErrorMessage(reason, 'No se pudo actualizar el perfil.')))
+      .catch((reason) => {
+        if (active && activePrivateSessionRef.current === userId) {
+          setError(getSyncErrorMessage(reason, 'No se pudo actualizar el perfil.'))
+        }
+      })
 
-    return () => unsubscribers.forEach((unsubscribe) => unsubscribe())
+    return () => {
+      active = false
+      unsubscribers.forEach((unsubscribe) => unsubscribe())
+    }
   }, [repository, updateSyncSlice, user, userId])
 
   useEffect(() => {
@@ -277,22 +349,87 @@ export function useLibrary(user?: SignedInUserProfile | null) {
       return undefined
     }
 
-    return repository.subscribeUserProfiles(
+    let active = true
+
+    const unsubscribe = repository.subscribeUserProfiles(
       (profiles, snapshotState) => {
+        if (!active || activePrivateSessionRef.current !== userId) return
         setUserProfiles(profiles)
         updateSyncSlice('profiles', snapshotState)
       },
-      (reason) => setError(getSyncErrorMessage(reason, 'No se pudieron cargar los perfiles.')),
+      (reason) => {
+        if (active && activePrivateSessionRef.current === userId) {
+          setError(getSyncErrorMessage(reason, 'No se pudieron cargar los perfiles.'))
+        }
+      },
     )
+    return () => {
+      active = false
+      unsubscribe()
+    }
   }, [repository, updateSyncSlice, userId, userRole])
 
   function requirePrivateSession() {
+    if (activePrivateSessionRef.current !== userId) {
+      throw new Error('La sesion cambio antes de completar la operacion privada.')
+    }
     if (isFirebaseConfigured && !userId) {
       throw new Error('Inicia sesion para guardar cambios privados.')
     }
     if (isFirebaseConfigured && !repository) {
       throw new Error('Tu biblioteca todavia se esta cargando.')
     }
+  }
+
+  function enqueueRoadmapMutation(task: () => Promise<void>) {
+    const requestedSession = userId
+    const run = roadmapMutationQueueRef.current
+      .catch(() => undefined)
+      .then(async () => {
+        if (roadmapMutationSessionRef.current !== requestedSession) {
+          throw new Error('La sesion cambio antes de guardar la mutacion de Tu ruta.')
+        }
+        await task()
+      })
+    roadmapMutationQueueRef.current = run.catch(() => undefined)
+    return run
+  }
+
+  function applyOptimisticRoadmapState(nextState: ReturnType<typeof applyRoadmapMutationToLibrary>) {
+    itemsRef.current = nextState.items
+    settingsRef.current = nextState.settings
+    setSettings(nextState.settings)
+    if (repository) {
+      setRemoteItems(nextState.items)
+      if (userId) setRemoteUserId(userId)
+    } else {
+      setDemoLibrary(nextState.items)
+    }
+  }
+
+  function applyRoadmapItemMutation(itemMutation: RoadmapItemMutation) {
+    requirePrivateSession()
+    return enqueueRoadmapMutation(async () => {
+      const updatedAt = nowIso()
+      const currentState = { items: itemsRef.current, settings: settingsRef.current }
+      const mutation: RoadmapMutation = {
+        item: itemMutation,
+        roadmap: getRoadmapForItemMutation(currentState, itemMutation),
+      }
+      const nextState = applyRoadmapMutationToLibrary(
+        currentState.items,
+        currentState.settings,
+        mutation,
+        updatedAt,
+      )
+      applyOptimisticRoadmapState(nextState)
+      if (repository) {
+        await trackRepositoryWrite(
+          repository.applyRoadmapMutation({ ...mutation, roadmap: nextState.settings.roadmap }),
+          'No se pudo actualizar Tu ruta.',
+        )
+      }
+    })
   }
 
   async function saveItem(item: ListItem) {
@@ -307,13 +444,10 @@ export function useLibrary(user?: SignedInUserProfile | null) {
       updatedAt: nowIso(),
     }
     if (existingItem && existingItem.status !== normalized.status) {
-      const statusMutation = transitionRoadmapItem(settings.roadmap, normalized.id, normalized.status)
-      return applyRoadmapMutation({
-        roadmap: statusMutation.roadmap,
-        item: { item: normalized, kind: 'upsert' },
-      })
+      return applyRoadmapItemMutation({ item: normalized, kind: 'upsert' })
     }
     if (repository) {
+      itemsRef.current = upsertItem(itemsRef.current, normalized)
       setRemoteItems((current) => upsertItem(current, normalized))
       if (userId) setRemoteUserId(userId)
       return trackRepositoryWrite(repository.saveItem(normalized), 'No se pudo guardar la ficha.')
@@ -323,44 +457,92 @@ export function useLibrary(user?: SignedInUserProfile | null) {
   }
 
   async function deleteItem(id: string) {
-    return applyRoadmapMutation(createRoadmapDeleteMutation(settings.roadmap, id))
+    return applyRoadmapItemMutation({ kind: 'delete', itemId: id })
   }
 
-  async function deleteAllItems() {
+  async function deleteAllItems(): Promise<LibraryBulkDeleteResult> {
     requirePrivateSession()
-    const nextSettings = {
-      ...settings,
-      roadmap: normalizeRoadmapPreferences(undefined),
-    }
-    setSettings(nextSettings)
+    const requestedSession = activePrivateSessionRef.current
     if (repository) {
-      setRemoteItems([])
-      return trackRepositoryWrite(repository.deleteAllItems(), 'No se pudieron borrar las entradas privadas.')
-    } else {
-      setDemoLibrary([])
+      setLocalPendingWriteCount((current) => current + 1)
+      try {
+        const result = await repository.deleteAllItems(settingsRef.current.roadmap)
+        if (activePrivateSessionRef.current !== requestedSession) return result
+
+        const deletedIds = new Set(result.deletedItemIds)
+        const nextItems = itemsRef.current.filter((item) => !deletedIds.has(item.id))
+        const nextSettings = { ...settingsRef.current, roadmap: result.roadmap }
+        itemsRef.current = nextItems
+        settingsRef.current = nextSettings
+        setRemoteItems(nextItems)
+        if (userId) setRemoteUserId(userId)
+        setSettings(nextSettings)
+        setError(result.complete ? undefined : result.error ?? 'El borrado masivo quedo incompleto.')
+        return result
+      } catch (reason) {
+        if (activePrivateSessionRef.current === requestedSession) {
+          setError(reason instanceof Error ? reason.message : 'No se pudieron borrar las entradas privadas.')
+        }
+        throw reason
+      } finally {
+        if (activePrivateSessionRef.current === requestedSession) {
+          setLocalPendingWriteCount((current) => Math.max(0, current - 1))
+        }
+      }
     }
+
+    const deletedItemIds = demoLibrary.map((item) => item.id)
+    const roadmap = normalizeRoadmapPreferences(undefined)
+    const nextSettings = { ...settingsRef.current, roadmap }
+    itemsRef.current = emptyLibraryItems
+    settingsRef.current = nextSettings
+    setDemoLibrary([])
+    setSettings(nextSettings)
+    return { complete: true, deletedItemIds, roadmap, total: deletedItemIds.length }
   }
 
   async function setStatus(id: string, status: ItemStatus) {
-    return applyRoadmapMutation(transitionRoadmapItem(settings.roadmap, id, status))
+    return applyRoadmapItemMutation({ kind: 'status', itemId: id, status })
   }
 
   async function applyRoadmapMutation(mutation: RoadmapMutation) {
     requirePrivateSession()
-    const updatedAt = nowIso()
-    const nextState = applyRoadmapMutationToLibrary(items, settings, mutation, updatedAt)
-    setSettings(nextState.settings)
-
-    if (repository) {
-      setRemoteItems(nextState.items)
-      if (userId) setRemoteUserId(userId)
-      return trackRepositoryWrite(
-        repository.applyRoadmapMutation({ ...mutation, roadmap: nextState.settings.roadmap }),
-        'No se pudo actualizar Tu ruta.',
+    return enqueueRoadmapMutation(async () => {
+      const updatedAt = nowIso()
+      const nextState = applyRoadmapMutationToLibrary(
+        itemsRef.current,
+        settingsRef.current,
+        mutation,
+        updatedAt,
       )
-    } else {
-      setDemoLibrary(nextState.items)
-    }
+      applyOptimisticRoadmapState(nextState)
+      if (repository) {
+        await trackRepositoryWrite(
+          repository.applyRoadmapMutation({ ...mutation, roadmap: nextState.settings.roadmap }),
+          'No se pudo actualizar Tu ruta.',
+        )
+      }
+    })
+  }
+
+  async function applyRoadmapBatchMutation(itemMutations: RoadmapItemMutation[]) {
+    requirePrivateSession()
+    if (!itemMutations.length) return
+    return enqueueRoadmapMutation(async () => {
+      const prepared = prepareRoadmapBatchMutation(
+        itemsRef.current,
+        settingsRef.current,
+        itemMutations,
+        nowIso(),
+      )
+      applyOptimisticRoadmapState(prepared.state)
+      if (repository) {
+        await trackRepositoryWrite(
+          repository.applyRoadmapBatchMutation(prepared.mutation),
+          'No se pudo actualizar la seleccion de Tu ruta.',
+        )
+      }
+    })
   }
 
   async function snoozeRecommendation(id: string) {
@@ -469,6 +651,7 @@ export function useLibrary(user?: SignedInUserProfile | null) {
       return requireRemotePublicCatalog(() => fetchPublicCatalog(query, type ?? 'any', anonymousPublicCatalogLimit))
     }
 
+    const { rankCatalogSearchCandidates, scoreCatalogSearchCandidate } = await import('../lib/catalogSearch')
     const normalized = query.trim().toLowerCase()
     const matchingItems = publicCatalog
       .filter((item) => !item.archivedAt)
@@ -485,13 +668,14 @@ export function useLibrary(user?: SignedInUserProfile | null) {
     if (repository) return repository.searchCatalog(query, type)
 
     const cleanedQuery = query.trim()
-    const [publicItems, externalCandidates] = await Promise.all([
+    const [catalogSearch, publicItems, externalCandidates] = await Promise.all([
+      import('../lib/catalogSearch'),
       searchPublicCatalog(cleanedQuery, type),
       cleanedQuery.length >= 2 ? searchExternal(cleanedQuery, type ?? 'any') : Promise.resolve([]),
     ])
 
-    return rankCatalogSearchCandidates(
-      uniqueDiscoveryCandidates([
+    return catalogSearch.rankCatalogSearchCandidates(
+      catalogSearch.dedupeCatalogSearchCandidates([
         ...publicItems.map(publicItemToDiscovery),
         ...externalCandidates.map(externalCandidateToDiscovery),
       ]),
@@ -513,19 +697,34 @@ export function useLibrary(user?: SignedInUserProfile | null) {
 
   async function saveSettings(nextSettings: Partial<UserSettings>) {
     requirePrivateSession()
+    const requestedSession = activePrivateSessionRef.current
+    const currentSettings = settingsRef.current
+    const includesRoadmap = Object.prototype.hasOwnProperty.call(nextSettings, 'roadmap')
     const merged = mergeSettings({
-      ...settings,
+      ...currentSettings,
       ...nextSettings,
       recommendationPreferences: {
-        ...settings.recommendationPreferences,
+        ...currentSettings.recommendationPreferences,
         ...nextSettings.recommendationPreferences,
       },
-      roadmap: cleanupRoadmapPreferences(nextSettings.roadmap ?? settings.roadmap, items),
+      roadmap: includesRoadmap
+        ? cleanupRoadmapPreferences(nextSettings.roadmap ?? currentSettings.roadmap, itemsRef.current)
+        : currentSettings.roadmap,
     })
+    settingsRef.current = merged
     setSettings(merged)
     if (repository) {
-      const settingsPatch = { ...nextSettings, roadmap: merged.roadmap }
-      return trackRepositoryWrite(repository.saveSettings(settingsPatch), 'No se pudieron guardar los ajustes.')
+      const settingsPatch: Partial<UserSettings> = { ...nextSettings }
+      if (includesRoadmap) settingsPatch.roadmap = merged.roadmap
+      try {
+        await trackRepositoryWrite(repository.saveSettings(settingsPatch), 'No se pudieron guardar los ajustes.')
+      } catch (reason) {
+        if (activePrivateSessionRef.current === requestedSession && settingsRef.current === merged) {
+          settingsRef.current = currentSettings
+          setSettings(currentSettings)
+        }
+        throw reason
+      }
     }
   }
 
@@ -542,8 +741,13 @@ export function useLibrary(user?: SignedInUserProfile | null) {
     )
     setDiscoveryCandidates((current) => mergeCandidates(normalized, current))
     if (repository) {
+      const persistCandidates = async () => {
+        for (const candidate of candidatesToPersist) {
+          await repository.saveDiscoveryCandidate(candidate)
+        }
+      }
       await trackRepositoryWrite(
-        Promise.all(candidatesToPersist.map((candidate) => repository.saveDiscoveryCandidate(candidate))).then(() => undefined),
+        persistCandidates(),
         'No se pudo persistir la cola de exploracion.',
       )
     }
@@ -609,12 +813,16 @@ export function useLibrary(user?: SignedInUserProfile | null) {
   }
 
   async function recordImportedItemToPublicCatalog(item: ListItem) {
+    return recordImportedItemsToPublicCatalog([item])
+  }
+
+  async function recordImportedItemsToPublicCatalog(itemsToRecord: ListItem[]) {
     requirePrivateSession()
-    if (!repository) return
+    if (!repository || !itemsToRecord.length) return
 
     setLocalPendingWriteCount((current) => current + 1)
     try {
-      await repository.recordImportedItemToPublicCatalog(item)
+      await repository.recordImportedItemsToPublicCatalog(itemsToRecord)
     } finally {
       setLocalPendingWriteCount((current) => Math.max(0, current - 1))
     }
@@ -738,6 +946,7 @@ export function useLibrary(user?: SignedInUserProfile | null) {
     deleteAllItems,
     setStatus,
     applyRoadmapMutation,
+    applyRoadmapBatchMutation,
     snoozeRecommendation,
     reactivateRecommendation,
     setRecommendationCooldown,
@@ -752,6 +961,7 @@ export function useLibrary(user?: SignedInUserProfile | null) {
     restoreDiscoveryCandidate,
     saveDiscoveryToLibrary,
     recordImportedItemToPublicCatalog,
+    recordImportedItemsToPublicCatalog,
     upsertPublicItem,
     replacePublicItem,
     archivePublicItem,
@@ -764,158 +974,4 @@ export function useLibrary(user?: SignedInUserProfile | null) {
     publicItemToDiscovery,
     externalCandidateToDiscovery,
   }
-}
-
-function preserveLockedCatalogFields(incoming: ListItem, existing?: ListItem): ListItem {
-  if (!existing || (existing.source !== 'external' && existing.source !== 'public')) return incoming
-
-  return {
-    ...incoming,
-    createdAt: existing.createdAt,
-    externalRefs: cloneExternalRefs(existing.externalRefs),
-    genres: existing.genres,
-    id: existing.id,
-    importNotes: existing.importNotes,
-    posterUrl: existing.posterUrl,
-    progressTotal: existing.progressTotal,
-    progressUnit: existing.progressUnit,
-    publicItemId: existing.publicItemId,
-    publicSnapshot: existing.publicSnapshot,
-    rawText: existing.rawText,
-    source: existing.source,
-    tags: existing.tags,
-    title: existing.title,
-    type: existing.type,
-    weights: {
-      ...existing.weights,
-      priority: incoming.weights.priority,
-    },
-  }
-}
-
-function cloneExternalRefs(refs?: ExternalRefs): ExternalRefs | undefined {
-  return refs ? { ...refs } : refs
-}
-
-function limitActivityEntries(entries: ActivityEntry[]) {
-  return [...entries].sort((left, right) => right.createdAt.localeCompare(left.createdAt)).slice(0, activityEntryLimit)
-}
-
-function mergeActivityEntries(restoredEntries: ActivityEntry[], currentEntries: ActivityEntry[]) {
-  const byId = new Map(currentEntries.map((entry) => [entry.id, entry]))
-  for (const entry of restoredEntries) {
-    byId.set(entry.id, entry)
-  }
-  return limitActivityEntries([...byId.values()])
-}
-
-function toUserProfileSeed(user: SignedInUserProfile): Partial<UserProfile> {
-  return {
-    uid: user.uid,
-    email: user.email ?? undefined,
-    displayName: user.displayName ?? undefined,
-    photoURL: user.photoURL ?? undefined,
-  }
-}
-
-function matchesSearchType(itemType: string, requestedType?: string) {
-  if (!requestedType || requestedType === 'any') return true
-  if (requestedType === 'watch') return ['movie', 'series', 'anime', 'manga', 'manhwa', 'comic'].includes(itemType)
-  if (requestedType === 'animeManga') return ['anime', 'manga', 'manhwa'].includes(itemType)
-  return itemType === requestedType
-}
-
-function upsertItem(items: ListItem[], nextItem: ListItem) {
-  const exists = items.some((item) => item.id === nextItem.id)
-  if (!exists) return [nextItem, ...items]
-  return items.map((item) => (item.id === nextItem.id ? nextItem : item))
-}
-
-function upsertCatalogItem(items: PublicCatalogItem[], nextItem: PublicCatalogItem) {
-  const exists = items.some((item) => item.id === nextItem.id)
-  if (!exists) return [nextItem, ...items]
-  return items.map((item) => (item.id === nextItem.id ? nextItem : item))
-}
-
-function mergeCandidates(nextCandidates: DiscoveryCandidate[], currentCandidates: DiscoveryCandidate[]) {
-  const byId = new Map(currentCandidates.map((candidate) => [candidate.id, candidate]))
-  for (const candidate of nextCandidates) {
-    byId.set(candidate.id, mergeDiscoveryCandidate(byId.get(candidate.id), candidate))
-  }
-  return [...byId.values()].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
-}
-
-function uniqueDiscoveryCandidates(candidates: DiscoveryCandidate[]) {
-  return dedupeCatalogSearchCandidates(candidates)
-}
-
-async function requireRemotePublicCatalog(loadCatalog: () => Promise<PublicCatalogItem[] | undefined>) {
-  const catalog = await loadCatalog().catch(() => undefined)
-  if (catalog) return catalog
-  throw new Error('No se pudo cargar el catalogo publico remoto. Revisa VITE_PUBLIC_CATALOG_URL.')
-}
-
-function mergeSettings(settings: Partial<UserSettings>): UserSettings {
-  const libraryViewMode = readLibraryViewMode(settings.libraryViewMode)
-  const libraryCardsPerRow = readLibraryCardsPerRow(settings.libraryCardsPerRow)
-
-  return {
-    ...DEFAULT_SETTINGS,
-    ...settings,
-    theme:
-      settings.theme && THEME_MODES.includes(settings.theme as (typeof THEME_MODES)[number])
-        ? settings.theme
-        : DEFAULT_SETTINGS.theme,
-    libraryViewMode,
-    libraryCardsPerRow,
-    favoriteTags: [...(settings.favoriteTags ?? DEFAULT_SETTINGS.favoriteTags)],
-    favoriteGenres: [...(settings.favoriteGenres ?? DEFAULT_SETTINGS.favoriteGenres)],
-    blockedTags: [...(settings.blockedTags ?? DEFAULT_SETTINGS.blockedTags)],
-    recommendationPreferences: {
-      ...DEFAULT_RECOMMENDATION_PREFERENCES,
-      ...settings.recommendationPreferences,
-    },
-    roadmap: normalizeRoadmapPreferences(settings.roadmap),
-  }
-}
-
-function readLibraryViewMode(value: unknown): LibraryViewMode {
-  return value === 'mosaic' || value === 'cards' || value === 'list' ? value : DEFAULT_SETTINGS.libraryViewMode
-}
-
-function readLibraryCardsPerRow(value: unknown): LibraryCardsPerRow {
-  return value === 4 || value === 5 || value === 6 ? value : DEFAULT_SETTINGS.libraryCardsPerRow
-}
-
-function getSyncErrorMessage(reason: unknown, fallback: string) {
-  if (isPermissionDeniedError(reason)) {
-    return 'No se pudo sincronizar Firebase. Revisa que las reglas de Firestore esten desplegadas.'
-  }
-
-  return reason instanceof Error && reason.message ? reason.message : fallback
-}
-
-function isPermissionDeniedError(reason: unknown) {
-  const code = typeof (reason as { code?: unknown })?.code === 'string' ? (reason as { code: string }).code : undefined
-  const message = reason instanceof Error ? reason.message : typeof reason === 'string' ? reason : ''
-
-  return code === 'permission-denied' || message.includes('Missing or insufficient permissions')
-}
-
-function demoExternalCandidates(query: string, type: string): ExternalCandidate[] {
-  const base = nowIso()
-  const cleanedQuery = query.trim() || 'Nueva recomendacion'
-  return [
-    {
-      id: `demo-${slugify(cleanedQuery)}`,
-      title: cleanedQuery,
-      type: type === 'watch' || type === 'any' ? 'movie' : (type as ExternalCandidate['type']),
-      source: 'tmdb',
-      sourceId: `demo-${slugify(cleanedQuery)}`,
-      overview: 'Candidato de demostracion hasta configurar Firebase Functions.',
-      genres: type === 'book' ? ['clasico'] : [],
-      externalRefs: {},
-      createdAt: base,
-    },
-  ]
 }

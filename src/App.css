@@ -1,6 +1,6 @@
 
 
-/* Nexo 1.1.50: Inicio, Descubrir y flujos de entrada simplificados. */html.dialog-scroll-locked,
+/* Inicio, Descubrir y flujos de entrada simplificados. */html.dialog-scroll-locked,
 body.dialog-scroll-locked {
   overflow: hidden;
   overscroll-behavior: none;
@@ -1148,6 +1148,7 @@ body.dialog-scroll-locked {
   font-weight: 760;
   line-height: 1.25;
   min-width: 0;
+  overflow-wrap: anywhere;
 }.toast-message.success {
   background: color-mix(in srgb, var(--accent-soft) 74%, var(--surface-raised));
   border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
@@ -1174,8 +1175,10 @@ body.dialog-scroll-locked {
   justify-content: center;
   min-height: 30px;
 }.toast-action {
+  max-width: min(180px, 40vw);
+  overflow-wrap: anywhere;
   padding: 0 10px;
-  white-space: nowrap;
+  white-space: normal;
 }.toast-close {
   padding: 0;
   width: 30px;
@@ -1559,6 +1562,7 @@ body.dialog-scroll-locked {
   flex: 0 0 auto;
 }.feedback-message span {
   min-width: 0;
+  overflow-wrap: anywhere;
 }.feedback-message.info {
   color: var(--text);
 }.feedback-message.success {
@@ -4067,7 +4071,7 @@ textarea {
 }.primary-button {
   background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 92%, #fff 8%), var(--accent));
   border-color: color-mix(in srgb, var(--accent) 92%, var(--text-strong));
-  color: #fff;
+  color: var(--on-accent);
   font-weight: 850;
   line-height: 1.2;
   padding: 0 14px;
@@ -4105,6 +4109,7 @@ textarea {
   transform: translateY(0) scale(0.98);
 }.primary-button:hover:not(:disabled) {
   background: color-mix(in srgb, var(--accent) 88%, #fff);
+  color: var(--on-accent);
 }.file-button input {
   display: none;
 }.sr-only {
@@ -7961,7 +7966,7 @@ textarea:focus-visible {
   border: 1px solid color-mix(in srgb, var(--accent) 78%, var(--text-strong));
   border-radius: 9px;
   box-shadow: 0 8px 22px color-mix(in srgb, var(--accent) 22%, transparent);
-  color: #fff;
+  color: var(--on-accent);
   cursor: pointer;
   display: inline-flex;
   font: inherit;
@@ -7975,7 +7980,7 @@ textarea:focus-visible {
 }.global-add-button:hover {
   background: color-mix(in srgb, var(--accent) 88%, var(--text-strong));
   border-color: color-mix(in srgb, var(--accent) 54%, var(--text-strong));
-  color: #fff;
+  color: var(--on-accent);
   transform: translateY(-1px);
 }.add-dialog {
   animation: modal-enter var(--motion) var(--motion-ease) both;

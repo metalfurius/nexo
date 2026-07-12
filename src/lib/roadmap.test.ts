@@ -17,6 +17,7 @@ import {
   hideRoadmapItem,
   moveRoadmapItem,
   normalizeRoadmapPreferences,
+  prepareRoadmapBatchMutation,
   reorderRoadmapItem,
   resetRoadmapItemToAutomatic,
   transitionRoadmapItem,
@@ -287,5 +288,45 @@ describe('roadmap mutations', () => {
     )
     expect(deleteState.items).toEqual([expect.objectContaining({ id: 'next-1' })])
     expect(deleteState.settings.roadmap).toEqual(DEFAULT_ROADMAP_PREFERENCES)
+  })
+
+  it('calculates a batch from each latest intermediate state and produces one final roadmap', () => {
+    const initialItems = [item('first'), item('second'), item('third')]
+    const prepared = prepareRoadmapBatchMutation(
+      initialItems,
+      { ...DEFAULT_SETTINGS, roadmap: { now: [], next: ['first', 'second', 'third'], later: [], hidden: [] } },
+      [
+        { kind: 'status', itemId: 'first', status: 'in_progress' },
+        { kind: 'status', itemId: 'second', status: 'paused' },
+        { item: { ...initialItems[2], weights: { ...initialItems[2].weights, priority: 3 } }, kind: 'upsert' },
+      ],
+      '2026-07-11T12:00:00.000Z',
+    )
+
+    expect(prepared.state.items).toEqual([
+      expect.objectContaining({ id: 'first', status: 'in_progress' }),
+      expect.objectContaining({ id: 'second', status: 'paused' }),
+      expect.objectContaining({ id: 'third', weights: expect.objectContaining({ priority: 3 }) }),
+    ])
+    expect(prepared.mutation.roadmap).toEqual({
+      now: ['first'],
+      next: ['third'],
+      later: ['second'],
+      hidden: [],
+    })
+    expect(prepared.mutation.items).toHaveLength(3)
+  })
+
+  it('rejects roadmap batches above the 400-change safety boundary', () => {
+    expect(() => prepareRoadmapBatchMutation(
+      [],
+      DEFAULT_SETTINGS,
+      Array.from({ length: 401 }, (_, index) => ({
+        kind: 'status' as const,
+        itemId: `item-${index}`,
+        status: 'wishlist' as const,
+      })),
+      '2026-07-11T12:00:00.000Z',
+    )).toThrow('hasta 400 cambios')
   })
 })

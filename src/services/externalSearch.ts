@@ -81,9 +81,9 @@ export async function searchExternalSources(searchQuery: string, type: string): 
   if (cached?.state === 'fresh') return cached.entry.results
 
   const proxyCandidates = await searchCatalogProxy(query, type).catch(() => undefined)
-  if (proxyCandidates?.length) {
+  if (proxyCandidates) {
     const results = rankCatalogSearchCandidates(uniqueExternalCandidates(proxyCandidates), query, type).slice(0, 24)
-    void writeExternalSearchCache(query, type, results).catch(() => undefined)
+    if (results.length) void writeExternalSearchCache(query, type, results).catch(() => undefined)
     return results
   }
 
@@ -106,8 +106,11 @@ export async function discoverExternalCandidate(
   duration: ExternalDiscoverDuration,
 ): Promise<ExternalCandidate | undefined> {
   const seed = createDiscoverySeed()
-  const proxyCandidate = await discoverFromCatalogProxy(type, duration, seed).catch(() => undefined)
-  if (proxyCandidate) return proxyCandidate
+  const gatewayResult = await discoverFromCatalogProxy(type, duration, seed).catch(
+    (): CatalogGatewayDiscoverResult => ({ state: 'unavailable' }),
+  )
+  if (gatewayResult.state === 'candidate') return gatewayResult.candidate
+  if (gatewayResult.state === 'empty') return undefined
 
   const queries = getDiscoverQueries(type, duration, seed).slice(0, 3)
   const searchType = discoverTypeToSearchType(type)
@@ -162,38 +165,71 @@ async function discoverFromCatalogProxy(
   type: ExternalDiscoverType,
   duration: ExternalDiscoverDuration,
   seed: string,
-): Promise<ExternalCandidate | undefined> {
-  const proxyUrl = String(import.meta.env.VITE_CATALOG_PROXY_URL ?? '').trim()
-  if (!proxyUrl) return undefined
+): Promise<CatalogGatewayDiscoverResult> {
+  for (const url of createCatalogGatewayUrls('discover')) {
+    url.searchParams.set('type', type)
+    url.searchParams.set('duration', duration)
+    url.searchParams.set('seed', seed)
 
-  const baseUrl = proxyUrl.endsWith('/') ? proxyUrl : `${proxyUrl}/`
-  const url = new URL('discover', baseUrl)
-  url.searchParams.set('type', type)
-  url.searchParams.set('duration', duration)
-  url.searchParams.set('seed', seed)
+    try {
+      const response = await fetch(url, { headers: { accept: 'application/json' } })
+      if (!response.ok) continue
 
-  const response = await fetch(url, { headers: { accept: 'application/json' } })
-  if (!response.ok) return undefined
+      const payload = (await response.json()) as { result?: unknown }
+      if (!Object.prototype.hasOwnProperty.call(payload, 'result')) continue
+      if (payload.result === null) return { state: 'empty' }
+      const candidate = normalizeProxyCandidate(payload.result).find(hasPoster)
+      if (candidate) return { candidate, state: 'candidate' }
+    } catch {
+      // The legacy proxy remains available during v1.1.x when the v1 gateway is unavailable.
+    }
+  }
 
-  const payload = (await response.json()) as { result?: unknown }
-  return normalizeProxyCandidate(payload.result).find(hasPoster)
+  return { state: 'unavailable' }
 }
 
+type CatalogGatewayDiscoverResult =
+  | { candidate: ExternalCandidate; state: 'candidate' }
+  | { state: 'empty' }
+  | { state: 'unavailable' }
+
 async function searchCatalogProxy(query: string, type: string): Promise<ExternalCandidate[] | undefined> {
-  const proxyUrl = String(import.meta.env.VITE_CATALOG_PROXY_URL ?? '').trim()
-  if (!proxyUrl) return undefined
+  for (const url of createCatalogGatewayUrls('search')) {
+    url.searchParams.set('q', query)
+    url.searchParams.set('type', type)
 
-  const baseUrl = proxyUrl.endsWith('/') ? proxyUrl : `${proxyUrl}/`
-  const url = new URL('search', baseUrl)
-  url.searchParams.set('q', query)
-  url.searchParams.set('type', type)
+    try {
+      const response = await fetch(url, { headers: { accept: 'application/json' } })
+      if (!response.ok) continue
 
-  const response = await fetch(url, { headers: { accept: 'application/json' } })
-  if (!response.ok) return []
+      const payload = (await response.json()) as { results?: unknown }
+      if (!Array.isArray(payload.results)) continue
+      return payload.results.flatMap(normalizeProxyCandidate)
+    } catch {
+      // The legacy proxy remains available during v1.1.x when the v1 gateway is unavailable.
+    }
+  }
 
-  const payload = (await response.json()) as { results?: unknown }
-  if (!Array.isArray(payload.results)) return []
-  return payload.results.flatMap(normalizeProxyCandidate)
+  return undefined
+}
+
+function createCatalogGatewayUrls(route: 'discover' | 'search') {
+  const catalogApiUrl = String(import.meta.env.VITE_CATALOG_API_URL ?? '').trim()
+  const legacyProxyUrl = String(import.meta.env.VITE_CATALOG_PROXY_URL ?? '').trim()
+  return [
+    createCatalogGatewayUrl(catalogApiUrl, `v1/catalog/${route}`),
+    createCatalogGatewayUrl(legacyProxyUrl, route),
+  ].filter((url): url is URL => Boolean(url))
+}
+
+function createCatalogGatewayUrl(base: string, route: string) {
+  if (!base) return undefined
+
+  try {
+    return new URL(route, base.endsWith('/') ? base : `${base}/`)
+  } catch {
+    return undefined
+  }
 }
 
 function getDiscoverQueries(type: ExternalDiscoverType, duration: ExternalDiscoverDuration, seed: string) {

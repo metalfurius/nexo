@@ -64,7 +64,7 @@ function createLibrarySurface(
     },
     saveItem: vi.fn(async () => undefined),
     deleteItem: vi.fn(async () => undefined),
-    deleteAllItems: vi.fn(async () => undefined),
+    deleteAllItems: vi.fn(async () => ({ complete: true, deletedItemIds: [], roadmap: DEFAULT_SETTINGS.roadmap, total: 0 })),
     setStatus: vi.fn(async () => undefined),
     snoozeRecommendation: vi.fn(async () => undefined),
     reactivateRecommendation: vi.fn(async () => undefined),

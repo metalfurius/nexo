@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { DEFAULT_WEIGHTS, type DiscoveryCandidate, type ListItem, type PublicCatalogItem } from '../domain/types'
+import { DEFAULT_ROADMAP_PREFERENCES, DEFAULT_WEIGHTS, type DiscoveryCandidate, type ListItem, type PublicCatalogItem } from '../domain/types'
 import { createFirestoreRepository } from './libraryRepository'
 
 const mocks = vi.hoisted(() => ({
@@ -23,6 +23,7 @@ const firebaseServices = vi.hoisted(() => ({
 }))
 
 const searchMocks = vi.hoisted(() => ({
+  recordCatalogDemands: vi.fn(),
   searchExternalSources: vi.fn(),
   searchRemoteCatalog: vi.fn(),
 }))
@@ -48,6 +49,7 @@ vi.mock('./externalSearch', () => ({
 }))
 
 vi.mock('./remoteCatalog', () => ({
+  recordCatalogDemands: searchMocks.recordCatalogDemands,
   searchRemoteCatalog: searchMocks.searchRemoteCatalog,
 }))
 
@@ -101,13 +103,14 @@ describe('createFirestoreRepository', () => {
     mocks.setDoc.mockResolvedValue(undefined)
     mocks.where.mockImplementation((field: string, operator: string, value: unknown) => ({ field, kind: 'where', operator, value }))
     searchMocks.searchExternalSources.mockResolvedValue([])
+    searchMocks.recordCatalogDemands.mockResolvedValue(undefined)
     searchMocks.searchRemoteCatalog.mockResolvedValue(undefined)
   })
 
   it('subscribes to the signed-in user item collection', () => {
     const unsubscribe = vi.fn()
     const onItems = vi.fn()
-    mocks.onSnapshot.mockImplementation((source, options, onNext) => {
+    mocks.onSnapshot.mockImplementation((_source, _options, onNext) => {
       onNext({ docs: [{ data: () => item }], metadata: { fromCache: false, hasPendingWrites: false } })
       return unsubscribe
     })
@@ -133,7 +136,7 @@ describe('createFirestoreRepository', () => {
 
   it('reports Firestore snapshot metadata for offline and pending writes', () => {
     const onItems = vi.fn()
-    mocks.onSnapshot.mockImplementation((source, options, onNext) => {
+    mocks.onSnapshot.mockImplementation((_source, _options, onNext) => {
       onNext({
         docs: [
           {
@@ -187,7 +190,7 @@ describe('createFirestoreRepository', () => {
     mocks.getDocs.mockResolvedValue({ docs: [{ ref: docRef }] })
 
     const repository = createFirestoreRepository('user-1')
-    await repository?.deleteAllItems()
+    await repository?.deleteAllItems(DEFAULT_ROADMAP_PREFERENCES)
 
     expect(mocks.getDocs).toHaveBeenCalledWith(expect.objectContaining({ path: 'users/user-1/items' }))
     expect(mocks.batchDelete).toHaveBeenCalledWith(docRef)
@@ -197,6 +200,34 @@ describe('createFirestoreRepository', () => {
       { merge: true },
     )
     expect(mocks.batchCommit).toHaveBeenCalled()
+  })
+
+  it('reports the exact committed subset when a 1000-item delete fails between chunks', async () => {
+    const docs = Array.from({ length: 1000 }, (_, index) => ({
+      id: `item-${index}`,
+      ref: { path: `users/user-1/items/item-${index}` },
+    }))
+    mocks.getDocs.mockResolvedValue({ docs })
+    mocks.batchCommit.mockReset()
+    mocks.batchCommit.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('offline'))
+
+    const repository = createFirestoreRepository('user-1')
+    const result = await repository?.deleteAllItems({
+      hidden: ['item-448', 'item-449'],
+      later: [],
+      next: ['item-999'],
+      now: ['item-0'],
+    })
+
+    expect(result).toEqual(expect.objectContaining({
+      complete: false,
+      total: 1000,
+      error: expect.stringContaining('449 de 1000'),
+    }))
+    expect(result?.deletedItemIds).toHaveLength(449)
+    expect(result?.deletedItemIds.at(-1)).toBe('item-448')
+    expect(result?.roadmap).toEqual({ hidden: ['item-449'], later: [], next: ['item-999'], now: [] })
+    expect(mocks.batchCommit).toHaveBeenCalledTimes(2)
   })
 
   it('records recommendation runs under the signed-in user', async () => {
@@ -289,7 +320,7 @@ describe('createFirestoreRepository', () => {
   it('subscribes to the current user profile role', () => {
     const unsubscribe = vi.fn()
     const onProfile = vi.fn()
-    mocks.onSnapshot.mockImplementation((source, options, onNext) => {
+    mocks.onSnapshot.mockImplementation((_source, _options, onNext) => {
       onNext({
         exists: () => true,
         data: () => ({
@@ -323,7 +354,7 @@ describe('createFirestoreRepository', () => {
   it('subscribes to user profiles and updates roles for admins', async () => {
     const unsubscribe = vi.fn()
     const onProfiles = vi.fn()
-    mocks.onSnapshot.mockImplementation((source, options, onNext) => {
+    mocks.onSnapshot.mockImplementation((_source, _options, onNext) => {
       onNext({
         docs: [
           {
@@ -415,7 +446,7 @@ describe('createFirestoreRepository', () => {
       createdAt: '2026-01-01T00:00:00.000Z',
     }
     const entryRef = { path: 'users/user-1/activityEntries/activity-1' }
-    mocks.onSnapshot.mockImplementation((source, options, onNext) => {
+    mocks.onSnapshot.mockImplementation((_source, _options, onNext) => {
       onNext({
         docs: [
           {
@@ -627,6 +658,56 @@ describe('createFirestoreRepository', () => {
     expect(mocks.batchCommit).toHaveBeenCalledTimes(1)
   })
 
+  it('commits up to 400 roadmap item changes with one settings write and one batch commit', async () => {
+    const repository = createFirestoreRepository('user-1')
+    const secondItem = { ...item, id: 'book-solaris', title: 'Solaris' }
+
+    await repository?.applyRoadmapBatchMutation({
+      roadmap: { now: ['movie-arrival'], next: ['book-solaris'], later: [], hidden: [] },
+      items: [
+        { kind: 'status', itemId: 'movie-arrival', status: 'in_progress' },
+        { item: secondItem, kind: 'upsert' },
+      ],
+    })
+
+    expect(mocks.batchSet).toHaveBeenCalledTimes(3)
+    expect(mocks.batchSet).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ path: 'users/user-1/userSettings/preferences' }),
+      expect.objectContaining({
+        roadmap: { now: ['movie-arrival'], next: ['book-solaris'], later: [], hidden: [] },
+      }),
+      { merge: true },
+    )
+    expect(mocks.batchSet).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ path: 'users/user-1/items/movie-arrival' }),
+      expect.objectContaining({ status: 'in_progress' }),
+      { merge: true },
+    )
+    expect(mocks.batchSet).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({ path: 'users/user-1/items/book-solaris' }),
+      expect.objectContaining({ id: 'book-solaris', title: 'Solaris' }),
+    )
+    expect(mocks.batchCommit).toHaveBeenCalledTimes(1)
+  })
+
+  it('rejects oversized roadmap batches before creating Firestore writes', async () => {
+    const repository = createFirestoreRepository('user-1')
+
+    await expect(repository?.applyRoadmapBatchMutation({
+      roadmap: { now: [], next: [], later: [], hidden: [] },
+      items: Array.from({ length: 401 }, (_, index) => ({
+        kind: 'delete' as const,
+        itemId: `item-${index}`,
+      })),
+    })).rejects.toThrow('hasta 400 cambios')
+
+    expect(mocks.batchSet).not.toHaveBeenCalled()
+    expect(mocks.batchCommit).not.toHaveBeenCalled()
+  })
+
   it('commits a full edited item and its roadmap placement in one atomic batch', async () => {
     const repository = createFirestoreRepository('user-1')
     const item: ListItem = {
@@ -636,7 +717,7 @@ describe('createFirestoreRepository', () => {
       status: 'in_progress',
       progressCurrent: 42,
       progressTotal: 116,
-      progressUnit: 'minutes',
+      progressUnit: 'percent',
       genres: ['Ciencia ficcion'],
       tags: [],
       moodTags: [],
@@ -929,20 +1010,15 @@ describe('createFirestoreRepository', () => {
 
     await repository?.recordDiscoverySaveToPublicCatalog(candidate)
 
-    expect(mocks.setDoc).toHaveBeenCalledWith(
-      expect.objectContaining({ path: 'publicItems/anime-anilist-154587' }),
+    expect(searchMocks.recordCatalogDemands).toHaveBeenCalledWith([
       expect.objectContaining({
-        autoIngestedAt: expect.any(String),
-        canonicalKey: 'anime:frieren beyond journey end',
-        createdBy: 'user-1',
-        demandCount: 1,
+        id: 'anime-anilist-154587',
         progressTotal: 28,
         progressUnit: 'episodes',
         title: 'Frieren: Beyond Journey End',
-        updatedBy: 'user-1',
       }),
-      { merge: true },
-    )
+    ])
+    expect(mocks.setDoc).not.toHaveBeenCalled()
   })
 
   it('records imported external items in the public catalog without private fields', async () => {
@@ -976,14 +1052,9 @@ describe('createFirestoreRepository', () => {
 
     await repository?.recordImportedItemToPublicCatalog(importedItem)
 
-    const payload = mocks.setDoc.mock.calls[0][1] as Record<string, unknown>
-    expect(mocks.setDoc).toHaveBeenCalledWith(
-      expect.objectContaining({ path: 'publicItems/anime-anilist-154587' }),
+    expect(searchMocks.recordCatalogDemands).toHaveBeenCalledWith([
       expect.objectContaining({
-        autoIngestedAt: expect.any(String),
-        canonicalKey: 'anime:frieren beyond journey end',
-        createdBy: 'user-1',
-        demandCount: 1,
+        id: 'anime-anilist-154587',
         externalRefs: {
           anilistId: '154587',
           sourceUrl: 'https://anilist.co/anime/154587',
@@ -994,8 +1065,8 @@ describe('createFirestoreRepository', () => {
         tags: ['anime', 'AniList'],
         title: 'Frieren: Beyond Journey End',
       }),
-      { merge: true },
-    )
+    ])
+    const payload = searchMocks.recordCatalogDemands.mock.calls[0][0][0] as Record<string, unknown>
     expect(payload).not.toHaveProperty('status')
     expect(payload).not.toHaveProperty('rating')
     expect(payload).not.toHaveProperty('progress')
@@ -1004,9 +1075,10 @@ describe('createFirestoreRepository', () => {
     expect(payload).not.toHaveProperty('rawText')
     expect(payload).not.toHaveProperty('importNotes')
     expect(payload).not.toHaveProperty('weights')
+    expect(mocks.setDoc).not.toHaveBeenCalled()
   })
 
-  it('bumps demand for imported items that already exist by external ref', async () => {
+  it('delegates imported external-ref deduplication to the idempotent callable', async () => {
     const repository = createFirestoreRepository('user-1')
     const existing: PublicCatalogItem = {
       id: 'anime-frieren',
@@ -1058,26 +1130,24 @@ describe('createFirestoreRepository', () => {
 
     await repository?.recordImportedItemToPublicCatalog(importedItem)
 
-    expect(mocks.setDoc).toHaveBeenCalledWith(
-      expect.objectContaining({ path: 'publicItems/anime-frieren' }),
+    expect(searchMocks.recordCatalogDemands).toHaveBeenCalledWith([
       expect.objectContaining({
-        demandCount: { kind: 'increment', value: 1 },
+        id: 'anime-anilist-154587',
         externalRefs: {
           anilistId: '154587',
           sourceUrl: 'https://anilist.co/anime/154587',
         },
-        lastDemandAt: expect.any(String),
         posterUrl: 'https://img.anili.st/media/154587.jpg',
         progressTotal: 28,
         progressUnit: 'episodes',
         releaseYear: 2023,
-        updatedBy: 'user-1',
       }),
-      { merge: true },
-    )
+    ])
+    expect(mocks.getDocs).not.toHaveBeenCalled()
+    expect(mocks.setDoc).not.toHaveBeenCalled()
   })
 
-  it('dedupes imported items by canonical key before creating public catalog entries', async () => {
+  it('sends a stable canonical fallback id for imports without an external ref', async () => {
     const repository = createFirestoreRepository('user-1')
     const existing: PublicCatalogItem = {
       id: 'book-the-left-hand-of-darkness',
@@ -1118,18 +1188,17 @@ describe('createFirestoreRepository', () => {
 
     await repository?.recordImportedItemToPublicCatalog(importedItem)
 
-    expect(mocks.setDoc).toHaveBeenCalledWith(
-      expect.objectContaining({ path: 'publicItems/book-the-left-hand-of-darkness' }),
+    expect(searchMocks.recordCatalogDemands).toHaveBeenCalledWith([
       expect.objectContaining({
-        demandCount: { kind: 'increment', value: 1 },
-        lastDemandAt: expect.any(String),
-        updatedBy: 'user-1',
+        id: 'book-the-left-hand-of-darkness',
+        title: 'The Left Hand of Darkness',
       }),
-      { merge: true },
-    )
+    ])
+    expect(mocks.getDocs).not.toHaveBeenCalled()
+    expect(mocks.setDoc).not.toHaveBeenCalled()
   })
 
-  it('prioritizes imported external refs over canonical matches when both dedupe queries match', async () => {
+  it('uses a stable external reference id and leaves canonical merging to the callable', async () => {
     const repository = createFirestoreRepository('user-1')
     const externalExisting: PublicCatalogItem = {
       id: 'anime-frieren-by-ref',
@@ -1193,22 +1262,17 @@ describe('createFirestoreRepository', () => {
 
     await repository?.recordImportedItemToPublicCatalog(importedItem)
 
-    expect(mocks.setDoc).toHaveBeenCalledWith(
-      expect.objectContaining({ path: 'publicItems/anime-frieren-by-ref' }),
+    expect(searchMocks.recordCatalogDemands).toHaveBeenCalledWith([
       expect.objectContaining({
-        demandCount: { kind: 'increment', value: 1 },
-        updatedBy: 'user-1',
+        externalRefs: { anilistId: '154587' },
+        id: 'anime-anilist-154587',
       }),
-      { merge: true },
-    )
-    expect(mocks.setDoc).not.toHaveBeenCalledWith(
-      expect.objectContaining({ path: 'publicItems/anime-frieren-by-title' }),
-      expect.anything(),
-      expect.anything(),
-    )
+    ])
+    expect(mocks.getDocs).not.toHaveBeenCalled()
+    expect(mocks.setDoc).not.toHaveBeenCalled()
   })
 
-  it('bumps demand when saving an existing Nexo public catalog candidate', async () => {
+  it('records an existing Nexo candidate through the idempotent callable', async () => {
     const repository = createFirestoreRepository('user-1')
     const publicDune: PublicCatalogItem = {
       id: 'movie-dune-2021',
@@ -1261,26 +1325,22 @@ describe('createFirestoreRepository', () => {
 
     await repository?.recordDiscoverySaveToPublicCatalog(candidate)
 
-    const demandPatch = mocks.setDoc.mock.calls[0][1] as Record<string, unknown>
-    expect(demandPatch.demandCount).toBe(mocks.increment.mock.results[0].value)
-    expect(mocks.setDoc).toHaveBeenCalledWith(
-      expect.objectContaining({ path: 'publicItems/movie-dune-2021' }),
+    expect(searchMocks.recordCatalogDemands).toHaveBeenCalledWith([
       expect.objectContaining({
-        demandCount: { kind: 'increment', value: 1 },
         externalRefs: {
           tmdbId: '438631',
           sourceUrl: 'https://www.themoviedb.org/movie/438631',
         },
-        lastDemandAt: expect.any(String),
+        id: 'movie-dune-2021',
         progressTotal: 2.6,
         progressUnit: 'hours',
-        updatedBy: 'user-1',
       }),
-      { merge: true },
-    )
+    ])
+    expect(mocks.getDoc).not.toHaveBeenCalled()
+    expect(mocks.setDoc).not.toHaveBeenCalled()
   })
 
-  it('revives archived public catalog matches when saving an external candidate', async () => {
+  it('leaves archived-match revival to the callable when saving an external candidate', async () => {
     const repository = createFirestoreRepository('user-1')
     const archivedDune: PublicCatalogItem = {
       id: 'movie-tmdb-438631',
@@ -1331,20 +1391,14 @@ describe('createFirestoreRepository', () => {
 
     await repository?.recordDiscoverySaveToPublicCatalog(candidate)
 
-    const revivePayload = mocks.setDoc.mock.calls[0][1] as Record<string, unknown>
-    expect(revivePayload.archivedAt).toBe(mocks.deleteField.mock.results[0].value)
-    expect(mocks.setDoc).toHaveBeenCalledWith(
-      expect.objectContaining({ path: 'publicItems/movie-tmdb-438631' }),
+    expect(searchMocks.recordCatalogDemands).toHaveBeenCalledWith([
       expect.objectContaining({
-        archivedAt: { kind: 'deleteField' },
-        autoIngestedAt: expect.any(String),
-        demandCount: 1,
         id: 'movie-tmdb-438631',
         progressTotal: 2.6,
         progressUnit: 'hours',
-        updatedBy: 'user-1',
       }),
-      { merge: true },
-    )
+    ])
+    expect(mocks.getDoc).not.toHaveBeenCalled()
+    expect(mocks.setDoc).not.toHaveBeenCalled()
   })
 })

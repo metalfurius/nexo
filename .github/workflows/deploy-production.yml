@@ -1,0 +1,362 @@
+name: Deploy Production
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Existing vX.Y.Z release tag to redeploy
+        required: true
+        type: string
+      skip_seed:
+        description: Skip the idempotent public catalog seed write
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  id-token: write
+  pages: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+  FIREBASE_PROJECT_ID: recomendaciones-78eb7
+
+concurrency:
+  group: production
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.revision.outputs.sha }}
+      version: ${{ steps.revision.outputs.version }}
+    steps:
+      - name: Checkout approved revision
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || inputs.ref || github.sha }}
+          fetch-depth: 0
+
+      - name: Require an existing immutable release tag for manual redeploys
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          REDEPLOY_REF: ${{ inputs.ref }}
+        shell: bash
+        run: |
+          node -e "const ref=process.env.REDEPLOY_REF||'';if(!/^v(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$/.test(ref)){console.error('ref must be an immutable SemVer release tag.');process.exit(1)}"
+          git show-ref --verify --quiet "refs/tags/$REDEPLOY_REF" || {
+            echo "$REDEPLOY_REF is not an existing tag."
+            exit 1
+          }
+          test "$(git rev-parse "refs/tags/$REDEPLOY_REF^{commit}")" = "$(git rev-parse HEAD)" || {
+            echo "Checked out revision does not match $REDEPLOY_REF."
+            exit 1
+          }
+          git merge-base --is-ancestor HEAD origin/main || {
+            echo "$REDEPLOY_REF is not reachable from origin/main."
+            exit 1
+          }
+
+      - name: Resolve immutable revision
+        id: revision
+        run: |
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          node -e "console.log('version=' + require('./package.json').version)" >> "$GITHUB_OUTPUT"
+
+  deploy-firebase:
+    needs: prepare
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout approved revision
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Require Firebase deployment identity
+        env:
+          WIF_PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          WIF_SERVICE_ACCOUNT: ${{ vars.GCP_SERVICE_ACCOUNT }}
+        run: |
+          test -n "$WIF_PROVIDER" || { echo 'GCP_WORKLOAD_IDENTITY_PROVIDER is required.'; exit 1; }
+          test -n "$WIF_SERVICE_ACCOUNT" || { echo 'GCP_SERVICE_ACCOUNT is required.'; exit 1; }
+
+      - name: Authenticate to Google Cloud with OIDC
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+          project_id: ${{ env.FIREBASE_PROJECT_ID }}
+          create_credentials_file: true
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Functions dependencies
+        run: npm --prefix functions ci
+
+      - name: Build Functions
+        env:
+          BUILD_SHA: ${{ needs.prepare.outputs.sha }}
+        run: npm run build:functions
+
+      - name: Stamp Functions revision
+        run: |
+          printf 'BUILD_SHA=%s\nNEXO_VERSION=%s\nNEXO_ALLOWED_ORIGINS=%s\nNEXO_ENFORCE_APP_CHECK=false\n' \
+            '${{ needs.prepare.outputs.sha }}' \
+            '${{ needs.prepare.outputs.version }}' \
+            'https://nexo.codeoverdose.es' > functions/.env
+
+      - name: Audit production Firestore compatibility
+        run: npm run audit:firestore-data
+
+      - name: Upload Firestore audit report
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: firestore-data-audit-${{ github.run_id }}
+          path: .firestore-audit/report.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Deploy Functions, Firestore rules and indexes
+        run: npx firebase-tools deploy --only functions,firestore --project "$FIREBASE_PROJECT_ID" --non-interactive
+
+      - name: Normalize catalog seed
+        if: github.event_name != 'workflow_dispatch' || inputs.skip_seed != true
+        run: npm run catalog:normalize
+
+      - name: Write public catalog seed
+        if: github.event_name != 'workflow_dispatch' || inputs.skip_seed != true
+        run: npm run catalog:write:prod
+
+  deploy-worker:
+    needs: [prepare, deploy-firebase]
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Checkout approved revision
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Require scoped Cloudflare credentials
+        run: |
+          test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo 'CLOUDFLARE_ACCOUNT_ID is required.'; exit 1; }
+          test -n "$CLOUDFLARE_API_TOKEN" || { echo 'CLOUDFLARE_API_TOKEN is required.'; exit 1; }
+
+      - name: Validate Worker bundle
+        run: npm run worker:check
+
+      - name: Deploy catalog Worker
+        run: >-
+          npx wrangler deploy --env="" --config workers/catalog-proxy/wrangler.jsonc
+          --var BUILD_SHA:${{ needs.prepare.outputs.sha }}
+          --var NEXO_VERSION:${{ needs.prepare.outputs.version }}
+
+  build-pages:
+    needs: [prepare, deploy-firebase, deploy-worker]
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      GITHUB_PAGES: 'true'
+      GITHUB_PAGES_BASE: '/'
+      VITE_BUILD_SHA: ${{ needs.prepare.outputs.sha }}
+      VITE_FIREBASE_API_KEY: ${{ vars.VITE_FIREBASE_API_KEY }}
+      VITE_FIREBASE_AUTH_DOMAIN: ${{ vars.VITE_FIREBASE_AUTH_DOMAIN }}
+      VITE_FIREBASE_PROJECT_ID: ${{ vars.VITE_FIREBASE_PROJECT_ID }}
+      VITE_FIREBASE_STORAGE_BUCKET: ${{ vars.VITE_FIREBASE_STORAGE_BUCKET }}
+      VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ vars.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+      VITE_FIREBASE_APP_ID: ${{ vars.VITE_FIREBASE_APP_ID }}
+      VITE_FIREBASE_MEASUREMENT_ID: ${{ vars.VITE_FIREBASE_MEASUREMENT_ID }}
+      VITE_RECAPTCHA_ENTERPRISE_SITE_KEY: ${{ vars.VITE_RECAPTCHA_ENTERPRISE_SITE_KEY }}
+      VITE_CATALOG_API_URL: ${{ vars.VITE_CATALOG_API_URL }}
+      VITE_CATALOG_PROXY_URL: ${{ vars.VITE_CATALOG_PROXY_URL }}
+      VITE_PUBLIC_CATALOG_URL: ${{ vars.VITE_PUBLIC_CATALOG_URL }}
+      VITE_DEMO_MODE: 'false'
+    steps:
+      - name: Checkout approved revision
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Require production frontend configuration
+        run: |
+          for name in \
+            VITE_FIREBASE_API_KEY VITE_FIREBASE_AUTH_DOMAIN VITE_FIREBASE_PROJECT_ID \
+            VITE_FIREBASE_STORAGE_BUCKET VITE_FIREBASE_MESSAGING_SENDER_ID VITE_FIREBASE_APP_ID \
+            VITE_FIREBASE_MEASUREMENT_ID VITE_CATALOG_API_URL VITE_PUBLIC_CATALOG_URL; do
+            test -n "${!name}" || { echo "$name is required."; exit 1; }
+          done
+
+      - name: Build production artifact
+        run: npm run build
+
+      - name: Verify production artifact
+        run: npm run check:build-output
+
+      - name: Verify release files
+        run: npm run check:release-files
+
+      - name: Configure Pages
+        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
+        with:
+          path: dist
+
+  deploy-pages:
+    needs: build-pages
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
+
+  production-smoke:
+    needs: [prepare, deploy-pages]
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      E2E_PROD_BASE_URL: https://nexo.codeoverdose.es
+      E2E_EXPECTED_REVISION: ${{ needs.prepare.outputs.sha }}
+      E2E_PUBLIC_CATALOG_URL: ${{ vars.VITE_PUBLIC_CATALOG_URL }}
+      E2E_CATALOG_API_URL: ${{ vars.VITE_CATALOG_API_URL }}
+      E2E_CATALOG_PROXY_URL: ${{ vars.VITE_CATALOG_PROXY_URL }}
+      E2E_BACKEND_HEALTH_URL: ${{ vars.E2E_BACKEND_HEALTH_URL }}
+      E2E_PROD_MOD_EMAIL: ${{ secrets.E2E_PROD_MOD_EMAIL }}
+      E2E_PROD_MOD_PASSWORD: ${{ secrets.E2E_PROD_MOD_PASSWORD }}
+      VITE_PUBLIC_CATALOG_URL: ${{ vars.VITE_PUBLIC_CATALOG_URL }}
+    steps:
+      - name: Checkout approved revision
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Require production smoke credentials
+        run: |
+          for name in E2E_EXPECTED_REVISION E2E_PUBLIC_CATALOG_URL E2E_CATALOG_API_URL \
+            E2E_BACKEND_HEALTH_URL E2E_PROD_MOD_EMAIL E2E_PROD_MOD_PASSWORD; do
+            test -n "${!name}" || { echo "$name is required."; exit 1; }
+          done
+
+      - name: Wait for the approved revision on every production surface
+        shell: bash
+        run: |
+          worker_health="${E2E_CATALOG_API_URL%/}/health"
+          wait_for_revision() {
+            endpoint="$1"
+            for attempt in {1..30}; do
+              revision="$(curl --connect-timeout 3 --max-time 8 --fail --silent --show-error \
+                --header 'Cache-Control: no-cache' "$endpoint" \
+                | node -e "let body='';process.stdin.on('data',c=>body+=c);process.stdin.on('end',()=>console.log(JSON.parse(body).revision||''))" \
+                || true)"
+              if [ "$revision" = "$E2E_EXPECTED_REVISION" ]; then
+                return 0
+              fi
+              sleep 5
+            done
+            echo "$endpoint never exposed revision $E2E_EXPECTED_REVISION."
+            return 1
+          }
+          wait_for_revision "$E2E_PROD_BASE_URL/version.json?revision=$E2E_EXPECTED_REVISION"
+          wait_for_revision "$worker_health"
+          wait_for_revision "$E2E_BACKEND_HEALTH_URL"
+
+      - name: Production smoke
+        run: npm run test:e2e:prod
+
+      - name: Upload production diagnostics
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: production-smoke-${{ github.run_id }}
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore
+          retention-days: 14
+
+  publish-release:
+    if: github.event_name == 'workflow_run'
+    needs: [prepare, production-smoke]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout deployed revision with tags
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+          fetch-depth: 0
+
+      - name: Publish tag and GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ needs.prepare.outputs.sha }}
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          tag="v$version"
+          if git show-ref --verify --quiet "refs/tags/$tag"; then
+            deployed_tag_sha="$(git rev-list -n 1 "$tag")"
+            test "$deployed_tag_sha" = "$RELEASE_SHA" || {
+              echo "$tag already points to $deployed_tag_sha instead of $RELEASE_SHA."
+              exit 1
+            }
+            gh release view "$tag" >/dev/null 2>&1 || gh release create "$tag" --verify-tag --generate-notes
+            exit 0
+          fi
+          gh release create "$tag" --target "$RELEASE_SHA" --generate-notes

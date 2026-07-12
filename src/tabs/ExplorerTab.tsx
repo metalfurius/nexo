@@ -75,6 +75,7 @@ export default function ExplorerTab({
   const handledCandidateSaveRequestId = useRef<number | undefined>(undefined)
   const handledPromptCardRequestId = useRef<number | undefined>(undefined)
   const handledSearchRequestId = useRef<number | undefined>(undefined)
+  const discoverySearchRunId = useRef(0)
   const handledVisibleDismissRequestId = useRef<number | undefined>(undefined)
   const handledVisibleSaveRequestId = useRef<number | undefined>(undefined)
   const type = library.settings.explorerDefaultType
@@ -188,19 +189,27 @@ export default function ExplorerTab({
   }, [clearExplorerRecentActions, library])
 
   const runDiscoverySearch = useCallback(async (searchQuery = query, searchType = type) => {
+    discoverySearchRunId.current += 1
+    const runId = discoverySearchRunId.current
     const cleanedQuery = searchQuery.trim()
     setMessage(undefined)
     clearExplorerRecentActions()
     if (cleanedQuery.length < 2) {
+      setLoading(false)
       setMessage('Escribe al menos 2 caracteres para buscar.')
       return
     }
-    if (!requestPrivateAccess('Entra en Nexo para enviar resultados a tus pendientes.')) return
+    if (!requestPrivateAccess('Entra en Nexo para enviar resultados a tus pendientes.')) {
+      setLoading(false)
+      return
+    }
 
     setLoading(true)
     try {
       const candidates = await library.searchCatalog(cleanedQuery, searchType)
+      if (discoverySearchRunId.current !== runId) return
       const queuedCount = await library.queueDiscoveryCandidates(candidates)
+      if (discoverySearchRunId.current !== runId) return
       setView('queued')
       setMessage(
         !candidates.length
@@ -218,11 +227,16 @@ export default function ExplorerTab({
         })
       }
     } catch (reason) {
+      if (discoverySearchRunId.current !== runId) return
       setMessage(reason instanceof Error ? reason.message : 'No se pudo completar la busqueda.')
     } finally {
-      setLoading(false)
+      if (discoverySearchRunId.current === runId) setLoading(false)
     }
   }, [clearExplorerRecentActions, library, onActivity, query, requestPrivateAccess, type])
+
+  useEffect(() => () => {
+    discoverySearchRunId.current += 1
+  }, [])
 
   const runExternalDiscovery = useCallback(async () => {
     setMessage(undefined)
@@ -429,7 +443,9 @@ export default function ExplorerTab({
     const completedQueue = getCompletedExplorerQueue(candidatesToDismiss.length, 'dismissed', sourceLabel)
 
     try {
-      await Promise.all(candidatesToDismiss.map((candidate) => library.dismissDiscoveryCandidate(candidate.id)))
+      for (const candidate of candidatesToDismiss) {
+        await library.dismissDiscoveryCandidate(candidate.id)
+      }
       setSavedExplorerItem(undefined)
       setSavedExplorerUndo(undefined)
       setBulkSaveUndo([])
@@ -510,7 +526,9 @@ export default function ExplorerTab({
     if (!candidatesToRestore.length) return
 
     try {
-      await Promise.all(candidatesToRestore.map((candidate) => library.restoreDiscoveryCandidate(candidate.id)))
+      for (const candidate of candidatesToRestore) {
+        await library.restoreDiscoveryCandidate(candidate.id)
+      }
       setView('queued')
       clearExplorerRecentActions()
       setMessage(

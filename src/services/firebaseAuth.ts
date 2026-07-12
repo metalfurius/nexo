@@ -90,7 +90,7 @@ function getConfiguredAuth(): Auth | undefined {
   if (!firebaseApp) return undefined
 
   const auth = getAuth(firebaseApp)
-  if (import.meta.env.DEV && import.meta.env.VITE_USE_FIREBASE_EMULATORS === 'true' && !authEmulatorConnected) {
+  if (import.meta.env.VITE_USE_FIREBASE_EMULATORS === 'true' && !authEmulatorConnected) {
     connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true })
     authEmulatorConnected = true
   }

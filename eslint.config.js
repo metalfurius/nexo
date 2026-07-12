@@ -13,6 +13,7 @@ export default defineConfig([
     'functions/node_modules',
     'playwright-report',
     'test-results',
+    'coverage',
     'verification',
   ]),
   {

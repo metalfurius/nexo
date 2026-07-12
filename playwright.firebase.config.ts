@@ -6,13 +6,15 @@ const publicCatalogUrl = `http://127.0.0.1:5001/${projectId}/us-central1/publicC
 
 export default defineConfig({
   testDir: './e2e/firebase',
+  testIgnore: /offline-pwa\.spec\.ts/,
   timeout: 35_000,
   expect: {
     timeout: 8_000,
   },
+  retries: process.env.CI ? 1 : 0,
   use: {
     baseURL,
-    trace: 'on-first-retry',
+    trace: 'retain-on-failure',
   },
   webServer: {
     command: 'npm run dev -- --host 127.0.0.1 --port 5175',

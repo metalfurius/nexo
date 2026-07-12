@@ -1,8 +1,9 @@
 import './SettingsTab.css'
 
 import { catalogTaxonomyTemplates } from '../data/catalogPresets'
-import { type ExplorerSearchType, type ListItem, type ThemeMode, type UserSettings } from '../domain/types'
-import { getLibraryImportRollbackPlan, getLibraryImportSummary, type LibraryImportRollbackPlan, type ParsedLibraryImport, parseLibraryImportPayload } from '../lib/libraryBackup'
+import { type ExplorerSearchType, type ListItem, type RoadmapPreferences, type ThemeMode, type UserSettings } from '../domain/types'
+import { assertLibraryImportFileLimit, assertLibraryImportItemLimit, getLibraryImportRollbackPlan, getLibraryImportSummary, type LibraryImportRollbackPlan, type ParsedLibraryImport, parseLibraryImportPayload } from '../lib/libraryBackup'
+import { clearLibraryImportRollback, persistLibraryImportRollback, readLibraryImportRollback } from '../lib/libraryImportRollbackStore'
 import { hasItemTaxonomy } from '../lib/libraryInsights'
 import { itemTypeLabels as typeLabels } from '../lib/libraryItemInsights'
 import { getPrivateDataHealth, getPrivateTaxonomyRepairDraft, type PrivateTasteSuggestion } from '../lib/privateDataInsights'
@@ -12,6 +13,11 @@ import { getNotificationIntentState, type NotificationIntentState, setNotificati
 import { Archive, Bell, Check, CheckCircle2, Copy, Dice5, Download, Info, Plus, RotateCcw, Save, Search, ShieldCheck, Sparkles, Trash2, Upload, X } from 'lucide-react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { AdminRolesPanel, DialogFocusReturn, FeedbackMessage, ItemEditor, MetricCard, PreferencePreview, cloneUserSettings, downloadLibraryBackup, feedbackToneFromText, formatBackupImportSummary, formatLibraryImportRollbackDetail, formatLibraryImportRollbackStatus, getNotificationActionStatus, getNotificationStatusLabel, handleDialogKeyDown, roleLabels, sameList, settingsDraftFromSettings, themeLabels, themeOptions, type ActivityRecorder, type AppTab, type AuthUserSummary, type LibrarySurface, type PendingBackupImport, type PrivateDataAction, type SettingsDraft, type SettingsSaveRequest, type SettingsTasteSuggestionsRequest, type SettingsTaxonomyRepairRequest } from '../app/shared'
+
+interface DeletedPrivateItemsUndo {
+  items: ListItem[]
+  roadmap: RoadmapPreferences
+}
 
 export default function SettingsTab({
   library,
@@ -23,6 +29,7 @@ export default function SettingsTab({
   onTaxonomyRepairRequestHandled,
   onUnsavedChange,
   saveRequest,
+  sessionKey,
   setTheme,
   tasteSuggestionsRequest,
   taxonomyRepairRequest,
@@ -38,17 +45,26 @@ export default function SettingsTab({
   onTaxonomyRepairRequestHandled: () => void
   onUnsavedChange: (hasUnsavedChanges: boolean) => void
   saveRequest?: SettingsSaveRequest
+  sessionKey?: string
   setTheme: (theme: ThemeMode) => void
   tasteSuggestionsRequest?: SettingsTasteSuggestionsRequest
   taxonomyRepairRequest?: SettingsTaxonomyRepairRequest
   theme: ThemeMode
   user: AuthUserSummary | null
 }) {
-  const [draft, setDraft] = useState<SettingsDraft>(() => settingsDraftFromSettings({ ...library.settings, theme }))
+  const [draftState, setDraft] = useState<SettingsDraft>(() => settingsDraftFromSettings({ ...library.settings, theme }))
+  const [draftTouched, setDraftTouched] = useState(false)
+  const [settingsSavePending, setSettingsSavePending] = useState(false)
+  const draftTouchedRef = useRef(false)
+  const previousThemeRef = useRef(theme)
+  const snapshotDraft = useMemo(() => settingsDraftFromSettings({ ...library.settings, theme }), [library.settings, theme])
+  const draft = draftTouched ? draftState : snapshotDraft
   const [status, setStatus] = useState<string | undefined>()
   const [settingsUndo, setSettingsUndo] = useState<UserSettings | undefined>()
   const [privateTaxonomyUndoItems, setPrivateTaxonomyUndoItems] = useState<ListItem[]>([])
-  const [settingsImportUndo, setSettingsImportUndo] = useState<LibraryImportRollbackPlan | undefined>()
+  const [settingsImportUndo, setSettingsImportUndo] = useState<LibraryImportRollbackPlan | undefined>(() =>
+    readLibraryImportRollback('backup', sessionKey),
+  )
   const [editingItem, setEditingItem] = useState<ListItem | undefined>()
   const [pendingBackupImport, setPendingBackupImport] = useState<PendingBackupImport | undefined>()
   const [applyBackupImportSettings, setApplyBackupImportSettings] = useState(false)
@@ -58,10 +74,12 @@ export default function SettingsTab({
   const [notificationIntentState, setNotificationIntentState] = useState<NotificationIntentState>(() =>
     getNotificationIntentState('app_update_debug'),
   )
-  const [deletedPrivateItemsUndo, setDeletedPrivateItemsUndo] = useState<ListItem[]>([])
+  const [deletedPrivateItemsUndo, setDeletedPrivateItemsUndo] = useState<DeletedPrivateItemsUndo>()
   const handledSaveRequestId = useRef<number | undefined>(undefined)
   const handledTasteSuggestionsRequestId = useRef<number | undefined>(undefined)
   const handledTaxonomyRepairRequestId = useRef<number | undefined>(undefined)
+  const backupImportSessionToken = useMemo(() => Symbol(sessionKey ?? 'local'), [sessionKey])
+  const activeBackupImportSessionRef = useRef<symbol | undefined>(backupImportSessionToken)
   const draftFavoriteTags = useMemo(() => splitList(draft.favoriteTags), [draft.favoriteTags])
   const draftFavoriteGenres = useMemo(() => splitList(draft.favoriteGenres), [draft.favoriteGenres])
   const draftBlockedTags = useMemo(() => splitList(draft.blockedTags), [draft.blockedTags])
@@ -110,12 +128,29 @@ export default function SettingsTab({
       : personalTasteCount > 0 || draftBlockedTags.length > 0
         ? `${personalTasteCount} favoritos / ${draftBlockedTags.length} bloqueados`
         : 'Sin preferencias'
-  const hasUnsavedChanges =
-    draft.theme !== theme ||
-    draft.explorerDefaultType !== library.settings.explorerDefaultType ||
-    !sameList(draftFavoriteTags, library.settings.favoriteTags) ||
-    !sameList(draftFavoriteGenres, library.settings.favoriteGenres) ||
-    !sameList(draftBlockedTags, library.settings.blockedTags)
+  const hasUnsavedChanges = settingsSavePending || (
+    draftTouched && (
+      draft.theme !== theme ||
+      draft.explorerDefaultType !== library.settings.explorerDefaultType ||
+      !sameList(draftFavoriteTags, library.settings.favoriteTags) ||
+      !sameList(draftFavoriteGenres, library.settings.favoriteGenres) ||
+      !sameList(draftBlockedTags, library.settings.blockedTags)
+    )
+  )
+
+  const clearSettingsImportRollback = useCallback(() => {
+    setSettingsImportUndo(undefined)
+    clearLibraryImportRollback('backup', sessionKey)
+  }, [sessionKey])
+
+  useEffect(() => {
+    activeBackupImportSessionRef.current = backupImportSessionToken
+    return () => {
+      if (activeBackupImportSessionRef.current === backupImportSessionToken) {
+        activeBackupImportSessionRef.current = undefined
+      }
+    }
+  }, [backupImportSessionToken])
 
   useLayoutEffect(() => {
     onUnsavedChange(hasUnsavedChanges)
@@ -123,17 +158,23 @@ export default function SettingsTab({
   }, [hasUnsavedChanges, onUnsavedChange])
 
   useEffect(() => {
+    const themeChangedExternally = previousThemeRef.current !== theme
+    previousThemeRef.current = theme
+    if (!draftTouched || !themeChangedExternally) return undefined
     const timeoutId = window.setTimeout(() => {
       setDraft((current) => (current.theme === theme ? current : { ...current, theme }))
     }, 0)
 
     return () => window.clearTimeout(timeoutId)
-  }, [theme])
+  }, [draftTouched, theme])
 
   const updateDraft = useCallback((updater: (current: SettingsDraft) => SettingsDraft) => {
     setSettingsUndo(undefined)
-    setDraft(updater)
-  }, [])
+    const wasTouched = draftTouchedRef.current
+    draftTouchedRef.current = true
+    setDraftTouched(true)
+    setDraft((current) => updater(wasTouched ? current : snapshotDraft))
+  }, [snapshotDraft])
 
   function applyTasteSuggestion(suggestion: PrivateTasteSuggestion) {
     updateDraft((current) =>
@@ -172,6 +213,7 @@ export default function SettingsTab({
   }, [applyTasteSuggestions, onTasteSuggestionsRequestHandled, tasteSuggestionsRequest])
 
   const saveSettings = useCallback(async () => {
+    if (settingsSavePending) return
     const previousSettings = cloneUserSettings({ ...library.settings, theme })
     const nextSettings: Partial<UserSettings> = {
       theme: draft.theme,
@@ -180,22 +222,32 @@ export default function SettingsTab({
       blockedTags: draftBlockedTags,
       explorerDefaultType: draft.explorerDefaultType,
     }
+    setSettingsSavePending(true)
     setTheme(draft.theme)
-    await library.saveSettings(nextSettings)
-    setPendingBackupImport(undefined)
-    setApplyBackupImportSettings(false)
-    setPrivateTaxonomyUndoItems([])
-    setSettingsImportUndo(undefined)
-    setDeletedPrivateItemsUndo([])
-    setSettingsUndo(previousSettings)
-    setStatus('Ajustes guardados')
-    onActivity({
-      detail: `${themeLabels[draft.theme]} / ${typeLabels[draft.explorerDefaultType]}`,
-      label: 'Ajustes guardados',
-      tab: 'settings',
-      tone: 'success',
-    })
-  }, [draft.explorerDefaultType, draft.theme, draftBlockedTags, draftFavoriteGenres, draftFavoriteTags, library, onActivity, setTheme, theme])
+    try {
+      await library.saveSettings(nextSettings)
+      draftTouchedRef.current = false
+      setDraftTouched(false)
+      setPendingBackupImport(undefined)
+      setApplyBackupImportSettings(false)
+      setPrivateTaxonomyUndoItems([])
+      clearSettingsImportRollback()
+      setDeletedPrivateItemsUndo(undefined)
+      setSettingsUndo(previousSettings)
+      setStatus('Ajustes guardados')
+      onActivity({
+        detail: `${themeLabels[draft.theme]} / ${typeLabels[draft.explorerDefaultType]}`,
+        label: 'Ajustes guardados',
+        tab: 'settings',
+        tone: 'success',
+      })
+    } catch (reason) {
+      setTheme(previousSettings.theme)
+      setStatus(reason instanceof Error ? reason.message : 'No se pudieron guardar los ajustes.')
+    } finally {
+      setSettingsSavePending(false)
+    }
+  }, [clearSettingsImportRollback, draft.explorerDefaultType, draft.theme, draftBlockedTags, draftFavoriteGenres, draftFavoriteTags, library, onActivity, setTheme, settingsSavePending, theme])
 
   useEffect(() => {
     if (!saveRequest || handledSaveRequestId.current === saveRequest.requestId) return
@@ -218,12 +270,14 @@ export default function SettingsTab({
     try {
       await library.saveSettings(previousSettings)
       setDraft(settingsDraftFromSettings(previousSettings))
+      draftTouchedRef.current = false
+      setDraftTouched(false)
       setSettingsUndo(undefined)
       setPendingBackupImport(undefined)
       setApplyBackupImportSettings(false)
       setPrivateTaxonomyUndoItems([])
-      setSettingsImportUndo(undefined)
-      setDeletedPrivateItemsUndo([])
+      clearSettingsImportRollback()
+      setDeletedPrivateItemsUndo(undefined)
       setStatus('Ajustes recuperados')
       onActivity({
         detail: `${themeLabels[previousSettings.theme]} / ${typeLabels[previousSettings.explorerDefaultType]}`,
@@ -289,11 +343,12 @@ export default function SettingsTab({
 
     setStatus('Preparando backup JSON...')
     try {
+      assertLibraryImportFileLimit(file)
       const payload = parseLibraryImportPayload(JSON.parse(await file.text()))
       const summary = getLibraryImportSummary(payload, library.items)
       setPrivateTaxonomyUndoItems([])
-      setSettingsImportUndo(undefined)
-      setDeletedPrivateItemsUndo([])
+      clearSettingsImportRollback()
+      setDeletedPrivateItemsUndo(undefined)
       setPendingBackupImport({ fileName: file.name, payload, summary })
       setApplyBackupImportSettings(Boolean(payload.settings))
       setStatus(`Backup preparado: ${formatBackupImportSummary(summary)}`)
@@ -306,27 +361,36 @@ export default function SettingsTab({
 
   async function applyPrivateBackupImport() {
     if (!pendingBackupImport) return
+    const importSessionToken = backupImportSessionToken
 
     setStatus('Importando backup JSON...')
     try {
       const { payload, summary } = pendingBackupImport
       const shouldApplySettings = applyBackupImportSettings && Boolean(payload.settings)
       const payloadToApply: ParsedLibraryImport = shouldApplySettings ? payload : { ...payload, settings: undefined }
+      assertLibraryImportItemLimit(payloadToApply.items.length)
       const rollbackPlan = getLibraryImportRollbackPlan(payloadToApply, library.items, library.settings)
+      persistLibraryImportRollback('backup', sessionKey, rollbackPlan)
+      setSettingsImportUndo(rollbackPlan)
 
       for (const item of payload.items) {
+        if (!isBackupImportSessionActive(importSessionToken)) return
         await library.saveItem(item)
+        if (!isBackupImportSessionActive(importSessionToken)) return
       }
       if (shouldApplySettings && payload.settings) {
+        if (!isBackupImportSessionActive(importSessionToken)) return
         await library.saveSettings(payload.settings)
+        if (!isBackupImportSessionActive(importSessionToken)) return
         setTheme(payload.settings.theme)
         setDraft(settingsDraftFromSettings(payload.settings))
+        draftTouchedRef.current = false
+        setDraftTouched(false)
         setSettingsUndo(undefined)
       }
       setPrivateTaxonomyUndoItems([])
       setSettingsUndo(undefined)
-      setDeletedPrivateItemsUndo([])
-      setSettingsImportUndo(rollbackPlan)
+      setDeletedPrivateItemsUndo(undefined)
       setStatus(
         shouldApplySettings
           ? `Importadas ${summary.totalItems} entradas y ajustes desde backup`
@@ -341,8 +405,13 @@ export default function SettingsTab({
       setPendingBackupImport(undefined)
       setApplyBackupImportSettings(false)
     } catch (reason) {
+      if (!isBackupImportSessionActive(importSessionToken)) return
       setStatus(reason instanceof Error ? reason.message : 'No se pudo importar el backup.')
     }
+  }
+
+  function isBackupImportSessionActive(importSessionToken: symbol) {
+    return activeBackupImportSessionRef.current === importSessionToken
   }
 
   function cancelPrivateBackupImport() {
@@ -366,11 +435,13 @@ export default function SettingsTab({
         await library.saveSettings(settingsImportUndo.previousSettings)
         setTheme(settingsImportUndo.previousSettings.theme)
         setDraft(settingsDraftFromSettings(settingsImportUndo.previousSettings))
+        draftTouchedRef.current = false
+        setDraftTouched(false)
       }
-      setSettingsImportUndo(undefined)
+      clearSettingsImportRollback()
       setApplyBackupImportSettings(false)
       setPrivateTaxonomyUndoItems([])
-      setDeletedPrivateItemsUndo([])
+      setDeletedPrivateItemsUndo(undefined)
       setStatus(formatLibraryImportRollbackStatus(settingsImportUndo))
       onActivity({
         detail: formatLibraryImportRollbackDetail(settingsImportUndo),
@@ -387,8 +458,8 @@ export default function SettingsTab({
     await library.saveItem(item)
     setEditingItem(undefined)
     setPrivateTaxonomyUndoItems([])
-    setSettingsImportUndo(undefined)
-    setDeletedPrivateItemsUndo([])
+    clearSettingsImportRollback()
+    setDeletedPrivateItemsUndo(undefined)
     setStatus(`${item.title || 'Entrada'} guardada`)
     onActivity({
       detail: item.title || 'Entrada sin titulo',
@@ -404,7 +475,7 @@ export default function SettingsTab({
       await library.deleteItem(item.id)
       setEditingItem(undefined)
       setPrivateTaxonomyUndoItems([])
-      setSettingsImportUndo(undefined)
+      clearSettingsImportRollback()
       setStatus(`${item.title || 'Entrada'} eliminada de Biblioteca.`)
       onActivity({
         detail: item.title || 'Entrada sin titulo',
@@ -430,8 +501,8 @@ export default function SettingsTab({
       setPendingBackupImport(undefined)
       setSettingsUndo(undefined)
       setPrivateTaxonomyUndoItems(privateTaxonomyRepairs.map((entry) => entry.original))
-      setSettingsImportUndo(undefined)
-      setDeletedPrivateItemsUndo([])
+      clearSettingsImportRollback()
+      setDeletedPrivateItemsUndo(undefined)
       setStatus(
         `Taxonomia privada completada en ${privateTaxonomyRepairs.length} ficha${privateTaxonomyRepairs.length === 1 ? '' : 's'}`,
       )
@@ -444,7 +515,7 @@ export default function SettingsTab({
     } catch (reason) {
       setStatus(reason instanceof Error ? reason.message : 'No se pudo completar la taxonomia privada.')
     }
-  }, [library, onActivity, privateTaxonomyRepairs])
+  }, [clearSettingsImportRollback, library, onActivity, privateTaxonomyRepairs])
 
   useEffect(() => {
     if (!taxonomyRepairRequest || handledTaxonomyRepairRequestId.current === taxonomyRepairRequest.requestId) return
@@ -485,6 +556,7 @@ export default function SettingsTab({
 
   async function deleteAllPrivateItemsFromSettings() {
     const deletedItems = library.items.map((item) => ({ ...item }))
+    const previousRoadmap = cloneUserSettings(library.settings).roadmap
     if (!deletedItems.length) {
       setDeleteAllDialogOpen(false)
       setDeleteAllConfirmText('')
@@ -494,15 +566,31 @@ export default function SettingsTab({
 
     setStatus('Borrando entradas privadas...')
     try {
-      await library.deleteAllItems()
+      const result = await library.deleteAllItems()
+      const deletedIds = new Set(result.deletedItemIds)
+      const itemsActuallyDeleted = deletedItems.filter((item) => deletedIds.has(item.id))
+      if (itemsActuallyDeleted.length) {
+        setDeletedPrivateItemsUndo({ items: itemsActuallyDeleted, roadmap: previousRoadmap })
+      }
+      setDeleteAllDialogOpen(false)
+      setDeleteAllConfirmText('')
+
+      if (!result.complete) {
+        setStatus(`${result.error ?? `Borrado interrumpido: ${itemsActuallyDeleted.length} de ${result.total} entradas eliminadas.`} Puedes deshacer lo ya borrado.`)
+        onActivity({
+          detail: `${itemsActuallyDeleted.length} de ${result.total} entradas eliminadas`,
+          label: 'Borrado privado incompleto',
+          tab: 'settings',
+          tone: 'danger',
+        })
+        return
+      }
+
       setPendingBackupImport(undefined)
       setApplyBackupImportSettings(false)
       setSettingsUndo(undefined)
       setPrivateTaxonomyUndoItems([])
-      setSettingsImportUndo(undefined)
-      setDeletedPrivateItemsUndo(deletedItems)
-      setDeleteAllDialogOpen(false)
-      setDeleteAllConfirmText('')
+      clearSettingsImportRollback()
       setStatus('Tus entradas privadas han sido borradas')
       onActivity({
         detail: `${deletedItems.length} entradas eliminadas`,
@@ -516,15 +604,17 @@ export default function SettingsTab({
   }
 
   async function undoDeleteAllPrivateItemsFromSettings() {
-    if (!deletedPrivateItemsUndo.length) return
+    if (!deletedPrivateItemsUndo?.items.length) return
 
-    const itemsToRestore = deletedPrivateItemsUndo
+    const pendingUndo = deletedPrivateItemsUndo
+    const itemsToRestore = pendingUndo.items
     setStatus('Restaurando entradas privadas...')
     try {
       for (const item of itemsToRestore) {
         await library.saveItem(item)
       }
-      setDeletedPrivateItemsUndo([])
+      await library.saveSettings({ roadmap: pendingUndo.roadmap })
+      setDeletedPrivateItemsUndo(undefined)
       setStatus(`${itemsToRestore.length} entradas recuperadas en Biblioteca`)
       onActivity({
         detail: `${itemsToRestore.length} entradas restauradas`,
@@ -625,9 +715,9 @@ export default function SettingsTab({
             <h2>Tu Nexo</h2>
             <p>Tema, descubrimiento y privacidad sin ruido.</p>
           </div>
-          <button className="primary-button" disabled={!hasUnsavedChanges} type="submit">
+          <button className="primary-button" disabled={!hasUnsavedChanges || settingsSavePending} type="submit">
             <Save size={17} />
-            {hasUnsavedChanges ? 'Guardar cambios' : 'Guardado'}
+            {settingsSavePending ? 'Guardando...' : hasUnsavedChanges ? 'Guardar cambios' : 'Guardado'}
           </button>
         </div>
 
@@ -829,7 +919,7 @@ export default function SettingsTab({
         )}
 
         {status && <FeedbackMessage tone={feedbackToneFromText(status)}>{status}</FeedbackMessage>}
-        {(settingsUndo || privateTaxonomyUndoItems.length > 0 || settingsImportUndo || deletedPrivateItemsUndo.length > 0) &&
+        {(settingsUndo || privateTaxonomyUndoItems.length > 0 || settingsImportUndo || deletedPrivateItemsUndo) &&
           !hasUnsavedChanges && (
           <div className="feedback-action-row" aria-label="Accion reciente de ajustes">
             {settingsImportUndo && (
@@ -850,7 +940,7 @@ export default function SettingsTab({
                 Deshacer taxonomia
               </button>
             )}
-            {deletedPrivateItemsUndo.length > 0 && (
+            {deletedPrivateItemsUndo && (
               <button className="secondary-button" type="button" onClick={() => void undoDeleteAllPrivateItemsFromSettings()}>
                 <RotateCcw size={16} />
                 Deshacer borrado total
@@ -1093,7 +1183,7 @@ export default function SettingsTab({
                 <Upload size={16} />
                 <span>
                   <strong>Importar backup</strong>
-                  <small>Restaurar JSON v1</small>
+                  <small>JSON v1 · max. 10 MB / 5.000 entradas</small>
                 </span>
                 <input
                   accept="application/json,.json"

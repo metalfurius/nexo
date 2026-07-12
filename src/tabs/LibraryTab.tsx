@@ -33,6 +33,7 @@ import {
   type LibraryViewMode,
   type ListItem,
   type ProgressUnit,
+  type RoadmapItemMutation,
   type RoadmapMutation,
   type ThemeMode,
   type UserSettings,
@@ -108,7 +109,9 @@ export type LibraryTabSurface = Pick<
   | 'settings'
   | 'snoozeRecommendation'
   | 'syncState'
->
+> & {
+  applyRoadmapBatchMutation: (itemMutations: RoadmapItemMutation[]) => Promise<void>
+}
 
 export interface LibraryTabProps {
   activityFocusItemId?: string
@@ -138,6 +141,7 @@ export interface LibraryTabProps {
   onDraftRequestHandled: () => void
   onNavigate: (tab: AppTab, focus?: ActivityFocus) => void
   onRollDice: () => void
+  onUnsavedChange: (hasUnsavedChanges: boolean) => void
   setSelectedItemIds: Dispatch<SetStateAction<string[]>>
   setTheme: (theme: ThemeMode) => void
 }
@@ -172,6 +176,7 @@ export function LibraryTab({
   onPrimaryActionRequestHandled,
   onReviewRequestHandled,
   onRollDice,
+  onUnsavedChange,
   onVisibleSelectionSummaryChange,
   setSelectedItemIds,
 }: LibraryTabProps) {
@@ -189,6 +194,7 @@ export function LibraryTab({
   const [feedback, setFeedback] = useState<Feedback>()
   const [busyItemId, setBusyItemId] = useState<string>()
   const [savingEditor, setSavingEditor] = useState(false)
+  const [visibleWindow, setVisibleWindow] = useState({ key: '', limit: 24 })
   const handledFocusId = useRef<string | undefined>(undefined)
   const handledDraft = useRef<ListItem | undefined>(undefined)
   const editorRouteFocusId = useRef<string | undefined>(undefined)
@@ -202,6 +208,17 @@ export function LibraryTab({
       .filter((item) => matchesLibrarySmartView(item, smartView))
     return sortLibraryItems(matching, sortMode)
   }, [library.items, normalizedQuery, smartView, sortMode, statusFilter, typeFilter])
+  const visibleWindowKey = JSON.stringify([normalizedQuery, smartView, sortMode, statusFilter, typeFilter])
+  const visibleItemLimit = visibleWindow.key === visibleWindowKey ? visibleWindow.limit : 24
+  const renderedItems = useMemo(
+    () => filteredItems.slice(0, visibleItemLimit),
+    [filteredItems, visibleItemLimit],
+  )
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => setVisibleWindow({ key: visibleWindowKey, limit: 24 }), 0)
+    return () => window.clearTimeout(timeoutId)
+  }, [visibleWindowKey])
 
   const visibleIds = useMemo(() => filteredItems.map((item) => item.id), [filteredItems])
   const visibleIdSet = useMemo(() => new Set(visibleIds), [visibleIds])
@@ -293,25 +310,35 @@ export function LibraryTab({
       handledFocusId.current = undefined
       return
     }
+    const focusedItem = library.items.find((candidate) => candidate.id === activityFocusItemId)
+    const isWaitingForRemoteConfirmation =
+      !focusedItem && (library.loading || (library.syncState.remote && library.syncState.fromCache))
+    if (isWaitingForRemoteConfirmation) return
     if (handledFocusId.current === activityFocusItemId) return
     const timeoutId = window.setTimeout(() => {
       if (handledFocusId.current === activityFocusItemId) return
       handledFocusId.current = activityFocusItemId
-      const item = library.items.find((candidate) => candidate.id === activityFocusItemId)
-      if (item) {
+      if (focusedItem) {
         editorRouteFocusId.current = activityFocusItemId
         setQuery('')
         setStatusFilter('all')
         setTypeFilter('all')
         setSmartView('all')
-        setEditingItem(cloneListItem(item))
+        setEditingItem(cloneListItem(focusedItem))
       } else {
         setFeedback({ message: 'Esa obra ya no esta en tu biblioteca.', tone: 'info' })
       }
       onActivityFocusHandled()
     }, 0)
     return () => window.clearTimeout(timeoutId)
-  }, [activityFocusItemId, library.items, onActivityFocusHandled])
+  }, [
+    activityFocusItemId,
+    library.items,
+    library.loading,
+    library.syncState.fromCache,
+    library.syncState.remote,
+    onActivityFocusHandled,
+  ])
 
   useEffect(() => {
     if (!consumeRequest(importRequest)) return
@@ -405,8 +432,13 @@ export function LibraryTab({
   useEffect(() => {
     if (!consumeRequest(selectedStatusRequest)) return
     const changed = selectedItems.filter((item) => item.status !== selectedStatusRequest.status)
-    void runBulkTask(
-      changed.map((item) => () => library.setStatus(item.id, selectedStatusRequest.status)),
+    void runRoadmapBulkTask(
+      changed.map((item): RoadmapItemMutation => ({
+        kind: 'status',
+        itemId: item.id,
+        status: selectedStatusRequest.status,
+      })),
+      library.applyRoadmapBatchMutation,
       changed.length ? `${changed.length} estados actualizados.` : 'La seleccion ya tenia ese estado.',
       setFeedback,
     ).then(() => setUndo(undefined))
@@ -416,8 +448,12 @@ export function LibraryTab({
     if (!consumeRequest(selectedPriorityRequest)) return
     const value = priorityValues[selectedPriorityRequest.level]
     const changed = selectedItems.filter((item) => Math.abs(item.weights.priority - value) > 0.001)
-    void runBulkTask(
-      changed.map((item) => () => library.saveItem({ ...item, weights: { ...item.weights, priority: value } })),
+    void runRoadmapBulkTask(
+      changed.map((item): RoadmapItemMutation => ({
+        item: { ...item, weights: { ...item.weights, priority: value } },
+        kind: 'upsert',
+      })),
+      library.applyRoadmapBatchMutation,
       changed.length ? `${changed.length} prioridades actualizadas.` : 'La seleccion ya tenia ese foco.',
       setFeedback,
     )
@@ -430,14 +466,19 @@ export function LibraryTab({
       : selectedSignalsRequest.kind === 'mood'
         ? 'moodTags'
         : 'tags'
-    const tasks = selectedItems.map((item) => {
+    const itemMutations = selectedItems.map((item): RoadmapItemMutation => {
       const current = item[field]
       const next = selectedSignalsRequest.action === 'add'
         ? uniqueTextValues([...current, ...selectedSignalsRequest.values])
         : current.filter((value) => !selectedSignalsRequest.values.some((target) => sameText(value, target)))
-      return () => library.saveItem({ ...item, [field]: next })
+      return { item: { ...item, [field]: next }, kind: 'upsert' }
     })
-    void runBulkTask(tasks, `${tasks.length} fichas actualizadas.`, setFeedback)
+    void runRoadmapBulkTask(
+      itemMutations,
+      library.applyRoadmapBatchMutation,
+      `${itemMutations.length} fichas actualizadas.`,
+      setFeedback,
+    )
   }, [library, selectedItems, selectedSignalsRequest])
 
   useEffect(() => {
@@ -740,7 +781,7 @@ export function LibraryTab({
           data-testid="library-grid"
           role="list"
         >
-          {filteredItems.map((item) => (
+          {renderedItems.map((item) => (
             <LibraryItemCard
               busy={busyItemId === item.id}
               density={density}
@@ -769,6 +810,16 @@ export function LibraryTab({
         <LibraryEmptyState onAdd={openNewItem} />
       )}
 
+      {renderedItems.length < filteredItems.length && (
+        <button
+          className="library-v2-button secondary"
+          type="button"
+          onClick={() => setVisibleWindow({ key: visibleWindowKey, limit: visibleItemLimit + 24 })}
+        >
+          Mostrar 24 más
+        </button>
+      )}
+
       {editingItem && (
         <LibraryItemEditor
           busy={savingEditor}
@@ -776,6 +827,7 @@ export function LibraryTab({
           item={editingItem}
           key={`${editingItem.id}:${editingItem.updatedAt}`}
           onCancel={closeEditor}
+          onDirtyChange={onUnsavedChange}
           onSave={(item) => void saveEditorItem(item)}
         />
       )}
@@ -890,21 +942,31 @@ function LibraryItemEditor({
   isNew,
   item,
   onCancel,
+  onDirtyChange,
   onSave,
 }: {
   busy: boolean
   isNew: boolean
   item: ListItem
   onCancel: () => void
+  onDirtyChange: (hasUnsavedChanges: boolean) => void
   onSave: (item: ListItem) => void
 }) {
-  const [draft, setDraft] = useState<EditorDraft>(() => itemToEditorDraft(item))
+  const initialDraft = useMemo(() => itemToEditorDraft(item), [item])
+  const [draft, setDraft] = useState<EditorDraft>(() => initialDraft)
+  const [discardPromptOpen, setDiscardPromptOpen] = useState(false)
   const metadataLocked = item.source === 'external' || item.source === 'public'
+  const hasUnsavedChanges = !areEditorDraftsEqual(draft, initialDraft)
   const editorTitle = isNew
     ? item.source === 'manual'
       ? 'Anadir manualmente'
       : `Anadir ${item.title}`
     : `Editar ${item.title}`
+
+  useEffect(() => {
+    onDirtyChange(hasUnsavedChanges)
+    return () => onDirtyChange(false)
+  }, [hasUnsavedChanges, onDirtyChange])
 
   function update<Key extends keyof EditorDraft>(key: Key, value: EditorDraft[Key]) {
     setDraft((current) => ({ ...current, [key]: value }))
@@ -932,9 +994,23 @@ function LibraryItemEditor({
     })
   }
 
+  function requestCancel() {
+    if (busy) return
+    if (hasUnsavedChanges) {
+      setDiscardPromptOpen(true)
+      return
+    }
+    onCancel()
+  }
+
+  function discardChanges() {
+    onDirtyChange(false)
+    onCancel()
+  }
+
   return (
     <div className="library-v2-modal-backdrop" role="presentation" onMouseDown={(event) => {
-      if (event.target === event.currentTarget) onCancel()
+      if (event.target === event.currentTarget) requestCancel()
     }}>
       <DialogFocusReturn />
       <form
@@ -942,7 +1018,7 @@ function LibraryItemEditor({
         role="dialog"
         aria-modal="true"
         aria-labelledby="library-v2-editor-title"
-        onKeyDown={(event) => handleDialogKeyDown(event, onCancel)}
+        onKeyDown={(event) => handleDialogKeyDown(event, requestCancel)}
         onSubmit={submit}
       >
         <header>
@@ -955,7 +1031,7 @@ function LibraryItemEditor({
             autoFocus={!isNew && item.status !== 'in_progress'}
             className="library-v2-icon-button"
             type="button"
-            onClick={onCancel}
+            onClick={requestCancel}
           ><X size={18} /></button>
         </header>
         <div className="library-v2-editor-grid">
@@ -1028,8 +1104,15 @@ function LibraryItemEditor({
           </label>
         </div>
         {metadataLocked && <p className="library-v2-editor-note">Titulo y tipo proceden del catalogo; tus datos personales siguen siendo editables.</p>}
+        {discardPromptOpen && (
+          <div className="library-v2-feedback danger" role="alert">
+            <span>Hay cambios sin guardar. Guardalos o descartalos antes de cerrar.</span>
+            <button autoFocus type="button" onClick={() => setDiscardPromptOpen(false)}>Seguir editando</button>
+            <button type="button" onClick={discardChanges}>Descartar cambios</button>
+          </div>
+        )}
         <footer>
-          <button className="library-v2-button quiet" type="button" onClick={onCancel}>Cancelar</button>
+          <button className="library-v2-button quiet" type="button" onClick={requestCancel}>Cancelar</button>
           <button className="library-v2-button primary" disabled={busy || !draft.title.trim()} type="submit">
             {busy ? 'Guardando...' : 'Guardar ficha'}
           </button>
@@ -1151,6 +1234,10 @@ function itemToEditorDraft(item: ListItem): EditorDraft {
   }
 }
 
+function areEditorDraftsEqual(left: EditorDraft, right: EditorDraft) {
+  return (Object.keys(left) as Array<keyof EditorDraft>).every((key) => left[key] === right[key])
+}
+
 function normalizeSearchText(value: string) {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLocaleLowerCase('es')
 }
@@ -1234,8 +1321,24 @@ async function runBulkTask(
   setFeedback: Dispatch<SetStateAction<Feedback | undefined>>,
 ) {
   try {
-    await Promise.all(tasks.map((task) => task()))
+    for (const task of tasks) await task()
     setFeedback({ message: successMessage, tone: tasks.length ? 'success' : 'info' })
+  } catch (reason) {
+    setFeedback({ message: getErrorMessage(reason, 'No se pudo actualizar la seleccion.'), tone: 'danger' })
+  }
+}
+
+async function runRoadmapBulkTask(
+  itemMutations: RoadmapItemMutation[],
+  applyBatch: (mutations: RoadmapItemMutation[]) => Promise<void>,
+  successMessage: string,
+  setFeedback: Dispatch<SetStateAction<Feedback | undefined>>,
+) {
+  try {
+    for (let index = 0; index < itemMutations.length; index += 400) {
+      await applyBatch(itemMutations.slice(index, index + 400))
+    }
+    setFeedback({ message: successMessage, tone: itemMutations.length ? 'success' : 'info' })
   } catch (reason) {
     setFeedback({ message: getErrorMessage(reason, 'No se pudo actualizar la seleccion.'), tone: 'danger' })
   }

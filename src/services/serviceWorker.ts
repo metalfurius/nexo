@@ -22,7 +22,7 @@ export function registerServiceWorker(options: ServiceWorkerRegistrationOptions 
   if (!enabled || !('serviceWorker' in navigator)) return
   const reloadWindow = options.reloadWindow ?? (() => window.location.reload())
 
-  window.addEventListener('load', () => {
+  const register = () => {
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       if (!updateReloadRequested) return
       if (reloadingForUpdate) return
@@ -31,8 +31,17 @@ export function registerServiceWorker(options: ServiceWorkerRegistrationOptions 
       reloadWindow()
     })
 
-    void navigator.serviceWorker.register('/sw.js').then(trackServiceWorkerUpdate).catch(() => undefined)
-  })
+    void navigator.serviceWorker
+      .register('/sw.js', { scope: '/', updateViaCache: 'none' })
+      .then(trackServiceWorkerUpdate)
+      .catch(() => undefined)
+  }
+
+  if (document.readyState === 'complete') {
+    register()
+  } else {
+    window.addEventListener('load', register, { once: true })
+  }
 }
 
 function trackServiceWorkerUpdate(registration: ServiceWorkerRegistration) {

@@ -1,8 +1,8 @@
 import { appendFileSync, readFileSync } from 'node:fs'
 
-const releaseTarget = '1.1.50'
-const releaseLabel = `release:${releaseTarget}`
 const legacyLabels = ['patch', 'minor', 'major']
+const plainSemverPattern = '(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)\\.(?:0|[1-9]\\d*)'
+const releaseLabelPattern = new RegExp(`^release:(${plainSemverPattern})$`)
 
 function readEvent() {
   const eventPath = process.env.GITHUB_EVENT_PATH
@@ -20,6 +20,10 @@ function fail(message) {
   process.exit(1)
 }
 
+function parseReleaseLabel(label) {
+  return releaseLabelPattern.exec(label)?.[1] ?? ''
+}
+
 function resolvePullRequestTarget(pullRequest, required) {
   const labelNames = Array.isArray(pullRequest?.labels)
     ? pullRequest.labels.map((label) => String(label?.name ?? '').trim().toLowerCase())
@@ -29,19 +33,19 @@ function resolvePullRequestTarget(pullRequest, required) {
   const selectedVersionLabels = [...releaseLabels, ...selectedLegacyLabels]
 
   if (selectedVersionLabels.length > 1) {
-    fail(`Use only ${releaseLabel}. Found conflicting version labels: ${selectedVersionLabels.join(', ')}.`)
+    fail(`Use exactly one release:x.y.z label. Found conflicting version labels: ${selectedVersionLabels.join(', ')}.`)
   }
 
   if (selectedLegacyLabels.length) {
-    fail(`The ${selectedLegacyLabels[0]} label is not valid for this release. Use only ${releaseLabel}.`)
+    fail(`The ${selectedLegacyLabels[0]} label is not valid. Use one release:x.y.z label.`)
   }
 
-  if (releaseLabels.length && releaseLabels[0] !== releaseLabel) {
-    fail(`Unsupported release target ${releaseLabels[0]}. Use only ${releaseLabel}.`)
+  const target = releaseLabels.length ? parseReleaseLabel(releaseLabels[0]) : ''
+  if (releaseLabels.length && !target) {
+    fail(`Unsupported release label ${releaseLabels[0]}. Use release:x.y.z with plain semantic version numbers.`)
   }
 
-  const target = releaseLabels[0] === releaseLabel ? releaseTarget : ''
-  if (required && !target) fail(`Add exactly one version label before merging: ${releaseLabel}.`)
+  if (required && !target) fail('Add exactly one version label before merging: release:x.y.z.')
   return target
 }
 
@@ -51,7 +55,7 @@ let target = ''
 
 if (eventName === 'workflow_dispatch') {
   target = String(process.env.VERSION_TARGET_INPUT ?? '').trim()
-  if (target !== releaseTarget) fail(`Choose the exact release target ${releaseTarget}.`)
+  if (!new RegExp(`^${plainSemverPattern}$`).test(target)) fail('Choose a plain semantic version target x.y.z.')
 } else {
   const event = readEvent()
   const pullRequest = event.pull_request

@@ -92,7 +92,7 @@
 .library-v2-button.primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
 }
 
 .library-v2-button.secondary,
@@ -239,9 +239,19 @@
   border: 1px solid var(--border);
   border-radius: 11px;
   display: flex;
+  flex-wrap: wrap;
   font-size: 0.84rem;
+  gap: 8px;
   justify-content: space-between;
+  min-width: 0;
+  overflow-wrap: anywhere;
   padding: 9px 12px;
+}
+
+.library-v2-feedback > span {
+  flex: 1 1 220px;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .library-v2-feedback.info {
@@ -263,6 +273,7 @@
   background: transparent;
   border: 0;
   color: inherit;
+  flex: 0 0 auto;
   min-height: 28px;
   padding: 4px;
 }

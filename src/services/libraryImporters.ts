@@ -16,6 +16,7 @@ import {
   type ProgressUnit,
   nowIso,
 } from '../domain/types'
+import { assertLibraryImportItemLimit, LIBRARY_IMPORT_MAX_ITEMS } from '../lib/libraryBackup'
 import { normalizeKey, slugify, uniqueValues } from '../lib/strings'
 
 export interface LibraryImportProviderResult {
@@ -34,6 +35,7 @@ const letterboxdMaxZipBytes = 10 * 1024 * 1024
 const letterboxdMaxCsvBytes = 4 * 1024 * 1024
 const letterboxdMaxTotalCsvBytes = 12 * 1024 * 1024
 const goodreadsMaxCsvBytes = 10 * 1024 * 1024
+export const serviceImportMaxItems = LIBRARY_IMPORT_MAX_ITEMS
 const letterboxdCsvSourcePriority: Record<LetterboxdCsvSource, number> = {
   reviews: 0,
   ratings: 1,
@@ -71,9 +73,11 @@ export async function importAniListLibrary(input: string): Promise<LibraryImport
     fetchAniListCollection(username, 'MANGA'),
   ])
 
+  const drafts = [...animeResult.drafts, ...mangaResult.drafts]
+  assertLibraryImportItemLimit(drafts.length)
   return {
     sourceId: 'anilist',
-    drafts: [...animeResult.drafts, ...mangaResult.drafts],
+    drafts,
     warnings: [...animeResult.warnings, ...mangaResult.warnings],
   }
 }
@@ -85,9 +89,11 @@ export async function importMyAnimeListLibrary(input: string): Promise<LibraryIm
     fetchJikanList(username, 'mangalist'),
   ])
 
+  const drafts = [...animeResult.drafts, ...mangaResult.drafts]
+  assertLibraryImportItemLimit(drafts.length)
   return {
     sourceId: 'myanimelist',
-    drafts: [...animeResult.drafts, ...mangaResult.drafts],
+    drafts,
     warnings: [
       {
         code: 'partial',
@@ -116,6 +122,7 @@ export async function importGoodreadsCsv(file: File): Promise<LibraryImportProvi
 
 export function parseGoodreadsCsv(csvText: string): LibraryImportProviderResult {
   const rows = parseCsv(csvText)
+  assertLibraryImportItemLimit(rows.length)
   const warnings: ImportWarning[] = []
   const drafts = rows.flatMap((row, index) => {
     const title = readRowValue(row, ['Title'])
@@ -193,6 +200,7 @@ export function parseLetterboxdZipBytes(bytes: Uint8Array): LibraryImportProvide
   const warnings: ImportWarning[] = []
   const byKey = new Map<string, ImportedLibraryItemDraft>()
   let parsedFiles = 0
+  let parsedRows = 0
   let inflatedCsvBytes = 0
   const fileEntries = Object.entries(files)
     .flatMap(([path, fileBytes]) => {
@@ -214,6 +222,8 @@ export function parseLetterboxdZipBytes(bytes: Uint8Array): LibraryImportProvide
     parsedFiles += 1
     const csvText = strFromU8(fileBytes)
     const rows = parseCsv(csvText)
+    parsedRows += rows.length
+    assertLibraryImportItemLimit(parsedRows)
     for (const row of rows) {
       const draft = letterboxdRowToDraft(row, source)
       if (!draft) {
@@ -247,6 +257,7 @@ export function parseLetterboxdZipBytes(bytes: Uint8Array): LibraryImportProvide
 }
 
 export function buildImportPreview(result: LibraryImportProviderResult, currentItems: ListItem[]): ImportPreview {
+  assertLibraryImportItemLimit(result.drafts.length)
   const warnings: ImportWarning[] = [...result.warnings]
   const currentExternalIndex = buildExternalIndex(currentItems)
   const currentTitleIndex = buildTitleIndex(currentItems)
@@ -339,6 +350,7 @@ export function buildImportPreview(result: LibraryImportProviderResult, currentI
 }
 
 export function importPreviewItemsToListItems(items: ImportPreviewItem[], importedAt = nowIso()): ListItem[] {
+  assertLibraryImportItemLimit(items.length)
   return items.map((item) => importedDraftToListItem(item.draft, importedAt))
 }
 

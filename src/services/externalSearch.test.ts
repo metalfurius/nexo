@@ -134,6 +134,137 @@ describe('external search', () => {
     expect(externalSourceCredits.map((source) => source.id)).not.toContain('mangaDex')
   })
 
+  it('prioritizes the v1 catalog API and uses its search route', async () => {
+    vi.stubEnv('VITE_CATALOG_API_URL', 'https://catalog-api.example')
+    vi.stubEnv('VITE_CATALOG_PROXY_URL', 'https://catalog-proxy.example')
+    mockCatalogFetch((url) => {
+      if (url.hostname === 'catalog-proxy.example') throw new Error('legacy proxy must not be called')
+      return {
+        results: [
+          {
+            id: 'tmdb-movie-603',
+            title: 'The Matrix',
+            type: 'movie',
+            source: 'tmdb',
+            sourceId: '603',
+            posterUrl: 'https://image.tmdb.org/t/p/w342/matrix.jpg',
+          },
+        ],
+      }
+    })
+
+    const results = await searchExternalSources('The Matrix', 'movie')
+    const requests = fetchedUrls()
+
+    expect(results[0]).toEqual(expect.objectContaining({ source: 'tmdb', sourceId: '603' }))
+    expect(requests).toHaveLength(1)
+    expect(requests[0]).toEqual(
+      expect.objectContaining({
+        hostname: 'catalog-api.example',
+        pathname: '/v1/catalog/search',
+      }),
+    )
+    expect(requests[0]?.searchParams.get('q')).toBe('The Matrix')
+    expect(requests[0]?.searchParams.get('type')).toBe('movie')
+  })
+
+  it('uses the v1 catalog API discover route', async () => {
+    vi.stubEnv('VITE_CATALOG_API_URL', 'https://catalog-api.example/')
+    mockCatalogFetch(() => ({
+      result: {
+        id: 'rawg-hades',
+        title: 'Hades',
+        type: 'game',
+        source: 'rawg',
+        sourceId: 'hades',
+        posterUrl: 'https://media.rawg.io/media/games/hades.jpg',
+      },
+    }))
+
+    const result = await discoverExternalCandidate('game', 'short')
+    const request = fetchedUrls()[0]
+
+    expect(result).toEqual(expect.objectContaining({ source: 'rawg', sourceId: 'hades' }))
+    expect(request?.pathname).toBe('/v1/catalog/discover')
+    expect(request?.searchParams.get('type')).toBe('game')
+    expect(request?.searchParams.get('duration')).toBe('short')
+    expect(request?.searchParams.get('seed')).toBeTruthy()
+  })
+
+  it('treats an empty gateway discovery result as authoritative without browser fan-out', async () => {
+    vi.stubEnv('VITE_CATALOG_API_URL', 'https://catalog-api.example')
+    vi.stubEnv('VITE_CATALOG_PROXY_URL', 'https://catalog-proxy.example')
+    mockCatalogFetch((url) => {
+      if (url.hostname !== 'catalog-api.example') throw new Error('no fallback request should be made')
+      return { result: null }
+    })
+
+    const result = await discoverExternalCandidate('book', 'any')
+
+    expect(result).toBeUndefined()
+    expect(fetchedUrls().map((url) => `${url.hostname}${url.pathname}`)).toEqual([
+      'catalog-api.example/v1/catalog/discover',
+    ])
+  })
+
+  it('uses direct discovery sources when the gateway has no valid response', async () => {
+    vi.stubEnv('VITE_CATALOG_API_URL', 'https://catalog-api.example')
+    mockCatalogFetch((url) => {
+      if (url.hostname === 'catalog-api.example') return { unavailable: true }
+      if (url.hostname === 'openlibrary.org') {
+        const queryTitle = url.searchParams.get('q') ?? 'Fallback discovery'
+        return {
+          docs: [
+            {
+              key: '/works/OL999W',
+              title: queryTitle,
+              author_name: ['Fallback Author'],
+              first_publish_year: 1968,
+              cover_i: 8327756,
+              subject: ['Fantasy'],
+              number_of_pages_median: 205,
+            },
+          ],
+        }
+      }
+      return { data: [] }
+    })
+
+    const result = await discoverExternalCandidate('book', 'any')
+
+    expect(result).toEqual(expect.objectContaining({ source: 'openLibrary', type: 'book' }))
+    expect(fetchedUrls().some((url) => url.hostname === 'openlibrary.org')).toBe(true)
+  })
+
+  it('falls back to the legacy v1.1 proxy when the v1 gateway is unavailable', async () => {
+    vi.stubEnv('VITE_CATALOG_API_URL', 'https://catalog-api.example')
+    vi.stubEnv('VITE_CATALOG_PROXY_URL', 'https://catalog-proxy.example')
+    mockCatalogFetch((url) => {
+      if (url.hostname === 'catalog-api.example') throw new Error('v1 gateway unavailable')
+      return {
+        results: [
+          {
+            id: 'tmdb-movie-157336',
+            title: 'Interstellar',
+            type: 'movie',
+            source: 'tmdb',
+            sourceId: '157336',
+            posterUrl: 'https://image.tmdb.org/t/p/w342/interstellar.jpg',
+          },
+        ],
+      }
+    })
+
+    const results = await searchExternalSources('Interstellar', 'movie')
+    const requests = fetchedUrls()
+
+    expect(results[0]).toEqual(expect.objectContaining({ source: 'tmdb', sourceId: '157336' }))
+    expect(requests.map((url) => `${url.hostname}${url.pathname}`)).toEqual([
+      'catalog-api.example/v1/catalog/search',
+      'catalog-proxy.example/search',
+    ])
+  })
+
   it('uses Kitsu localized titles when other manga providers miss a Spanish alias', async () => {
     mockCatalogFetch((url) => {
       if (url.hostname === 'graphql.anilist.co') return aniListPayload([])
@@ -396,10 +527,26 @@ describe('external search', () => {
     expect(candidate && 'relatedItems' in candidate).toBe(false)
   })
 
-  it('falls back to direct free sources when the proxy returns no candidates', async () => {
+  it('treats an empty gateway result as authoritative without browser fan-out', async () => {
+    vi.stubEnv('VITE_CATALOG_API_URL', 'https://catalog-api.example')
     vi.stubEnv('VITE_CATALOG_PROXY_URL', 'https://catalog-proxy.example')
     mockCatalogFetch((url) => {
-      if (url.hostname === 'catalog-proxy.example') return { results: [] }
+      if (url.hostname !== 'catalog-api.example') throw new Error('no fallback request should be made')
+      return { results: [] }
+    })
+
+    const results = await searchExternalSources('Iruma-kun', 'manga')
+
+    expect(results).toEqual([])
+    expect(fetchedUrls().map((url) => `${url.hostname}${url.pathname}`)).toEqual([
+      'catalog-api.example/v1/catalog/search',
+    ])
+  })
+
+  it('falls back to direct free sources when the proxy returns no valid response', async () => {
+    vi.stubEnv('VITE_CATALOG_PROXY_URL', 'https://catalog-proxy.example')
+    mockCatalogFetch((url) => {
+      if (url.hostname === 'catalog-proxy.example') return { unavailable: true }
       if (url.hostname === 'graphql.anilist.co') return aniListPayload([])
       return jikanPayload([
         {

@@ -153,7 +153,22 @@ test('email login opens Inicio and roadmap mutations persist through reload and 
   await expect(signedInPalette.getByRole('button', { name: 'Abrir E2E Pendiente A' })).toBeVisible()
   await page.keyboard.press('Escape')
 
+  const settingsMenu = page.locator('details.tabbar-more')
+  await settingsMenu.locator(':scope > summary').click()
+  await settingsMenu.getByRole('menuitem', { name: /Ajustes/ }).click()
+  await page.getByText('Preferencias del dado', { exact: true }).click()
+  const favoriteTags = page.getByLabel('Tags favoritos')
+  await expect(favoriteTags).toBeVisible()
+  await favoriteTags.fill('borrador-e2e-no-guardado')
+
   await page.getByRole('button', { name: 'Salir' }).click()
+  await expect(page.getByText('Cambios pendientes en Ajustes')).toBeVisible()
+  await page.getByRole('button', { name: 'Seguir editando' }).click()
+  await expect(favoriteTags).toHaveValue('borrador-e2e-no-guardado')
+  await expect(page.getByLabel('Rol: Moderador')).toBeVisible()
+
+  await page.getByRole('button', { name: 'Salir' }).click()
+  await page.getByRole('button', { name: 'Descartar cambios' }).click()
   await expect(page.getByRole('button', { name: 'Descubrir' })).toHaveAttribute('aria-current', 'page')
   await expect(page.getByLabel('Rol: Moderador')).toHaveCount(0)
   await page.getByRole('button', { name: 'Busqueda rapida' }).click()

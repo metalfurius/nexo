@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_SETTINGS, DEFAULT_WEIGHTS, type ListItem } from '../domain/types'
 import {
+  assertLibraryImportFileLimit,
   createLibraryExportPayload,
   getLibraryImportRollbackPlan,
   getLibraryImportSummary,
   parseLibraryImportPayload,
+  LIBRARY_IMPORT_MAX_FILE_BYTES,
+  LIBRARY_IMPORT_MAX_ITEMS,
 } from './libraryBackup'
 
 const baseItem: ListItem = {
@@ -32,13 +35,14 @@ describe('library backup schema', () => {
     expect(payload.schemaVersion).toBe(1)
     expect(payload.exportedAt).toBe('2026-01-02T00:00:00.000Z')
     expect(payload.items).toEqual([baseItem])
-    expect(payload.settings.theme).toBe('dark')
-    expect(payload.settings.libraryViewMode).toBe('mosaic')
-    expect(payload.settings.libraryCardsPerRow).toBe(4)
-    expect(payload.settings.roadmap).toEqual(settings.roadmap)
-    expect(payload.settings).not.toBe(settings)
-    expect(payload.settings.roadmap).not.toBe(settings.roadmap)
-    expect(payload.settings.roadmap.next).not.toBe(settings.roadmap.next)
+    const exportedSettings = payload.settings!
+    expect(exportedSettings.theme).toBe('dark')
+    expect(exportedSettings.libraryViewMode).toBe('mosaic')
+    expect(exportedSettings.libraryCardsPerRow).toBe(4)
+    expect(exportedSettings.roadmap).toEqual(settings.roadmap)
+    expect(exportedSettings).not.toBe(settings)
+    expect(exportedSettings.roadmap).not.toBe(settings.roadmap)
+    expect(exportedSettings.roadmap.next).not.toBe(settings.roadmap.next)
   })
 
   it('creates a scoped export payload without private settings', () => {
@@ -341,5 +345,17 @@ describe('library backup schema', () => {
         items: [{ title: 'Broken', type: 'boardgame', status: 'wishlist' }],
       }),
     ).toThrow('tipo no soportado')
+  })
+
+  it('rejects oversized backups and item collections before normalizing entries', () => {
+    expect(() => assertLibraryImportFileLimit({ size: LIBRARY_IMPORT_MAX_FILE_BYTES + 1 })).toThrow(
+      'El backup JSON supera el limite de 10 MB.',
+    )
+    expect(() =>
+      parseLibraryImportPayload({
+        schemaVersion: 1,
+        items: Array.from({ length: LIBRARY_IMPORT_MAX_ITEMS + 1 }, () => null),
+      }),
+    ).toThrow('La importacion supera el limite de 5.000 entradas.')
   })
 })

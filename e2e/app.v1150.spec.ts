@@ -113,6 +113,15 @@ async function expectNoReleaseA11yViolations(page: Page, label: string) {
   expect(blocking, `${label} has moderate, serious or critical accessibility violations`).toEqual([])
 }
 
+async function expectNoContrastViolations(page: Page, label: string) {
+  const audit = await new AxeBuilder({ page }).withRules(['color-contrast']).analyze()
+  const blocking = audit.violations.flatMap((violation) => violation.nodes.map((node) => ({
+    failureSummary: node.failureSummary,
+    target: node.target,
+  })))
+  expect(blocking, `${label} has WCAG AA contrast violations`).toEqual([])
+}
+
 async function openLibraryEditor(page: Page, title: string) {
   await page.getByRole('button', { name: `Editar ${title}` }).click()
   const editor = page.getByRole('dialog', { name: `Editar ${title}` })
@@ -651,7 +660,7 @@ test.describe('Responsive, temas y accesibilidad', () => {
   test('los siete temas mantienen legibles las cuatro superficies principales', async ({ page }, testInfo) => {
     testInfo.setTimeout(90_000)
     const themes = ['dark', 'light', 'rose', 'forest', 'ocean', 'mint', 'aurora']
-    const routes = ['home', 'discover&mode=search', 'library', 'dice']
+    const routes = ['home', 'discover&mode=search', 'library', 'dice', 'settings']
     for (const theme of themes) {
       await page.goto('/?tab=home')
       await page.evaluate((value) => window.localStorage.setItem('nexo-theme', value), theme)
@@ -660,6 +669,22 @@ test.describe('Responsive, temas y accesibilidad', () => {
       for (const route of routes) {
         await page.goto(`/?tab=${route}`)
         await expectNoHorizontalOverflow(page)
+      }
+    }
+  })
+
+  test('los siete temas mantienen contraste AA en las superficies principales', async ({ page }, testInfo) => {
+    testInfo.setTimeout(180_000)
+    const themes = ['dark', 'light', 'rose', 'forest', 'ocean', 'mint', 'aurora']
+    const routes = ['home', 'discover&mode=search', 'library', 'dice', 'settings']
+
+    for (const theme of themes) {
+      await page.goto('/?tab=home')
+      await page.evaluate((value) => window.localStorage.setItem('nexo-theme', value), theme)
+      for (const route of routes) {
+        await page.goto(`/?tab=${route}`)
+        await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
+        await expectNoContrastViolations(page, `${theme}/${route}`)
       }
     }
   })

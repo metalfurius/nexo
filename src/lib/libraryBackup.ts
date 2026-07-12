@@ -20,6 +20,8 @@ import { slugify, uniqueValues } from './strings'
 import { cleanupRoadmapPreferences, normalizeRoadmapPreferences } from './roadmap'
 
 export const LIBRARY_EXPORT_SCHEMA_VERSION = 1
+export const LIBRARY_IMPORT_MAX_FILE_BYTES = 10 * 1024 * 1024
+export const LIBRARY_IMPORT_MAX_ITEMS = 5_000
 
 export interface LibraryExportPayload {
   schemaVersion: typeof LIBRARY_EXPORT_SCHEMA_VERSION
@@ -45,6 +47,18 @@ export interface LibraryImportRollbackPlan {
   newItemIds: string[]
   previousItems: ListItem[]
   previousSettings?: UserSettings
+}
+
+export function assertLibraryImportItemLimit(itemCount: number) {
+  if (!Number.isSafeInteger(itemCount) || itemCount < 0 || itemCount > LIBRARY_IMPORT_MAX_ITEMS) {
+    throw new Error('La importacion supera el limite de 5.000 entradas.')
+  }
+}
+
+export function assertLibraryImportFileLimit(file: Pick<File, 'size'>) {
+  if (!Number.isSafeInteger(file.size) || file.size < 0 || file.size > LIBRARY_IMPORT_MAX_FILE_BYTES) {
+    throw new Error('El backup JSON supera el limite de 10 MB.')
+  }
 }
 
 export function createLibraryExportPayload(
@@ -112,11 +126,35 @@ export function parseLibraryImportPayload(payload: unknown, importedAt = nowIso(
   if (!Array.isArray(root.items)) {
     throw new Error('El archivo no tiene una lista de items valida')
   }
+  assertLibraryImportItemLimit(root.items.length)
 
   const items = root.items.map((item, index) => normalizeListItem(item, index, importedAt))
   return {
     items,
     settings: root.settings ? normalizeSettings(root.settings, items) : undefined,
+  }
+}
+
+export function parseLibraryImportRollbackPlan(value: unknown): LibraryImportRollbackPlan {
+  const root = asRecord(value, 'El plan de deshacer no es valido')
+  if (!Array.isArray(root.newItemIds) || !Array.isArray(root.previousItems)) {
+    throw new Error('El plan de deshacer no contiene cambios validos')
+  }
+
+  const newItemIds = uniqueValues(root.newItemIds.map((id) => requiredString(id, 'El plan contiene un ID no valido')))
+  if (newItemIds.some((id) => id.length > 120)) throw new Error('El plan contiene un ID demasiado largo')
+  assertLibraryImportItemLimit(newItemIds.length + root.previousItems.length)
+
+  const previousItems = root.previousItems.map((item, index) => {
+    const itemRecord = asRecord(item, `Item ${index + 1} del plan no es valido`)
+    const updatedAt = optionalString(itemRecord.updatedAt) ?? nowIso()
+    return normalizeListItem(itemRecord, index, updatedAt)
+  })
+
+  return {
+    newItemIds,
+    previousItems,
+    previousSettings: root.previousSettings ? normalizeSettings(root.previousSettings) : undefined,
   }
 }
 
@@ -205,7 +243,7 @@ function normalizeListItem(value: unknown, index: number, importedAt: string): L
   }
 }
 
-function normalizeSettings(value: unknown, items: readonly ListItem[]): UserSettings {
+function normalizeSettings(value: unknown, items?: readonly ListItem[]): UserSettings {
   const settings = asRecord(value, 'Los ajustes del backup no son validos')
   const recommendationPreferences = normalizeRecommendationPreferences(settings.recommendationPreferences)
 
@@ -223,7 +261,9 @@ function normalizeSettings(value: unknown, items: readonly ListItem[]): UserSett
         ? settings.libraryViewMode
         : DEFAULT_SETTINGS.libraryViewMode,
     libraryCardsPerRow: readLibraryCardsPerRow(settings.libraryCardsPerRow),
-    roadmap: cleanupRoadmapPreferences(normalizeRoadmapPreferences(settings.roadmap), items),
+    roadmap: items
+      ? cleanupRoadmapPreferences(normalizeRoadmapPreferences(settings.roadmap), items)
+      : normalizeRoadmapPreferences(settings.roadmap),
   }
 }
 

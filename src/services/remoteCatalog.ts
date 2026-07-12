@@ -1,9 +1,48 @@
 import { httpsCallable } from 'firebase/functions'
-import type { DiscoveryCandidate, ExternalCandidate, ExternalSource, ItemType, ProgressUnit } from '../domain/types'
+import type {
+  DiscoveryCandidate,
+  ExternalCandidate,
+  ExternalRefs,
+  ExternalSource,
+  ItemType,
+  ProgressUnit,
+} from '../domain/types'
 import { externalCandidateToDiscovery, publicItemToDiscovery } from '../lib/catalog'
 import { dedupeCatalogSearchCandidates, rankCatalogSearchCandidates } from '../lib/catalogSearch'
 import { getFirebaseFunctionsClient } from './firebaseFunctions'
 import { normalizeCatalogStringList, normalizePublicCatalogItems } from './publicCatalog'
+
+export interface CatalogDemandItem {
+  id: string
+  title: string
+  type: ItemType
+  description?: string
+  releaseYear?: number
+  progressTotal?: number
+  progressUnit?: ProgressUnit
+  genres?: string[]
+  tags?: string[]
+  moodTags?: string[]
+  searchAliases?: string[]
+  externalRefs?: ExternalRefs
+  posterUrl?: string
+}
+
+const catalogDemandChunkSize = 100
+
+export async function recordCatalogDemands(items: CatalogDemandItem[]) {
+  if (!items.length) return
+  const functionsClient = getFirebaseFunctionsClient()
+  if (!functionsClient) throw new Error('Firebase Functions no está disponible para registrar el catálogo.')
+
+  const recordDemands = httpsCallable<{ items: CatalogDemandItem[] }, unknown>(
+    functionsClient,
+    'recordCatalogDemands',
+  )
+  for (let index = 0; index < items.length; index += catalogDemandChunkSize) {
+    await recordDemands({ items: items.slice(index, index + catalogDemandChunkSize) })
+  }
+}
 
 export async function searchRemoteCatalog(query: string, type = 'any'): Promise<DiscoveryCandidate[] | undefined> {
   const functionsClient = getFirebaseFunctionsClient()

@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { StrictMode, useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -51,6 +51,7 @@ function createSurface(items: ListItem[] = []) {
     },
     saveItem: vi.fn().mockResolvedValue(undefined),
     applyRoadmapMutation: vi.fn().mockResolvedValue(undefined),
+    applyRoadmapBatchMutation: vi.fn().mockResolvedValue(undefined),
     deleteItem: vi.fn().mockResolvedValue(undefined),
     setStatus: vi.fn().mockResolvedValue(undefined),
     snoozeRecommendation: vi.fn().mockResolvedValue(undefined),
@@ -70,6 +71,7 @@ function createCallbacks() {
     onPrimaryActionRequestHandled: vi.fn(),
     onReviewRequestHandled: vi.fn(),
     onRollDice: vi.fn(),
+    onUnsavedChange: vi.fn(),
     onVisibleSelectionSummaryChange: vi.fn(),
     setTheme: vi.fn(),
   }
@@ -172,6 +174,23 @@ describe('LibraryTab simplificada', () => {
     expect(screen.getByRole('button', { name: 'Exportar seleccion' })).toBeEnabled()
   })
 
+  it('renderiza solo 24 de 1.000 fichas y mantiene la seleccion masiva sobre todo el filtro', async () => {
+    const user = userEvent.setup()
+    const surface = createSurface(Array.from({ length: 1_000 }, (_, index) => createItem(`item-${index + 1}`)))
+    renderLibrary(surface)
+
+    expect(within(screen.getByTestId('library-grid')).getAllByRole('listitem')).toHaveLength(24)
+    expect(screen.getByRole('button', { name: 'Mostrar 24 más' })).toBeVisible()
+
+    await user.click(screen.getByRole('button', { name: 'Filtros' }))
+    await user.click(screen.getByRole('button', { name: 'Seleccionar visibles' }))
+    expect(screen.getByLabelText('Seleccion de biblioteca')).toHaveTextContent('1000 seleccionadas')
+
+    await user.click(screen.getByRole('button', { name: 'Mostrar 24 más' }))
+    expect(within(screen.getByTestId('library-grid')).getAllByRole('listitem')).toHaveLength(48)
+    expect(screen.getByRole('button', { name: 'Mostrar 24 más' })).toBeVisible()
+  })
+
   it('crea una ficha manual desde el flujo corto', async () => {
     const user = userEvent.setup()
     const surface = createSurface()
@@ -260,6 +279,31 @@ describe('LibraryTab simplificada', () => {
     await waitFor(() => expect(editButton).toHaveFocus())
   })
 
+  it('bloquea Escape, backdrop y cierre mientras el editor tenga cambios sin guardar', async () => {
+    const user = userEvent.setup()
+    const item = createItem('dirty', { title: 'Borrador protegido' })
+    const surface = createSurface([item])
+    const { container, onUnsavedChange } = renderLibrary(surface)
+
+    await user.click(screen.getByRole('button', { name: 'Editar Borrador protegido' }))
+    const dialog = screen.getByRole('dialog', { name: 'Editar Borrador protegido' })
+    await user.type(within(dialog).getByLabelText('Notas'), 'Cambio pendiente')
+    await waitFor(() => expect(onUnsavedChange).toHaveBeenLastCalledWith(true))
+
+    await user.keyboard('{Escape}')
+    expect(dialog).toBeInTheDocument()
+    expect(screen.getByText(/Hay cambios sin guardar/)).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Seguir editando' }))
+
+    fireEvent.mouseDown(container.querySelector('.library-v2-modal-backdrop') as HTMLElement)
+    expect(dialog).toBeInTheDocument()
+    expect(screen.getByText(/Hay cambios sin guardar/)).toBeVisible()
+
+    await user.click(screen.getByRole('button', { name: 'Descartar cambios' }))
+    expect(screen.queryByRole('dialog', { name: 'Editar Borrador protegido' })).not.toBeInTheDocument()
+    expect(onUnsavedChange).toHaveBeenLastCalledWith(false)
+  })
+
   it('atrapa el foco y lo restaura en la confirmacion de borrado', async () => {
     const user = userEvent.setup()
     const item = createItem('delete-focus', { title: 'Borrado accesible' })
@@ -300,6 +344,44 @@ describe('LibraryTab simplificada', () => {
     expect(callbacks.onNavigate).toHaveBeenCalledWith('library')
   })
 
+  it('conserva un deep link hasta que termine la carga remota', async () => {
+    const callbacks = createCallbacks()
+    const loadingSurface = createSurface()
+    loadingSurface.loading = true
+    const { rerender } = render(
+      <LibraryHarness {...callbacks} activityFocusItemId="deep-linked" library={loadingSurface} />,
+    )
+
+    await new Promise((resolve) => window.setTimeout(resolve, 0))
+    expect(callbacks.onActivityFocusHandled).not.toHaveBeenCalled()
+    expect(screen.queryByText('Esa obra ya no esta en tu biblioteca.')).not.toBeInTheDocument()
+
+    const loadedSurface = createSurface([createItem('deep-linked', { title: 'Deep linked' })])
+    rerender(<LibraryHarness {...callbacks} activityFocusItemId="deep-linked" library={loadedSurface} />)
+
+    expect(await screen.findByRole('dialog', { name: 'Editar Deep linked' })).toBeVisible()
+    expect(callbacks.onActivityFocusHandled).toHaveBeenCalledTimes(1)
+  })
+
+  it('no declara ausente un deep link procedente de una caché vacía hasta confirmarlo en servidor', async () => {
+    const callbacks = createCallbacks()
+    const cachedSurface = createSurface()
+    cachedSurface.syncState = { ...cachedSurface.syncState, fromCache: true }
+    const { rerender } = render(
+      <LibraryHarness {...callbacks} activityFocusItemId="remote-only" library={cachedSurface} />,
+    )
+
+    await new Promise((resolve) => window.setTimeout(resolve, 0))
+    expect(callbacks.onActivityFocusHandled).not.toHaveBeenCalled()
+    expect(screen.queryByText('Esa obra ya no esta en tu biblioteca.')).not.toBeInTheDocument()
+
+    const confirmedSurface = createSurface()
+    rerender(<LibraryHarness {...callbacks} activityFocusItemId="remote-only" library={confirmedSurface} />)
+
+    expect(await screen.findByText('Esa obra ya no esta en tu biblioteca.')).toBeVisible()
+    expect(callbacks.onActivityFocusHandled).toHaveBeenCalledTimes(1)
+  })
+
   it('resuelve requests heredados de importacion y estado sin repetirlos al rerenderizar', async () => {
     const item = createItem('selected', { title: 'Seleccionada' })
     const surface = createSurface([item])
@@ -318,7 +400,9 @@ describe('LibraryTab simplificada', () => {
 
     await waitFor(() => expect(callbacks.onNavigate).toHaveBeenCalledWith('import'))
     expect(callbacks.onImportRequestHandled).toHaveBeenCalledTimes(1)
-    await waitFor(() => expect(surface.setStatus).toHaveBeenCalledWith(item.id, 'paused'))
+    await waitFor(() => expect(surface.applyRoadmapBatchMutation).toHaveBeenCalledWith([
+      { kind: 'status', itemId: item.id, status: 'paused' },
+    ]))
 
     rerender(
       <LibraryHarness
@@ -330,7 +414,7 @@ describe('LibraryTab simplificada', () => {
       />,
     )
 
-    await waitFor(() => expect(surface.setStatus).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(surface.applyRoadmapBatchMutation).toHaveBeenCalledTimes(1))
     expect(callbacks.onImportRequestHandled).toHaveBeenCalledTimes(1)
   })
 })

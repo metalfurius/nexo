@@ -20,7 +20,7 @@ function trapLoadEvent() {
   const addEventListener = window.addEventListener.bind(window)
 
   vi.spyOn(window, 'addEventListener').mockImplementation((event, listener, options) => {
-    if (event === 'load' && typeof listener === 'function') {
+    if (String(event) === 'load' && typeof listener === 'function') {
       loadListeners.push(listener as (event: Event) => void)
       return
     }
@@ -74,7 +74,7 @@ describe('service worker registration', () => {
     fireLoad()
     await flushPromises()
 
-    expect(serviceWorker.register).toHaveBeenCalledWith('/sw.js')
+    expect(serviceWorker.register).toHaveBeenCalledWith('/sw.js', { scope: '/', updateViaCache: 'none' })
     expect(updateReady).toHaveBeenCalledTimes(1)
 
     fire(serviceWorkerListeners, 'controllerchange')
@@ -148,5 +148,29 @@ describe('service worker registration', () => {
     await flushPromises()
 
     expect(serviceWorker.register).not.toHaveBeenCalled()
+  })
+
+  it('registers when the lazy registration chunk loads after window load', async () => {
+    vi.spyOn(document, 'readyState', 'get').mockReturnValue('complete')
+    const registration = {
+      addEventListener: vi.fn(),
+      installing: undefined,
+      waiting: undefined,
+    } as unknown as ServiceWorkerRegistration
+    const serviceWorker = {
+      addEventListener: vi.fn(),
+      controller: undefined,
+      register: vi.fn().mockResolvedValue(registration),
+    }
+    Object.defineProperty(window.navigator, 'serviceWorker', {
+      configurable: true,
+      value: serviceWorker,
+    })
+
+    const { registerServiceWorker } = await import('./serviceWorker')
+    registerServiceWorker({ enabled: true })
+    await flushPromises()
+
+    expect(serviceWorker.register).toHaveBeenCalledWith('/sw.js', { scope: '/', updateViaCache: 'none' })
   })
 })

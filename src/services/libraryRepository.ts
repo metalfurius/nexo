@@ -6,26 +6,26 @@ import {
   doc,
   getDoc,
   getDocs,
-  increment,
   limit as firestoreLimit,
   onSnapshot,
   orderBy,
   query,
   setDoc,
   type Firestore,
-  where,
   writeBatch,
 } from 'firebase/firestore'
 import {
-  DEFAULT_ROADMAP_PREFERENCES,
   type ActivityEntry,
   type DiscoveryCandidate,
   type ExternalCandidate,
   type ExternalRefs,
   type ItemStatus,
+  type LibraryBulkDeleteResult,
   type ListItem,
   type PublicCatalogItem,
+  type RoadmapBatchMutation,
   type RoadmapMutation,
+  type RoadmapPreferences,
   type UserProfile,
   type UserRole,
   type UserSettings,
@@ -35,9 +35,13 @@ import { buildPublicCatalogItem, externalCandidateToDiscovery, publicItemToDisco
 import { dedupeCatalogSearchCandidates, rankCatalogSearchCandidates, scoreCatalogSearchCandidate } from '../lib/catalogSearch'
 import { normalizeKey, slugify, uniqueValues } from '../lib/strings'
 import { normalizeRoadmapPreferences } from '../lib/roadmap'
-import { searchExternalSources } from './externalSearch'
 import { getFirebaseServices } from './firebaseDb'
-import { searchRemoteCatalog } from './remoteCatalog'
+import {
+  recordCatalogDemands,
+  searchRemoteCatalog,
+  type CatalogDemandItem,
+} from './remoteCatalog'
+import { getSnapshotDocumentId, removeRoadmapIds, withoutUndefined } from './libraryRepositoryUtils'
 
 export interface RepositorySnapshotState {
   fromCache: boolean
@@ -52,7 +56,7 @@ export interface LibraryRepository {
   ) => () => void
   saveItem: (item: ListItem) => Promise<void>
   deleteItem: (id: string) => Promise<void>
-  deleteAllItems: () => Promise<void>
+  deleteAllItems: (roadmap: RoadmapPreferences) => Promise<LibraryBulkDeleteResult>
   setStatus: (id: string, status: ItemStatus) => Promise<void>
   snoozeRecommendation: (id: string) => Promise<void>
   reactivateRecommendation: (id: string) => Promise<void>
@@ -68,6 +72,7 @@ export interface LibraryRepository {
   ) => () => void
   saveSettings: (settings: Partial<UserSettings>) => Promise<void>
   applyRoadmapMutation: (mutation: RoadmapMutation) => Promise<void>
+  applyRoadmapBatchMutation: (mutation: RoadmapBatchMutation) => Promise<void>
   subscribeDiscoveryCandidates: (
     onCandidates: (candidates: DiscoveryCandidate[], snapshotState: RepositorySnapshotState) => void,
     onError: (error: Error) => void,
@@ -78,6 +83,7 @@ export interface LibraryRepository {
   markDiscoveryCandidateSaved: (candidateId: string, savedItemId: string) => Promise<void>
   recordDiscoverySaveToPublicCatalog: (candidate: DiscoveryCandidate) => Promise<void>
   recordImportedItemToPublicCatalog: (item: ListItem) => Promise<void>
+  recordImportedItemsToPublicCatalog: (items: ListItem[]) => Promise<void>
   ensureUserProfile: (profile: Partial<UserProfile>) => Promise<void>
   subscribeUserProfile: (
     onProfile: (profile: UserProfile | undefined, snapshotState: RepositorySnapshotState) => void,
@@ -135,11 +141,17 @@ export function createFirestoreRepository(userId: string): LibraryRepository | u
     deleteItem(id) {
       return deleteDoc(itemDocument(id))
     },
-    async deleteAllItems() {
+    async deleteAllItems(roadmap) {
       const snapshot = await getDocs(itemCollection)
       const documentChunks = chunk(snapshot.docs, 449)
       if (documentChunks.length === 0) documentChunks.push([])
+      const total = snapshot.docs.length
+      const deletedItemIds: string[] = []
+      let remainingRoadmap = normalizeRoadmapPreferences(roadmap)
+
       for (const docsChunk of documentChunks) {
+        const chunkItemIds = docsChunk.map(getSnapshotDocumentId)
+        const nextRoadmap = removeRoadmapIds(remainingRoadmap, chunkItemIds)
         const batch = writeBatch(services.db)
         for (const itemDoc of docsChunk) {
           batch.delete(itemDoc.ref)
@@ -147,18 +159,28 @@ export function createFirestoreRepository(userId: string): LibraryRepository | u
         batch.set(
           settingsDocument,
           {
-            roadmap: {
-              now: [...DEFAULT_ROADMAP_PREFERENCES.now],
-              next: [...DEFAULT_ROADMAP_PREFERENCES.next],
-              later: [...DEFAULT_ROADMAP_PREFERENCES.later],
-              hidden: [...DEFAULT_ROADMAP_PREFERENCES.hidden],
-            },
+            roadmap: nextRoadmap,
             updatedAt: nowIso(),
           },
           { merge: true },
         )
-        await batch.commit()
+        try {
+          await batch.commit()
+        } catch (reason) {
+          const detail = reason instanceof Error && reason.message ? ` ${reason.message}` : ''
+          return {
+            complete: false,
+            deletedItemIds,
+            error: `Borrado interrumpido tras eliminar ${deletedItemIds.length} de ${total} entradas.${detail}`,
+            roadmap: remainingRoadmap,
+            total,
+          }
+        }
+        deletedItemIds.push(...chunkItemIds)
+        remainingRoadmap = nextRoadmap
       }
+
+      return { complete: true, deletedItemIds, roadmap: remainingRoadmap, total }
     },
     setStatus(id, status) {
       return setDoc(
@@ -316,6 +338,42 @@ export function createFirestoreRepository(userId: string): LibraryRepository | u
 
       await batch.commit()
     },
+    async applyRoadmapBatchMutation(mutation) {
+      if (mutation.items.length > 400) {
+        throw new Error('Una mutacion masiva de Tu ruta admite hasta 400 cambios.')
+      }
+      if (!mutation.items.length) return
+
+      const batch = writeBatch(services.db)
+      const updatedAt = nowIso()
+      batch.set(
+        settingsDocument,
+        {
+          roadmap: normalizeRoadmapPreferences(mutation.roadmap),
+          updatedAt,
+        },
+        { merge: true },
+      )
+
+      for (const itemMutation of mutation.items) {
+        if (itemMutation.kind === 'status') {
+          batch.set(
+            itemDocument(itemMutation.itemId),
+            { status: itemMutation.status, updatedAt },
+            { merge: true },
+          )
+        } else if (itemMutation.kind === 'delete') {
+          batch.delete(itemDocument(itemMutation.itemId))
+        } else {
+          batch.set(
+            itemDocument(itemMutation.item.id),
+            { ...withoutUndefined(itemMutation.item), updatedAt },
+          )
+        }
+      }
+
+      await batch.commit()
+    },
     subscribeDiscoveryCandidates(onCandidates, onError) {
       const candidatesQuery = query(discoveryCandidateCollection, orderBy('updatedAt', 'desc'))
       return onSnapshot(
@@ -378,10 +436,13 @@ export function createFirestoreRepository(userId: string): LibraryRepository | u
       )
     },
     async recordDiscoverySaveToPublicCatalog(candidate) {
-      await recordSavedDiscoveryCandidateInPublicCatalog(services.db, userId, candidate)
+      await recordSavedDiscoveryCandidateInPublicCatalog(userId, candidate)
     },
     async recordImportedItemToPublicCatalog(item) {
-      await recordImportedLibraryItemInPublicCatalog(services.db, userId, item)
+      await recordImportedLibraryItemsInPublicCatalog(userId, [item])
+    },
+    async recordImportedItemsToPublicCatalog(items) {
+      await recordImportedLibraryItemsInPublicCatalog(userId, items)
     },
     async ensureUserProfile(profile) {
       const snapshot = await getDoc(userProfileDocument)
@@ -597,6 +658,7 @@ function matchesSearchType(itemType: string, requestedType?: string) {
 }
 
 async function searchExternalClientSide(searchQuery: string, type: string): Promise<ExternalCandidate[]> {
+  const { searchExternalSources } = await import('./externalSearch')
   return searchExternalSources(searchQuery, type)
 }
 
@@ -605,210 +667,64 @@ function uniqueDiscoveryCandidates(candidates: DiscoveryCandidate[]) {
 }
 
 async function recordSavedDiscoveryCandidateInPublicCatalog(
-  db: Firestore,
   actorId: string,
   candidate: DiscoveryCandidate,
 ) {
+  if (candidate.source === 'prompt') return
   const timestamp = nowIso()
-  const existing = await findExistingPublicItem(db, candidate)
-  if (existing?.data.archivedAt) {
-    if (!isExternalDiscoveryCandidate(candidate)) return
-
-    const item = {
-      ...buildAutoIngestedPublicItem(candidate, actorId, timestamp),
-      id: existing.data.id,
-      archivedAt: deleteField(),
-    }
-    await setDoc(existing.ref, withoutUndefined(item), { merge: true })
-    return
-  }
-
-  if (existing) {
-    await setDoc(
-      existing.ref,
-      buildExistingPublicItemDemandPatch(existing.data, candidate, actorId, timestamp),
-      { merge: true },
-    )
-    return
-  }
-
-  if (!isExternalDiscoveryCandidate(candidate)) return
-
-  const item = buildAutoIngestedPublicItem(candidate, actorId, timestamp)
-  await setDoc(doc(db, 'publicItems', item.id), withoutUndefined(item), { merge: true })
+  const publicItem = isExternalDiscoveryCandidate(candidate)
+    ? buildAutoIngestedPublicItem(candidate, actorId, timestamp)
+    : buildPublicCatalogItem(
+        {
+          ...candidate.publicSnapshot,
+          id: candidate.publicItemId || candidate.sourceId || candidate.id,
+          title: candidate.title,
+          type: candidate.type,
+          description: candidate.overview ?? candidate.publicSnapshot?.description,
+          releaseYear: candidate.releaseYear ?? candidate.publicSnapshot?.releaseYear,
+          progressTotal: candidate.progressTotal ?? candidate.publicSnapshot?.progressTotal,
+          progressUnit: candidate.progressUnit ?? candidate.publicSnapshot?.progressUnit,
+          genres: candidate.genres,
+          tags: candidate.tags,
+          moodTags: candidate.moodTags,
+          searchAliases: candidate.searchAliases ?? candidate.publicSnapshot?.searchAliases,
+          externalRefs: compactExternalRefs(candidate.externalRefs),
+          posterUrl: candidate.posterUrl ?? candidate.publicSnapshot?.posterUrl,
+        },
+        actorId,
+      )
+  await recordCatalogDemands([toCatalogDemandItem(publicItem)])
 }
 
-async function recordImportedLibraryItemInPublicCatalog(
-  db: Firestore,
+async function recordImportedLibraryItemsInPublicCatalog(
   actorId: string,
-  item: ListItem,
+  items: ListItem[],
 ) {
-  if (item.source !== 'external' || !item.title.trim()) return
-
   const timestamp = nowIso()
-  const existing = await findExistingPublicItemForImportedItem(db, item)
-  if (existing?.data.archivedAt) {
-    const publicItem = {
-      ...buildImportedPublicCatalogItem(item, actorId, timestamp),
-      id: existing.data.id,
-      archivedAt: deleteField(),
-    }
-    await setDoc(existing.ref, withoutUndefined(publicItem), { merge: true })
-    return
-  }
-
-  if (existing) {
-    await setDoc(
-      existing.ref,
-      buildExistingImportedItemDemandPatch(existing.data, item, actorId, timestamp),
-      { merge: true },
-    )
-    return
-  }
-
-  const publicItem = buildImportedPublicCatalogItem(item, actorId, timestamp)
-  await setDoc(doc(db, 'publicItems', publicItem.id), withoutUndefined(publicItem), { merge: true })
-}
-
-function buildExistingPublicItemDemandPatch(
-  existing: PublicCatalogItem,
-  candidate: DiscoveryCandidate,
-  actorId: string,
-  timestamp: string,
-) {
-  const patch: Record<string, unknown> = {
-    demandCount: increment(1),
-    lastDemandAt: timestamp,
-    updatedAt: timestamp,
-    updatedBy: actorId,
-  }
-
-  if (!existing.description && candidate.overview) patch.description = candidate.overview
-  if (existing.releaseYear === undefined && candidate.releaseYear !== undefined) patch.releaseYear = candidate.releaseYear
-  if (existing.progressTotal === undefined && candidate.progressTotal !== undefined) {
-    patch.progressTotal = candidate.progressTotal
-    patch.progressUnit = candidate.progressUnit
-  } else if (existing.progressUnit === undefined && candidate.progressUnit !== undefined) {
-    patch.progressUnit = candidate.progressUnit
-  }
-  if (!existing.posterUrl && candidate.posterUrl) patch.posterUrl = candidate.posterUrl
-
-  const externalRefs = {
-    ...(existing.externalRefs ?? {}),
-    ...(candidate.externalRefs ?? {}),
-  }
-  if (Object.keys(externalRefs).length > Object.keys(existing.externalRefs ?? {}).length) {
-    patch.externalRefs = externalRefs
-  }
-
-  return withoutUndefined(patch)
-}
-
-function buildExistingImportedItemDemandPatch(
-  existing: PublicCatalogItem,
-  item: ListItem,
-  actorId: string,
-  timestamp: string,
-) {
-  const importedItem = buildImportedPublicCatalogItem(item, actorId, timestamp)
-  const patch: Record<string, unknown> = {
-    demandCount: increment(1),
-    lastDemandAt: timestamp,
-    updatedAt: timestamp,
-    updatedBy: actorId,
-  }
-
-  if (existing.releaseYear === undefined && importedItem.releaseYear !== undefined) {
-    patch.releaseYear = importedItem.releaseYear
-  }
-  if (existing.progressTotal === undefined && importedItem.progressTotal !== undefined) {
-    patch.progressTotal = importedItem.progressTotal
-    patch.progressUnit = importedItem.progressUnit
-  } else if (existing.progressUnit === undefined && importedItem.progressUnit !== undefined) {
-    patch.progressUnit = importedItem.progressUnit
-  }
-  if (!existing.posterUrl && importedItem.posterUrl) patch.posterUrl = importedItem.posterUrl
-
-  const externalRefs = {
-    ...(existing.externalRefs ?? {}),
-    ...(importedItem.externalRefs ?? {}),
-  }
-  if (Object.keys(externalRefs).length > Object.keys(existing.externalRefs ?? {}).length) {
-    patch.externalRefs = externalRefs
-  }
-
-  return withoutUndefined(patch)
-}
-
-async function findExistingPublicItem(db: Firestore, candidate: DiscoveryCandidate) {
-  const publicItemId = candidate.publicItemId || (candidate.source === 'nexo' ? candidate.sourceId : undefined)
-  if (publicItemId) {
-    const publicRef = doc(db, 'publicItems', publicItemId)
-    const publicSnapshot = await getDoc(publicRef)
-    if (publicSnapshot.exists()) {
-      return { data: publicSnapshot.data() as PublicCatalogItem, ref: publicRef }
-    }
-  }
-
-  if (isExternalDiscoveryCandidate(candidate)) {
-    const directRef = doc(db, 'publicItems', createAutoPublicItemId(candidate))
-    const directSnapshot = await getDoc(directRef)
-    if (directSnapshot.exists()) {
-      return { data: directSnapshot.data() as PublicCatalogItem, ref: directRef }
-    }
-
-    const sourceRefKey = externalSourceRefKey(candidate.source)
-    if (sourceRefKey) {
-      const sourceSnapshot = await getDocs(
-        query(collection(db, 'publicItems'), where(`externalRefs.${sourceRefKey}`, '==', candidate.sourceId), firestoreLimit(1)),
-      )
-      const sourceDoc = sourceSnapshot.docs[0]
-      if (sourceDoc?.ref) return { data: sourceDoc.data() as PublicCatalogItem, ref: sourceDoc.ref }
-    }
-  }
-
-  const canonicalSnapshot = await getDocs(
-    query(
-      collection(db, 'publicItems'),
-      where('canonicalKey', '==', `${candidate.type}:${normalizeKey(candidate.title)}`),
-      firestoreLimit(1),
-    ),
+  const demands = items.flatMap((item) =>
+    item.source === 'external' && item.title.trim()
+      ? [toCatalogDemandItem(buildImportedPublicCatalogItem(item, actorId, timestamp))]
+      : [],
   )
-  const canonicalDoc = canonicalSnapshot.docs[0]
-  return canonicalDoc?.ref ? { data: canonicalDoc.data() as PublicCatalogItem, ref: canonicalDoc.ref } : undefined
+  await recordCatalogDemands(demands)
 }
 
-async function findExistingPublicItemForImportedItem(db: Firestore, item: ListItem) {
-  const directRef = doc(db, 'publicItems', createImportedPublicItemId(item))
-  const directSnapshot = await getDoc(directRef)
-  if (directSnapshot.exists()) {
-    return { data: directSnapshot.data() as PublicCatalogItem, ref: directRef }
-  }
-
-  const externalMatchPromise = Promise.all(
-    importedExternalRefEntries(item).map(async ([key, value]) => {
-      const sourceSnapshot = await getDocs(
-        query(collection(db, 'publicItems'), where(`externalRefs.${key}`, '==', value), firestoreLimit(1)),
-      )
-      const sourceDoc = sourceSnapshot.docs[0]
-      return sourceDoc?.ref ? { data: sourceDoc.data() as PublicCatalogItem, ref: sourceDoc.ref } : undefined
-    }),
-  )
-  const canonicalMatchPromise = getDocs(
-    query(
-      collection(db, 'publicItems'),
-      where('canonicalKey', '==', `${item.type}:${normalizeKey(item.title)}`),
-      firestoreLimit(1),
-    ),
-  ).then((canonicalSnapshot) => {
-    const canonicalDoc = canonicalSnapshot.docs[0]
-    return canonicalDoc?.ref ? { data: canonicalDoc.data() as PublicCatalogItem, ref: canonicalDoc.ref } : undefined
-  })
-  const externalMatches = await externalMatchPromise
-  const externalMatch = externalMatches.find(Boolean)
-  if (externalMatch) return externalMatch
-
-  return canonicalMatchPromise
+function toCatalogDemandItem(item: PublicCatalogItem): CatalogDemandItem {
+  return withoutUndefined({
+    id: item.id,
+    title: item.title,
+    type: item.type,
+    description: item.description,
+    releaseYear: item.releaseYear,
+    progressTotal: item.progressTotal,
+    progressUnit: item.progressUnit,
+    genres: item.genres,
+    tags: item.tags,
+    moodTags: item.moodTags,
+    searchAliases: item.searchAliases,
+    externalRefs: compactExternalRefs(item.externalRefs),
+    posterUrl: item.posterUrl,
+  }) as CatalogDemandItem
 }
 
 function buildAutoIngestedPublicItem(
@@ -916,24 +832,6 @@ function importedStablePublicRef(item: ListItem) {
   return undefined
 }
 
-function importedExternalRefEntries(item: ListItem): Array<[keyof ExternalRefs, string]> {
-  const refs = compactExternalRefs(item.externalRefs)
-  const stableKeys: Array<keyof ExternalRefs> = [
-    'anilistId',
-    'malId',
-    'letterboxdSlug',
-    'goodreadsBookId',
-    'isbn',
-    'googleBooksId',
-    'openLibraryKey',
-    'tmdbId',
-    'rawgId',
-    'kitsuId',
-    'wikidataId',
-  ]
-  return stableKeys.flatMap((key) => refs[key] ? [[key, refs[key]]] : [])
-}
-
 function importedPublicCatalogTags(item: ListItem) {
   const refs = compactExternalRefs(item.externalRefs)
   return uniqueValues([
@@ -1014,27 +912,4 @@ function externalSourceLabel(source: ExternalCandidate['source']) {
     wikidata: 'Wikidata',
   }
   return labels[source]
-}
-
-function withoutUndefined<T>(value: T): T {
-  if (Array.isArray(value)) {
-    return value.map((entry) => withoutUndefined(entry)) as T
-  }
-
-  if (value && typeof value === 'object') {
-    if (!isPlainObject(value)) return value
-
-    return Object.fromEntries(
-      Object.entries(value).flatMap(([key, entry]) =>
-        entry === undefined ? [] : [[key, withoutUndefined(entry)]],
-      ),
-    ) as T
-  }
-
-  return value
-}
-
-function isPlainObject(value: object) {
-  const prototype = Object.getPrototypeOf(value)
-  return prototype === Object.prototype || prototype === null
 }

@@ -1,15 +1,36 @@
 import { initializeApp } from 'firebase-admin/app'
 import { FieldValue, getFirestore } from 'firebase-admin/firestore'
+import { logger } from 'firebase-functions'
 import { HttpsError, onCall, onRequest } from 'firebase-functions/v2/https'
+import {
+  CatalogInputError,
+  createCatalogQueryPlan,
+  createCatalogSearchMetric,
+  parseCatalogDemandItems,
+  parseCatalogSearchInput,
+  type CatalogDemandItem,
+  type SearchType,
+} from './catalogValidation.js'
 
 initializeApp()
 
-type SearchType = 'watch' | 'game' | 'book' | 'anime' | 'manga' | 'manhwa' | 'animeManga' | 'any'
 type ItemType = 'game' | 'book' | 'movie' | 'series' | 'anime' | 'manga' | 'manhwa' | 'comic' | 'other'
 type ProgressUnit = 'episodes' | 'chapters' | 'pages' | 'hours' | 'volumes' | 'percent' | 'items'
 
 const CATALOG_ITEM_TYPES: ItemType[] = ['game', 'book', 'movie', 'series', 'anime', 'manga', 'manhwa', 'comic', 'other']
 const WATCH_ITEM_TYPES: ItemType[] = ['movie', 'series', 'anime', 'manga', 'manhwa', 'comic']
+const DEFAULT_FUNCTION_ORIGINS = process.env.FUNCTIONS_EMULATOR === 'true'
+  ? 'http://localhost:5173,http://127.0.0.1:5173'
+  : 'https://nexo.codeoverdose.es'
+const FUNCTION_CORS = (process.env.NEXO_ALLOWED_ORIGINS ?? DEFAULT_FUNCTION_ORIGINS)
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean)
+const APP_VERSION = process.env.NEXO_VERSION ?? 'unknown'
+const CALLABLE_OPTIONS = {
+  cors: FUNCTION_CORS,
+  enforceAppCheck: process.env.NEXO_ENFORCE_APP_CHECK === 'true',
+}
 
 interface ExternalCandidate {
   id: string
@@ -55,59 +76,57 @@ interface PublicCatalogItem {
 }
 
 export const searchExternal = onCall(
-  {
-    cors: true,
-  },
+  CALLABLE_OPTIONS,
   async (request) => {
     if (!request.auth) {
       throw new HttpsError('permission-denied', 'Usuario no autorizado.')
     }
     await assertWithinRateLimit(request.auth.uid, 'searchExternal', 30)
 
-    const query = String(request.data?.query ?? '').trim()
-    const type = String(request.data?.type ?? 'any') as SearchType
-    if (query.length < 2) {
-      throw new HttpsError('invalid-argument', 'La busqueda necesita al menos 2 caracteres.')
-    }
+    const { query, type } = readCatalogSearchInput(request.data, {
+      defaultLimit: 8,
+      maxLimit: 8,
+      minQueryLength: 2,
+    })
 
+    const startedAt = Date.now()
     const candidates = await searchByType(query, type)
+    logCatalogOperation('searchExternal', type, candidates.length, startedAt)
     return { candidates: candidates.slice(0, 8), ingestedItems: [] }
   },
 )
 
 export const searchPublicCatalog = onCall(
-  {
-    cors: true,
-  },
+  CALLABLE_OPTIONS,
   async (request) => {
     if (!request.auth) {
       throw new HttpsError('permission-denied', 'Usuario no autorizado.')
     }
     await assertWithinRateLimit(request.auth.uid, 'searchPublicCatalog', 90)
 
-    const query = String(request.data?.query ?? '').trim()
-    const type = String(request.data?.type ?? 'any') as SearchType
-    const items = await searchPublicCatalogItems(query, type, 12)
-    await recordCatalogSearch(query, type, items.length)
+    const { query, type, limit } = readCatalogSearchInput(request.data, { defaultLimit: 12 })
+    const startedAt = Date.now()
+    const items = await searchPublicCatalogItems(query, type, limit)
+    await recordCatalogSearch(type, items.length)
+    logCatalogOperation('searchPublicCatalog', type, items.length, startedAt)
 
     return { items }
   },
 )
 
 export const searchCatalog = onCall(
-  {
-    cors: true,
-  },
+  CALLABLE_OPTIONS,
   async (request) => {
     if (!request.auth) {
       throw new HttpsError('permission-denied', 'Usuario no autorizado.')
     }
     await assertWithinRateLimit(request.auth.uid, 'searchCatalog', 45)
 
-    const query = String(request.data?.query ?? '').trim()
-    const type = String(request.data?.type ?? 'any') as SearchType
+    const { query, type, limit } = readCatalogSearchInput(request.data, { defaultLimit: 24 })
+    const startedAt = Date.now()
     if (query.length < 2) {
-      const items = await searchPublicCatalogItems(query, type, 24)
+      const items = await searchPublicCatalogItems(query, type, limit)
+      logCatalogOperation('searchCatalog', type, items.length, startedAt)
       return { candidates: [], ingestedItems: [], items }
     }
 
@@ -115,8 +134,9 @@ export const searchCatalog = onCall(
       searchPublicCatalogItems(query, type, 12),
       searchByType(query, type).catch(() => []),
     ])
-    const items = rankPublicItems(uniquePublicItems(publicItems), query, type, 24)
-    await recordCatalogSearch(query, type, items.length)
+    const items = rankPublicItems(uniquePublicItems(publicItems), query, type, limit)
+    await recordCatalogSearch(type, items.length)
+    logCatalogOperation('searchCatalog', type, items.length, startedAt)
 
     return {
       candidates: externalCandidates.slice(0, 12),
@@ -128,7 +148,7 @@ export const searchCatalog = onCall(
 
 export const publicCatalog = onRequest(
   {
-    cors: true,
+    cors: FUNCTION_CORS,
   },
   async (request, response) => {
     if (request.method !== 'GET') {
@@ -136,19 +156,44 @@ export const publicCatalog = onRequest(
       return
     }
 
-    const query = String(request.query.q ?? '').trim()
-    const type = String(request.query.type ?? 'any') as SearchType
-    const limit = Math.min(Math.max(Number(request.query.limit ?? 24) || 24, 1), 48)
-    const items = await searchPublicCatalogItems(query, type, limit)
-    response.set('cache-control', query ? 'public, max-age=300' : 'public, max-age=900')
-    response.json({ items })
+    try {
+      const { query, type, limit } = readCatalogSearchInput(request.query, { defaultLimit: 24 })
+      const startedAt = Date.now()
+      const items = await searchPublicCatalogItems(query, type, limit)
+      response.set('cache-control', query ? 'public, max-age=300' : 'public, max-age=900')
+      logCatalogOperation('publicCatalog', type, items.length, startedAt)
+      response.json({ items })
+    } catch (error) {
+      if (error instanceof HttpsError && error.code === 'invalid-argument') {
+        response.status(400).json({ error: 'invalid_argument', message: error.message })
+        return
+      }
+      logger.error('catalog_request_failed', { operation: 'publicCatalog', reason: readErrorName(error) })
+      response.status(500).json({ error: 'internal' })
+    }
+  },
+)
+
+export const backendHealth = onRequest(
+  {
+    cors: FUNCTION_CORS,
+  },
+  (request, response) => {
+    if (request.method !== 'GET') {
+      response.status(405).json({ error: 'method_not_allowed' })
+      return
+    }
+
+    response.set('cache-control', 'no-store')
+    response.json({
+      version: APP_VERSION,
+      revision: process.env.BUILD_SHA ?? 'unknown',
+    })
   },
 )
 
 export const getModeratorStatus = onCall(
-  {
-    cors: true,
-  },
+  CALLABLE_OPTIONS,
   async (request) => {
     if (!request.auth) {
       throw new HttpsError('permission-denied', 'Usuario no autorizado.')
@@ -158,9 +203,7 @@ export const getModeratorStatus = onCall(
 )
 
 export const upsertPublicItem = onCall(
-  {
-    cors: true,
-  },
+  CALLABLE_OPTIONS,
   async (request) => {
     if (!request.auth || !(await isModerator(request.auth.uid))) {
       throw new HttpsError('permission-denied', 'Solo moderadores pueden editar el catalogo.')
@@ -178,9 +221,7 @@ export const upsertPublicItem = onCall(
 )
 
 export const archivePublicItem = onCall(
-  {
-    cors: true,
-  },
+  CALLABLE_OPTIONS,
   async (request) => {
     if (!request.auth || !(await isModerator(request.auth.uid))) {
       throw new HttpsError('permission-denied', 'Solo moderadores pueden archivar el catalogo.')
@@ -198,6 +239,85 @@ export const archivePublicItem = onCall(
       { merge: true },
     )
     return { ok: true }
+  },
+)
+
+export const recordCatalogDemands = onCall(
+  CALLABLE_OPTIONS,
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('permission-denied', 'Usuario no autorizado.')
+    }
+    await assertWithinRateLimit(request.auth.uid, 'recordCatalogDemands', 10)
+
+    const items = readCatalogDemandItems(request.data?.items)
+    const itemIds = items.map((item) => item.id)
+    const db = getFirestore()
+    const timestamp = new Date().toISOString()
+    const startedAt = Date.now()
+    const outcome = await db.runTransaction(async (transaction) => {
+      const itemRefs = itemIds.map((id) => db.collection('publicItems').doc(id))
+      const receiptRefs = itemRefs.map((itemRef) => itemRef.collection('demands').doc(request.auth!.uid))
+      const snapshots = await transaction.getAll(...itemRefs, ...receiptRefs)
+      const itemSnapshots = snapshots.slice(0, itemRefs.length)
+      const receiptSnapshots = snapshots.slice(itemRefs.length)
+      let recorded = 0
+      let duplicates = 0
+      let created = 0
+
+      for (let index = 0; index < itemRefs.length; index += 1) {
+        const itemSnapshot = itemSnapshots[index]
+        const receiptSnapshot = receiptSnapshots[index]
+        if (!itemSnapshot?.exists) {
+          transaction.create(itemRefs[index], stripUndefined(publicCatalogItemFromDemand(items[index], timestamp)))
+          created += 1
+          if (receiptSnapshot?.exists) {
+            duplicates += 1
+            continue
+          }
+          transaction.create(receiptRefs[index], {
+            itemId: itemIds[index],
+            userId: request.auth!.uid,
+            createdAt: timestamp,
+          })
+          recorded += 1
+          continue
+        }
+        if (receiptSnapshot?.exists) {
+          duplicates += 1
+          continue
+        }
+
+        transaction.create(receiptRefs[index], {
+          itemId: itemIds[index],
+          userId: request.auth!.uid,
+          createdAt: timestamp,
+        })
+        transaction.set(
+          itemRefs[index],
+          {
+            demandCount: FieldValue.increment(1),
+            lastDemandAt: timestamp,
+            updatedAt: timestamp,
+            updatedBy: 'recordCatalogDemands',
+          },
+          { merge: true },
+        )
+        recorded += 1
+      }
+
+      return { recorded, duplicates, created }
+    })
+
+    logger.info('catalog_demands_recorded', {
+      operation: 'recordCatalogDemands',
+      requested: itemIds.length,
+      recorded: outcome.recorded,
+      duplicates: outcome.duplicates,
+      created: outcome.created,
+      durationMs: Date.now() - startedAt,
+    })
+    return outcome
   },
 )
 
@@ -336,18 +456,13 @@ async function searchPublicCatalogItems(query: string, type: SearchType, resultL
 
 async function listPublicCatalogItems(type: SearchType, resultLimit: number) {
   const publicItems = getFirestore().collection('publicItems')
-  const readLimit = Math.min(Math.max(resultLimit * 4, 48), 200)
+  const readLimit = Math.min(Math.max(resultLimit * 4, 48), 96)
   const itemTypes = getSearchItemTypes(type)
 
-  if (type === 'any') {
-    const snapshot = await publicItems.orderBy('title').limit(readLimit).get()
-    return rankPublicItems(readPublicCatalogSnapshots([snapshot]), '', type, resultLimit)
-  }
-
-  const snapshots = await Promise.all(
-    itemTypes.map((itemType) => publicItems.where('type', '==', itemType).limit(readLimit).get()),
-  )
-  return rankPublicItems(readPublicCatalogSnapshots(snapshots), '', type, resultLimit)
+  const snapshot = type === 'any'
+    ? await publicItems.orderBy('title').limit(readLimit).get()
+    : await publicItems.where('type', 'in', itemTypes).limit(readLimit).get()
+  return rankPublicItems(readPublicCatalogSnapshots([snapshot]), '', type, resultLimit)
 }
 
 async function findPublicCatalogSearchCandidates(
@@ -357,16 +472,21 @@ async function findPublicCatalogSearchCandidates(
   resultLimit: number,
 ) {
   const publicItems = getFirestore().collection('publicItems')
-  const readLimit = Math.min(Math.max(resultLimit * 4, 48), 200)
+  const readLimit = Math.min(Math.max(resultLimit * 4, 48), 96)
   const itemTypes = getSearchItemTypes(type)
-  const canonicalKeys = itemTypes.map((itemType) => `${itemType}:${queryKey}`)
-  const tokenQueries = tokens
-    .slice(0, 10)
-    .map((token) => publicItems.where('searchTokens', 'array-contains', token).limit(readLimit).get())
-  const canonicalQueries = canonicalKeys.map((canonicalKey) =>
-    publicItems.where('canonicalKey', '==', canonicalKey).limit(readLimit).get(),
-  )
-  const snapshots = await Promise.all([...tokenQueries, ...canonicalQueries])
+  const plan = createCatalogQueryPlan(queryKey, tokens, itemTypes)
+  const queries = []
+  if (plan.tokens.length) {
+    queries.push(
+      publicItems.where('searchTokens', 'array-contains-any', plan.tokens).limit(readLimit).get(),
+    )
+  }
+  if (plan.canonicalKeys.length) {
+    queries.push(
+      publicItems.where('canonicalKey', 'in', plan.canonicalKeys).limit(readLimit).get(),
+    )
+  }
+  const snapshots = await Promise.all(queries)
 
   return readPublicCatalogSnapshots(snapshots)
 }
@@ -382,20 +502,16 @@ function readPublicCatalogSnapshots(snapshots: Array<{ docs: Array<{ data: () =>
   return [...itemsById.values()]
 }
 
-async function recordCatalogSearch(query: string, type: SearchType, resultCount: number) {
-  const normalizedQuery = normalizeKey(query).slice(0, 120)
-  if (normalizedQuery.length < 2) return
-
-  const timestamp = new Date().toISOString()
-  const id = `${type}-${slugify(normalizedQuery)}`.slice(0, 140)
-  await getFirestore().collection('catalogSearches').doc(id).set(
+async function recordCatalogSearch(type: SearchType, resultCount: number) {
+  const metric = createCatalogSearchMetric(type, resultCount)
+  await getFirestore().collection('catalogSearchMetrics').doc(metric.id).set(
     {
       count: FieldValue.increment(1),
-      lastResultCount: resultCount,
-      normalizedQuery,
-      type,
-      updatedAt: timestamp,
-      createdAt: timestamp,
+      resultCount: FieldValue.increment(metric.data.resultCount),
+      zeroResultCount: FieldValue.increment(metric.data.zeroResultCount),
+      date: metric.data.date,
+      type: metric.data.type,
+      updatedAt: metric.data.updatedAt,
     },
     { merge: true },
   )
@@ -442,7 +558,7 @@ async function assertWithinRateLimit(uid: string, key: string, maxPerMinute: num
     const count = now - windowStartedAt > windowMs ? 0 : current.count ?? 0
 
     if (count >= maxPerMinute) {
-      throw new HttpsError('resource-exhausted', 'Demasiadas busquedas seguidas. Prueba en un minuto.')
+      throw new HttpsError('resource-exhausted', 'Demasiadas operaciones seguidas. Prueba en un minuto.')
     }
 
     transaction.set(
@@ -595,6 +711,84 @@ function slugify(value: string) {
 
 function uniqueValues(values: string[]) {
   return [...new Set(values.map((value) => value.trim()).filter(Boolean))]
+}
+
+function readCatalogSearchInput(
+  value: unknown,
+  defaults: { defaultLimit: number; maxLimit?: number; minQueryLength?: number },
+) {
+  try {
+    const candidate = value && typeof value === 'object'
+      ? (value as { query?: unknown; q?: unknown; type?: unknown; limit?: unknown })
+      : undefined
+    return parseCatalogSearchInput(candidate, defaults)
+  } catch (error) {
+    if (error instanceof CatalogInputError) {
+      throw new HttpsError('invalid-argument', error.message)
+    }
+    throw error
+  }
+}
+
+function readCatalogDemandItems(value: unknown) {
+  try {
+    return parseCatalogDemandItems(value)
+  } catch (error) {
+    if (error instanceof CatalogInputError) {
+      throw new HttpsError('invalid-argument', error.message)
+    }
+    throw error
+  }
+}
+
+function publicCatalogItemFromDemand(item: CatalogDemandItem, timestamp: string): PublicCatalogItem {
+  const genres = uniqueValues(item.genres)
+  const tags = uniqueValues(item.tags)
+  const searchAliases = uniqueValues(item.searchAliases)
+  return {
+    id: item.id,
+    title: item.title,
+    type: item.type,
+    description: item.description,
+    releaseYear: item.releaseYear,
+    progressTotal: item.progressTotal,
+    progressUnit: item.progressUnit,
+    genres,
+    tags,
+    moodTags: uniqueValues(item.moodTags),
+    searchAliases,
+    externalRefs: item.externalRefs,
+    posterUrl: item.posterUrl,
+    searchTokens: createSearchTokens({
+      title: item.title,
+      type: item.type,
+      genres,
+      tags,
+      searchAliases,
+      releaseYear: item.releaseYear,
+    }),
+    canonicalKey: `${item.type}:${normalizeKey(item.title)}`,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    createdBy: 'recordCatalogDemands',
+    updatedBy: 'recordCatalogDemands',
+    autoIngestedAt: timestamp,
+    demandCount: 1,
+    lastDemandAt: timestamp,
+  }
+}
+
+function logCatalogOperation(operation: string, type: SearchType, resultCount: number, startedAt: number) {
+  logger.info('catalog_operation_completed', {
+    operation,
+    type,
+    resultCount,
+    durationMs: Date.now() - startedAt,
+  })
+}
+
+function readErrorName(error: unknown) {
+  return error instanceof Error && error.name ? error.name : 'UnknownError'
 }
 
 function stripUndefined<T>(value: T): T {

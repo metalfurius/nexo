@@ -2,6 +2,8 @@ import {
   DEFAULT_ROADMAP_PREFERENCES,
   type ItemStatus,
   type ListItem,
+  type RoadmapBatchMutation,
+  type RoadmapItemMutation,
   type RoadmapLane,
   type RoadmapMutation,
   type RoadmapPreferences,
@@ -27,6 +29,13 @@ export interface RoadmapLibraryState {
   items: ListItem[]
   settings: UserSettings
 }
+
+export interface PreparedRoadmapBatchMutation {
+  mutation: RoadmapBatchMutation
+  state: RoadmapLibraryState
+}
+
+export const ROADMAP_BATCH_MUTATION_LIMIT = 400
 
 const roadmapPreferenceKeys = ['hidden', 'now', 'next', 'later'] as const
 const terminalStatuses = new Set<ItemStatus>(['completed', 'dropped'])
@@ -259,6 +268,65 @@ export function applyRoadmapMutationToLibrary(
       roadmap: cleanupRoadmapPreferences(mutation.roadmap, nextItems),
     },
   }
+}
+
+export function prepareRoadmapBatchMutation(
+  items: readonly ListItem[],
+  settings: UserSettings,
+  itemMutations: readonly RoadmapItemMutation[],
+  updatedAt: string,
+): PreparedRoadmapBatchMutation {
+  if (itemMutations.length > ROADMAP_BATCH_MUTATION_LIMIT) {
+    throw new Error(`Una mutacion masiva de Tu ruta admite hasta ${ROADMAP_BATCH_MUTATION_LIMIT} cambios.`)
+  }
+
+  let state: RoadmapLibraryState = { items: [...items], settings }
+  for (const itemMutation of itemMutations) {
+    const roadmap = getRoadmapForItemMutation(state, itemMutation)
+    state = applyRoadmapMutationToLibrary(
+      state.items,
+      state.settings,
+      { item: itemMutation, roadmap },
+      updatedAt,
+    )
+  }
+
+  return {
+    mutation: {
+      items: itemMutations.map(cloneRoadmapItemMutation),
+      roadmap: cloneRoadmapPreferences(state.settings.roadmap),
+    },
+    state,
+  }
+}
+
+export function getRoadmapForItemMutation(
+  state: RoadmapLibraryState,
+  itemMutation: RoadmapItemMutation,
+): RoadmapPreferences {
+  if (itemMutation.kind === 'status') {
+    return transitionRoadmapItem(state.settings.roadmap, itemMutation.itemId, itemMutation.status).roadmap
+  }
+  if (itemMutation.kind === 'delete') {
+    return resetRoadmapItemToAutomatic(state.settings.roadmap, itemMutation.itemId)
+  }
+
+  const previousItem = state.items.find((item) => item.id === itemMutation.item.id)
+  if (!previousItem || previousItem.status === itemMutation.item.status) {
+    return cloneRoadmapPreferences(state.settings.roadmap)
+  }
+  return transitionRoadmapItem(
+    state.settings.roadmap,
+    itemMutation.item.id,
+    itemMutation.item.status,
+  ).roadmap
+}
+
+function cloneRoadmapItemMutation(itemMutation: RoadmapItemMutation): RoadmapItemMutation {
+  if (itemMutation.kind === 'upsert' || itemMutation.kind === 'restore') {
+    return { ...itemMutation, item: { ...itemMutation.item } }
+  }
+  return { ...itemMutation }
 }
 
 function removeRoadmapItem(preferences: RoadmapPreferences, itemId: string): RoadmapPreferences {

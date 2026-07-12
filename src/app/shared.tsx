@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import { catalogGenrePresets, catalogMoodPresets, catalogTagPresets, type CatalogTaxonomyTemplate, catalogTaxonomyTemplates } from '../data/catalogPresets'
-import { type ActivityEntry, type ActivityTab, type ActivityTarget, type ActivityTone, DEFAULT_WEIGHTS, type DiscoveryCandidate, type DiscoveryStatus, type ExplorerSearchType, type ExternalCandidate, type ImportPreview, ITEM_STATUSES, ITEM_TYPES, type ItemStatus, type ItemType, type LibrarySyncState, type ListItem, nowIso, PROGRESS_UNITS, type ProgressUnit, type PublicCatalogItem, type RecommendationPreferences, type RecommendationResult, type RoadmapMutation, type RoadmapPreferences, THEME_MODES, type ThemeMode, USER_ROLES, type UserProfile, type UserRole, type UserSettings } from '../domain/types'
+import { type ActivityEntry, type ActivityTab, type ActivityTarget, type ActivityTone, DEFAULT_WEIGHTS, type DiscoveryCandidate, type DiscoveryStatus, type ExplorerSearchType, type ExternalCandidate, type ImportPreview, ITEM_STATUSES, ITEM_TYPES, type ItemStatus, type ItemType, type LibraryBulkDeleteResult, type LibrarySyncState, type ListItem, nowIso, PROGRESS_UNITS, type ProgressUnit, type PublicCatalogItem, type RecommendationPreferences, type RecommendationResult, type RoadmapMutation, type RoadmapPreferences, THEME_MODES, type ThemeMode, USER_ROLES, type UserProfile, type UserRole, type UserSettings } from '../domain/types'
 import { getActivityContinuitySummary, getActivityDestinationTab } from '../lib/activityInsights'
 import { buildPublicCatalogItem } from '../lib/catalog'
 import { buildCatalogDescriptionDraft, type CatalogIssueKey, catalogIssueShortLabels, draftCatalogQualityWarnings } from '../lib/catalogInsights'
@@ -15,7 +15,6 @@ import { type PublicCatalogSeedResult, type PublicCatalogSeedRollbackPlan, type 
 import { mergeListText, normalizeKey, slugify, splitList, toggleListTextValue, uniqueNormalizedValues, uniqueValues } from '../lib/strings'
 import { type ExternalDiscoverDuration, type ExternalDiscoverType, externalSourceCredits } from '../services/externalSourceCredits'
 import { importSourceLabels } from '../services/importSourceLabels'
-import { type NotificationIntentState } from '../services/notificationService'
 import { AlertTriangle, BookOpen, Check, CheckCircle2, Copy, Dice5, Download, Eye, Film, Gamepad2, Info, Library, LoaderCircle, type LucideIcon, Minus, Moon, MoreHorizontal, Pause, Play, Plus, RotateCcw, Search, ShieldCheck, Sparkles, Star, Trash2, Upload, X } from 'lucide-react'
 import { type CSSProperties, type KeyboardEvent, type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
@@ -1636,7 +1635,7 @@ export interface LibrarySurface {
   syncState: LibrarySyncState
   saveItem: (item: ListItem) => Promise<void>
   deleteItem: (id: string) => Promise<void>
-  deleteAllItems: () => Promise<void>
+  deleteAllItems: () => Promise<LibraryBulkDeleteResult>
   setStatus: (id: string, status: ItemStatus) => Promise<void>
   snoozeRecommendation: (id: string) => Promise<void>
   reactivateRecommendation: (id: string) => Promise<void>
@@ -1656,6 +1655,7 @@ export interface LibrarySurface {
     options?: { persistDiscoveryCandidate?: boolean; registerPublicCatalog?: boolean },
   ) => Promise<ListItem>
   recordImportedItemToPublicCatalog: (item: ListItem) => Promise<void>
+  recordImportedItemsToPublicCatalog?: (items: ListItem[]) => Promise<void>
   upsertPublicItem: (item: Partial<PublicCatalogItem> & Pick<PublicCatalogItem, 'title' | 'type'>) => Promise<PublicCatalogItem>
   replacePublicItem: (item: PublicCatalogItem) => Promise<PublicCatalogItem>
   archivePublicItem: (id: string) => Promise<void>
@@ -2083,6 +2083,12 @@ export function settingsDraftFromSettings(settings: UserSettings) {
 }
 
 export type SettingsDraft = ReturnType<typeof settingsDraftFromSettings>
+
+interface NotificationIntentState {
+  enabled: boolean
+  permission: NotificationPermission | 'unsupported'
+  supported: boolean
+}
 
 export function getNotificationStatusLabel(state: NotificationIntentState) {
   if (!state.supported) return 'No soportadas'

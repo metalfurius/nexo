@@ -30,8 +30,6 @@ const TMDB_GENRES = {
 
 const DEFAULT_ALLOWED_ORIGINS = [
   'https://nexo.codeoverdose.es',
-  'http://localhost:5173',
-  'http://127.0.0.1:5173',
 ]
 const CACHE_LANGUAGE = 'es-ES'
 const PROVIDER_VERSION = '2026-06-26-v21'
@@ -39,103 +37,170 @@ const POSITIVE_TTL_SECONDS = 86_400
 const EMPTY_TTL_SECONDS = 900
 const DISCOVER_TTL_SECONDS = 900
 const DISCOVER_SEED_BUCKETS = 32
+const MAX_QUERY_LENGTH = 120
+const MAX_SUBREQUESTS = 36
+const MAX_CONCURRENCY = 4
+const PROVIDER_TIMEOUT_MS = 3_000
+const TOTAL_TIMEOUT_MS = 8_000
+const MAX_PROVIDER_BODY_BYTES = 1_048_576
+const MAX_RESULT_LIMIT = 48
+const SEARCH_TYPES = new Set(['any', 'watch', 'game', 'book', 'movie', 'series', 'anime', 'manga', 'manhwa', 'animeManga'])
+const DISCOVER_TYPES = new Set(['any', 'movie', 'series', 'animeManga', 'game', 'book'])
+const DISCOVER_DURATIONS = new Set(['any', 'short', 'medium', 'long'])
 
 export default {
-  async fetch(request, env) {
-    const corsHeaders = getCorsHeaders(request, env)
+  async fetch(request, env, ctx) {
+    const startedAt = Date.now()
+    const cors = getCorsHeaders(request, env)
+    const corsHeaders = cors.headers
+    const url = new URL(request.url)
+
+    if (!cors.allowed) {
+      return json({ error: 'origin_not_allowed' }, corsHeaders, 403)
+    }
 
     if (request.method === 'OPTIONS') {
-      return new Response(null, { headers: corsHeaders })
+      return new Response(null, { status: 204, headers: corsHeaders })
     }
 
-    const url = new URL(request.url)
     if (url.pathname === '/health') {
-      return json({ ok: true }, corsHeaders)
+      if (request.method !== 'GET') {
+        return json({ error: 'method_not_allowed' }, corsHeaders, 405, { allow: 'GET' })
+      }
+      return json({
+        ok: true,
+        version: env.NEXO_VERSION || 'unknown',
+        revision: env.BUILD_SHA || env.CF_VERSION_METADATA?.id || 'unknown',
+        providerVersion: PROVIDER_VERSION,
+      }, corsHeaders, 200, { 'cache-control': 'no-store' })
     }
 
-    if (request.method === 'GET' && url.pathname === '/discover') {
-      return handleDiscover(request, env, corsHeaders, url)
-    }
+    try {
+      const isDiscoverRoute = url.pathname === '/discover' || url.pathname === '/v1/catalog/discover'
+      const isSearchRoute = url.pathname === '/search' || url.pathname === '/v1/catalog/search'
 
-    if (request.method !== 'GET' || url.pathname !== '/search') {
-      return json({ error: 'not_found' }, corsHeaders, 404)
-    }
+      if (request.method === 'GET' && isDiscoverRoute) {
+        if (!(await isRateLimitAllowed(env.DISCOVER_RATE_LIMITER, request, 'discover'))) {
+          return json({ error: 'rate_limited' }, corsHeaders, 429, { 'retry-after': '60' })
+        }
+        const runtime = createRequestRuntime('discover')
+        return await handleDiscover(request, env, ctx, corsHeaders, url, runtime, startedAt)
+      }
 
-    const query = url.searchParams.get('q')?.trim() ?? ''
-    const type = normalizeSearchType(url.searchParams.get('type')?.trim() ?? 'any')
-    if (query.length < 2) {
-      return json({ results: [] }, corsHeaders, 200, { 'x-nexo-cache': 'bypass' })
-    }
+      if (request.method !== 'GET' || !isSearchRoute) {
+        return json({ error: 'not_found' }, corsHeaders, 404)
+      }
 
-    const cache = caches.default
-    const cacheRequest = createCacheRequest(request, query, type)
-    const cachedResponse = await cache.match(cacheRequest)
-    if (cachedResponse) {
-      const cachedPayload = await cachedResponse.json()
-      return json(cachedPayload, corsHeaders, 200, {
-        'cache-control': cachedResponse.headers.get('cache-control') ?? `public, max-age=${POSITIVE_TTL_SECONDS}`,
-        'x-nexo-cache': 'hit',
-      })
-    }
+      const query = url.searchParams.get('q')?.trim() ?? ''
+      if (query.length > MAX_QUERY_LENGTH) {
+        return json({ error: 'query_too_long' }, corsHeaders, 400)
+      }
+      const type = url.searchParams.get('type')?.trim() || 'any'
+      if (!SEARCH_TYPES.has(type)) {
+        return json({ error: 'invalid_type' }, corsHeaders, 400)
+      }
+      const limit = parseResultLimit(url.searchParams.get('limit'))
+      if (limit === undefined) {
+        return json({ error: 'invalid_limit' }, corsHeaders, 400)
+      }
+      if (query.length < 2) {
+        return json({ results: [] }, corsHeaders, 200, { 'x-nexo-cache': 'bypass' })
+      }
+      if (!(await isRateLimitAllowed(env.SEARCH_RATE_LIMITER, request, 'search'))) {
+        return json({ error: 'rate_limited' }, corsHeaders, 429, { 'retry-after': '60' })
+      }
 
-    const results = rankSearchCandidates(uniqueCandidates(await searchProviders(query, type, env)), query, type).slice(0, 24)
-    const payload = { results }
-    const ttl = results.length ? POSITIVE_TTL_SECONDS : EMPTY_TTL_SECONDS
-    await cache.put(
-      cacheRequest,
-      new Response(JSON.stringify(payload), {
-        headers: {
-          'cache-control': `public, max-age=${ttl}`,
-          'content-type': 'application/json; charset=utf-8',
-        },
-      }),
-    )
-    return json(payload, corsHeaders, 200, {
-      'cache-control': `public, max-age=${ttl}`,
-      'x-nexo-cache': 'miss',
-    })
+      const runtime = createRequestRuntime('search')
+      return await handleSearch(request, env, ctx, corsHeaders, query, type, limit, runtime, startedAt)
+    } catch (error) {
+      console.error(JSON.stringify({
+        event: 'catalog_request_failed',
+        route: url.pathname.endsWith('/discover') ? 'discover' : url.pathname.endsWith('/search') ? 'search' : 'other',
+        reason: readErrorName(error),
+        durationMs: Date.now() - startedAt,
+      }))
+      const status = error instanceof RequestDeadlineError ? 504 : 500
+      return json({ error: status === 504 ? 'upstream_timeout' : 'internal' }, corsHeaders, status)
+    }
   },
 }
 
-async function handleDiscover(request, env, corsHeaders, url) {
-  const type = normalizeDiscoverType(url.searchParams.get('type')?.trim() ?? 'any')
-  const duration = normalizeDiscoverDuration(url.searchParams.get('duration')?.trim() ?? 'any')
-  const seed = normalizeCacheKeyPart(url.searchParams.get('seed')?.trim() || new Date().toISOString().slice(0, 13))
+async function handleSearch(request, env, ctx, corsHeaders, query, type, limit, runtime, startedAt) {
+  const cache = caches.default
+  const cacheRequest = createCacheRequest(request, query, type, limit)
+  const cachedResponse = await runtime.cacheMatch(cache, cacheRequest)
+  const cachedPayload = await readCachedPayload(cachedResponse, runtime)
+  if (cachedPayload !== undefined) {
+    logRequestCompleted(runtime, 200, Array.isArray(cachedPayload.results) ? cachedPayload.results.length : 0, startedAt)
+    return json(cachedPayload, corsHeaders, 200, {
+      'cache-control': cachedResponse.headers.get('cache-control') ?? `public, max-age=${POSITIVE_TTL_SECONDS}`,
+      'x-nexo-cache': 'hit',
+      'x-nexo-subrequests': String(runtime.subrequestCount),
+    })
+  }
+
+  const candidates = await searchProviders(query, type, env, runtime)
+  const results = rankSearchCandidates(uniqueCandidates(candidates), query, type).slice(0, limit)
+  const payload = { results }
+  const ttl = results.length ? POSITIVE_TTL_SECONDS : EMPTY_TTL_SECONDS
+  const partial = runtime.providerFailures > 0
+  if (!partial) scheduleCacheWrite(ctx, runtime, cache, cacheRequest, payload, ttl)
+  logRequestCompleted(runtime, 200, results.length, startedAt)
+  return json(payload, corsHeaders, 200, {
+    'cache-control': partial ? 'no-store' : `public, max-age=${ttl}`,
+    'x-nexo-cache': 'miss',
+    'x-nexo-partial': partial ? 'true' : 'false',
+    'x-nexo-subrequests': String(runtime.subrequestCount),
+  })
+}
+
+async function handleDiscover(request, env, ctx, corsHeaders, url, runtime, startedAt) {
+  const type = url.searchParams.get('type')?.trim() || 'any'
+  if (!DISCOVER_TYPES.has(type)) {
+    return json({ error: 'invalid_type' }, corsHeaders, 400)
+  }
+  const duration = url.searchParams.get('duration')?.trim() || 'any'
+  if (!DISCOVER_DURATIONS.has(duration)) {
+    return json({ error: 'invalid_duration' }, corsHeaders, 400)
+  }
+  const rawSeed = url.searchParams.get('seed')?.trim() || new Date().toISOString().slice(0, 13)
+  if (rawSeed.length > MAX_QUERY_LENGTH) {
+    return json({ error: 'seed_too_long' }, corsHeaders, 400)
+  }
+  const seed = normalizeCacheKeyPart(rawSeed)
   const seedBucket = getSeedBucket(seed)
   const cacheSeed = `${type}:${duration}:${seedBucket}`
   const cache = caches.default
   const cacheRequest = createDiscoverCacheRequest(request, type, duration, seedBucket)
-  const cachedResponse = await cache.match(cacheRequest)
-  if (cachedResponse) {
-    const cachedPayload = await cachedResponse.json()
+  const cachedResponse = await runtime.cacheMatch(cache, cacheRequest)
+  const cachedPayload = await readCachedPayload(cachedResponse, runtime)
+  if (cachedPayload !== undefined) {
+    logRequestCompleted(runtime, 200, cachedPayload.result ? 1 : 0, startedAt)
     return json(cachedPayload, corsHeaders, 200, {
       'cache-control': cachedResponse.headers.get('cache-control') ?? `public, max-age=${DISCOVER_TTL_SECONDS}`,
       'x-nexo-cache': 'hit',
+      'x-nexo-subrequests': String(runtime.subrequestCount),
     })
   }
 
-  const result = await discoverCandidate(type, duration, cacheSeed, env)
+  const result = await discoverCandidate(type, duration, cacheSeed, env, runtime)
   const payload = { result: result ?? null }
   const ttl = result ? DISCOVER_TTL_SECONDS : EMPTY_TTL_SECONDS
-  await cache.put(
-    cacheRequest,
-    new Response(JSON.stringify(payload), {
-      headers: {
-        'cache-control': `public, max-age=${ttl}`,
-        'content-type': 'application/json; charset=utf-8',
-      },
-    }),
-  )
+  const partial = runtime.providerFailures > 0
+  if (!partial) scheduleCacheWrite(ctx, runtime, cache, cacheRequest, payload, ttl)
 
+  logRequestCompleted(runtime, 200, result ? 1 : 0, startedAt)
   return json(payload, corsHeaders, 200, {
-    'cache-control': `public, max-age=${ttl}`,
+    'cache-control': partial ? 'no-store' : `public, max-age=${ttl}`,
     'x-nexo-cache': 'miss',
+    'x-nexo-partial': partial ? 'true' : 'false',
+    'x-nexo-subrequests': String(runtime.subrequestCount),
   })
 }
 
-async function discoverCandidate(type, duration, seed, env) {
+async function discoverCandidate(type, duration, seed, env, runtime) {
   const queries = getDiscoverQueries(type, duration, seed).slice(0, 3)
-  const groups = await Promise.allSettled(queries.map((query) => searchProviders(query, discoverTypeToSearchType(type), env)))
+  const groups = await Promise.allSettled(queries.map((query) => searchProviders(query, discoverTypeToSearchType(type), env, runtime)))
   const candidates = uniqueCandidates(groups.flatMap((group) => (group.status === 'fulfilled' ? group.value : []))).filter((candidate) =>
     Boolean(candidate.posterUrl),
   )
@@ -143,31 +208,35 @@ async function discoverCandidate(type, duration, seed, env) {
   return candidates[hashSeed(seed) % candidates.length]
 }
 
-async function searchProviders(query, type, env) {
+async function searchProviders(query, type, env, runtime) {
   const tasks = []
+  const addTask = (provider, promise) => tasks.push({ provider, promise })
   if (type === 'watch' || type === 'movie' || type === 'series' || type === 'any') {
-    tasks.push(searchTmdb(query, env, type))
+    addTask('tmdb', searchTmdb(query, env, type, runtime))
   }
   if (type === 'watch' || type === 'anime' || type === 'animeManga' || type === 'any') {
-    tasks.push(searchAniList(query, 'anime'))
-    tasks.push(searchJikan(query, 'anime'))
+    addTask('anilist', searchAniList(query, 'anime', 'anime', runtime))
+    addTask('jikan', searchJikan(query, 'anime', runtime))
   }
   if (type === 'watch' || type === 'manga' || type === 'manhwa' || type === 'animeManga' || type === 'any') {
     const mangaFilter = type === 'manga' || type === 'manhwa' ? type : 'allManga'
-    tasks.push(searchAniList(query, 'manga', mangaFilter))
-    tasks.push(searchKitsuManga(query, mangaFilter))
-    tasks.push(searchJikan(query, mangaFilter))
+    addTask('anilist', searchAniList(query, 'manga', mangaFilter, runtime))
+    addTask('kitsu', searchKitsuManga(query, mangaFilter, runtime))
+    addTask('jikan', searchJikan(query, mangaFilter, runtime))
   }
   if (type === 'book' || type === 'any') {
-    tasks.push(searchGoogleBooks(query, env))
-    tasks.push(searchOpenLibrary(query))
+    addTask('googleBooks', searchGoogleBooks(query, env, runtime))
+    addTask('openLibrary', searchOpenLibrary(query, runtime))
   }
   if (type === 'game' || type === 'any') {
-    tasks.push(searchRawg(query, env))
-    tasks.push(searchWikidataGames(query))
+    addTask('rawg', searchRawg(query, env, runtime))
+    addTask('wikidata', searchWikidataGames(query, runtime))
   }
 
-  const groups = await Promise.allSettled(tasks)
+  const groups = await Promise.allSettled(tasks.map((task) => task.promise))
+  groups.forEach((group, index) => {
+    if (group.status === 'rejected') runtime.addProviderFailure(tasks[index].provider)
+  })
   return groups.flatMap((group) => (group.status === 'fulfilled' ? group.value : []))
 }
 
@@ -199,7 +268,7 @@ function discoverTypeToSearchType(type) {
   return type
 }
 
-async function searchTmdb(query, env, requestedType = 'watch') {
+async function searchTmdb(query, env, requestedType = 'watch', runtime) {
   const token = env.TMDB_READ_TOKEN || env.TMDB_TOKEN
   if (!token) return []
 
@@ -208,15 +277,13 @@ async function searchTmdb(query, env, requestedType = 'watch') {
   url.searchParams.set('language', 'es-ES')
   url.searchParams.set('include_adult', 'false')
 
-  const response = await fetch(url, {
+  const { ok, payload } = await runtime.fetchJson(url, {
     headers: {
       accept: 'application/json',
       authorization: `Bearer ${token}`,
     },
   })
-  if (!response.ok) return []
-
-  const payload = await response.json()
+  if (!ok) return []
   const baseEntries = (payload.results ?? [])
     .filter((entry) => {
       if (requestedType === 'movie') return entry.media_type === 'movie'
@@ -224,11 +291,12 @@ async function searchTmdb(query, env, requestedType = 'watch') {
       return entry.media_type === 'movie' || entry.media_type === 'tv'
     })
 
-  const detailed = await Promise.allSettled(baseEntries.slice(0, 8).map((entry) => tmdbEntryToCandidate(entry, token)))
+  const detailed = await Promise.allSettled(baseEntries.slice(0, 8).map((entry) => tmdbEntryToCandidate(entry, token, runtime)))
+  runtime.addProviderFailures(detailed.filter((result) => result.status === 'rejected').length, 'tmdb')
   return detailed.flatMap((result) => (result.status === 'fulfilled' && result.value ? [result.value] : []))
 }
 
-async function tmdbEntryToCandidate(entry, token) {
+async function tmdbEntryToCandidate(entry, token, runtime) {
   const mediaType = entry.media_type === 'tv' ? 'series' : 'movie'
   const tmdbMediaType = entry.media_type === 'tv' ? 'tv' : 'movie'
   const date = entry.release_date || entry.first_air_date || ''
@@ -239,7 +307,7 @@ async function tmdbEntryToCandidate(entry, token) {
   const detail = await fetchTmdbJson(`/${tmdbMediaType}/${id}`, token, {
     append_to_response: 'external_ids',
     language: CACHE_LANGUAGE,
-  })
+  }, runtime)
   const wikidataId = optionalString(detail?.external_ids?.wikidata_id)
   const releaseYear = parseYear(detail?.release_date || detail?.first_air_date || date)
   const progressMeta = tmdbMediaType === 'movie'
@@ -267,19 +335,18 @@ async function tmdbEntryToCandidate(entry, token) {
   }
 }
 
-async function fetchTmdbJson(path, token, params = {}) {
+async function fetchTmdbJson(path, token, params = {}, runtime) {
   const url = new URL(`https://api.themoviedb.org/3${path}`)
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined) url.searchParams.set(key, String(value))
   }
-  const response = await fetch(url, {
+  const { ok, payload } = await runtime.fetchJson(url, {
     headers: {
       accept: 'application/json',
       authorization: `Bearer ${token}`,
     },
   })
-  if (!response.ok) return undefined
-  return response.json()
+  return ok ? payload : undefined
 }
 
 function readTmdbSeriesEpisodeTotal(detail) {
@@ -297,7 +364,7 @@ function readTmdbSeriesEpisodeTotal(detail) {
   return total > 0 ? total : undefined
 }
 
-async function searchRawg(query, env) {
+async function searchRawg(query, env, runtime) {
   const apiKey = env.RAWG_API_KEY
   if (!apiKey) return []
 
@@ -306,10 +373,8 @@ async function searchRawg(query, env) {
   url.searchParams.set('search', query)
   url.searchParams.set('page_size', '8')
 
-  const response = await fetch(url)
-  if (!response.ok) return []
-
-  const payload = await response.json()
+  const { ok, payload } = await runtime.fetchJson(url)
+  if (!ok) return []
   return (payload.results ?? []).slice(0, 8).map((entry) => rawgEntryToCandidate(entry))
 }
 
@@ -339,21 +404,19 @@ function rawgEntryToCandidate(entry) {
   }
 }
 
-async function searchOpenLibrary(query) {
+async function searchOpenLibrary(query, runtime) {
   const url = new URL('https://openlibrary.org/search.json')
   url.searchParams.set('q', query)
   url.searchParams.set('limit', '8')
   url.searchParams.set('fields', 'key,title,author_name,first_publish_year,cover_i,subject,number_of_pages_median')
 
-  const response = await fetch(url, {
+  const { ok, payload } = await runtime.fetchJson(url, {
     headers: {
       accept: 'application/json',
       'user-agent': 'Nexo/1.0 (https://nexo.codeoverdose.es)',
     },
   })
-  if (!response.ok) return []
-
-  const payload = await response.json()
+  if (!ok) return []
   return (payload.docs ?? []).flatMap((entry) => {
     const key = optionalString(entry.key)
     if (!key) return []
@@ -380,7 +443,7 @@ async function searchOpenLibrary(query) {
   }).slice(0, 8)
 }
 
-async function searchGoogleBooks(query, env) {
+async function searchGoogleBooks(query, env, runtime) {
   const apiKey = optionalString(env.GOOGLE_BOOKS_API_KEY)
   if (!apiKey) return []
 
@@ -396,15 +459,13 @@ async function searchGoogleBooks(query, env) {
     'items(id,volumeInfo(title,subtitle,authors,publishedDate,description,pageCount,categories,imageLinks/thumbnail,infoLink,canonicalVolumeLink,industryIdentifiers))',
   )
 
-  const response = await fetch(url, {
+  const { ok, payload } = await runtime.fetchJson(url, {
     headers: {
       accept: 'application/json',
       'user-agent': 'Nexo/1.0 (https://nexo.codeoverdose.es)',
     },
   })
-  if (!response.ok) return []
-
-  const payload = await response.json()
+  if (!ok) return []
   return (payload.items ?? []).slice(0, 8).map((entry) => {
     const info = entry.volumeInfo ?? {}
     const authors = Array.isArray(info.authors) ? info.authors.map(String).slice(0, 3) : []
@@ -443,7 +504,7 @@ async function searchGoogleBooks(query, env) {
   })
 }
 
-async function searchAniList(query, requestedType, requestedFilter = requestedType) {
+async function searchAniList(query, requestedType, requestedFilter = requestedType, runtime) {
   const graphql = {
     query: `
       query SearchMedia($search: String, $type: MediaType) {
@@ -471,14 +532,12 @@ async function searchAniList(query, requestedType, requestedFilter = requestedTy
     },
   }
 
-  const response = await fetch('https://graphql.anilist.co', {
+  const { ok, payload } = await runtime.fetchJson('https://graphql.anilist.co', {
     method: 'POST',
     headers: { accept: 'application/json', 'content-type': 'application/json' },
     body: JSON.stringify(graphql),
   })
-  if (!response.ok) return []
-
-  const payload = await response.json()
+  if (!ok) return []
   return (payload.data?.Page?.media ?? [])
     .map((entry) => {
       const inferredType = inferAniListType(requestedType, entry)
@@ -511,17 +570,15 @@ async function searchAniList(query, requestedType, requestedFilter = requestedTy
     })
 }
 
-async function searchJikan(query, requestedFilter) {
+async function searchJikan(query, requestedFilter, runtime) {
   const endpoint = requestedFilter === 'anime' ? 'anime' : 'manga'
   const url = new URL(`https://api.jikan.moe/v4/${endpoint}`)
   url.searchParams.set('q', query)
   url.searchParams.set('limit', '8')
   url.searchParams.set('sfw', 'true')
 
-  const response = await fetch(url, { headers: { accept: 'application/json' } })
-  if (!response.ok) return []
-
-  const payload = await response.json()
+  const { ok, payload } = await runtime.fetchJson(url, { headers: { accept: 'application/json' } })
+  if (!ok) return []
   const entries = (payload.data ?? [])
     .map((entry) => {
       const inferredType = inferJikanType(endpoint, entry)
@@ -559,20 +616,18 @@ async function searchJikan(query, requestedFilter) {
     })
 }
 
-async function searchKitsuManga(query, requestedFilter) {
+async function searchKitsuManga(query, requestedFilter, runtime) {
   const url = new URL('https://kitsu.io/api/edge/manga')
   url.searchParams.set('filter[text]', query)
   url.searchParams.set('page[limit]', '8')
 
-  const response = await fetch(url, {
+  const { ok, payload } = await runtime.fetchJson(url, {
     headers: {
       accept: 'application/vnd.api+json',
       'user-agent': 'Nexo/1.0 (https://nexo.codeoverdose.es)',
     },
   })
-  if (!response.ok) return []
-
-  const payload = await response.json()
+  if (!ok) return []
   return (payload.data ?? [])
     .map((entry) => {
       const inferredType = inferKitsuType(entry)
@@ -694,7 +749,7 @@ function pickKitsuTitle(attributes, query, aliases) {
   )
 }
 
-async function searchWikidataGames(query) {
+async function searchWikidataGames(query, runtime) {
   const url = new URL('https://www.wikidata.org/w/api.php')
   url.searchParams.set('action', 'wbsearchentities')
   url.searchParams.set('search', query)
@@ -703,10 +758,8 @@ async function searchWikidataGames(query) {
   url.searchParams.set('origin', '*')
   url.searchParams.set('limit', '8')
 
-  const response = await fetch(url)
-  if (!response.ok) return []
-
-  const payload = await response.json()
+  const { ok, payload } = await runtime.fetchJson(url)
+  if (!ok) return []
   return (payload.search ?? [])
     .filter((entry) => /video game|videogame/i.test(String(entry.description || '')))
     .map((entry) => {
@@ -730,26 +783,307 @@ async function searchWikidataGames(query) {
     })
 }
 
+class SubrequestBudgetError extends Error {
+  constructor() {
+    super('Subrequest budget exhausted')
+    this.name = 'SubrequestBudgetError'
+  }
+}
+
+class RequestDeadlineError extends Error {
+  constructor() {
+    super('Request deadline exceeded')
+    this.name = 'RequestDeadlineError'
+  }
+}
+
+class ProviderBodyTooLargeError extends Error {
+  constructor() {
+    super('Provider response body exceeded the allowed size')
+    this.name = 'ProviderBodyTooLargeError'
+  }
+}
+
+class ProviderHttpError extends Error {
+  constructor(status) {
+    super(`Provider returned HTTP ${status}`)
+    this.name = 'ProviderHttpError'
+    this.status = status
+  }
+}
+
+function createRequestRuntime(route) {
+  const deadlineAt = Date.now() + TOTAL_TIMEOUT_MS
+  const waiters = []
+  let active = 0
+  const failedProviders = new Set()
+  let subrequestCount = 0
+
+  function consumeSubrequest() {
+    if (subrequestCount >= MAX_SUBREQUESTS) throw new SubrequestBudgetError()
+    subrequestCount += 1
+  }
+
+  async function acquireSlot() {
+    if (Date.now() >= deadlineAt) throw new RequestDeadlineError()
+    if (active < MAX_CONCURRENCY) {
+      active += 1
+      return
+    }
+
+    await new Promise((resolve, reject) => {
+      const waiter = { resolve, reject, timer: undefined }
+      const remaining = Math.max(1, deadlineAt - Date.now())
+      waiter.timer = setTimeout(() => {
+        const index = waiters.indexOf(waiter)
+        if (index >= 0) waiters.splice(index, 1)
+        reject(new RequestDeadlineError())
+      }, remaining)
+      waiters.push(waiter)
+    })
+  }
+
+  function releaseSlot() {
+    const waiter = waiters.shift()
+    if (waiter) {
+      clearTimeout(waiter.timer)
+      waiter.resolve()
+      return
+    }
+    active = Math.max(0, active - 1)
+  }
+
+  async function boundedFetchJson(input, init = {}) {
+    consumeSubrequest()
+    await acquireSlot()
+    const remaining = deadlineAt - Date.now()
+    if (remaining <= 0) {
+      releaseSlot()
+      throw new RequestDeadlineError()
+    }
+
+    const operationDeadlineAt = Math.min(deadlineAt, Date.now() + PROVIDER_TIMEOUT_MS)
+    const controller = new AbortController()
+    const abortFromCaller = () => controller.abort(init.signal?.reason)
+    if (init.signal?.aborted) abortFromCaller()
+    else init.signal?.addEventListener('abort', abortFromCaller, { once: true })
+    const timeout = setTimeout(
+      () => controller.abort(new RequestDeadlineError()),
+      Math.max(1, operationDeadlineAt - Date.now()),
+    )
+
+    try {
+      const response = await raceWithAbort(fetch(input, { ...init, signal: controller.signal }), controller.signal)
+      assertOperationActive(controller.signal, operationDeadlineAt)
+      const bodyText = await readBoundedResponseText(response, controller.signal)
+      assertOperationActive(controller.signal, operationDeadlineAt)
+
+      if (!response.ok) throw new ProviderHttpError(response.status)
+
+      const payload = JSON.parse(bodyText)
+      assertOperationActive(controller.signal, operationDeadlineAt)
+      return { ok: true, payload, status: response.status }
+    } finally {
+      clearTimeout(timeout)
+      init.signal?.removeEventListener('abort', abortFromCaller)
+      releaseSlot()
+    }
+  }
+
+  return {
+    route,
+    get providerFailures() {
+      return failedProviders.size
+    },
+    get failedProviders() {
+      return [...failedProviders]
+    },
+    get subrequestCount() {
+      return subrequestCount
+    },
+    addProviderFailure(provider) {
+      failedProviders.add(provider)
+    },
+    addProviderFailures(count, provider = 'unknown') {
+      if (count > 0) failedProviders.add(provider)
+    },
+    async cacheMatch(cache, request) {
+      consumeSubrequest()
+      return cache.match(request)
+    },
+    async cachePut(cache, request, response) {
+      consumeSubrequest()
+      return cache.put(request, response)
+    },
+    fetchJson: boundedFetchJson,
+  }
+}
+
+async function readBoundedResponseText(response, signal) {
+  const declaredLength = Number(response.headers.get('content-length'))
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_PROVIDER_BODY_BYTES) {
+    await response.body?.cancel(new ProviderBodyTooLargeError()).catch(() => undefined)
+    throw new ProviderBodyTooLargeError()
+  }
+  if (!response.body) return ''
+
+  const reader = response.body.getReader()
+  const chunks = []
+  let totalBytes = 0
+
+  try {
+    while (true) {
+      const { done, value } = await raceWithAbort(reader.read(), signal)
+      if (done) break
+      if (!value || typeof value.byteLength !== 'number') throw new TypeError('Provider response body was not binary data')
+      const chunk = value instanceof Uint8Array ? value : new Uint8Array(value)
+      totalBytes += chunk.byteLength
+      if (totalBytes > MAX_PROVIDER_BODY_BYTES) {
+        const error = new ProviderBodyTooLargeError()
+        await reader.cancel(error).catch(() => undefined)
+        throw error
+      }
+      chunks.push(chunk)
+    }
+  } catch (error) {
+    await reader.cancel(error).catch(() => undefined)
+    throw error
+  } finally {
+    reader.releaseLock()
+  }
+
+  const bytes = new Uint8Array(totalBytes)
+  let offset = 0
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+  return new TextDecoder().decode(bytes)
+}
+
+function raceWithAbort(promise, signal) {
+  if (signal.aborted) return Promise.reject(readAbortReason(signal))
+
+  return new Promise((resolve, reject) => {
+    let settled = false
+    const finish = (callback, value) => {
+      if (settled) return
+      settled = true
+      signal.removeEventListener('abort', onAbort)
+      callback(value)
+    }
+    const onAbort = () => finish(reject, readAbortReason(signal))
+
+    signal.addEventListener('abort', onAbort, { once: true })
+    promise.then(
+      (value) => finish(resolve, value),
+      (error) => finish(reject, error),
+    )
+  })
+}
+
+function assertOperationActive(signal, deadlineAt) {
+  if (signal.aborted) throw readAbortReason(signal)
+  if (Date.now() >= deadlineAt) throw new RequestDeadlineError()
+}
+
+function readAbortReason(signal) {
+  return signal.reason instanceof Error ? signal.reason : new RequestDeadlineError()
+}
+
+async function readCachedPayload(response, runtime) {
+  if (!response) return undefined
+  try {
+    const payload = await response.json()
+    const valid = runtime.route === 'search'
+      ? payload && typeof payload === 'object' && Array.isArray(payload.results)
+      : payload && typeof payload === 'object' && Object.hasOwn(payload, 'result')
+    if (!valid) throw new TypeError('Invalid catalog cache payload')
+    return payload
+  } catch (error) {
+    console.warn(JSON.stringify({
+      event: 'catalog_cache_corrupt',
+      route: runtime.route,
+      reason: readErrorName(error),
+    }))
+    return undefined
+  }
+}
+
+function scheduleCacheWrite(ctx, runtime, cache, request, payload, ttl) {
+  const response = new Response(JSON.stringify(payload), {
+    headers: {
+      'cache-control': `public, max-age=${ttl}`,
+      'content-type': 'application/json; charset=utf-8',
+    },
+  })
+  const write = runtime.cachePut(cache, request, response).catch((error) => {
+    console.warn(JSON.stringify({
+      event: 'catalog_cache_write_failed',
+      route: runtime.route,
+      reason: readErrorName(error),
+    }))
+  })
+  if (ctx?.waitUntil) ctx.waitUntil(write)
+  else void write
+}
+
+async function isRateLimitAllowed(binding, request, route) {
+  if (!binding?.limit) return true
+  const key = await createRateLimitKey(request, route)
+  const result = await binding.limit({ key })
+  return Boolean(result?.success)
+}
+
+async function createRateLimitKey(request, route) {
+  const clientAddress = request.headers.get('cf-connecting-ip') || 'anonymous'
+  const bytes = new TextEncoder().encode(`${route}:${clientAddress}`)
+  const digest = await crypto.subtle.digest('SHA-256', bytes)
+  const hash = [...new Uint8Array(digest)]
+    .slice(0, 16)
+    .map((value) => value.toString(16).padStart(2, '0'))
+    .join('')
+  return `${route}:${hash}`
+}
+
+function logRequestCompleted(runtime, status, resultCount, startedAt) {
+  console.log(JSON.stringify({
+    event: 'catalog_request_completed',
+    route: runtime.route,
+    status,
+    resultCount,
+    partial: runtime.providerFailures > 0,
+    providerFailures: runtime.providerFailures,
+    failedProviders: runtime.failedProviders,
+    subrequests: runtime.subrequestCount,
+    durationMs: Date.now() - startedAt,
+  }))
+}
+
+function readErrorName(error) {
+  return error instanceof Error && error.name ? error.name : 'UnknownError'
+}
+
 function getCorsHeaders(request, env) {
   const origin = request.headers.get('origin') ?? ''
   const allowedOrigins = (env.ALLOWED_ORIGINS || DEFAULT_ALLOWED_ORIGINS.join(','))
     .split(',')
     .map((entry) => entry.trim())
     .filter(Boolean)
-  const allowedOrigin = allowedOrigins.includes(origin) ? origin : allowedOrigins[0]
-
-  return {
+  const allowed = !origin || allowedOrigins.includes(origin)
+  const headers = {
     'access-control-allow-headers': 'content-type, accept',
     'access-control-allow-methods': 'GET, OPTIONS',
-    'access-control-allow-origin': allowedOrigin,
     vary: 'Origin',
   }
+  if (origin && allowed) headers['access-control-allow-origin'] = origin
+  return { allowed, headers }
 }
 
-function createCacheRequest(request, query, type) {
+function createCacheRequest(request, query, type, limit) {
   const normalizedQuery = normalizeCacheKeyPart(query)
   return new Request(
-    `https://nexo-catalog-cache.local/search?v=${PROVIDER_VERSION}&language=${CACHE_LANGUAGE}&type=${type}&q=${encodeURIComponent(normalizedQuery)}`,
+    `https://nexo-catalog-cache.local/search?v=${PROVIDER_VERSION}&language=${CACHE_LANGUAGE}&type=${type}&limit=${limit}&q=${encodeURIComponent(normalizedQuery)}`,
     request,
   )
 }
@@ -770,19 +1104,11 @@ function normalizeCacheKeyPart(value) {
     .trim()
 }
 
-function normalizeSearchType(value) {
-  const allowed = ['any', 'watch', 'game', 'book', 'movie', 'series', 'anime', 'manga', 'manhwa', 'animeManga']
-  return allowed.includes(value) ? value : 'any'
-}
-
-function normalizeDiscoverType(value) {
-  const allowed = ['any', 'movie', 'series', 'animeManga', 'game', 'book']
-  return allowed.includes(value) ? value : 'any'
-}
-
-function normalizeDiscoverDuration(value) {
-  const allowed = ['any', 'short', 'medium', 'long']
-  return allowed.includes(value) ? value : 'any'
+function parseResultLimit(value) {
+  if (value === null || value.trim() === '') return 24
+  if (!/^\d+$/.test(value)) return undefined
+  const limit = Number(value)
+  return limit >= 1 && limit <= MAX_RESULT_LIMIT ? limit : undefined
 }
 
 function getSeedBucket(seed) {

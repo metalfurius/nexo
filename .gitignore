@@ -12,6 +12,12 @@ node_modules
 dist
 dist-ssr
 functions/lib
+functions/.env
+coverage/
+.firestore-audit/
+.terraform/
+*.tfstate
+*.tfstate.*
 playwright-report
 test-results
 verification

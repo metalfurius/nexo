@@ -269,6 +269,19 @@ export interface RoadmapMutation {
   item?: RoadmapItemMutation
 }
 
+export interface RoadmapBatchMutation {
+  roadmap: RoadmapPreferences
+  items: RoadmapItemMutation[]
+}
+
+export interface LibraryBulkDeleteResult {
+  complete: boolean
+  deletedItemIds: string[]
+  error?: string
+  roadmap: RoadmapPreferences
+  total: number
+}
+
 export interface UserSettings {
   surprisePercent: number
   favoriteTags: string[]

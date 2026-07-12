@@ -11,6 +11,7 @@ import {
   importPreviewItemsToListItems,
   parseGoodreadsCsv,
   parseLetterboxdZipBytes,
+  serviceImportMaxItems,
 } from './libraryImporters'
 
 type FetchInput = Parameters<typeof fetch>[0]
@@ -166,6 +167,19 @@ describe('library importers', () => {
     const file = new File([new Uint8Array(10 * 1024 * 1024 + 1)], 'goodreads-too-large.csv', { type: 'text/csv' })
 
     await expect(importGoodreadsCsv(file)).rejects.toThrow('El CSV de Goodreads supera el limite de 10 MB.')
+  })
+
+  it('rejects service imports above the item ceiling before building drafts or previews', () => {
+    const rows = Array.from(
+      { length: serviceImportMaxItems + 1 },
+      (_entry, index) => `${index},Book ${index},Author,,0,to-read,,,`,
+    )
+
+    expect(() =>
+      parseGoodreadsCsv(
+        ['Book Id,Title,Author,ISBN13,My Rating,Exclusive Shelf,Bookshelves,Original Publication Year,My Review', ...rows].join('\n'),
+      ),
+    ).toThrow('La importacion supera el limite de 5.000 entradas.')
   })
 
   it('keeps preview IDs unique when duplicate drafts already hit the max ID length', () => {
@@ -340,7 +354,7 @@ describe('library importers', () => {
   it('imports AniList public collections for anime, manga and manhwa', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn(async (input: FetchInput, init?: RequestInit) => {
+      vi.fn(async (_input: FetchInput, init?: RequestInit) => {
         const requestBody = JSON.parse(String(init?.body))
         const type = requestBody.variables.type
         const entries =

@@ -42,7 +42,6 @@ async function temporaryDirectory(t, prefix) {
 async function createReleaseFixture(t, version = '1.0.50') {
   const directory = await temporaryDirectory(t, 'nexo-release-tools-')
   await mkdir(join(directory, 'functions'))
-  await mkdir(join(directory, 'public'))
 
   const rootPackage = { name: 'nexo', private: true, version }
   const functionsPackage = { name: 'nexo-functions', private: true, version }
@@ -58,7 +57,6 @@ async function createReleaseFixture(t, version = '1.0.50') {
     writeFile(join(directory, 'package-lock.json'), `${JSON.stringify(rootLock, null, 2)}\n`),
     writeFile(join(directory, 'functions/package.json'), `${JSON.stringify(functionsPackage, null, 2)}\n`),
     writeFile(join(directory, 'functions/package-lock.json'), `${JSON.stringify(functionsLock, null, 2)}\n`),
-    writeFile(join(directory, 'public/sw.js'), `const CACHE_VERSION = 'nexo-v${version}'\n`),
   ])
 
   return directory
@@ -90,7 +88,7 @@ async function runResolver(t, labels, options = {}) {
   return { ...result, output }
 }
 
-test('resolveVersionBump resolves only release:1.1.50', async (t) => {
+test('resolveVersionBump resolves a semantic release label', async (t) => {
   const result = await runResolver(t, ['release:1.1.50'])
 
   assert.equal(result.status, 0, result.stderr)
@@ -99,12 +97,13 @@ test('resolveVersionBump resolves only release:1.1.50', async (t) => {
   assert.match(result.output, /^should_bump=true$/m)
 })
 
-test('resolveVersionBump rejects missing, legacy, mixed and unsupported release labels', async (t) => {
+test('resolveVersionBump rejects missing, legacy, mixed and malformed release labels', async (t) => {
   const cases = [
-    { labels: [], message: /release:1\.1\.50/ },
+    { labels: [], message: /release:x\.y\.z/ },
     { labels: ['minor'], message: /minor label is not valid/ },
     { labels: ['release:1.1.50', 'patch'], message: /conflicting version labels/ },
-    { labels: ['release:1.1.51'], message: /Unsupported release target/ },
+    { labels: ['release:next'], message: /Unsupported release label/ },
+    { labels: ['release:01.2.3'], message: /Unsupported release label/ },
   ]
 
   for (const scenario of cases) {
@@ -124,23 +123,23 @@ test('resolveVersionBump leaves an unlabeled optional PR unchanged', async (t) =
   assert.match(result.output, /^should_bump=false$/m)
 })
 
-test('resolveVersionBump accepts only the exact workflow dispatch target', async (t) => {
+test('resolveVersionBump accepts semantic workflow dispatch targets', async (t) => {
   const directory = await temporaryDirectory(t, 'nexo-dispatch-version-')
   const outputPath = join(directory, 'output.txt')
   const accepted = runScript(resolveScript, [], {
     env: {
       GITHUB_EVENT_NAME: 'workflow_dispatch',
       GITHUB_OUTPUT: outputPath,
-      VERSION_TARGET_INPUT: '1.1.50',
+      VERSION_TARGET_INPUT: '1.1.51',
     },
   })
   const rejected = runScript(resolveScript, [], {
-    env: { GITHUB_EVENT_NAME: 'workflow_dispatch', VERSION_TARGET_INPUT: '1.1.51' },
+    env: { GITHUB_EVENT_NAME: 'workflow_dispatch', VERSION_TARGET_INPUT: 'next' },
   })
 
   assert.equal(accepted.status, 0, accepted.stderr)
   assert.equal(rejected.status, 1)
-  assert.match(rejected.stderr, /exact release target 1\.1\.50/)
+  assert.match(rejected.stderr, /semantic version target/)
 })
 
 test('bumpVersion synchronizes every release version surface and is idempotent', async (t) => {
@@ -159,19 +158,18 @@ test('bumpVersion synchronizes every release version surface and is idempotent',
     assert.equal(value.version, '1.1.50', path)
     if (path.endsWith('package-lock.json')) assert.equal(value.packages[''].version, '1.1.50', path)
   }
-  assert.match(await readFile(join(directory, 'public/sw.js'), 'utf8'), /nexo-v1\.1\.50/)
   assert.match(await readFile(outputPath, 'utf8'), /^version=1\.1\.50$/m)
 })
 
-test('bumpVersion rejects legacy, mixed and different targets', () => {
-  for (const args of [['patch'], ['minor'], ['major'], ['1.1.51'], ['1.1.50', 'minor']]) {
+test('bumpVersion rejects legacy, malformed and mixed targets', () => {
+  for (const args of [['patch'], ['minor'], ['major'], ['next'], ['01.2.3'], ['1.1.50', 'minor']]) {
     const result = runScript(bumpScript, args)
     assert.equal(result.status, 1, args.join(' '))
-    assert.match(result.stderr, /exact target 1\.1\.50/)
+    assert.match(result.stderr, /Usage:|Unexpected argument/)
   }
 })
 
-test('bumpVersion refuses current, base and cache downgrades', async (t) => {
+test('bumpVersion refuses current and base downgrades', async (t) => {
   await t.test('current package', async (subtest) => {
     const directory = await createReleaseFixture(subtest, '2.0.0')
     const result = runScript(bumpScript, ['1.1.50'], { cwd: directory })
@@ -183,14 +181,6 @@ test('bumpVersion refuses current, base and cache downgrades', async (t) => {
     const directory = await createReleaseFixture(subtest)
     const result = runScript(bumpScript, ['1.1.50', '--dry-run', '--base-version', '2.0.0'], { cwd: directory })
     assert.equal(result.status, 1)
-    assert.match(result.stderr, /Refusing to downgrade base version/)
-  })
-
-  await t.test('service worker cache', async (subtest) => {
-    const directory = await createReleaseFixture(subtest)
-    await writeFile(join(directory, 'public/sw.js'), "const CACHE_VERSION = 'nexo-v2.0.0'\n")
-    const result = runScript(bumpScript, ['1.1.50'], { cwd: directory })
-    assert.equal(result.status, 1)
-    assert.match(result.stderr, /Refusing to downgrade service worker cache/)
+    assert.match(result.stderr, /must be newer than base version/)
   })
 })
