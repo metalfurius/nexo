@@ -1,10 +1,11 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { createElement } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_WEIGHTS, type DiscoveryCandidate, type ListItem } from '../domain/types'
 import { buildPublicCatalogItem } from '../lib/catalog'
 import {
   CandidateDialog,
+  CoverArt,
   ItemEditor,
   PublicItemEditor,
   QuickSearchDialog,
@@ -18,6 +19,71 @@ import {
   writeAppTabToUrl,
   writeCatalogRouteState,
 } from './shared'
+
+describe('CoverArt', () => {
+  it('keeps decorative posters lazy by default', () => {
+    const { container } = render(createElement(CoverArt, {
+      posterUrl: 'https://images.example.test/dune.jpg',
+      title: 'Dune',
+      type: 'book',
+    }))
+
+    const image = container.querySelector('img')
+    expect(container.querySelector('.cover-art')).toHaveAttribute('aria-hidden', 'true')
+    expect(image).toHaveAttribute('alt', '')
+    expect(image).toHaveAttribute('loading', 'lazy')
+    expect(image).not.toHaveAttribute('fetchpriority')
+  })
+
+  it('only raises loading priority when explicitly requested for a hero presentation', () => {
+    const { container } = render(createElement(CoverArt, {
+      posterUrl: 'https://images.example.test/dune.jpg',
+      presentation: 'hero',
+      priority: true,
+      title: 'Dune',
+      type: 'book',
+    }))
+
+    const cover = container.querySelector('.cover-art')
+    const image = container.querySelector('img')
+    expect(cover).toHaveClass('cover-art-hero')
+    expect(cover).toHaveAttribute('data-presentation', 'hero')
+    expect(image).toHaveAttribute('loading', 'eager')
+    expect(image).toHaveAttribute('fetchpriority', 'high')
+  })
+
+  it('switches a failed poster to the deterministic fallback', () => {
+    const { container } = render(createElement(CoverArt, {
+      posterUrl: 'https://images.example.test/broken.jpg',
+      title: 'The Left Hand of Darkness',
+      type: 'book',
+    }))
+    const image = container.querySelector('img')
+    expect(image).not.toBeNull()
+
+    fireEvent.error(image as HTMLImageElement)
+
+    const cover = container.querySelector('.cover-art')
+    expect(container.querySelector('img')).toBeNull()
+    expect(cover).toHaveClass('fallback-cover')
+    expect(cover).toHaveStyle({
+      '--cover-accent-a': '#fbbf24',
+      '--cover-accent-b': '#7c3aed',
+      '--cover-ink': '#1c1917',
+    })
+    expect(screen.getByText('The Left Hand')).toBeVisible()
+  })
+
+  it('bounds very long fallback titles without exposing the full value', () => {
+    const longTitle = 'A'.repeat(500)
+    const { container } = render(createElement(CoverArt, { title: longTitle, type: 'other' }))
+    const renderedTitle = container.querySelector('.cover-art-title')?.textContent ?? ''
+
+    expect(renderedTitle).toHaveLength(48)
+    expect(renderedTitle).toBe('A'.repeat(48))
+    expect(container.textContent).not.toContain(longTitle)
+  })
+})
 
 describe('app tab routing', () => {
   beforeEach(() => {
