@@ -306,8 +306,14 @@ check(
   stepUses(firebaseJob).some((uses) => uses.startsWith('google-github-actions/auth@')),
   'Firebase deploy must authenticate through Google Workload Identity Federation.',
 )
-check(includesRun(firebaseJob, 'firebase-tools deploy --only functions,firestore'), 'Firebase job must deploy Functions, rules and indexes together.')
-check(includesRun(firebaseJob, 'npm run audit:firestore-data'), 'Firebase deploy must audit existing data before restrictive rules.')
+const firebaseRuns = workflowSteps(firebaseJob).map((step) => String(step.run ?? ''))
+const normalizationStepIndex = firebaseRuns.findIndex((run) => run.includes('npm run normalize:firestore-data -- --write'))
+const auditStepIndex = firebaseRuns.findIndex((run) => run.includes('npm run audit:firestore-data'))
+const firebaseDeployStepIndex = firebaseRuns.findIndex((run) => run.includes('firebase-tools deploy --only functions,firestore'))
+check(
+  normalizationStepIndex >= 0 && auditStepIndex > normalizationStepIndex && firebaseDeployStepIndex > auditStepIndex,
+  'Firebase deploy must normalize known legacy fields, audit compatibility and only then deploy restrictive rules.',
+)
 check(
   workflowSteps(firebaseJob).some((step) => step.if === 'failure()' && String(step.uses ?? '').startsWith('actions/upload-artifact@')),
   'Firebase deploy must upload the data audit report when compatibility validation fails.',

@@ -38,6 +38,7 @@
     "test:watch": "vitest",
     "audit:functions": "npm --prefix functions audit --omit=dev --audit-level=high",
     "audit:firestore-data": "tsx scripts/auditFirestoreData.ts",
+    "normalize:firestore-data": "tsx scripts/normalizeFirestoreData.ts",
     "worker:check": "wrangler deploy --dry-run --env=\"\" --config workers/catalog-proxy/wrangler.jsonc",
     "worker:deploy": "wrangler deploy --env=\"\" --config workers/catalog-proxy/wrangler.jsonc",
     "worker:dev": "wrangler dev --config workers/catalog-proxy/wrangler.jsonc",

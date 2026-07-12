@@ -72,6 +72,8 @@ Version tooling accepts any valid, increasing SemVer target and contains no rele
 
 Any backend, credential, revision or smoke failure stops the chain and prevents tagging. A manual redeploy must be launched from `main`, must target an existing SemVer release tag reachable from `main`, and may set `skip_seed`; arbitrary branches and commit SHAs are rejected, and the workflow never performs a destructive catalog rollback.
 
+Before restrictive rules are deployed, the Firebase job runs the idempotent Firestore normalizer and then the read-only compatibility auditor. The normalizer only fills a missing user `createdAt` from Firestore document metadata and removes the explicitly allowlisted legacy fields `repairedAt`, `repairedBy`, `genresText`, `moodText` and `tagsText`; it uses batches of at most 400 writes and never deletes documents. Any remaining incompatibility still stops the release and uploads redacted reports containing hashed paths rather than private data.
+
 ## Final production checks
 
 - Verify `?tab=discover&mode=search&q=Dune` returns the expected catalog cards after reload.
