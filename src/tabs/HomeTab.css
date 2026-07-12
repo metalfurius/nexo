@@ -1,69 +1,69 @@
-/* Styles loaded with home. */
 .home-surface {
   display: grid;
-  gap: 18px;
+  gap: 26px;
   min-width: 0;
-}
-
-.home-hero {
-  background:
-    radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--accent-soft) 86%, transparent), transparent 38%),
-    radial-gradient(circle at 92% 100%, color-mix(in srgb, var(--accent-warm-soft) 78%, transparent), transparent 34%),
-    linear-gradient(145deg, color-mix(in srgb, var(--surface-raised) 96%, var(--surface)), color-mix(in srgb, var(--surface-muted) 88%, transparent));
-  border: 1px solid color-mix(in srgb, var(--accent) 26%, var(--border));
-  border-radius: 14px;
-  box-shadow: 0 18px 48px color-mix(in srgb, var(--surface) 44%, transparent);
-  min-width: 0;
-  overflow: hidden;
   position: relative;
 }
 
-.home-hero {
-  align-items: end;
-  display: grid;
-  gap: 24px;
-  grid-template-columns: minmax(0, 1fr) auto;
-  padding: 24px;
-}
-
-.home-hero::after {
+.home-surface::before {
   background:
-    linear-gradient(90deg, color-mix(in srgb, var(--accent) 78%, transparent), transparent 58%),
-    linear-gradient(90deg, transparent 58%, color-mix(in srgb, var(--accent-warm) 56%, transparent));
-  bottom: 0;
+    radial-gradient(circle, color-mix(in srgb, var(--accent-warm) 48%, transparent) 0 2px, transparent 2.5px),
+    linear-gradient(90deg, color-mix(in srgb, var(--atlas-line) 42%, transparent), transparent 76%);
+  background-position: 0 50%, 0 50%;
+  background-repeat: no-repeat;
+  background-size: 5px 5px, min(420px, 38vw) 1px;
   content: '';
-  height: 3px;
-  left: 0;
+  height: 5px;
   pointer-events: none;
   position: absolute;
   right: 0;
+  top: 18px;
+  width: min(440px, 38vw);
 }
 
-.home-hero > div:first-child {
+.home-atlas-intro {
+  align-items: end;
   display: grid;
-  gap: 7px;
+  gap: 28px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-width: 0;
+  padding: 8px 2px 4px;
+  position: relative;
+}
+
+.home-atlas-title {
+  display: grid;
+  gap: 6px;
   min-width: 0;
 }
 
-.home-hero h2 {
-  color: var(--text-strong);
-  font-size: clamp(30px, 4vw, 46px);
-  letter-spacing: -0.035em;
-  line-height: 1.02;
-  margin: 0;
+.home-atlas-title .eyebrow {
+  align-items: center;
+  display: inline-flex;
+  gap: 7px;
+  width: max-content;
 }
 
-.home-hero p {
+.home-atlas-title h2 {
+  color: var(--atlas-ink);
+  font-family: var(--font-display);
+  font-size: clamp(52px, 6.4vw, 92px);
+  font-weight: 400;
+  letter-spacing: -0.045em;
+  line-height: 0.86;
+  margin: 0;
+  max-width: 11ch;
+  text-wrap: balance;
+}
+
+.home-atlas-title p {
+  border-left: 2px solid var(--atlas-line-strong);
   color: var(--muted);
   font-size: 14px;
-  line-height: 1.48;
-  margin: 0;
-  max-width: 66ch;
-}
-
-.home-hero.empty {
-  align-items: center;
-  min-height: 210px;
+  line-height: 1.55;
+  margin: 9px 0 0;
+  max-width: 64ch;
+  padding-left: 14px;
 }
 
 .home-hero-actions {
@@ -75,282 +75,611 @@
 }
 
 .home-hero-actions > button,
-.home-hero.empty > .primary-button {
-  min-height: 46px;
+.home-atlas-intro.empty > .primary-button {
+  min-height: 48px;
   white-space: nowrap;
-}
-
-.home-onboarding {
-  display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.home-onboarding > button {
-  align-items: center;
-  background:
-    linear-gradient(140deg, color-mix(in srgb, var(--accent-soft) 42%, transparent), transparent 64%),
-    var(--surface-raised);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  color: var(--text);
-  cursor: pointer;
-  display: grid;
-  font: inherit;
-  gap: 12px;
-  grid-template-columns: 38px minmax(0, 1fr);
-  min-height: 78px;
-  padding: 13px;
-  text-align: left;
-  transition:
-    background var(--motion-fast) ease,
-    border-color var(--motion-fast) ease,
-    transform var(--motion-fast) var(--motion-ease);
-}
-
-.home-onboarding > button:hover:not(:disabled) {
-  background:
-    linear-gradient(140deg, color-mix(in srgb, var(--accent-soft) 88%, transparent), transparent 72%),
-    var(--surface-raised);
-  border-color: color-mix(in srgb, var(--accent) 46%, var(--border));
-  transform: translateY(-2px);
-}
-
-.home-onboarding > button > svg {
-  background: color-mix(in srgb, var(--accent-soft) 76%, var(--surface-muted));
-  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
-  border-radius: 10px;
-  color: var(--accent-dark);
-  height: 38px;
-  padding: 9px;
-  width: 38px;
-}
-
-.home-onboarding > button > span {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-}
-
-.home-onboarding strong {
-  color: var(--text-strong);
-  font-size: 14px;
-}
-
-.home-onboarding small {
-  color: var(--muted);
-  font-size: 12px;
 }
 
 .home-status {
   align-items: center;
-  background: color-mix(in srgb, var(--accent-soft) 72%, var(--surface-raised));
-  border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--border));
-  border-radius: 10px;
+  background: var(--atlas-paper);
+  border-left: 3px solid var(--accent);
   color: var(--text);
   display: flex;
   font-size: 13px;
   font-weight: 750;
-  margin: -6px 0 0;
-  min-height: 40px;
+  gap: 12px;
+  justify-content: space-between;
+  margin: -8px 0 0;
+  min-height: 42px;
+  overflow: hidden;
   padding: 8px 12px;
 }
 
-.roadmap-board {
-  align-items: start;
-  display: grid;
-  gap: 14px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  min-width: 0;
-}
-
-.roadmap-lane {
-  --roadmap-lane-color: var(--muted);
-  --roadmap-lane-soft: var(--surface-muted);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--roadmap-lane-soft) 52%, transparent), transparent 150px),
-    color-mix(in srgb, var(--surface-muted) 72%, transparent);
-  border: 1px solid color-mix(in srgb, var(--roadmap-lane-color) 22%, var(--border));
-  border-radius: 13px;
-  box-shadow: inset 0 3px 0 color-mix(in srgb, var(--roadmap-lane-color) 76%, transparent);
-  display: grid;
-  min-width: 0;
-  padding: 0 10px 10px;
-}
-
-.roadmap-lane.now {
-  --roadmap-lane-color: var(--accent);
-  --roadmap-lane-soft: var(--accent-soft);
-}
-
-.roadmap-lane.next {
-  --roadmap-lane-color: var(--accent-warm);
-  --roadmap-lane-soft: var(--accent-warm-soft);
-}
-
-.roadmap-lane.later {
-  --roadmap-lane-color: var(--muted);
-  --roadmap-lane-soft: var(--surface-elevated);
-}
-
-.roadmap-lane > header {
-  display: grid;
-  gap: 3px;
-  padding: 17px 4px 12px;
-}
-
-.roadmap-lane > header > div {
-  align-items: center;
-  display: flex;
-  gap: 8px;
-  min-width: 0;
-}
-
-.roadmap-lane > header span {
-  align-items: center;
-  background: color-mix(in srgb, var(--roadmap-lane-soft) 76%, var(--surface-raised));
-  border: 1px solid color-mix(in srgb, var(--roadmap-lane-color) 30%, var(--border));
-  border-radius: 999px;
-  color: var(--roadmap-lane-color);
-  display: inline-flex;
-  flex: 0 0 auto;
-  font-size: 11px;
-  font-weight: 900;
-  height: 24px;
-  justify-content: center;
-  min-width: 24px;
-  padding: 0 6px;
-}
-
-.roadmap-lane h3 {
-  color: var(--text-strong);
-  font-size: 18px;
-  line-height: 1.2;
-  margin: 0;
-}
-
-.roadmap-lane > header p {
-  color: var(--muted);
-  font-size: 11px;
-  line-height: 1.35;
-  margin: 0 0 0 32px;
-}
-
-.roadmap-list {
-  display: grid;
-  gap: 9px;
-  min-width: 0;
-}
-
-.roadmap-card {
-  background:
-    linear-gradient(145deg, color-mix(in srgb, var(--surface-raised) 96%, transparent), color-mix(in srgb, var(--surface) 74%, transparent)),
-    var(--surface-raised);
-  border: 1px solid color-mix(in srgb, var(--border) 88%, transparent);
-  border-radius: 11px;
-  box-shadow: 0 8px 22px color-mix(in srgb, var(--surface) 32%, transparent);
-  display: grid;
-  min-width: 0;
-  padding: 7px;
-  position: relative;
-  transition:
-    border-color var(--motion-fast) ease,
-    box-shadow var(--motion-fast) ease,
-    transform var(--motion-fast) var(--motion-ease);
-}
-
-.roadmap-card:hover,
-.roadmap-card:focus-within {
-  border-color: color-mix(in srgb, var(--roadmap-lane-color) 42%, var(--border));
-  box-shadow: 0 12px 28px color-mix(in srgb, var(--surface) 42%, transparent);
-}
-
-.roadmap-card-main {
-  align-items: center;
-  background: transparent;
-  border: 0;
-  border-radius: 8px;
-  color: inherit;
-  cursor: pointer;
-  display: grid;
-  font: inherit;
-  gap: 10px;
-  grid-template-columns: 50px minmax(0, 1fr);
-  min-width: 0;
-  padding: 2px;
-  text-align: left;
-  width: 100%;
-}
-
-.roadmap-card-main:hover {
-  background: color-mix(in srgb, var(--roadmap-lane-soft) 34%, transparent);
-}
-
-.roadmap-card-main .cover-art {
-  aspect-ratio: 2 / 3;
-  border-radius: 7px;
-  box-shadow: 0 7px 16px color-mix(in srgb, var(--surface) 56%, transparent);
-  height: 72px;
-  width: 50px;
-}
-
-.roadmap-card-main .cover-art-letter,
-.roadmap-card-main .cover-art-title,
-.roadmap-card-main .cover-art-type,
-.roadmap-card-main .cover-art-icon {
-  display: none;
-}
-
-.roadmap-card-main > span {
-  display: grid;
-  gap: 3px;
-  min-width: 0;
-}
-
-.roadmap-card-main small,
-.roadmap-card-main strong,
-.roadmap-card-main em {
+.home-status > span {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.roadmap-card-main small {
-  color: var(--roadmap-lane-color);
-  font-size: 9px;
+.home-status button {
+  background: transparent;
+  border: 0;
+  color: var(--accent-dark);
+  cursor: pointer;
+  flex: 0 0 auto;
+  font: inherit;
+  min-height: 32px;
+  padding: 4px 8px;
+}
+
+.home-journey-grid {
+  align-items: start;
+  display: grid;
+  gap: 20px;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  min-width: 0;
+}
+
+.home-surface .roadmap-lane {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  padding: 0;
+}
+
+.home-surface .atlas-now {
+  grid-column: span 7;
+}
+
+.home-surface .atlas-next {
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--accent-soft) 18%, transparent), transparent 58%),
+    var(--atlas-paper);
+  border: 1px solid color-mix(in srgb, var(--atlas-line) 72%, var(--border));
+  border-radius: 4px var(--atlas-radius-large) 4px var(--atlas-radius-large);
+  grid-column: span 5;
+  padding: 18px;
+}
+
+.home-surface .atlas-later {
+  border-bottom: 1px solid color-mix(in srgb, var(--atlas-line) 66%, var(--border));
+  border-top: 1px solid color-mix(in srgb, var(--atlas-line) 66%, var(--border));
+  grid-column: 1 / -1;
+  padding: 22px 0 20px;
+}
+
+.home-journey-grid.hero-next-chapter .atlas-now,
+.home-journey-grid.hero-invitation .atlas-now {
+  grid-column: span 4;
+}
+
+.home-journey-grid.hero-next-chapter .atlas-next,
+.home-journey-grid.hero-invitation .atlas-next {
+  grid-column: span 8;
+}
+
+.atlas-section-heading {
+  align-items: center;
+  display: grid;
+  gap: 11px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  min-width: 0;
+}
+
+.atlas-section-heading > span {
+  color: var(--accent-dark);
+  font-family: var(--font-display);
+  font-size: 25px;
+  line-height: 1;
+}
+
+.atlas-section-heading > div {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.atlas-section-heading h3 {
+  color: var(--text-strong);
+  font-family: var(--font-display);
+  font-size: 27px;
+  font-weight: 400;
+  letter-spacing: -0.025em;
+  line-height: 1;
+  margin: 0;
+}
+
+.atlas-section-heading p {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.3;
+  margin: 0;
+}
+
+.atlas-section-heading > strong,
+.now-companions > header strong {
+  align-items: center;
+  border: 1px solid color-mix(in srgb, var(--atlas-line) 74%, var(--border));
+  border-radius: 999px;
+  color: var(--muted);
+  display: inline-flex;
+  font-size: 11px;
+  height: 28px;
+  justify-content: center;
+  min-width: 28px;
+  padding: 0 7px;
+}
+
+.home-surface .roadmap-list {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.home-surface .roadmap-card {
+  min-width: 0;
+  position: relative;
+}
+
+.journey-feature-card {
+  background:
+    radial-gradient(circle at 86% 16%, color-mix(in srgb, var(--accent-warm) 28%, transparent), transparent 30%),
+    linear-gradient(145deg, #182125, #090d0f 72%);
+  border: 1px solid color-mix(in srgb, #fff 13%, transparent);
+  border-radius: var(--atlas-radius-large) 4px var(--atlas-radius-large) 4px;
+  box-shadow: var(--atlas-shadow-poster);
+  display: grid;
+  isolation: isolate;
+  min-height: 420px;
+  overflow: hidden;
+  padding: 24px;
+}
+
+.journey-feature-atmosphere {
+  background-image:
+    linear-gradient(90deg, rgba(5, 8, 10, 0.96) 0%, rgba(5, 8, 10, 0.76) 48%, rgba(5, 8, 10, 0.38) 100%),
+    linear-gradient(0deg, rgba(5, 8, 10, 0.86), transparent 68%),
+    var(--item-poster-image, linear-gradient(145deg, var(--accent-soft), var(--accent-warm-soft)));
+  background-position: center;
+  background-size: cover;
+  filter: blur(14px) saturate(0.86);
+  inset: -28px;
+  opacity: 0.78;
+  pointer-events: none;
+  position: absolute;
+  transform: scale(1.08);
+  z-index: -2;
+}
+
+.journey-feature-card::after {
+  background:
+    radial-gradient(circle at 20% 22%, rgba(255, 255, 255, 0.08) 0 1px, transparent 1.4px),
+    repeating-linear-gradient(115deg, transparent 0 36px, rgba(255, 255, 255, 0.025) 36px 37px);
+  background-size: 8px 8px, auto;
+  content: '';
+  inset: 0;
+  mix-blend-mode: soft-light;
+  opacity: 0.44;
+  pointer-events: none;
+  position: absolute;
+  z-index: -1;
+}
+
+.journey-feature-main {
+  align-items: center;
+  align-self: stretch;
+  background: transparent;
+  border: 0;
+  color: #fff;
+  cursor: pointer;
+  display: grid;
+  font: inherit;
+  gap: clamp(20px, 3vw, 38px);
+  grid-template-columns: clamp(142px, 34%, 210px) minmax(0, 1fr);
+  min-width: 0;
+  padding: 0;
+  text-align: left;
+  width: 100%;
+}
+
+.journey-feature-main .cover-art {
+  aspect-ratio: 2 / 3;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 3px 18px 3px 18px;
+  box-shadow: 0 28px 58px rgba(0, 0, 0, 0.52);
+  height: auto;
+  max-height: 300px;
+  min-height: 214px;
+  transform: rotate(-1.5deg);
+  width: 100%;
+}
+
+.journey-feature-copy {
+  align-content: center;
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.journey-feature-copy > small {
+  color: #b7f0ee;
+  font-size: 10px;
   font-weight: 850;
+  letter-spacing: 0.08em;
+  line-height: 1.3;
   text-transform: uppercase;
 }
 
-.roadmap-card-main strong {
-  color: var(--text-strong);
+.journey-feature-copy > strong {
+  color: #fff;
+  display: -webkit-box;
+  font-family: var(--font-display);
+  font-size: clamp(36px, 4vw, 58px);
+  font-weight: 400;
+  letter-spacing: -0.035em;
+  line-height: 0.94;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.journey-feature-copy > em {
+  color: rgba(255, 255, 255, 0.78);
   font-size: 13px;
-  line-height: 1.24;
-}
-
-.roadmap-card-main em {
-  color: var(--muted);
-  font-size: 11px;
   font-style: normal;
+  font-weight: 700;
 }
 
-.roadmap-card-actions {
+.journey-feature-note {
+  border-left: 1px solid rgba(255, 255, 255, 0.36);
+  color: rgba(255, 255, 255, 0.66);
+  font-family: var(--font-display);
+  font-size: 17px;
+  line-height: 1.2;
+  margin-top: 8px;
+  padding-left: 10px;
+}
+
+.journey-feature-actions {
+  align-items: center;
+  align-self: end;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) 44px;
+  margin-top: 20px;
+  min-width: 0;
+  position: relative;
+  z-index: 4;
+}
+
+.journey-feature-actions > .primary-button {
+  min-height: 46px;
+  width: 100%;
+}
+
+.now-companions {
+  border-top: 1px solid color-mix(in srgb, var(--atlas-line) 62%, var(--border));
+  display: grid;
+  gap: 10px;
+  padding-top: 13px;
+}
+
+.now-companions > header {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: 10px;
+  font-weight: 850;
+  justify-content: space-between;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.now-companions > header strong {
+  height: 23px;
+  min-width: 23px;
+}
+
+.now-companions > div {
+  display: grid;
+  gap: 9px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.now-companion {
+  border-bottom: 1px solid color-mix(in srgb, var(--atlas-line) 58%, var(--border));
+  display: grid;
+  gap: 7px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 7px 0 10px;
+}
+
+.home-surface .roadmap-card-main:not(.journey-feature-main) {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  display: grid;
+  font: inherit;
+  gap: 10px;
+  grid-template-columns: 54px minmax(0, 1fr);
+  min-width: 0;
+  padding: 0;
+  text-align: left;
+  width: 100%;
+}
+
+.home-surface .roadmap-card-main:not(.journey-feature-main):hover strong {
+  color: var(--accent-dark);
+}
+
+.home-surface .roadmap-card-main:not(.journey-feature-main) .cover-art {
+  aspect-ratio: 2 / 3;
+  border-radius: 2px 9px 2px 9px;
+  box-shadow: 0 9px 22px color-mix(in srgb, #000 32%, transparent);
+  height: 81px;
+  width: 54px;
+}
+
+.home-surface .roadmap-card-main:not(.journey-feature-main) > span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.home-surface .roadmap-card-main:not(.journey-feature-main) small,
+.home-surface .roadmap-card-main:not(.journey-feature-main) strong,
+.home-surface .roadmap-card-main:not(.journey-feature-main) em {
+  min-width: 0;
+}
+
+.home-surface .roadmap-card-main:not(.journey-feature-main) small {
+  color: var(--accent-dark);
+  font-size: 9px;
+  font-weight: 850;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.home-surface .roadmap-card-main:not(.journey-feature-main) strong {
+  color: var(--text-strong);
+  display: -webkit-box;
+  font-size: 13px;
+  line-height: 1.26;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  transition: color var(--motion-fast) ease;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.home-surface .roadmap-card-main:not(.journey-feature-main) em {
+  color: var(--muted);
+  font-size: 10px;
+  font-style: normal;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.now-companion .roadmap-card-main {
+  grid-column: 1 / -1;
+}
+
+.home-surface .roadmap-card-actions:not(.journey-feature-actions) {
   align-items: center;
   display: grid;
   gap: 6px;
   grid-template-columns: minmax(0, 1fr) 38px;
-  margin-top: 7px;
   min-width: 0;
 }
 
-.roadmap-card-actions > .primary-button,
-.roadmap-card-actions > .secondary-button {
-  font-size: 11px;
+.now-companion .roadmap-card-actions {
+  grid-column: 1 / -1;
+}
+
+.home-surface .roadmap-card-actions > .primary-button,
+.home-surface .roadmap-card-actions > .secondary-button {
+  font-size: 10px;
   min-height: 38px;
   min-width: 0;
   padding: 0 8px;
   width: 100%;
+}
+
+.journey-poster-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.atlas-poster-card {
+  border-bottom: 1px solid color-mix(in srgb, var(--atlas-line) 58%, var(--border));
+  display: grid;
+  gap: 9px;
+  padding: 8px 0 13px;
+}
+
+.atlas-next .journey-feature-card {
+  margin-bottom: 5px;
+}
+
+.hero-next-chapter .atlas-next .journey-feature-card {
+  min-height: 390px;
+}
+
+.atlas-lane-empty {
+  align-items: center;
+  border: 1px dashed color-mix(in srgb, var(--atlas-line) 72%, var(--border));
+  color: var(--muted);
+  display: grid;
+  font-size: 12px;
+  gap: 11px;
+  grid-column: 1 / -1;
+  grid-template-columns: auto minmax(0, 1fr);
+  min-height: 90px;
+  padding: 15px;
+}
+
+.atlas-lane-empty svg {
+  color: var(--accent-dark);
+}
+
+.atlas-lane-empty span {
+  display: grid;
+  gap: 2px;
+}
+
+.atlas-lane-empty strong {
+  color: var(--text-strong);
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 400;
+}
+
+.atlas-lane-empty small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.now-empty {
+  align-self: stretch;
+  min-height: 190px;
+}
+
+.atlas-invitation {
+  align-content: center;
+  background:
+    radial-gradient(circle at 82% 12%, color-mix(in srgb, var(--accent-warm-soft) 86%, transparent), transparent 34%),
+    linear-gradient(140deg, var(--atlas-paper), color-mix(in srgb, var(--surface) 88%, var(--accent-soft)));
+  border: 1px solid color-mix(in srgb, var(--atlas-line) 74%, var(--border));
+  border-radius: var(--atlas-radius-large) 4px var(--atlas-radius-large) 4px;
+  display: grid;
+  gap: 20px;
+  min-height: 300px;
+  padding: clamp(22px, 4vw, 42px);
+  position: relative;
+}
+
+.atlas-invitation-mark {
+  align-items: center;
+  border: 1px solid var(--atlas-line-strong);
+  border-radius: 999px;
+  color: var(--accent-dark);
+  display: inline-flex;
+  height: 50px;
+  justify-content: center;
+  width: 50px;
+}
+
+.atlas-invitation > div:not(.atlas-invitation-actions) {
+  display: grid;
+  gap: 6px;
+  max-width: 54ch;
+}
+
+.atlas-invitation > div > strong {
+  color: var(--text-strong);
+  font-family: var(--font-display);
+  font-size: clamp(31px, 4vw, 47px);
+  font-weight: 400;
+  letter-spacing: -0.03em;
+  line-height: 0.98;
+  text-wrap: balance;
+}
+
+.atlas-invitation p {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 3px 0 0;
+}
+
+.atlas-invitation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.atlas-timeline {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  padding-top: 25px;
+  position: relative;
+}
+
+.atlas-timeline::before {
+  background: linear-gradient(90deg, var(--atlas-line-strong), var(--atlas-line), transparent);
+  content: '';
+  height: 1px;
+  left: 8px;
+  position: absolute;
+  right: 8px;
+  top: 10px;
+}
+
+.atlas-timeline-card {
+  display: grid;
+  gap: 9px;
+  padding: 7px 0 0;
+  position: relative;
+}
+
+.atlas-timeline-node {
+  background: var(--surface-raised);
+  border: 2px solid var(--accent-warm);
+  border-radius: 999px;
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--surface) 86%, transparent);
+  height: 10px;
+  left: 8px;
+  position: absolute;
+  top: -19px;
+  width: 10px;
+}
+
+.atlas-timeline-card .roadmap-card-main {
+  align-items: start;
+  grid-template-columns: 48px minmax(0, 1fr);
+}
+
+.home-surface .atlas-timeline-card .roadmap-card-main .cover-art {
+  height: 72px;
+  width: 48px;
+}
+
+.later-empty {
+  grid-column: 1 / -1;
+}
+
+.roadmap-expand {
+  align-items: center;
+  align-self: end;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid currentColor;
+  color: var(--accent-dark);
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 850;
+  justify-self: end;
+  min-height: 34px;
+  padding: 4px 2px;
+}
+
+.roadmap-expand:hover {
+  color: var(--text-strong);
 }
 
 .roadmap-card-menu {
@@ -359,19 +688,24 @@
 
 .roadmap-card-menu > summary {
   align-items: center;
-  background: color-mix(in srgb, var(--surface-muted) 82%, transparent);
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-muted) 86%, transparent);
+  border: 1px solid color-mix(in srgb, var(--atlas-line) 72%, var(--border));
+  border-radius: 999px;
   color: var(--muted);
   cursor: pointer;
   display: flex;
-  font-size: 17px;
-  font-weight: 900;
   height: 38px;
   justify-content: center;
-  letter-spacing: 1px;
   list-style: none;
   width: 38px;
+}
+
+.journey-feature-card .roadmap-card-menu > summary {
+  background: rgba(5, 8, 10, 0.62);
+  border-color: rgba(255, 255, 255, 0.24);
+  color: rgba(255, 255, 255, 0.78);
+  height: 44px;
+  width: 44px;
 }
 
 .roadmap-card-menu > summary::-webkit-details-marker {
@@ -380,29 +714,32 @@
 
 .roadmap-card-menu > summary:focus-visible {
   outline: 2px solid var(--focus);
-  outline-offset: 2px;
+  outline-offset: 3px;
 }
 
 .roadmap-card-menu[open] > summary {
-  background: var(--roadmap-lane-soft);
-  border-color: color-mix(in srgb, var(--roadmap-lane-color) 42%, var(--border));
-  color: var(--roadmap-lane-color);
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent-dark);
 }
 
 .roadmap-card-menu > div {
-  animation: menu-enter var(--motion-fast) var(--motion-ease) both;
+  animation: atlas-menu-enter var(--motion-fast) var(--motion-ease) both;
   background: var(--surface-raised);
   border: 1px solid var(--border);
-  border-radius: 10px;
-  bottom: calc(100% + 7px);
-  box-shadow: var(--shadow);
+  border-radius: var(--atlas-radius-small);
+  bottom: calc(100% + 8px);
+  box-shadow: var(--atlas-shadow-soft);
   display: grid;
-  gap: 3px;
-  min-width: 215px;
+  gap: 2px;
+  max-height: min(440px, calc(100vh - 80px));
+  min-width: 220px;
+  overflow-y: auto;
   padding: 6px;
   position: absolute;
   right: 0;
-  z-index: 24;
+  width: max-content;
+  z-index: 40;
 }
 
 .roadmap-card-menu > div > button {
@@ -417,205 +754,593 @@
   font-size: 12px;
   gap: 8px;
   justify-content: flex-start;
-  min-height: 34px;
-  padding: 5px 8px;
+  min-height: 35px;
+  padding: 5px 9px;
   text-align: left;
   width: 100%;
 }
 
-.roadmap-card-menu > div > button:hover:not(:disabled) {
+.roadmap-card-menu > div > button:hover:not(:disabled),
+.roadmap-card-menu > div > button:focus-visible {
   background: var(--surface-muted);
+  color: var(--text-strong);
 }
 
-.roadmap-empty {
-  align-items: center;
-  border: 1px dashed color-mix(in srgb, var(--roadmap-lane-color) 28%, var(--border));
-  border-radius: 10px;
-  color: var(--muted);
-  display: flex;
-  font-size: 12px;
-  justify-content: center;
+.roadmap-card-menu > div > button:disabled {
+  cursor: not-allowed;
+  opacity: 0.38;
+}
+
+.home-credits {
+  align-items: start;
+  border-bottom: 1px solid color-mix(in srgb, var(--atlas-line) 64%, var(--border));
+  border-top: 1px solid color-mix(in srgb, var(--atlas-line) 64%, var(--border));
+  display: grid;
+  gap: 26px;
+  grid-template-columns: minmax(230px, 0.72fr) minmax(0, 1.6fr);
+  padding: 20px 0;
+}
+
+.home-credits > header {
+  display: grid;
+  gap: 4px;
+}
+
+.home-credits h3 {
+  color: var(--text-strong);
+  font-family: var(--font-display);
+  font-size: 27px;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
   margin: 0;
-  min-height: 88px;
-  padding: 16px;
-  text-align: center;
+  text-wrap: balance;
 }
 
-.roadmap-expand {
+.home-credits > div {
+  display: grid;
+  gap: 6px;
+}
+
+.home-credits > div > button {
+  align-items: center;
   background: transparent;
   border: 0;
-  border-radius: 8px;
-  color: var(--roadmap-lane-color);
-  cursor: pointer;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 850;
-  justify-self: center;
-  margin-top: 8px;
-  min-height: 34px;
-  padding: 4px 10px;
-}
-
-.roadmap-expand:hover {
-  background: color-mix(in srgb, var(--roadmap-lane-soft) 72%, transparent);
-}
-
-.home-completed {
-  align-items: center;
-  background: color-mix(in srgb, var(--surface-raised) 76%, transparent);
-  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
-  border-radius: 12px;
-  display: grid;
-  gap: 16px;
-  grid-template-columns: minmax(190px, 0.45fr) minmax(0, 1fr);
-  padding: 14px 16px;
-}
-
-.home-completed > div:first-child {
-  display: grid;
-  gap: 2px;
-}
-
-.home-completed h3 {
-  color: var(--text-strong);
-  font-size: 16px;
-  margin: 0;
-}
-
-.home-completed > div:last-child {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 7px;
-  justify-content: flex-end;
-}
-
-.home-completed > div:last-child button {
-  align-items: center;
-  background: color-mix(in srgb, var(--accent-soft) 54%, var(--surface-muted));
-  border: 1px solid color-mix(in srgb, var(--accent) 26%, var(--border));
-  border-radius: 999px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
   color: var(--text);
   cursor: pointer;
-  display: inline-flex;
+  display: grid;
   font: inherit;
-  font-size: 12px;
-  gap: 6px;
-  min-height: 34px;
-  padding: 5px 10px;
+  gap: 11px;
+  grid-template-columns: 25px 34px minmax(0, 1fr) auto;
+  min-height: 54px;
+  padding: 4px 3px;
+  text-align: left;
 }
 
-.home-completed svg {
+.home-credits > div > button > span {
+  color: var(--accent-dark);
+  font-family: var(--font-display);
+  font-size: 17px;
+}
+
+.home-credits .cover-art {
+  border-radius: 2px 6px 2px 6px;
+  height: 45px;
+  width: 30px;
+}
+
+.home-credits > div > button > strong {
+  color: var(--text-strong);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.home-credits > div > button:hover > strong,
+.home-credits > div > button:hover > svg {
   color: var(--accent-dark);
 }
 
 .home-surface > .session-activity-panel {
-  margin-top: 0;
+  background: transparent;
+  border: 0;
+  border-top: 1px solid color-mix(in srgb, var(--atlas-line) 52%, var(--border));
+  border-radius: 0;
+  margin: -6px 0 0;
+  padding: 14px 0 0;
 }
 
-@media (max-width: 900px) {
-  .roadmap-board {
+.home-empty-atlas {
+  min-height: min(720px, calc(100vh - 120px));
+}
+
+.home-atlas-intro.empty {
+  align-items: center;
+  min-height: 280px;
+  padding-block: clamp(24px, 7vh, 78px);
+}
+
+.home-atlas-intro.empty .home-atlas-title h2 {
+  max-width: 14ch;
+}
+
+.home-onboarding {
+  display: grid;
+  gap: 0;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  position: relative;
+}
+
+.home-onboarding-route {
+  background: linear-gradient(90deg, var(--atlas-line-strong), var(--atlas-line), transparent);
+  height: 1px;
+  left: 34px;
+  pointer-events: none;
+  position: absolute;
+  right: 34px;
+  top: 29px;
+}
+
+.home-onboarding > button {
+  align-content: start;
+  background: transparent;
+  border: 0;
+  color: var(--text);
+  cursor: pointer;
+  display: grid;
+  font: inherit;
+  gap: 14px 10px;
+  grid-template-columns: 44px minmax(0, 1fr);
+  min-height: 190px;
+  padding: 4px clamp(14px, 2.3vw, 34px) 24px;
+  position: relative;
+  text-align: left;
+}
+
+.home-onboarding > button + button {
+  border-left: 1px solid color-mix(in srgb, var(--atlas-line) 44%, var(--border));
+}
+
+.home-onboarding > button > svg {
+  background: var(--surface-raised);
+  border: 1px solid var(--atlas-line-strong);
+  border-radius: 999px;
+  color: var(--accent-dark);
+  grid-column: 1;
+  grid-row: 1;
+  height: 52px;
+  padding: 14px;
+  position: relative;
+  width: 52px;
+  z-index: 1;
+}
+
+.home-onboarding-index {
+  color: var(--accent-warm);
+  font-family: var(--font-display);
+  font-size: 18px;
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: end;
+}
+
+.home-onboarding > button > span:last-child {
+  display: grid;
+  gap: 5px;
+  grid-column: 1 / -1;
+}
+
+.home-onboarding strong {
+  color: var(--text-strong);
+  font-family: var(--font-display);
+  font-size: 30px;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.home-onboarding small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.home-onboarding > button:hover:not(:disabled) strong {
+  color: var(--accent-dark);
+}
+
+.home-onboarding > button:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.home-loading {
+  overflow: hidden;
+}
+
+.home-loading-intro,
+.home-loading-grid > div {
+  animation: atlas-loading 1.2s ease-in-out infinite alternate;
+  background: linear-gradient(100deg, var(--surface-muted), var(--surface-elevated), var(--surface-muted));
+  background-size: 220% 100%;
+}
+
+.home-loading-intro {
+  height: 150px;
+  width: min(620px, 82%);
+}
+
+.home-loading-grid {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: 1.35fr 0.8fr;
+}
+
+.home-loading-grid > div {
+  border-radius: var(--atlas-radius-large) 4px var(--atlas-radius-large) 4px;
+  min-height: 390px;
+}
+
+.home-loading-grid > div:last-child {
+  grid-column: 1 / -1;
+  min-height: 150px;
+}
+
+@keyframes atlas-menu-enter {
+  from { opacity: 0; transform: translateY(6px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes atlas-loading {
+  from { background-position: 100% 0; opacity: 0.58; }
+  to { background-position: 0 0; opacity: 0.94; }
+}
+
+@media (max-width: 1099px) {
+  .home-journey-grid,
+  .home-journey-grid.hero-next-chapter,
+  .home-journey-grid.hero-invitation {
     grid-template-columns: 1fr;
   }
 
-  .roadmap-lane {
-    width: 100%;
+  .home-surface .atlas-now,
+  .home-surface .atlas-next,
+  .home-surface .atlas-later,
+  .home-journey-grid.hero-next-chapter .atlas-now,
+  .home-journey-grid.hero-next-chapter .atlas-next,
+  .home-journey-grid.hero-invitation .atlas-now,
+  .home-journey-grid.hero-invitation .atlas-next {
+    grid-column: 1;
+  }
+
+  .atlas-timeline {
+    gap: 0;
+    grid-template-columns: 1fr;
+    padding: 0 0 0 25px;
+  }
+
+  .atlas-timeline::before {
+    background: linear-gradient(180deg, var(--atlas-line-strong), var(--atlas-line), transparent);
+    bottom: 8px;
+    height: auto;
+    left: 5px;
+    right: auto;
+    top: 8px;
+    width: 1px;
+  }
+
+  .atlas-timeline-card {
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 66%, transparent);
+    grid-template-columns: minmax(0, 1fr) minmax(160px, 0.34fr);
+    padding: 10px 0;
+  }
+
+  .atlas-timeline-node {
+    left: -24px;
+    top: 21px;
+  }
+
+  .atlas-timeline-card .roadmap-card-main {
+    grid-column: 1;
+  }
+
+  .atlas-timeline-card .roadmap-card-actions {
+    align-self: center;
+    grid-column: 2;
+  }
+
+  .later-empty {
+    margin-left: -25px;
+  }
+
+  .home-loading-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .home-loading-grid > div:last-child {
+    grid-column: 1;
   }
 }
 
-@media (max-width: 760px) {
+@media (min-width: 1100px) and (max-height: 780px) {
   .home-surface {
-    gap: 12px;
+    gap: 18px;
   }
 
-  .home-hero {
-    border-radius: 12px;
-    gap: 13px;
-    grid-template-columns: 1fr;
-    padding: 14px;
+  .home-atlas-title h2 {
+    font-size: 64px;
   }
 
-  .home-hero.empty {
-    align-items: stretch;
-    min-height: 0;
-  }
-
-  .home-hero h2 {
-    font-size: 29px;
-  }
-
-  .home-hero p {
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
+  .home-atlas-title p {
     font-size: 12px;
-    line-height: 1.38;
-    overflow: hidden;
+    line-height: 1.4;
+    margin-top: 4px;
+  }
+
+  .home-journey-grid {
+    gap: 16px;
+  }
+
+  .home-surface .roadmap-lane {
+    gap: 10px;
+  }
+
+  .journey-feature-card {
+    min-height: 340px;
+    padding: 18px;
+  }
+
+  .journey-feature-main {
+    gap: 24px;
+    grid-template-columns: minmax(120px, 172px) minmax(0, 1fr);
+  }
+
+  .journey-feature-main .cover-art {
+    max-height: 240px;
+    min-height: 180px;
+  }
+
+  .journey-feature-copy > strong {
+    font-size: 44px;
+  }
+
+  .journey-feature-actions {
+    margin-top: 12px;
+  }
+}
+
+@media (max-width: 767px) {
+  .home-surface {
+    gap: 19px;
+  }
+
+  .home-surface::before {
+    display: none;
+  }
+
+  .home-atlas-intro {
+    align-items: stretch;
+    gap: 18px;
+    grid-template-columns: 1fr;
+    padding-top: 4px;
+  }
+
+  .home-atlas-title h2 {
+    font-size: clamp(51px, 16vw, 68px);
+  }
+
+  .home-atlas-title p {
+    font-size: 12px;
+    line-height: 1.45;
+    margin-top: 6px;
   }
 
   .home-hero-actions {
     display: grid;
-    gap: 7px;
+    gap: 8px;
     grid-template-columns: minmax(0, 0.72fr) minmax(0, 1.28fr);
-    justify-content: stretch;
   }
 
   .home-hero-actions > button,
-.home-hero.empty > .primary-button {
+  .home-atlas-intro.empty > .primary-button {
     font-size: 11px;
-    min-height: 42px;
+    min-height: 44px;
     min-width: 0;
     padding-inline: 8px;
     width: 100%;
   }
 
-  .home-onboarding {
+  .home-status {
+    font-size: 11px;
+    margin-top: -3px;
+  }
+
+  .home-journey-grid {
+    gap: 24px;
+  }
+
+  .home-surface .atlas-next {
+    border-radius: 3px 19px 3px 19px;
+    padding: 14px;
+  }
+
+  .home-surface .atlas-later {
+    padding-block: 18px;
+  }
+
+  .atlas-section-heading h3 {
+    font-size: 25px;
+  }
+
+  .journey-feature-card,
+  .hero-next-chapter .atlas-next .journey-feature-card {
+    border-radius: 20px 3px 20px 3px;
+    min-height: 0;
+    padding: 16px;
+  }
+
+  .journey-feature-main {
+    align-items: center;
+    gap: 16px;
+    grid-template-columns: minmax(90px, 31%) minmax(0, 1fr);
+  }
+
+  .journey-feature-main .cover-art {
+    min-height: 150px;
+  }
+
+  .journey-feature-copy > strong {
+    font-size: clamp(31px, 10vw, 44px);
+    -webkit-line-clamp: 4;
+  }
+
+  .journey-feature-note {
+    display: none;
+  }
+
+  .journey-feature-actions {
+    margin-top: 15px;
+  }
+
+  .now-companions > div,
+  .journey-poster-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .atlas-poster-card,
+  .now-companion {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .home-surface .roadmap-card-main:not(.journey-feature-main) {
+    grid-template-columns: 50px minmax(0, 1fr);
+  }
+
+  .home-surface .roadmap-card-main:not(.journey-feature-main) .cover-art {
+    height: 75px;
+    width: 50px;
+  }
+
+  .atlas-timeline-card {
     gap: 8px;
     grid-template-columns: 1fr;
   }
 
-  .home-onboarding > button {
-    min-height: 64px;
-    padding: 9px 11px;
+  .atlas-timeline-card .roadmap-card-actions {
+    grid-column: 1;
   }
 
-  .roadmap-board {
-    gap: 11px;
+  .roadmap-card-menu > div {
+    max-width: calc(100vw - 36px);
+    min-width: min(220px, calc(100vw - 36px));
+  }
+
+  .home-credits {
+    gap: 14px;
     grid-template-columns: 1fr;
+    padding-block: 17px;
   }
 
-  .roadmap-lane {
-    border-radius: 11px;
-    padding: 0 8px 8px;
+  .home-credits h3 {
+    font-size: 24px;
   }
 
-  .roadmap-lane > header {
-    padding: 14px 3px 10px;
-  }
-
-  .roadmap-card-main {
-    grid-template-columns: 48px minmax(0, 1fr);
-  }
-
-  .roadmap-card-main .cover-art {
-    height: 68px;
-    width: 48px;
-  }
-
-  .home-completed {
+  .home-atlas-intro.empty {
     align-items: stretch;
-    gap: 9px;
-    grid-template-columns: 1fr;
-    padding: 12px;
+    min-height: 0;
+    padding-block: 20px 4px;
   }
 
-  .home-completed > div:last-child {
-    display: grid;
+  .home-onboarding {
+    gap: 0;
     grid-template-columns: 1fr;
-    justify-content: stretch;
+    padding-left: 20px;
   }
 
-  .home-completed > div:last-child button {
-    justify-content: flex-start;
-    width: 100%;
+  .home-onboarding-route {
+    background: linear-gradient(180deg, var(--atlas-line-strong), var(--atlas-line), transparent);
+    bottom: 42px;
+    height: auto;
+    left: 45px;
+    right: auto;
+    top: 31px;
+    width: 1px;
+  }
+
+  .home-onboarding > button {
+    gap: 12px;
+    grid-template-columns: 52px minmax(0, 1fr) auto;
+    min-height: 108px;
+    padding: 10px 0 14px;
+  }
+
+  .home-onboarding > button + button {
+    border-left: 0;
+    border-top: 1px solid color-mix(in srgb, var(--atlas-line) 38%, var(--border));
+  }
+
+  .home-onboarding > button > svg {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+  }
+
+  .home-onboarding-index {
+    grid-column: 3;
+    grid-row: 1;
+    padding-right: 4px;
+  }
+
+  .home-onboarding > button > span:last-child {
+    align-self: center;
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+
+  .home-onboarding strong {
+    font-size: 27px;
+  }
+
+  .home-loading-intro {
+    height: 130px;
+    width: 86%;
+  }
+
+  .home-loading-grid > div {
+    min-height: 320px;
+  }
+}
+
+@media (max-width: 420px) {
+  .journey-feature-main {
+    align-items: start;
+    grid-template-columns: 88px minmax(0, 1fr);
+  }
+
+  .journey-feature-main .cover-art {
+    min-height: 132px;
+  }
+
+  .journey-feature-copy > small {
+    font-size: 8px;
+  }
+
+  .journey-feature-copy > strong {
+    font-size: 30px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-surface *,
+  .home-surface *::before,
+  .home-surface *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .journey-feature-main .cover-art {
+    transform: none;
   }
 }
