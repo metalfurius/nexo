@@ -5,11 +5,12 @@ const args = process.argv.slice(2)
 const target = String(args[0] ?? '').trim()
 let dryRun = false
 let baseVersion
+let allowCurrentBase = false
 
 const plainSemverPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/
 
 if (!plainSemverPattern.test(target)) {
-  console.error('Usage: node scripts/bumpVersion.mjs x.y.z [--dry-run] [--base-version x.y.z].')
+  console.error('Usage: node scripts/bumpVersion.mjs x.y.z [--dry-run] [--base-version x.y.z] [--allow-current-base].')
   process.exit(1)
 }
 
@@ -34,6 +35,14 @@ for (let index = 1; index < args.length; index += 1) {
       process.exit(1)
     }
     index += 1
+    continue
+  }
+  if (argument === '--allow-current-base') {
+    if (allowCurrentBase) {
+      console.error('--allow-current-base may only be provided once.')
+      process.exit(1)
+    }
+    allowCurrentBase = true
     continue
   }
 
@@ -87,9 +96,12 @@ function writeOutput(name, value) {
 const rootPackage = await readJson('package.json')
 const currentVersion = String(rootPackage.version ?? '')
 assertNotDowngrade(currentVersion, 'root package')
+let recoveringCurrentBase = false
 if (baseVersion) {
   parseVersion(baseVersion)
-  if (compareVersions(target, baseVersion) <= 0) {
+  const baseComparison = compareVersions(target, baseVersion)
+  recoveringCurrentBase = allowCurrentBase && baseComparison === 0 && currentVersion === target
+  if (baseComparison <= 0 && !recoveringCurrentBase) {
     throw new Error(`Release target ${target} must be newer than base version ${baseVersion}.`)
   }
 }
@@ -108,6 +120,10 @@ if (!dryRun) {
     functionsPackage.version === target &&
     packageLockVersionMatches(rootLock, target) &&
     packageLockVersionMatches(functionsLock, target)
+
+  if (recoveringCurrentBase && !alreadyCurrent) {
+    throw new Error('Current-base recovery requires every package and lockfile to already match the release target.')
+  }
 
   if (!alreadyCurrent) {
     rootPackage.version = target

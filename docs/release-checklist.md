@@ -39,6 +39,8 @@ Set `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` as protected production s
 
 Version tooling accepts any valid, increasing SemVer target and contains no release-specific service-worker cache constant. Workbox derives cache names from the package version during the build.
 
+An untagged release may receive a deployment-blocker PR with the same `release:x.y.z` label as `main`. This recovery path is accepted only when every package and lockfile already matches that version and `vX.Y.Z` does not exist; a published version can never be reused.
+
 ## Functional and accessibility acceptance
 
 - With 1,000 Biblioteca entries, confirm only 24 cards render initially and “Mostrar 24 más” is keyboard/screen-reader accessible.

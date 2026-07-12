@@ -58,7 +58,18 @@ jobs:
       - name: Set package release version
         id: bump
         if: steps.resolve.outputs.should_bump == 'true'
-        run: node scripts/bumpVersion.mjs "${{ steps.resolve.outputs.target }}" --base-version "${{ steps.base.outputs.version }}"
+        env:
+          RELEASE_TARGET: ${{ steps.resolve.outputs.target }}
+          BASE_VERSION: ${{ steps.base.outputs.version }}
+        run: |
+          if [ "$RELEASE_TARGET" = "$BASE_VERSION" ]; then
+            git fetch origin "refs/tags/v$RELEASE_TARGET:refs/tags/v$RELEASE_TARGET" 2>/dev/null || true
+            if git show-ref --verify --quiet "refs/tags/v$RELEASE_TARGET"; then
+              echo "v$RELEASE_TARGET is already published and cannot be reused."
+              exit 1
+            fi
+          fi
+          node scripts/bumpVersion.mjs "${{ steps.resolve.outputs.target }}" --base-version "$BASE_VERSION" --allow-current-base
 
       - name: Commit version files to PR
         if: steps.resolve.outputs.should_bump == 'true'

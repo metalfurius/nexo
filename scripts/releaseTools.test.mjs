@@ -161,6 +161,25 @@ test('bumpVersion synchronizes every release version surface and is idempotent',
   assert.match(await readFile(outputPath, 'utf8'), /^version=1\.1\.50$/m)
 })
 
+test('bumpVersion allows an explicit current-base recovery only when all version files already match', async (t) => {
+  const matchingDirectory = await createReleaseFixture(t, '1.1.50')
+  const accepted = runScript(bumpScript, ['1.1.50', '--base-version', '1.1.50', '--allow-current-base'], {
+    cwd: matchingDirectory,
+  })
+  assert.equal(accepted.status, 0, accepted.stderr)
+
+  const mismatchedDirectory = await createReleaseFixture(t, '1.1.50')
+  const functionsPackagePath = join(mismatchedDirectory, 'functions/package.json')
+  const functionsPackage = JSON.parse(await readFile(functionsPackagePath, 'utf8'))
+  functionsPackage.version = '1.1.49'
+  await writeFile(functionsPackagePath, `${JSON.stringify(functionsPackage, null, 2)}\n`)
+  const rejected = runScript(bumpScript, ['1.1.50', '--base-version', '1.1.50', '--allow-current-base'], {
+    cwd: mismatchedDirectory,
+  })
+  assert.equal(rejected.status, 1)
+  assert.match(rejected.stderr, /every package and lockfile/)
+})
+
 test('bumpVersion rejects legacy, malformed and mixed targets', () => {
   for (const args of [['patch'], ['minor'], ['major'], ['next'], ['01.2.3'], ['1.1.50', 'minor']]) {
     const result = runScript(bumpScript, args)
