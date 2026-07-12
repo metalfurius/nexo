@@ -18,6 +18,7 @@ coverage/
 .terraform/
 *.tfstate
 *.tfstate.*
+*.tfplan
 playwright-report
 test-results
 verification

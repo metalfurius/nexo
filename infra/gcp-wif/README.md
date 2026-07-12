@@ -11,4 +11,6 @@ terraform apply -var-file=terraform.tfvars.example
 
 Copy the two outputs into variables on the GitHub `production` environment named `GCP_WORKLOAD_IDENTITY_PROVIDER` and `GCP_SERVICE_ACCOUNT`. The production workflow intentionally fails when either variable is missing.
 
+The deployer receives `Service Account User` only on the configured Gen2 runtime identity and the project's App Engine default service account. Firebase CLI checks the latter while deploying Functions even when the functions use the configured Gen2 runtime identity.
+
 The module never creates or stores a service-account key.
