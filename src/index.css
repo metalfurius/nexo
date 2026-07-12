@@ -1,4 +1,16 @@
+@import '@fontsource/instrument-serif/latin-400.css';
+
 :root {
+  --font-display: 'Instrument Serif', 'Iowan Old Style', 'Baskerville', 'Times New Roman', serif;
+  --atlas-line: color-mix(in srgb, var(--accent) 42%, var(--border));
+  --atlas-line-strong: color-mix(in srgb, var(--accent) 72%, var(--accent-warm));
+  --atlas-paper: color-mix(in srgb, var(--surface-raised) 92%, var(--accent-soft));
+  --atlas-ink: var(--text-strong);
+  --atlas-shadow-soft: 0 16px 44px color-mix(in srgb, #000 20%, transparent);
+  --atlas-shadow-poster: 0 28px 68px color-mix(in srgb, #000 42%, transparent);
+  --atlas-radius-small: 10px;
+  --atlas-radius: 18px;
+  --atlas-radius-large: 28px;
   --accent: #21808b;
   --on-accent: #ffffff;
   --on-accent-warm: #101113;

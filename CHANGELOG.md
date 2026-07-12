@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.2.0 - 2026-07-12
+
+- Reimagined Inicio as an editorial, cinematic “Atlas cultural vivo” with an organic route instead of a dashboard grid.
+- Added a protagonist poster for Ahora, a compact active strip, an editorial Después selection, a Más adelante timeline and recent completion credits.
+- Added deterministic loading, empty-library, next-chapter promotion and invitation states without duplicating roadmap entries.
+- Extracted the global shell into a responsive `AppChrome` with a desktop sidebar, tablet rail and five-destination mobile navigation.
+- Added a self-hosted Latin Instrument Serif display face while preserving the sans control typography and all seven themes.
+- Added resilient generated cover art, hero-only priority loading and safe rendering for broken images and long titles.
+- Prevented duplicate roadmap writes with pending mutation state while preserving move, reorder, start, complete, hide, undo, details and Dice flows.
+- Expanded responsive, reduced-motion, contrast, accessibility and visual regression coverage across the release viewport matrix.
+
 ## 1.1.50 - 2026-07-11
 
 - Added the private Inicio surface with the Tu ruta roadmap across Ahora, Después and Más adelante.

@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LibrarySurface } from '../app/shared'
@@ -121,7 +121,7 @@ function renderHome(library: LibrarySurface, overrides: Partial<Parameters<typeo
 function titlesInLane(name: RegExp) {
   return within(screen.getByRole('region', { name }))
     .getAllByRole('article')
-    .map((article) => article.querySelector('.roadmap-card-main strong')?.textContent)
+    .map((article) => article.querySelector('.roadmap-card-main > span > strong')?.textContent)
 }
 
 function installMatchMedia(matches = false) {
@@ -184,9 +184,49 @@ describe('HomeTab', () => {
 
     expect(titlesInLane(/^Ahora$/)).toEqual(['Active'])
     expect(titlesInLane(/Despu.s/)).toEqual(['Manual B', 'Manual A', 'Automatic'])
-    expect(titlesInLane(/Mas adelante/)).toEqual(['Paused'])
+    expect(titlesInLane(/M.s adelante/)).toEqual(['Paused'])
     expect(screen.queryByText('Hidden')).not.toBeInTheDocument()
     expect(within(screen.getByRole('region', { name: 'Completadas recientes' })).getByRole('button', { name: /Done/ })).toBeVisible()
+  })
+
+  it('keeps only the visible hero eager and degrades broken or missing covers accessibly', () => {
+    const longTitle = 'L'.repeat(200)
+    const hero = { ...item('hero', longTitle, 'in_progress'), posterUrl: 'https://images.example.test/broken.jpg' }
+    const companion = { ...item('companion', 'Companion', 'in_progress'), posterUrl: 'https://images.example.test/companion.jpg' }
+    const next = { ...item('next-cover', 'Next cover'), posterUrl: 'https://images.example.test/next.jpg' }
+    const later = item('later-missing', 'Later missing', 'paused')
+    const done = { ...item('done-cover', 'Done cover', 'completed'), posterUrl: 'https://images.example.test/done.jpg' }
+    const { container } = renderHome(createLibrarySurface(
+      [hero, companion, next, later, done],
+      { hidden: [], later: [], next: ['next-cover'], now: [] },
+    ))
+
+    const heroButton = container.querySelector('.journey-feature-main') as HTMLButtonElement
+    const heroCover = heroButton.querySelector('.cover-art') as HTMLElement
+    const heroImage = heroCover.querySelector('img') as HTMLImageElement
+    expect(heroButton).toHaveAccessibleName(new RegExp(longTitle))
+    expect(heroCover).toHaveAttribute('aria-hidden', 'true')
+    expect(heroCover).toHaveClass('cover-art-hero')
+    expect(heroImage).toHaveAttribute('alt', '')
+    expect(heroImage).toHaveAttribute('loading', 'eager')
+    expect(heroImage).toHaveAttribute('fetchpriority', 'high')
+
+    const allImages = [...container.querySelectorAll('.cover-art img')]
+    expect(allImages.filter((image) => image.getAttribute('loading') === 'eager')).toEqual([heroImage])
+    for (const image of allImages.filter((entry) => entry !== heroImage)) {
+      expect(image).toHaveAttribute('loading', 'lazy')
+      expect(image).not.toHaveAttribute('fetchpriority')
+    }
+
+    fireEvent.error(heroImage)
+    expect(heroCover).toHaveClass('fallback-cover')
+    expect(heroCover.querySelector('img')).toBeNull()
+    expect(heroCover.querySelector('.cover-art-title')).toHaveTextContent('L'.repeat(48))
+
+    const laterCard = screen.getByLabelText('Organizar Later missing').closest('article') as HTMLElement
+    expect(laterCard.querySelector('.cover-art')).toHaveClass('fallback-cover')
+    expect(laterCard.querySelector('.cover-art img')).toBeNull()
+    expect([...container.querySelectorAll('.cover-art')].every((cover) => cover.getAttribute('aria-hidden') === 'true')).toBe(true)
   })
 
   it('starts a next item through one atomic roadmap mutation', async () => {
@@ -267,7 +307,7 @@ describe('HomeTab', () => {
     }))
   })
 
-  it('shows five entries per lane on desktop until the user expands it', async () => {
+  it('shows a promoted chapter plus four next cards on desktop until the user expands them', async () => {
     const user = userEvent.setup()
     const items = Array.from({ length: 6 }, (_, index) => item(`item-${index + 1}`, `Item ${index + 1}`))
     const library = createLibrarySurface(items, {
@@ -278,15 +318,16 @@ describe('HomeTab', () => {
     })
     renderHome(library)
 
+    expect(screen.getAllByText('Item 1').length).toBeGreaterThan(0)
     expect(screen.queryByText('Item 6')).not.toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Ver todas (6)' }))
-    expect(screen.getAllByText('Item 6')).toHaveLength(2)
+    await user.click(screen.getByRole('button', { name: 'Ver todas (5)' }))
+    expect(screen.getAllByText('Item 6').length).toBeGreaterThan(0)
     expect(screen.getByRole('button', { name: 'Ver menos' })).toBeVisible()
   })
 
   it('shows only three entries per lane on compact mobile layouts', () => {
     installMatchMedia(true)
-    const items = Array.from({ length: 4 }, (_, index) => item(`mobile-${index + 1}`, `Mobile ${index + 1}`))
+    const items = Array.from({ length: 5 }, (_, index) => item(`mobile-${index + 1}`, `Mobile ${index + 1}`))
     renderHome(createLibrarySurface(items, {
       now: [],
       next: items.map(({ id }) => id),
@@ -295,8 +336,66 @@ describe('HomeTab', () => {
     }))
 
     expect(screen.getAllByText('Mobile 3').length).toBeGreaterThan(0)
-    expect(screen.queryByText('Mobile 4')).not.toBeInTheDocument()
+    expect(screen.getAllByText('Mobile 4').length).toBeGreaterThan(0)
+    expect(screen.queryByText('Mobile 5')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Ver todas (4)' })).toBeVisible()
+  })
+
+  it('keeps a stable loading skeleton instead of exposing a false empty state', () => {
+    const library = createLibrarySurface()
+    library.loading = true
+
+    renderHome(library)
+
+    expect(screen.getByRole('region', { name: 'Cargando Tu ruta' })).toHaveAttribute('aria-busy', 'true')
+    expect(screen.queryByRole('heading', { name: /Construye una ruta/ })).not.toBeInTheDocument()
+  })
+
+  it('blocks a second roadmap mutation while the first write is pending', async () => {
+    const user = userEvent.setup()
+    let finishMutation: (() => void) | undefined
+    const library = createLibrarySurface([item('next', 'Next')], {
+      now: [],
+      next: ['next'],
+      later: [],
+      hidden: [],
+    })
+    library.applyRoadmapMutation = vi.fn(() => new Promise<void>((resolve) => {
+      finishMutation = resolve
+    }))
+    renderHome(library)
+
+    const start = screen.getByRole('button', { name: 'Empezar ahora' })
+    await user.dblClick(start)
+
+    expect(library.applyRoadmapMutation).toHaveBeenCalledTimes(1)
+    expect(start).toBeDisabled()
+    const menu = screen.getByLabelText('Organizar Next').closest('details') as HTMLDetailsElement
+    await user.click(screen.getByLabelText('Organizar Next'))
+    expect(menu.open).toBe(false)
+    finishMutation?.()
+    await waitFor(() => expect(start).not.toBeDisabled())
+  })
+
+  it('surfaces mutation failures and restores every blocked control', async () => {
+    const user = userEvent.setup()
+    const library = createLibrarySurface([item('next', 'Next')], {
+      now: [],
+      next: ['next'],
+      later: [],
+      hidden: [],
+    })
+    library.applyRoadmapMutation = vi.fn(async () => {
+      throw new Error('La ruta no se pudo guardar')
+    })
+    renderHome(library)
+
+    const start = screen.getByRole('button', { name: 'Empezar ahora' })
+    await user.click(start)
+
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('La ruta no se pudo guardar'))
+    expect(start).not.toBeDisabled()
+    expect(screen.queryByRole('button', { name: 'Deshacer' })).not.toBeInTheDocument()
   })
 
   it('prioritizes the next lane for Dice and falls back to all eligible items', async () => {

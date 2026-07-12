@@ -70,7 +70,7 @@ function roadmapCard(page: Page, lane: 'now' | 'next' | 'later', title: string) 
 }
 
 async function roadmapTitles(page: Page, lane: 'now' | 'next' | 'later') {
-  return roadmapLane(page, lane).locator('.roadmap-card-main strong').allTextContents()
+  return roadmapLane(page, lane).locator('.roadmap-card-main > span > strong').allTextContents()
 }
 
 async function openUtility(page: Page, label: 'Importar' | 'Ajustes' | 'Curar') {
@@ -160,8 +160,8 @@ test.describe('Inicio y Tu ruta', () => {
     await expect(page.locator('.tabbar-group.primary')).toContainText('Biblioteca')
     await expect(page.locator('.tabbar-group.primary')).toContainText('Dado')
     await expect(roadmapLane(page, 'now')).toContainText('Ahora')
-    await expect(roadmapLane(page, 'next')).toContainText('Despues')
-    await expect(roadmapLane(page, 'later')).toContainText('Mas adelante')
+    await expect(roadmapLane(page, 'next')).toContainText('Después')
+    await expect(roadmapLane(page, 'later')).toContainText('Más adelante')
     await expect(roadmapCard(page, 'next', 'Outer Wilds')).toContainText('Sugerido')
   })
 
@@ -171,11 +171,11 @@ test.describe('Inicio y Tu ruta', () => {
 
     const outerWilds = roadmapCard(page, 'next', 'Outer Wilds')
     await outerWilds.getByLabel('Organizar Outer Wilds').click()
-    await outerWilds.getByRole('button', { name: 'Mover a Mas adelante' }).click()
+    await outerWilds.getByRole('button', { name: 'Mover a Más adelante' }).click()
 
     const vinland = roadmapCard(page, 'next', 'Vinland Saga')
     await vinland.getByLabel('Organizar Vinland Saga').click()
-    await vinland.getByRole('button', { name: 'Mover a Mas adelante' }).click()
+    await vinland.getByRole('button', { name: 'Mover a Más adelante' }).click()
     const movedVinland = roadmapCard(page, 'later', 'Vinland Saga')
     await movedVinland.getByLabel('Organizar Vinland Saga').click()
     await movedVinland.getByRole('button', { name: 'Subir' }).click()
@@ -183,7 +183,6 @@ test.describe('Inicio y Tu ruta', () => {
     await expect.poll(() => roadmapTitles(page, 'later')).toEqual([
       'Vinland Saga',
       'Outer Wilds',
-      'Pokemon Esmeralda',
       'Pokemon Esmeralda (Nuzlocke)',
     ])
     await page.getByRole('button', { name: 'Descubrir', exact: true }).click()
@@ -191,7 +190,6 @@ test.describe('Inicio y Tu ruta', () => {
     await expect.poll(() => roadmapTitles(page, 'later')).toEqual([
       'Vinland Saga',
       'Outer Wilds',
-      'Pokemon Esmeralda',
       'Pokemon Esmeralda (Nuzlocke)',
     ])
   })
@@ -200,11 +198,11 @@ test.describe('Inicio y Tu ruta', () => {
     await page.goto('/?tab=home')
     const outerWilds = roadmapCard(page, 'next', 'Outer Wilds')
     await outerWilds.getByLabel('Organizar Outer Wilds').click()
-    await outerWilds.getByRole('button', { name: 'Mover a Mas adelante' }).click()
+    await outerWilds.getByRole('button', { name: 'Mover a Más adelante' }).click()
     const manual = roadmapCard(page, 'later', 'Outer Wilds')
     await expect(manual).toContainText('Fijado')
     await manual.getByLabel('Organizar Outer Wilds').click()
-    await manual.getByRole('button', { name: 'Volver a automatico' }).click()
+    await manual.getByRole('button', { name: 'Volver a automático' }).click()
     await expect(roadmapCard(page, 'next', 'Outer Wilds')).toContainText('Sugerido')
   })
 
@@ -255,7 +253,7 @@ test.describe('Inicio y Tu ruta', () => {
     await expect(page.getByText('Tus entradas privadas han sido borradas')).toBeVisible()
     await page.getByRole('button', { name: 'Inicio', exact: true }).click()
     await expect(page.getByRole('heading', { name: 'Construye una ruta que apetezca seguir' })).toBeVisible()
-    await expect(page.getByLabel('Primeros pasos de Nexo')).toContainText('1. Añade')
+    await expect(page.getByLabel('Primeros pasos de Nexo')).toContainText('01Añade')
     await expect(page.getByRole('button', { name: 'Añadir primera obra' })).toBeVisible()
   })
 })
@@ -615,8 +613,10 @@ test.describe('Responsive, temas y accesibilidad', () => {
   test('mantiene navegacion y superficies sin desbordamiento', async ({ page }, testInfo) => {
     testInfo.setTimeout(120_000)
     const viewports = [
+      { width: 320, height: 568 },
       { width: 390, height: 844 },
       { width: 768, height: 1024 },
+      { width: 1024, height: 768 },
       { width: 1440, height: 900 },
       { width: 1920, height: 1080 },
     ]
@@ -634,7 +634,7 @@ test.describe('Responsive, temas y accesibilidad', () => {
       await expect(page.locator('.tabbar-group.primary > button')).toHaveCount(4)
       await expect(page.locator('details.tabbar-more')).toBeVisible()
 
-      if (viewport.width === 390) {
+      if (viewport.width <= 390) {
         const heading = page.getByRole('heading', { name: 'Tu ruta', exact: true })
         const addCta = page.locator('.home-hero-actions .primary-button')
         await expect(heading).toBeVisible()
@@ -695,6 +695,28 @@ test.describe('Responsive, temas y accesibilidad', () => {
       await page.goto(`/?tab=${route}`)
       await expectNoReleaseA11yViolations(page, route)
     }
+  })
+
+  test('desactiva por completo el movimiento expresivo cuando el sistema pide reducirlo', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await page.goto('/?tab=home')
+
+    const motion = await page.locator('.home-surface').evaluate((surface) => {
+      const elements = [surface, ...surface.querySelectorAll('*')]
+      return elements.map((element) => {
+        const styles = getComputedStyle(element)
+        return {
+          animationDuration: styles.animationDuration,
+          transitionDuration: styles.transitionDuration,
+        }
+      })
+    })
+
+    expect(motion.every(({ animationDuration, transitionDuration }) => (
+      animationDuration.split(',').every((duration) => duration === '0s' || duration === '1e-05s')
+      && transitionDuration.split(',').every((duration) => duration === '0s' || duration === '1e-05s')
+    ))).toBe(true)
+    await expect(page.locator('.journey-feature-main .cover-art').first()).toHaveCSS('transform', 'none')
   })
 
   test('los dialogos privados atrapan y restauran el foco con accesibilidad', async ({ page }) => {

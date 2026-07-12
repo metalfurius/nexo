@@ -109,15 +109,15 @@ test('email login opens Inicio and roadmap mutations persist through reload and 
   await expect(moreMenu.getByRole('menuitem', { name: /Curar/ })).toBeVisible()
   await page.keyboard.press('Escape')
 
-  const nextLane = roadmapLane(page, 'Despues')
-  const laterLane = roadmapLane(page, 'Mas adelante')
+  const nextLane = roadmapLane(page, 'Después')
+  const laterLane = roadmapLane(page, 'Más adelante')
   await expectRoadmapOrder(nextLane, ['E2E Pendiente A', 'E2E Pendiente B'])
   await expectRoadmapOrder(laterLane, ['E2E Mas adelante'])
 
   const laterCard = roadmapCard(laterLane, 'E2E Mas adelante')
   await openOrganizeMenu(laterCard)
-  await laterCard.getByRole('button', { name: 'Mover a Despues' }).click()
-  await expect(page.getByRole('status').filter({ hasText: 'E2E Mas adelante movida a Despues' })).toBeVisible()
+  await laterCard.getByRole('button', { name: 'Mover a Después' }).click()
+  await expect(page.getByRole('status').filter({ hasText: 'E2E Mas adelante pasa a Después' })).toBeVisible()
   await expectRoadmapOrder(nextLane, ['E2E Pendiente A', 'E2E Pendiente B', 'E2E Mas adelante'])
 
   const movedCard = roadmapCard(nextLane, 'E2E Mas adelante')
@@ -127,24 +127,24 @@ test('email login opens Inicio and roadmap mutations persist through reload and 
   await expectRoadmapOrder(nextLane, ['E2E Pendiente A', 'E2E Mas adelante', 'E2E Pendiente B'])
 
   await reloadHome(page)
-  await expectRoadmapOrder(roadmapLane(page, 'Despues'), ['E2E Pendiente A', 'E2E Mas adelante', 'E2E Pendiente B'])
-  await expectRoadmapOrder(roadmapLane(page, 'Mas adelante'), [])
+  await expectRoadmapOrder(roadmapLane(page, 'Después'), ['E2E Pendiente A', 'E2E Mas adelante', 'E2E Pendiente B'])
+  await expectRoadmapOrder(roadmapLane(page, 'Más adelante'), [])
 
-  const itemToComplete = roadmapCard(roadmapLane(page, 'Despues'), 'E2E Pendiente B')
+  const itemToComplete = roadmapCard(roadmapLane(page, 'Después'), 'E2E Pendiente B')
   await openOrganizeMenu(itemToComplete)
   await itemToComplete.getByRole('button', { name: 'Completar' }).click()
 
   const completionStatus = page.getByRole('status').filter({ hasText: 'E2E Pendiente B completada' })
   await expect(completionStatus).toBeVisible()
-  await expect(roadmapCard(roadmapLane(page, 'Despues'), 'E2E Pendiente B')).toHaveCount(0)
+  await expect(roadmapCard(roadmapLane(page, 'Después'), 'E2E Pendiente B')).toHaveCount(0)
   await expect(page.getByRole('region', { name: 'Completadas recientes' }).getByRole('button', { name: /E2E Pendiente B/ })).toBeVisible()
 
   await completionStatus.getByRole('button', { name: 'Deshacer' }).click()
   await expect(page.getByRole('status').filter({ hasText: 'Cambio deshecho' })).toBeVisible()
-  await expectRoadmapOrder(roadmapLane(page, 'Despues'), ['E2E Pendiente A', 'E2E Mas adelante', 'E2E Pendiente B'])
+  await expectRoadmapOrder(roadmapLane(page, 'Después'), ['E2E Pendiente A', 'E2E Mas adelante', 'E2E Pendiente B'])
 
   await reloadHome(page)
-  await expectRoadmapOrder(roadmapLane(page, 'Despues'), ['E2E Pendiente A', 'E2E Mas adelante', 'E2E Pendiente B'])
+  await expectRoadmapOrder(roadmapLane(page, 'Después'), ['E2E Pendiente A', 'E2E Mas adelante', 'E2E Pendiente B'])
   await expect(page.getByRole('region', { name: 'Completadas recientes' })).toHaveCount(0)
 
   await page.getByRole('button', { name: 'Busqueda rapida' }).click()

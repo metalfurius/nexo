@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="900" viewBox="0 0 600 900" role="img" aria-label="Poster geométrico de prueba">
+  <rect width="600" height="900" fill="#10171b"/>
+  <path d="M0 0h600L0 900z" fill="#21808b"/>
+  <path d="M600 900H0L600 0z" fill="#d39a5c" fill-opacity=".74"/>
+  <circle cx="300" cy="360" r="154" fill="#f8faf9" fill-opacity=".9"/>
+  <circle cx="300" cy="360" r="92" fill="#10171b"/>
+  <path d="M96 708h408v18H96zm0 48h304v18H96z" fill="#f8faf9"/>
+  <path d="M96 804h214v10H96z" fill="#f8faf9" fill-opacity=".65"/>
+</svg>

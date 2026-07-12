@@ -1,0 +1,591 @@
+/* Atlas cultural: chrome sólido, editorial y deliberadamente ajeno a glass/neón. */
+.app-shell {
+  --nav-rail-width: 264px;
+  background: var(--surface);
+  grid-template-columns: var(--nav-rail-width) minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.app-shell::before {
+  display: none;
+}
+
+.topbar {
+  align-items: center;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 24px;
+  grid-column: 2;
+  grid-row: 1;
+  justify-content: space-between;
+  min-height: 76px;
+  overflow: visible;
+  padding: 12px clamp(20px, 3vw, 42px);
+  position: sticky;
+  top: 0;
+  z-index: 25;
+}
+
+.topbar::after {
+  background: var(--accent);
+  bottom: -1px;
+  height: 2px;
+  left: clamp(20px, 3vw, 42px);
+  right: auto;
+  width: 52px;
+}
+
+.topbar-main {
+  min-width: 0;
+}
+
+.topbar .brand-lockup {
+  min-width: 0;
+}
+
+.topbar .nexo-mark,
+.topbar .brand-line {
+  display: none;
+}
+
+.topbar .nexo-mark,
+.tabbar-brand .nexo-mark {
+  box-shadow: none;
+}
+
+.topbar .brand-copy {
+  gap: 3px;
+  min-width: 0;
+}
+
+.topbar h1 {
+  display: block;
+  font-family: var(--font-display);
+  font-size: clamp(22px, 2.2vw, 30px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topbar-subtitle {
+  display: block;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.topbar-actions {
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  gap: 7px;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.topbar-actions .mode-pill {
+  max-width: min(180px, 40vw);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topbar-actions .icon-button {
+  height: 40px;
+  width: 40px;
+}
+
+.topbar .app-update-button,
+.global-add-button {
+  box-shadow: none;
+  min-height: 40px;
+}
+
+.tabbar {
+  background: var(--surface-muted);
+  border: 0;
+  border-right: 1px solid var(--border);
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  grid-column: 1;
+  grid-row: 1 / 3;
+  left: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 18px 14px;
+  position: fixed;
+  top: 0;
+  width: var(--nav-rail-width);
+  z-index: 30;
+}
+
+.tabbar::before {
+  display: none;
+}
+
+.tabbar-brand {
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  display: grid;
+  gap: 11px;
+  grid-template-columns: 40px minmax(0, 1fr);
+  margin: 0 2px 16px;
+  min-height: 64px;
+  padding: 0 4px 16px;
+}
+
+.tabbar-brand > span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.tabbar-brand strong {
+  color: var(--text-strong);
+  font-family: var(--font-display);
+  font-size: 22px;
+  letter-spacing: -0.03em;
+}
+
+.tabbar-brand small {
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.tabbar-group {
+  display: grid;
+  gap: 5px;
+}
+
+.tabbar-group.utility {
+  border-top: 1px solid var(--border);
+  margin-top: auto;
+  padding-top: 12px;
+}
+
+.tabbar .tab-button {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  gap: 11px;
+  grid-template-columns: 22px minmax(0, 1fr);
+  min-height: 52px;
+  padding: 7px 10px;
+}
+
+.tabbar .tab-button::after {
+  background: var(--accent);
+  bottom: 8px;
+  height: auto;
+  left: 0;
+  top: 8px;
+  transform: none;
+  width: 3px;
+}
+
+.tabbar .tab-button.active {
+  background: var(--surface-raised);
+  border-color: var(--border);
+  box-shadow: none;
+}
+
+.tabbar .tab-button:hover:not(.active) {
+  background: var(--surface);
+  border-color: var(--border);
+  transform: none;
+}
+
+.tabbar .tab-label {
+  gap: 2px;
+}
+
+.tabbar .tab-label > span:first-child {
+  color: var(--text-strong);
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.tab-description {
+  color: var(--text);
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tabbar-more {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+.tabbar-more > summary {
+  width: 100%;
+}
+
+.tabbar-more[open] > summary {
+  background: var(--surface-raised);
+  border-color: var(--border);
+  box-shadow: none;
+}
+
+.tabbar-more-menu {
+  background: var(--surface-raised);
+  border-radius: 8px;
+  bottom: 18px;
+  box-shadow: 0 16px 40px color-mix(in srgb, var(--text) 16%, transparent);
+  left: calc(var(--nav-rail-width) + 10px);
+  width: 264px;
+}
+
+.tabbar-more-menu > button,
+.tabbar-more-menu > button > svg {
+  border-radius: 6px;
+}
+
+.tabbar-more-menu strong,
+.tabbar-more-menu small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.global-add-button {
+  background: var(--accent);
+  border-color: var(--accent-dark);
+  border-radius: 6px;
+}
+
+.global-add-button:hover {
+  background: var(--accent-dark);
+  border-color: var(--accent-dark);
+  transform: none;
+}
+
+.app-update-button {
+  border-radius: 6px;
+}
+
+@media (min-width: 768px) and (max-width: 1099px) {
+  .app-shell {
+    --nav-rail-width: 84px;
+    display: grid;
+  }
+
+  .topbar {
+    column-gap: 14px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    min-height: 68px;
+    padding: 10px 18px;
+  }
+
+  .topbar-main {
+    grid-column: auto;
+  }
+
+  .topbar-actions {
+    grid-column: auto;
+  }
+
+  .topbar h1 {
+    font-size: 22px;
+  }
+
+  .topbar-subtitle {
+    display: none;
+  }
+
+  .tabbar {
+    padding:
+      max(12px, env(safe-area-inset-top))
+      max(8px, env(safe-area-inset-right))
+      max(12px, env(safe-area-inset-bottom))
+      max(8px, env(safe-area-inset-left));
+  }
+
+  .tabbar-brand {
+    display: flex;
+    justify-content: center;
+    margin: 0 0 12px;
+    padding: 0 0 12px;
+  }
+
+  .tabbar-brand > span,
+  .app-chrome-wide-utility,
+  .tab-description {
+    display: none;
+  }
+
+  .tabbar .tab-button {
+    gap: 4px;
+    grid-template-columns: 1fr;
+    justify-items: center;
+    min-height: 58px;
+    padding: 7px 3px;
+    text-align: center;
+  }
+
+  .tabbar .tab-label > span:first-child {
+    display: none;
+  }
+
+  .tabbar .tab-label::after {
+    content: attr(data-short-label);
+    display: block;
+    font-size: 9px;
+    font-weight: 800;
+    line-height: 1.15;
+    max-width: 68px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .tabbar .tab-button::after {
+    bottom: 8px;
+    left: 0;
+    top: 8px;
+    width: 2px;
+  }
+
+  .tabbar-more {
+    margin-top: auto;
+  }
+
+  .tabbar-more-menu {
+    bottom: 14px;
+    left: calc(var(--nav-rail-width) + 8px);
+    right: auto;
+    top: auto;
+  }
+
+  .global-add-button,
+  .topbar .app-update-button {
+    min-height: 38px;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 900px) {
+  .global-add-button,
+  .topbar .app-update-button {
+    height: 38px;
+    padding: 0;
+    width: 38px;
+  }
+
+  .global-add-button > span,
+  .topbar .app-update-button > span {
+    border: 0;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    padding: 0;
+    position: absolute;
+    white-space: nowrap;
+    width: 1px;
+  }
+}
+
+@media (max-width: 767px) {
+  .app-shell {
+    display: block;
+  }
+
+  .topbar {
+    align-items: center;
+    background: var(--surface);
+    display: flex;
+    gap: 8px;
+    min-height: 62px;
+    padding:
+      max(9px, env(safe-area-inset-top))
+      max(10px, env(safe-area-inset-right))
+      9px
+      max(10px, env(safe-area-inset-left));
+    position: sticky;
+    top: 0;
+  }
+
+  .topbar-main {
+    flex: 1 1 auto;
+    min-width: 46px;
+    width: auto;
+  }
+
+  .topbar .brand-lockup {
+    gap: 7px;
+  }
+
+  .topbar .nexo-mark,
+  .topbar .brand-line {
+    display: inline-flex;
+  }
+
+  .topbar .nexo-mark {
+    height: 34px;
+    width: 34px;
+  }
+
+  .topbar .brand-copy {
+    display: block;
+  }
+
+  .topbar h1,
+  .topbar-subtitle,
+  .brand-version {
+    display: none;
+  }
+
+  .brand-wordmark {
+    font-family: var(--font-display);
+    font-size: 16px;
+    text-transform: none;
+  }
+
+  .topbar-actions {
+    flex: 0 1 auto;
+    flex-wrap: wrap;
+    gap: 4px;
+    justify-content: flex-end;
+    margin-left: auto;
+    width: auto;
+  }
+
+  .topbar-actions .icon-button,
+  .global-add-button,
+  .topbar .app-update-button {
+    height: 36px;
+    min-height: 36px;
+    width: 36px;
+  }
+
+  .global-add-button,
+  .topbar .app-update-button {
+    padding: 0;
+  }
+
+  .global-add-button > span,
+  .topbar .app-update-button > span {
+    border: 0;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    padding: 0;
+    position: absolute;
+    white-space: nowrap;
+    width: 1px;
+  }
+
+  .topbar-actions .mode-pill {
+    font-size: 9px;
+    min-height: 28px;
+    padding: 5px 6px;
+  }
+
+  .tabbar {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: var(--surface-raised);
+    border: 0;
+    border-top: 1px solid var(--border);
+    bottom: 0;
+    box-shadow: 0 -8px 24px color-mix(in srgb, var(--text) 10%, transparent);
+    display: grid;
+    gap: 4px;
+    grid-template-columns: minmax(0, 1fr) minmax(52px, 0.25fr);
+    height: auto;
+    left: 0;
+    overflow: visible;
+    padding:
+      6px
+      max(8px, env(safe-area-inset-right))
+      max(7px, env(safe-area-inset-bottom))
+      max(8px, env(safe-area-inset-left));
+    position: fixed;
+    right: 0;
+    top: auto;
+    width: 100%;
+    z-index: 40;
+  }
+
+  .tabbar-brand,
+  .app-chrome-wide-utility {
+    display: none;
+  }
+
+  .tabbar-group.primary {
+    display: grid;
+    gap: 3px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .tabbar .tab-button {
+    gap: 3px;
+    grid-template-columns: 1fr;
+    justify-items: center;
+    min-height: 50px;
+    padding: 5px 2px;
+    text-align: center;
+  }
+
+  .tabbar .tab-label > span:first-child,
+  .tab-description {
+    display: none;
+  }
+
+  .tabbar .tab-label::after {
+    content: attr(data-short-label);
+    display: block;
+    font-size: clamp(8px, 2.35vw, 10px);
+    font-weight: 850;
+    line-height: 1.1;
+    white-space: nowrap;
+  }
+
+  .tabbar .tab-button::after {
+    bottom: 0;
+    height: 2px;
+    left: 20%;
+    top: auto;
+    width: 60%;
+  }
+
+  .tabbar-more {
+    margin: 0;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .tabbar-more > summary {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .tabbar-more-menu {
+    bottom: calc(72px + env(safe-area-inset-bottom));
+    left: auto;
+    right: max(8px, env(safe-area-inset-right));
+    top: auto;
+    width: min(280px, calc(100vw - 16px));
+  }
+
+  .tab-stage {
+    padding-bottom: calc(82px + env(safe-area-inset-bottom));
+  }
+}

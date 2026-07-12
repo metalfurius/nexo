@@ -6193,7 +6193,7 @@ textarea:focus-visible {
   }
 }@media (max-width: 900px) {
   .app-shell {
-    display: block;
+    display: grid;
   }
 
   .topbar {
@@ -8104,5 +8104,11 @@ textarea:focus-visible {
     left: auto;
     right: max(16px, env(safe-area-inset-right));
     top: 140px;
+  }
+}
+
+@media (max-width: 767px) {
+  .app-shell {
+    display: block;
   }
 }

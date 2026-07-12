@@ -33,7 +33,7 @@ test('recarga una ruta profunda offline y sincroniza una escritura pendiente al 
 
     await page.reload({ waitUntil: 'domcontentloaded' })
     await expect(page).toHaveURL(/[?&]tab=library(?:&|$)/)
-    await expect(page.getByRole('heading', { name: 'Biblioteca', exact: true })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Biblioteca', exact: true, level: 2 })).toBeVisible()
     await expect(page.getByLabel('Cambiar estado de E2E Pendiente A')).toHaveValue('in_progress')
     await expect(page.getByLabel('Sin conexion')).toBeVisible()
   } finally {

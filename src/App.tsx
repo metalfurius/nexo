@@ -11,9 +11,10 @@ import { isItemInCooldown, itemStatusLabels as statusLabels, itemTypeLabels as t
 import { type LibrarySortMode } from './lib/librarySorting'
 import { getPrivateDataHealth, getPrivateTaxonomyRepairDraft } from './lib/privateDataInsights'
 import { normalizeKey, slugify, uniqueNormalizedValues } from './lib/strings'
-import { Archive, Check, CheckCircle2, Dice5, Download, Home, Library, List, LogIn, LogOut, Moon, MoreHorizontal, Palette, Pause, Play, Plus, RotateCcw, Save, Search, ShieldCheck, Sparkles, Trash2, Upload, X } from 'lucide-react'
+import { Archive, Check, CheckCircle2, Dice5, Download, Home, Library, List, Moon, Palette, Pause, Play, Plus, RotateCcw, Save, Search, ShieldCheck, Sparkles, Trash2, Upload, X } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
-import { NavigationDiscardPrompt, NexoMark, ShellPulse, ShellState, activityTabLabels, blankItem, canonicalizeLegacyAppRoute, cloneActivityEntry, downloadLibraryBackup, getActivityFocus, getActivityIcon, getLibraryReviewQueueIcon, getLibrarySelectionSignals, getPrimaryItemAction, hasExplicitAppRoute, isStandalonePwa, isThemeMode, libraryPriorityOptions, librarySelectionSignalLabels, librarySortLabels, readInitialActivityFocus, readInitialAppTab, roleLabels, themeMetaColors, themeOptions, themeStorageKey, typeIcons, useCloseDetailsOnOutsideClick, writeAppTabToUrl, type ActivityFocus, type AppTab, type BeforeInstallPromptEvent, type DiceCooldownReactivateRequest, type DicePreferencesSaveRequest, type DiceRollRequest, type DiceRollSummary, type ExplorerCandidateDismissRequest, type ExplorerCandidateRequest, type ExplorerCandidateSaveRequest, type ExplorerPromptCardRequest, type ExplorerSearchRequest, type ExplorerVisibleDismissRequest, type ExplorerVisibleSaveRequest, type LibraryImportRequest, type LibraryPrimaryActionRequest, type LibraryPriorityLevel, type LibraryResetViewRequest, type LibraryReviewRequest, type LibrarySelectedDiceActionRequest, type LibrarySelectedExportRequest, type LibrarySelectedPriorityRequest, type LibrarySelectedSignalsRequest, type LibrarySelectedStatusRequest, type LibrarySelectionSignalAction, type LibrarySelectionSignalKind, type LibrarySmartViewRequest, type LibrarySortModeRequest, type LibraryStatusFilterRequest, type LibraryTypeFilterRequest, type LibraryVisibleSelectionRequest, type LibraryVisibleSelectionSummary, type PendingNavigation, type QuickSearchCommand, type SettingsSaveRequest, type SettingsTasteSuggestionsRequest, type SettingsTaxonomyRepairRequest, type ShellNavItem } from './app/shared'
+import { NavigationDiscardPrompt, ShellState, activityTabLabels, blankItem, canonicalizeLegacyAppRoute, cloneActivityEntry, downloadLibraryBackup, getActivityFocus, getActivityIcon, getLibraryReviewQueueIcon, getLibrarySelectionSignals, getPrimaryItemAction, hasExplicitAppRoute, isStandalonePwa, isThemeMode, libraryPriorityOptions, librarySelectionSignalLabels, librarySortLabels, readInitialActivityFocus, readInitialAppTab, themeMetaColors, themeOptions, themeStorageKey, typeIcons, useCloseDetailsOnOutsideClick, writeAppTabToUrl, type ActivityFocus, type AppTab, type BeforeInstallPromptEvent, type DiceCooldownReactivateRequest, type DicePreferencesSaveRequest, type DiceRollRequest, type DiceRollSummary, type ExplorerCandidateDismissRequest, type ExplorerCandidateRequest, type ExplorerCandidateSaveRequest, type ExplorerPromptCardRequest, type ExplorerSearchRequest, type ExplorerVisibleDismissRequest, type ExplorerVisibleSaveRequest, type LibraryImportRequest, type LibraryPrimaryActionRequest, type LibraryPriorityLevel, type LibraryResetViewRequest, type LibraryReviewRequest, type LibrarySelectedDiceActionRequest, type LibrarySelectedExportRequest, type LibrarySelectedPriorityRequest, type LibrarySelectedSignalsRequest, type LibrarySelectedStatusRequest, type LibrarySelectionSignalAction, type LibrarySelectionSignalKind, type LibrarySmartViewRequest, type LibrarySortModeRequest, type LibraryStatusFilterRequest, type LibraryTypeFilterRequest, type LibraryVisibleSelectionRequest, type LibraryVisibleSelectionSummary, type PendingNavigation, type QuickSearchCommand, type SettingsSaveRequest, type SettingsTasteSuggestionsRequest, type SettingsTaxonomyRepairRequest, type ShellNavItem } from './app/shared'
+import AppChrome from './app/AppChrome'
 import FeatureErrorBoundary from './app/FeatureErrorBoundary'
 import { appIntentReducer, type AppIntent, type AppIntentDraft } from './app/intents'
 import { useGuardedSignOut } from './app/useGuardedSignOut'
@@ -358,6 +359,13 @@ function App() {
     await prompt.userChoice.catch(() => undefined)
   }
 
+  function applyAvailableServiceWorkerUpdate() {
+    setServiceWorkerUpdateReady(false)
+    void import('./services/serviceWorker')
+      .then(({ applyServiceWorkerUpdate }) => applyServiceWorkerUpdate())
+      .catch(() => setServiceWorkerUpdateReady(true))
+  }
+
   const reportDiceUnsavedChanges = useCallback(
     (hasUnsavedChanges: boolean) => reportUnsavedChanges('dice', hasUnsavedChanges),
     [reportUnsavedChanges],
@@ -448,11 +456,8 @@ function App() {
     { id: 'curation', label: 'Curacion', displayLabel: 'Curar', shortLabel: 'Curar', description: 'Catalogo publico', icon: ShieldCheck, group: 'utility', hidden: !library.isModerator },
   ]
   const visibleNavItems = navItems.filter((item) => !item.hidden)
-  const primaryNavItems = visibleNavItems.filter((item) => item.group !== 'utility')
-  const utilityNavItems = visibleNavItems.filter((item) => item.group === 'utility')
   const activeNavItem = navItems.find((item) => item.id === activeTab) ?? navItems[0]
   const pendingNavItem = pendingNavigation ? navItems.find((item) => item.id === pendingNavigation.tab) : undefined
-  const shellTitle = activeNavItem.displayLabel ?? activeNavItem.label
 
   function requestSignIn() {
     if (!auth.isFirebaseConfigured) return
@@ -1874,119 +1879,29 @@ function App() {
 
   return (
     <main className="app-shell">
-      <header className="topbar">
-        <div className="topbar-main">
-          <div className="brand-lockup">
-            <NexoMark />
-            <div className="brand-copy">
-              <span className="brand-line">
-                <span className="brand-wordmark">Nexo</span>
-                <span className="brand-version" aria-label={`Version ${appVersion}`}>
-                  v{appVersion}
-                </span>
-              </span>
-              <h1>{shellTitle}</h1>
-              <p className="topbar-subtitle">{activeNavItem.description}</p>
-            </div>
-          </div>
-          <ShellPulse library={library} isFirebaseConfigured={auth.isFirebaseConfigured} />
-        </div>
-        <div className="topbar-actions">
-          {isOffline && (
-            <span aria-label="Sin conexion" className="mode-pill offline" role="status">
-              Sin conexion
-            </span>
-          )}
-          {!isOffline && library.syncState.hasPendingWrites && (
-            <span aria-label="Sincronizacion pendiente" className="mode-pill offline" role="status">
-              Pendiente
-            </span>
-          )}
-          {!isOffline && !library.syncState.hasPendingWrites && library.syncState.fromCache && (
-            <span aria-label="Datos desde cache" className="mode-pill offline" role="status">
-              Cache
-            </span>
-          )}
-          {installPrompt && (
-            <button
-              aria-label="Instalar Nexo"
-              className="app-update-button app-install-button"
-              type="button"
-              onClick={() => void promptInstallPwa()}
-            >
-              <Download size={16} />
-              <span>Instalar</span>
-            </button>
-          )}
-          {serviceWorkerUpdateReady && (
-            <button
-              aria-label="Actualizar Nexo"
-              className="app-update-button"
-              type="button"
-              onClick={() => {
-                setServiceWorkerUpdateReady(false)
-                void import('./services/serviceWorker')
-                  .then(({ applyServiceWorkerUpdate }) => applyServiceWorkerUpdate())
-                  .catch(() => setServiceWorkerUpdateReady(true))
-              }}
-            >
-              <RotateCcw size={16} />
-              <span>Actualizar</span>
-            </button>
-          )}
-          {(auth.user || !auth.isFirebaseConfigured) && (
-            <span
-              className={library.isModerator ? 'mode-pill moderator role-pill' : 'mode-pill role-pill'}
-              aria-label={`Rol: ${roleLabels[library.userRole]}`}
-            >
-              Rol: {roleLabels[library.userRole]}
-            </span>
-          )}
-          {(auth.user || !auth.isFirebaseConfigured) && (
-            <button className="global-add-button" type="button" onClick={() => sendAppIntent({ kind: 'add' })}>
-              <Plus size={17} />
-              <span>Añadir</span>
-            </button>
-          )}
-          <button
-            aria-label="Busqueda rapida"
-            aria-keyshortcuts="/ Control+K Meta+K"
-            className="icon-button"
-            type="button"
-            onClick={() => {
-              setQuickSearchOpen(true)
-            }}
-            title="Busqueda rapida"
-          >
-            <Search size={18} />
-          </button>
-          {auth.user && (
-            <>
-              {guardedSignOut.error && (
-                <span aria-label={`Error al salir: ${guardedSignOut.error}`} className="mode-pill warning" role="alert">
-                  {guardedSignOut.error}
-                </span>
-              )}
-              <button
-                aria-label="Salir"
-                className="icon-button"
-                disabled={guardedSignOut.pending}
-                type="button"
-                onClick={guardedSignOut.request}
-                title={guardedSignOut.pending ? 'Saliendo' : 'Salir'}
-              >
-                <LogOut size={18} />
-              </button>
-            </>
-          )}
-          {auth.isFirebaseConfigured && !auth.user && (
-            <button className="app-update-button" type="button" onClick={requestSignIn}>
-              <LogIn size={16} />
-              <span>Entrar</span>
-            </button>
-          )}
-        </div>
-      </header>
+      <AppChrome
+        activeNavItem={activeNavItem}
+        activeTab={activeTab}
+        appVersion={appVersion}
+        installAvailable={Boolean(installPrompt)}
+        isFirebaseConfigured={auth.isFirebaseConfigured}
+        isOffline={isOffline}
+        isSignedIn={Boolean(auth.user)}
+        library={library}
+        moreMenuOpen={moreMenuOpen}
+        navItems={navItems}
+        serviceWorkerUpdateReady={serviceWorkerUpdateReady}
+        signOutError={guardedSignOut.error}
+        signOutPending={guardedSignOut.pending}
+        onAdd={() => sendAppIntent({ kind: 'add' })}
+        onInstall={() => void promptInstallPwa()}
+        onMoreMenuOpenChange={setMoreMenuOpen}
+        onNavigate={changeActiveTab}
+        onOpenSearch={() => setQuickSearchOpen(true)}
+        onSignIn={requestSignIn}
+        onSignOut={guardedSignOut.request}
+        onUpdate={applyAvailableServiceWorkerUpdate}
+      />
       {signInDialogOpen && (
         <Suspense fallback={<ShellState title="Cargando acceso" detail="Preparando el inicio de sesion." />}>
           <SignInDialog
@@ -2018,72 +1933,6 @@ function App() {
           />
         </Suspense>
       )}
-
-      <nav className="tabbar" aria-label="Secciones de Nexo">
-        <div className="tabbar-group primary">
-          {primaryNavItems.map((item) => {
-            const Icon = item.icon
-            return (
-              <button
-                aria-current={activeTab === item.id ? 'page' : undefined}
-                aria-label={item.label}
-                className={activeTab === item.id ? 'tab-button active' : 'tab-button'}
-                key={item.id}
-                type="button"
-                onClick={() => changeActiveTab(item.id)}
-              >
-                <Icon size={17} />
-                <span className="tab-label" data-short-label={item.shortLabel ?? item.displayLabel ?? item.label}>
-                  <span>{item.displayLabel ?? item.label}</span>
-                </span>
-              </button>
-            )
-          })}
-        </div>
-        <details
-          className="tabbar-more"
-          data-close-on-outside
-          open={moreMenuOpen}
-          onKeyDown={(event) => {
-            if (event.key === 'Escape') {
-              event.preventDefault()
-              event.currentTarget.open = false
-              setMoreMenuOpen(false)
-              event.currentTarget.querySelector('summary')?.focus()
-            }
-          }}
-          onToggle={(event) => setMoreMenuOpen(event.currentTarget.open)}
-        >
-          <summary
-            aria-label="Más secciones"
-            className={utilityNavItems.some((item) => item.id === activeTab) ? 'tab-button active' : 'tab-button'}
-          >
-            <MoreHorizontal size={18} />
-            <span className="tab-label"><span>Más</span></span>
-          </summary>
-          <div className="tabbar-more-menu" role="menu">
-            {utilityNavItems.map((item) => {
-              const Icon = item.icon
-              return (
-                <button
-                  aria-current={activeTab === item.id ? 'page' : undefined}
-                  className={activeTab === item.id ? 'active' : undefined}
-                  key={item.id}
-                  role="menuitem"
-                  type="button"
-                  onClick={() => {
-                    setMoreMenuOpen(false)
-                    changeActiveTab(item.id)
-                  }}
-                >
-                  <Icon size={17} />
-                  <span><strong>{item.displayLabel ?? item.label}</strong><small>{item.description}</small></span>
-                </button>
-              )
-            })}
-          </div>
-        </details>
-      </nav>
 
       {quickSearchOpen && (
         <Suspense fallback={null}>
