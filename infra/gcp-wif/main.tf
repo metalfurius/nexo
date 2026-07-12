@@ -76,6 +76,12 @@ resource "google_service_account_iam_member" "runtime_act_as" {
   member             = "serviceAccount:${google_service_account.github_deployer.email}"
 }
 
+resource "google_service_account_iam_member" "app_engine_act_as" {
+  service_account_id = "projects/${var.project_id}/serviceAccounts/${var.project_id}@appspot.gserviceaccount.com"
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${google_service_account.github_deployer.email}"
+}
+
 output "github_actions_workload_identity_provider" {
   value = google_iam_workload_identity_pool_provider.nexo_main.name
 }
