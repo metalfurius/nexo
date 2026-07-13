@@ -1,12 +1,13 @@
 import type { ListItem } from '../domain/types'
 import type { RoadmapEntry, RoadmapView } from '../lib/roadmap'
 
-export type HomeJourneyViewport = 'desktop' | 'compact'
-export type HomeJourneyExpandableLane = 'next' | 'later'
+export type HomeJourneyViewport = 'desktop' | 'tablet' | 'compact'
+export type HomeJourneyExpandableLane = 'now' | 'next' | 'later'
 
 export const HOME_JOURNEY_VISIBLE_LIMITS = {
-  desktop: { next: 4, later: 5 },
-  compact: { next: 3, later: 3 },
+  desktop: { now: 2, next: 4, later: 5 },
+  tablet: { now: 2, next: 4, later: 3 },
+  compact: { now: 2, next: 3, later: 3 },
 } as const satisfies Record<HomeJourneyViewport, Record<HomeJourneyExpandableLane, number>>
 
 export type HomeJourneyHero =
@@ -28,7 +29,7 @@ export interface HomeJourneyLaneModel {
 export interface HomeJourneyModel {
   status: 'loading' | 'ready'
   hero: HomeJourneyHero
-  additionalNow: RoadmapEntry[]
+  additionalNow: HomeJourneyLaneModel
   next: HomeJourneyLaneModel
   later: HomeJourneyLaneModel
   recentCompleted: ListItem[]
@@ -60,7 +61,7 @@ export function buildHomeJourneyModel({
     return {
       status: 'loading',
       hero: { kind: 'loading' },
-      additionalNow: [],
+      additionalNow: buildLaneModel([], limits.now, false),
       next: buildLaneModel([], limits.next, false),
       later: buildLaneModel([], limits.later, false),
       recentCompleted: [],
@@ -79,7 +80,7 @@ export function buildHomeJourneyModel({
   return {
     status: 'ready',
     hero,
-    additionalNow: roadmap.now.slice(1),
+    additionalNow: buildLaneModel(roadmap.now.slice(1), limits.now, expanded.now === true),
     next: buildLaneModel(nextEntries, limits.next, expanded.next === true),
     later: buildLaneModel(roadmap.later, limits.later, expanded.later === true),
     recentCompleted: items

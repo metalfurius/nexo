@@ -52,9 +52,9 @@ describe('buildHomeJourneyModel', () => {
     expect(model).toMatchObject({
       status: 'loading',
       hero: { kind: 'loading' },
-      additionalNow: [],
       recentCompleted: [],
     })
+    expect(model.additionalNow.entries).toEqual([])
     expect(model.next.entries).toEqual([])
     expect(model.later.entries).toEqual([])
   })
@@ -82,7 +82,7 @@ describe('buildHomeJourneyModel', () => {
     })
 
     expect(model.hero).toMatchObject({ kind: 'current', entry: { item: { id: 'current' } } })
-    expect(model.additionalNow.map(({ item: laneItem }) => laneItem.id)).toEqual(['also-now-a', 'also-now-b'])
+    expect(model.additionalNow.entries.map(({ item: laneItem }) => laneItem.id)).toEqual(['also-now-a', 'also-now-b'])
     expect(model.next.entries.map(({ item: laneItem }) => laneItem.id)).toEqual(['queued'])
   })
 

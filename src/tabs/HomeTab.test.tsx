@@ -240,6 +240,11 @@ describe('HomeTab', () => {
     })
     renderHome(library, { onActivity })
 
+    expect(screen.getByLabelText('Resumen de Tu ruta')).toHaveTextContent('1 próximo0 después')
+    const nextLane = screen.getByRole('region', { name: 'Después' })
+    expect(nextLane.querySelector('.atlas-section-heading > strong')).toHaveTextContent('0')
+    expect(within(nextLane).getByText('Busca lo siguiente')).toBeVisible()
+
     await user.click(screen.getByRole('button', { name: 'Empezar ahora' }))
 
     await waitFor(() => expect(library.applyRoadmapMutation).toHaveBeenCalledWith({
@@ -320,7 +325,7 @@ describe('HomeTab', () => {
 
     expect(screen.getAllByText('Item 1').length).toBeGreaterThan(0)
     expect(screen.queryByText('Item 6')).not.toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Ver todas (5)' }))
+    await user.click(screen.getByRole('button', { name: 'Ver 1 más' }))
     expect(screen.getAllByText('Item 6').length).toBeGreaterThan(0)
     expect(screen.getByRole('button', { name: 'Ver menos' })).toBeVisible()
   })
@@ -338,7 +343,7 @@ describe('HomeTab', () => {
     expect(screen.getAllByText('Mobile 3').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Mobile 4').length).toBeGreaterThan(0)
     expect(screen.queryByText('Mobile 5')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Ver todas (4)' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Ver 1 más' })).toBeVisible()
   })
 
   it('keeps a stable loading skeleton instead of exposing a false empty state', () => {
