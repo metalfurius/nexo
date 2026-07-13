@@ -77,6 +77,7 @@ test.describe('Atlas visual determinista', () => {
         expect(metrics.navigation.bottom).toBeCloseTo(viewport.height, 0)
         expect(metrics.topbar.left).toBeCloseTo(0, 0)
         expect(metrics.topbar.width).toBeCloseTo(viewport.width, 0)
+        if (viewport.width === 390) await expectMobileSafeAreaLayout(page, 47)
       }
 
       await expectCriticalActions(page)
@@ -285,7 +286,7 @@ async function expectAtlasMilestones(
 
 async function expectCriticalActions(page: Page) {
   const actions = [
-    { locator: page.getByRole('button', { name: 'Elegir con Dado' }), minHeight: 40 },
+    { locator: page.getByRole('button', { name: 'Elegir con Dado' }), minHeight: 44 },
     {
       locator: page.locator('.journey-feature-actions').getByRole('button', { name: 'Actualizar progreso' }),
       minHeight: 44,
@@ -300,6 +301,51 @@ async function expectCriticalActions(page: Page) {
     const label = await action.getAttribute('aria-label') ?? await action.innerText()
     expect.soft(box.width, `${label}: ancho tactil insuficiente`).toBeGreaterThanOrEqual(40)
     expect.soft(box.height, `${label}: alto tactil insuficiente`).toBeGreaterThanOrEqual(minHeight)
+  }
+}
+
+async function expectMobileSafeAreaLayout(page: Page, safeAreaTop: number) {
+  const session = await page.context().newCDPSession(page)
+  const createInsets = (top: number) => ({
+    bottom: 0,
+    bottomMax: 0,
+    left: 0,
+    leftMax: 0,
+    right: 0,
+    rightMax: 0,
+    top,
+    topMax: top,
+  })
+  await session.send('Emulation.setSafeAreaInsetsOverride', { insets: createInsets(safeAreaTop) })
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())))
+
+  const metrics = await page.evaluate(() => {
+    const stage = document.querySelector<HTMLElement>('.tab-stage')
+    const topbar = document.querySelector<HTMLElement>('.topbar')
+    if (!stage || !topbar) throw new Error('Chrome movil incompleto')
+    const topbarBounds = topbar.getBoundingClientRect()
+    const stageBounds = stage.getBoundingClientRect()
+    const controls = [...topbar.querySelectorAll<HTMLElement>('button, [role="button"]')].map((control) => {
+      const bounds = control.getBoundingClientRect()
+      return { bottom: bounds.bottom, height: bounds.height, top: bounds.top }
+    })
+    return {
+      controls,
+      stageTop: stageBounds.top,
+      topbarBottom: topbarBounds.bottom,
+      topbarHeight: topbarBounds.height,
+    }
+  })
+
+  await session.send('Emulation.setSafeAreaInsetsOverride', { insets: createInsets(0) })
+  await session.detach()
+
+  expect(metrics.topbarHeight).toBeCloseTo(56 + safeAreaTop, 0)
+  expect(metrics.stageTop).toBeGreaterThanOrEqual(metrics.topbarBottom - 1)
+  for (const control of metrics.controls) {
+    expect(control.height).toBeGreaterThanOrEqual(30)
+    expect(control.top).toBeGreaterThanOrEqual(safeAreaTop)
+    expect(control.bottom).toBeLessThanOrEqual(metrics.topbarBottom + 1)
   }
 }
 

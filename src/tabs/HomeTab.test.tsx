@@ -325,9 +325,12 @@ describe('HomeTab', () => {
 
     expect(screen.getAllByText('Item 1').length).toBeGreaterThan(0)
     expect(screen.queryByText('Item 6')).not.toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Ver 1 más' }))
+    const expand = screen.getByRole('button', { name: 'Ver 1 más' })
+    expect(expand).toHaveAttribute('aria-controls', 'home-next-list')
+    expect(expand).toHaveAttribute('aria-expanded', 'false')
+    await user.click(expand)
     expect(screen.getAllByText('Item 6').length).toBeGreaterThan(0)
-    expect(screen.getByRole('button', { name: 'Ver menos' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Ver menos' })).toHaveAttribute('aria-expanded', 'true')
   })
 
   it('shows only three entries per lane on compact mobile layouts', () => {

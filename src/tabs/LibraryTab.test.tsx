@@ -98,15 +98,20 @@ function renderLibrary(
   } = {},
 ) {
   const callbacks = createCallbacks()
-  const result = render(
+  const renderView = (currentSurface: LibraryTabSurface) => (
     <LibraryHarness
       {...callbacks}
       {...props}
       initialSelection={props.initialSelection}
-      library={surface}
-    />,
+      library={currentSurface}
+    />
   )
-  return { ...callbacks, ...result }
+  const result = render(renderView(surface))
+  return {
+    ...callbacks,
+    ...result,
+    rerenderLibrary: (currentSurface: LibraryTabSurface) => result.rerender(renderView(currentSurface)),
+  }
 }
 
 describe('LibraryTab simplificada', () => {
@@ -283,7 +288,7 @@ describe('LibraryTab simplificada', () => {
       progressUnit: 'episodes',
     })
     const surface = createSurface([item])
-    const { container } = renderLibrary(surface)
+    const { container, rerenderLibrary } = renderLibrary(surface)
 
     expect(screen.getByText('3/12 episodios')).toBeVisible()
     expect(container.querySelector<HTMLElement>('.library-v2-progress > span')).toHaveStyle({ width: '25%' })
@@ -295,6 +300,12 @@ describe('LibraryTab simplificada', () => {
     fireEvent.error(image as HTMLImageElement)
     expect(image).toHaveAttribute('hidden')
     expect(fallback).not.toHaveAttribute('hidden')
+
+    rerenderLibrary(createSurface([{ ...item, posterUrl: 'https://example.test/corregida.jpg' }]))
+    const correctedImage = container.querySelector<HTMLImageElement>('.library-v2-cover img')
+    expect(correctedImage).toHaveAttribute('src', 'https://example.test/corregida.jpg')
+    expect(correctedImage).not.toHaveAttribute('hidden')
+    expect(container.querySelector<HTMLElement>('.library-v2-cover-fallback')).toHaveAttribute('hidden')
   })
 
   it('confirma el borrado y recupera ficha y roadmap en una sola mutacion', async () => {

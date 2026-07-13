@@ -925,6 +925,8 @@ function LibraryItemCard({
 }) {
   const progress = formatProgress(item)
   const progressRatio = getProgressRatio(item)
+  const [failedPosterUrl, setFailedPosterUrl] = useState<string>()
+  const posterHasError = Boolean(item.posterUrl && failedPosterUrl === item.posterUrl)
   const cardClassName = [
     'library-v2-card',
     selected ? 'selected' : '',
@@ -938,15 +940,12 @@ function LibraryItemCard({
           <>
             <img
               alt=""
+              hidden={posterHasError}
               loading="lazy"
               src={item.posterUrl}
-              onError={(event) => {
-                event.currentTarget.hidden = true
-                const fallback = event.currentTarget.nextElementSibling
-                if (fallback instanceof HTMLElement) fallback.hidden = false
-              }}
+              onError={() => setFailedPosterUrl(item.posterUrl)}
             />
-            <span className="library-v2-cover-fallback" hidden><ImageOff size={density === 'mosaic' ? 22 : 30} /></span>
+            <span className="library-v2-cover-fallback" hidden={!posterHasError}><ImageOff size={density === 'mosaic' ? 22 : 30} /></span>
           </>
         ) : <span className="library-v2-cover-fallback"><BookOpen size={density === 'mosaic' ? 22 : 30} /></span>}
       </div>

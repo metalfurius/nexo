@@ -579,9 +579,11 @@ export default function HomeTab({
           {journey.additionalNow.total > 0 && (
             <section className="now-companions" aria-label="También en marcha">
               <header><span>También en marcha</span><strong>{journey.additionalNow.total}</strong></header>
-              <div>{journey.additionalNow.visibleEntries.map(renderNowCompanion)}</div>
+              <div id="home-additional-now-list">{journey.additionalNow.visibleEntries.map(renderNowCompanion)}</div>
               {journey.additionalNow.canExpand && (
                 <button
+                  aria-controls="home-additional-now-list"
+                  aria-expanded={journey.additionalNow.expanded}
                   className="roadmap-expand"
                   type="button"
                   onClick={() => setExpanded((current) => ({ ...current, now: !current.now }))}
@@ -598,7 +600,7 @@ export default function HomeTab({
             <div><h3 id="roadmap-next">{laneMeta.next.title}</h3></div>
             <strong>{journey.next.total}</strong>
           </header>
-          <div className="roadmap-list journey-poster-grid">
+          <div className="roadmap-list journey-poster-grid" id="home-next-list">
             {journey.next.visibleEntries.map(renderNextCard)}
             {!journey.next.total && (
               <div className="atlas-lane-empty">
@@ -609,6 +611,8 @@ export default function HomeTab({
           </div>
           {journey.next.canExpand && (
             <button
+              aria-controls="home-next-list"
+              aria-expanded={journey.next.expanded}
               className="roadmap-expand"
               type="button"
               onClick={() => setExpanded((current) => ({ ...current, next: !current.next }))}
@@ -623,7 +627,7 @@ export default function HomeTab({
             <div><h3 id="roadmap-later">{laneMeta.later.title}</h3></div>
             <strong>{journey.later.total}</strong>
           </header>
-          <div className="roadmap-list atlas-timeline">
+          <div className="roadmap-list atlas-timeline" id="home-later-list">
             {journey.later.visibleEntries.map(renderLaterEntry)}
             {!journey.later.total && (
               <div className="atlas-lane-empty later-empty">
@@ -634,6 +638,8 @@ export default function HomeTab({
           </div>
           {journey.later.canExpand && (
             <button
+              aria-controls="home-later-list"
+              aria-expanded={journey.later.expanded}
               className="roadmap-expand"
               type="button"
               onClick={() => setExpanded((current) => ({ ...current, later: !current.later }))}

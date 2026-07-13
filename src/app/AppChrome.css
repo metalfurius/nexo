@@ -1,6 +1,7 @@
 /* Nexo v1.3: chrome compacto, estable y orientado a contenido. */
 .app-shell {
   --chrome-rail-width: 96px;
+  --chrome-safe-area-top: env(safe-area-inset-top);
   --chrome-topbar-height: 56px;
   --chrome-mobile-nav-height: 62px;
   background: var(--surface);
@@ -397,6 +398,7 @@
 @media (min-width: 768px) and (max-width: 1099px) {
   .app-shell {
     --chrome-tablet-nav-height: 52px;
+    --chrome-topbar-height: calc(56px + var(--chrome-safe-area-top));
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: var(--chrome-topbar-height) var(--chrome-tablet-nav-height) minmax(0, 1fr);
   }
@@ -404,7 +406,9 @@
   .topbar {
     grid-column: 1;
     grid-row: 1;
+    padding-bottom: 5px;
     padding-inline: max(14px, env(safe-area-inset-left));
+    padding-top: calc(6px + var(--chrome-safe-area-top));
   }
 
   .tabbar {
@@ -508,6 +512,7 @@
 
 @media (max-width: 767px) {
   .app-shell {
+    --chrome-topbar-height: calc(56px + var(--chrome-safe-area-top));
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: var(--chrome-topbar-height) minmax(0, 1fr);
@@ -518,9 +523,9 @@
     grid-column: 1;
     grid-row: 1;
     padding:
-      max(8px, env(safe-area-inset-top))
+      calc(6px + var(--chrome-safe-area-top))
       max(9px, env(safe-area-inset-right))
-      8px
+      5px
       max(9px, env(safe-area-inset-left));
   }
 
