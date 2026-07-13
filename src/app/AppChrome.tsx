@@ -2,7 +2,7 @@ import './AppChrome.css'
 
 import { Download, LogIn, LogOut, MoreHorizontal, Plus, RotateCcw, Search } from 'lucide-react'
 import { useEffect, useRef } from 'react'
-import { NexoMark, ShellPulse, roleLabels, type AppTab, type LibrarySurface, type ShellNavItem } from './shared'
+import { NexoMark, roleLabels, type AppTab, type LibrarySurface, type ShellNavItem } from './shared'
 
 interface AppChromeProps {
   activeNavItem: ShellNavItem
@@ -89,7 +89,6 @@ export default function AppChrome({
               <p className="topbar-subtitle">{activeNavItem.description}</p>
             </div>
           </div>
-          <ShellPulse library={library} isFirebaseConfigured={isFirebaseConfigured} />
         </div>
 
         <div className="topbar-actions">
@@ -127,10 +126,10 @@ export default function AppChrome({
           )}
           {hasPrivateSession && (
             <span
-              className={library.isModerator ? 'mode-pill moderator role-pill' : 'mode-pill role-pill'}
+              className={library.isModerator ? 'mode-pill moderator role-pill' : 'mode-pill role-pill role-pill-quiet'}
               aria-label={`Rol: ${roleLabels[library.userRole]}`}
             >
-              Rol: {roleLabels[library.userRole]}
+              <span className="role-prefix">Rol: </span>{roleLabels[library.userRole]}
             </span>
           )}
           {hasPrivateSession && (
@@ -182,18 +181,12 @@ export default function AppChrome({
           <NexoMark compact />
           <span>
             <strong>Nexo</strong>
-            <small>Atlas cultural · v{appVersion}</small>
+            <small>v{appVersion}</small>
           </span>
         </div>
 
         <div className="tabbar-group primary">
           {primaryNavItems.map((item) => (
-            <ChromeNavButton activeTab={activeTab} item={item} key={item.id} onNavigate={onNavigate} />
-          ))}
-        </div>
-
-        <div className="tabbar-group utility app-chrome-wide-utility" aria-label="Herramientas de Nexo">
-          {utilityNavItems.map((item) => (
             <ChromeNavButton activeTab={activeTab} item={item} key={item.id} onNavigate={onNavigate} />
           ))}
         </div>
