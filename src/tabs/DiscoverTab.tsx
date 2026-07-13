@@ -44,10 +44,10 @@ interface DiscoverTabProps {
   visibleSaveRequest?: ExplorerVisibleSaveRequest
 }
 
-const modes: Array<{ id: DiscoverMode; label: string; detail: string; Icon: typeof Search }> = [
-  { id: 'search', label: 'Buscar', detail: 'Nexo y fuentes externas', Icon: Search },
-  { id: 'surprise', label: 'Sorprendeme', detail: 'Una propuesta inesperada', Icon: Sparkles },
-  { id: 'queue', label: 'Pendientes', detail: 'Decidir hallazgos guardados', Icon: ListChecks },
+const modes: Array<{ id: DiscoverMode; label: string; Icon: typeof Search }> = [
+  { id: 'search', label: 'Buscar', Icon: Search },
+  { id: 'surprise', label: 'Sorprendeme', Icon: Sparkles },
+  { id: 'queue', label: 'Pendientes', Icon: ListChecks },
 ]
 
 function writeDiscoverMode(mode: DiscoverMode, historyMode: 'push' | 'replace' = 'push') {
@@ -84,13 +84,9 @@ export default function DiscoverTab(props: DiscoverTabProps) {
   return (
     <section className="discover-surface" data-discover-mode={mode}>
       <header className="discover-header">
-        <div>
-          <span className="eyebrow">Un solo lugar para encontrar algo nuevo</span>
-          <h2>Descubrir</h2>
-          <p>Busca una obra concreta, dejate sorprender o termina de decidir tus hallazgos.</p>
-        </div>
+        <h2 className="discover-header-title">Descubrir</h2>
         <nav aria-label="Modos de Descubrir" className="discover-mode-nav">
-          {modes.map(({ id, label, detail, Icon }) => (
+          {modes.map(({ id, label, Icon }) => (
             <button
               aria-current={mode === id ? 'page' : undefined}
               className={mode === id ? 'discover-mode-button active' : 'discover-mode-button'}
@@ -99,7 +95,7 @@ export default function DiscoverTab(props: DiscoverTabProps) {
               onClick={() => selectMode(id)}
             >
               <Icon size={17} />
-              <span><strong>{label}</strong><small>{detail}</small></span>
+              <strong>{label}</strong>
             </button>
           ))}
         </nav>

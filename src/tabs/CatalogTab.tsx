@@ -267,9 +267,8 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
       <div className="catalog-public-main">
         <section className="catalog-public-hero" data-testid="catalog-public-masthead">
           <div className="catalog-public-heading">
-            <span className="eyebrow">Catalogo publico</span>
-            <h2>Catalogo Nexo</h2>
-            <p>Explora obras publicas y guarda las que quieras llevar a tu biblioteca.</p>
+            <Search aria-hidden="true" size={17} />
+            <h2>Buscar en Nexo</h2>
           </div>
           <form
             className={hasActiveCatalogRoute ? 'catalog-public-search has-clear' : 'catalog-public-search'}

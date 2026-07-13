@@ -161,6 +161,47 @@ describe('LibraryTab simplificada', () => {
     expect(screen.getByLabelText('Ordenar biblioteca')).toHaveValue('focus')
   })
 
+  it('muestra filtros activos como chips que se pueden retirar por separado', async () => {
+    const user = userEvent.setup()
+    const surface = createSurface([
+      createItem('book', { title: 'Libro visible', type: 'book' }),
+      createItem('movie', { title: 'Pelicula oculta', type: 'movie' }),
+    ])
+    renderLibrary(surface)
+
+    await user.click(screen.getByRole('button', { name: 'Filtros' }))
+    await user.selectOptions(screen.getByLabelText('Filtrar por tipo'), 'book')
+
+    const chip = screen.getByRole('button', { name: /Quitar filtro de tipo/i })
+    expect(chip).toBeVisible()
+    expect(screen.queryByRole('heading', { name: 'Pelicula oculta' })).not.toBeInTheDocument()
+
+    await user.click(chip)
+    expect(screen.getByRole('heading', { name: 'Pelicula oculta' })).toBeVisible()
+    expect(screen.getByLabelText('Filtrar por tipo')).toHaveValue('all')
+  })
+
+  it('mantiene un skeleton estable durante la carga remota y no muestra un vacio falso', () => {
+    const surface = createSurface()
+    surface.loading = true
+    const { container } = renderLibrary(surface)
+
+    expect(screen.getByLabelText('Cargando biblioteca')).toHaveAttribute('aria-busy', 'true')
+    expect(container.querySelectorAll('.library-v2-skeleton-card')).toHaveLength(8)
+    expect(screen.queryByLabelText('Biblioteca vacia')).not.toBeInTheDocument()
+  })
+
+  it('ofrece anadir o descubrir desde una biblioteca vacia', async () => {
+    const user = userEvent.setup()
+    const surface = createSurface()
+    const { onNavigate } = renderLibrary(surface)
+
+    await user.click(screen.getByRole('button', { name: 'Descubrir' }))
+    expect(onNavigate).toHaveBeenCalledWith('discover')
+    await user.click(screen.getByRole('button', { name: 'Anadir obra' }))
+    expect(screen.getByRole('dialog', { name: 'Anadir manualmente' })).toBeVisible()
+  })
+
   it('muestra exportacion completa o de seleccion dentro de Filtros', async () => {
     const user = userEvent.setup()
     const item = createItem('export', { title: 'Para exportar' })
@@ -231,6 +272,29 @@ describe('LibraryTab simplificada', () => {
       roadmap: { now: [], next: ['one'], later: [], hidden: [] },
       item: { kind: 'status', itemId: 'one', status: 'wishlist' },
     }))
+  })
+
+  it('representa el progreso visual sin perder el texto y recupera una portada rota', () => {
+    const item = createItem('progress-cover', {
+      title: 'Una obra con portada',
+      posterUrl: 'https://example.test/rota.jpg',
+      progressCurrent: 3,
+      progressTotal: 12,
+      progressUnit: 'episodes',
+    })
+    const surface = createSurface([item])
+    const { container } = renderLibrary(surface)
+
+    expect(screen.getByText('3/12 episodios')).toBeVisible()
+    expect(container.querySelector<HTMLElement>('.library-v2-progress > span')).toHaveStyle({ width: '25%' })
+    const image = container.querySelector<HTMLImageElement>('.library-v2-cover img')
+    const fallback = container.querySelector<HTMLElement>('.library-v2-cover-fallback')
+    expect(image).not.toBeNull()
+    expect(fallback).toHaveAttribute('hidden')
+
+    fireEvent.error(image as HTMLImageElement)
+    expect(image).toHaveAttribute('hidden')
+    expect(fallback).not.toHaveAttribute('hidden')
   })
 
   it('confirma el borrado y recupera ficha y roadmap en una sola mutacion', async () => {
