@@ -61,7 +61,10 @@ test('production anonymous UI searches Dune in Todo', async ({ page }) => {
     const smokeWindow = window as Window & { __nexoCatalogSmokeMarker?: string }
     smokeWindow.__nexoCatalogSmokeMarker = 'search-started'
   })
-  await page.getByRole('button', { name: /^Buscar$/ }).click()
+  const catalogSearchForm = page.locator('form').filter({ has: catalogSearch })
+  const catalogSubmit = catalogSearchForm.getByRole('button', { name: /^Buscar$/ })
+  await expect(catalogSubmit).toBeEnabled()
+  await catalogSubmit.click()
 
   await expect(page).toHaveURL(/[?&]tab=discover(?:&|$)/)
   await expect(page).toHaveURL(/[?&]mode=search(?:&|$)/)
