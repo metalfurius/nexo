@@ -7,7 +7,7 @@
 
 .home-route-summary {
   align-items: center;
-  animation: home-enter var(--motion-enter) var(--ease-enter) both;
+  animation: home-enter var(--motion-enter) var(--ease-enter) backwards;
   border-bottom: 1px solid var(--border);
   display: flex;
   gap: 18px;
@@ -128,12 +128,12 @@
 }
 
 .home-surface .atlas-now {
-  animation: home-focus-enter 240ms var(--ease-enter) both;
+  animation: home-focus-enter 240ms var(--ease-enter) backwards;
   grid-column: span 7;
 }
 
 .home-surface .atlas-next {
-  animation: home-enter 220ms 48ms var(--ease-enter) both;
+  animation: home-enter 220ms 48ms var(--ease-enter) backwards;
   grid-column: span 5;
 }
 
