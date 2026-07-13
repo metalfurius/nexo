@@ -1,47 +1,210 @@
-/* Styles loaded with import. */
-.import-tab,
-.import-panel {
-  display: grid;
-  gap: 12px;
+.import-tab {
+  margin: 0 auto;
+  max-width: 1180px;
+  width: 100%;
 }
 
-.import-provider-grid {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
+.import-panel {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  display: grid;
+  gap: 22px;
+  padding: clamp(4px, 1vw, 14px);
+}
+
+.import-hero {
+  align-items: end;
+  border-bottom: 1px solid var(--border);
+  display: grid;
+  gap: 24px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 6px 2px 22px;
+}
+
+.import-hero-copy {
+  display: grid;
+  gap: 7px;
+  max-width: 650px;
+}
+
+.import-eyebrow {
+  align-items: center;
+  color: var(--accent-dark);
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 900;
+  gap: 7px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  width: fit-content;
+}
+
+.import-panel .import-hero h2 {
+  font-family: var(--font-ui);
+  font-size: clamp(30px, 4vw, 44px);
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  margin: 0;
+}
+
+.import-hero-copy p {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.45;
+  margin: 2px 0 0;
+}
+
+.import-hero-steps {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.import-hero-steps span {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: 11px;
+  font-weight: 800;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.import-hero-steps span:not(:last-child)::after {
+  background: var(--border);
+  content: '';
+  height: 1px;
+  margin-left: 2px;
+  width: 16px;
+}
+
+.import-hero-steps strong {
+  align-items: center;
+  background: color-mix(in srgb, var(--accent) 17%, var(--surface-muted));
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--border));
+  border-radius: 999px;
+  color: var(--accent-dark);
+  display: inline-flex;
+  font-size: 10px;
+  height: 24px;
+  justify-content: center;
+  width: 24px;
+}
+
+.import-feedback:empty {
+  display: none;
+}
+
+.import-feedback {
+  display: grid;
+  gap: 8px;
+}
+
+.import-feedback .feedback-message,
+.import-feedback .feedback-action-row {
+  margin: 0;
+}
+
+.import-methods {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.import-method-section {
+  background: color-mix(in srgb, var(--surface-raised) 76%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
+  border-radius: 14px;
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  padding: clamp(14px, 2vw, 20px);
+}
+
+.import-section-heading {
+  align-items: center;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 36px minmax(0, 1fr);
+}
+
+.import-section-icon {
+  align-items: center;
+  background: var(--accent-soft);
+  border-radius: 10px;
+  color: var(--accent-dark);
+  display: flex;
+  height: 36px;
+  justify-content: center;
+  width: 36px;
+}
+
+.import-section-heading h3 {
+  color: var(--text-strong);
+  font-size: 17px;
+  letter-spacing: -0.015em;
+  line-height: 1.15;
+  margin: 0;
+}
+
+.import-section-heading p {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+  margin: 2px 0 0;
 }
 
 .service-import-grid {
   display: grid;
-  gap: 8px;
+  gap: 9px;
+}
+
+.import-provider-grid {
   grid-template-columns: 1fr;
 }
 
 .service-import-card {
-  background: var(--surface-muted);
+  background: color-mix(in srgb, var(--surface-muted) 88%, transparent);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 11px;
   display: grid;
-  gap: 9px;
+  gap: 11px;
   min-width: 0;
-  padding: 10px;
+  padding: 13px;
+  transition:
+    border-color var(--motion-fast) var(--ease-move),
+    background-color var(--motion-fast) var(--ease-move),
+    transform var(--motion-fast) var(--ease-move);
+}
+
+.service-import-card:focus-within {
+  background: color-mix(in srgb, var(--surface-muted) 82%, var(--accent-soft));
+  border-color: color-mix(in srgb, var(--accent) 58%, var(--border));
+}
+
+.service-import-card[aria-busy='true'] {
+  border-color: color-mix(in srgb, var(--accent) 44%, var(--border));
 }
 
 .service-import-card-heading {
   align-items: center;
-  color: var(--muted);
+  color: var(--accent-dark);
   display: grid;
-  gap: 8px;
-  grid-template-columns: 18px minmax(0, 1fr) auto;
+  gap: 9px;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
   min-width: 0;
 }
 
-.service-import-card-heading svg {
-  color: currentColor;
+.service-import-card-heading > svg {
+  justify-self: center;
 }
 
 .service-import-card-heading strong {
   color: var(--text-strong);
   display: block;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.15;
   overflow-wrap: anywhere;
 }
@@ -50,63 +213,259 @@
   color: var(--muted);
   display: block;
   font-size: 11px;
-  line-height: 1.25;
+  line-height: 1.3;
   margin-top: 2px;
 }
 
-.service-import-card label:not(.service-file-drop) {
+.service-import-card .mode-pill {
+  font-size: 9px;
+  min-height: 23px;
+  padding: 0 7px;
+}
+
+.service-profile-card > label {
   color: var(--muted);
   display: grid;
   font-size: 11px;
   font-weight: 800;
   gap: 5px;
-  text-transform: uppercase;
 }
 
-.service-import-card input[type='text'],
-.service-import-card label:not(.service-file-drop) input {
+.service-profile-card input {
+  background: color-mix(in srgb, var(--surface) 66%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-strong);
+  font: inherit;
+  font-size: 13px;
+  min-height: 44px;
   min-width: 0;
+  padding: 9px 11px;
+  width: 100%;
+}
+
+.service-profile-card input::placeholder {
+  color: color-mix(in srgb, var(--muted) 72%, transparent);
+}
+
+.service-profile-card input:focus-visible {
+  border-color: var(--focus);
+  outline: 2px solid color-mix(in srgb, var(--focus) 28%, transparent);
+  outline-offset: 1px;
+}
+
+.service-profile-card .secondary-button {
+  min-height: 44px;
+  width: 100%;
+}
+
+.service-file-card {
+  grid-template-rows: auto auto 1fr;
+}
+
+.service-file-drop {
+  align-items: center;
+  background: color-mix(in srgb, var(--accent-soft) 42%, var(--surface));
+  border: 1px dashed color-mix(in srgb, var(--accent) 58%, var(--border));
+  border-radius: 9px;
+  color: var(--text-strong);
+  cursor: pointer;
+  display: grid;
+  gap: 1px 9px;
+  grid-template-columns: 22px minmax(0, 1fr);
+  min-height: 58px;
+  padding: 9px 11px;
+  transition:
+    background-color var(--motion-fast) var(--ease-move),
+    border-color var(--motion-fast) var(--ease-move),
+    transform var(--motion-press) var(--ease-move);
+}
+
+.service-file-drop > svg {
+  color: var(--accent-dark);
+  grid-row: 1 / 3;
+}
+
+.service-file-drop span {
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.service-file-drop small {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.2;
+}
+
+.service-file-drop input {
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+  position: absolute;
+  width: 1px;
+}
+
+.service-file-drop:focus-within {
+  border-color: var(--focus);
+  outline: 2px solid color-mix(in srgb, var(--focus) 28%, transparent);
+  outline-offset: 2px;
 }
 
 .service-import-guide {
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  align-self: end;
+  border-top: 1px solid var(--border);
   color: var(--muted);
-  font-size: 12px;
-  padding: 8px;
+  font-size: 11px;
+  padding-top: 9px;
 }
 
-.service-import-guide summary {
+.service-import-guide summary,
+.import-privacy-note summary {
   align-items: center;
+  border-radius: 6px;
   cursor: pointer;
   display: flex;
-  gap: 6px;
   font-weight: 800;
+  gap: 6px;
+  min-height: 44px;
+  width: fit-content;
+}
+
+.service-import-guide summary:hover,
+.import-privacy-note summary:hover {
+  color: var(--text-strong);
+}
+
+.service-import-guide summary:focus-visible,
+.import-privacy-note summary:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }
 
 .service-import-guide ol {
   display: grid;
   gap: 5px;
-  margin: 8px 0 0;
-  padding-left: 18px;
+  line-height: 1.4;
+  margin: 7px 0 2px;
+  padding-left: 20px;
 }
 
-.service-file-drop {
-  align-items: center;
-  background: color-mix(in srgb, var(--surface) 68%, transparent);
-  border: 1px dashed color-mix(in srgb, var(--accent) 42%, var(--border));
-  border-radius: 8px;
-  color: var(--text-strong);
-  cursor: pointer;
-  display: flex;
+.import-privacy-note {
+  border-top: 1px solid var(--border);
+  color: var(--muted);
   font-size: 12px;
-  font-weight: 850;
-  gap: 8px;
-  justify-content: center;
-  min-height: 42px;
-  padding: 8px;
+  margin-top: -2px;
+  padding: 12px 2px 0;
 }
 
-.service-file-drop input {
-  display: none;
+.import-privacy-note p {
+  line-height: 1.5;
+  margin: 6px 0 0;
+  max-width: 720px;
+}
+
+.import-spinner {
+  animation: import-spin 800ms linear infinite;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .service-import-card:hover {
+    border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
+    transform: translateY(-1px);
+  }
+
+  .service-file-drop:hover {
+    background: color-mix(in srgb, var(--accent-soft) 68%, var(--surface));
+    border-color: var(--accent);
+  }
+
+  .service-file-drop:active {
+    transform: scale(0.99);
+  }
+}
+
+@media (max-width: 979px) {
+  .import-methods {
+    grid-template-columns: 1fr;
+  }
+
+  .import-provider-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 719px) {
+  .import-panel {
+    gap: 16px;
+    padding: 0;
+  }
+
+  .import-hero {
+    align-items: start;
+    gap: 16px;
+    grid-template-columns: 1fr;
+    padding-bottom: 16px;
+  }
+
+  .import-hero-steps {
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .import-hero-steps span {
+    flex: 1 1 auto;
+  }
+
+  .import-hero-steps span:not(:last-child)::after {
+    flex: 1 1 auto;
+    width: auto;
+  }
+
+  .import-provider-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 399px) {
+  .import-hero-copy p {
+    font-size: 13px;
+  }
+
+  .import-hero-steps span {
+    font-size: 10px;
+    gap: 4px;
+  }
+
+  .import-hero-steps span:not(:last-child)::after {
+    margin-left: 0;
+  }
+
+  .import-method-section {
+    border-radius: 11px;
+    padding: 12px;
+  }
+
+  .import-feedback .feedback-action-row {
+    align-items: stretch;
+    display: grid;
+    width: 100%;
+  }
+}
+
+@keyframes import-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .import-spinner {
+    animation: none;
+  }
+
+  .service-file-drop,
+  .service-import-card {
+    transition: none;
+  }
 }

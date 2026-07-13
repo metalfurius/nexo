@@ -5,7 +5,7 @@ import { assertLibraryImportItemLimit, getLibraryImportRollbackPlan, type Librar
 import { clearLibraryImportRollback, persistLibraryImportRollback, readLibraryImportRollback } from '../lib/libraryImportRollbackStore'
 import { normalizeKey, uniqueValues } from '../lib/strings'
 import { importSourceLabels } from '../services/importSourceLabels'
-import { BookOpen, Film, HelpCircle, Library, LoaderCircle, RotateCcw, Search, Sparkles, Upload } from 'lucide-react'
+import { BookOpen, FileArchive, Film, HelpCircle, Library, LoaderCircle, RotateCcw, Search, ShieldCheck, Sparkles, Upload, UserRound } from 'lucide-react'
 import { type DragEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { FeedbackMessage, ServiceImportDialog, feedbackToneFromText, formatLibraryImportRollbackDetail, formatLibraryImportRollbackStatus, getImportPreviewNewItems, serviceImportPreviewRenderLimit, type ActivityRecorder, type AppTab, type LibrarySurface, type ServiceImportApplyProgress, type ServiceImportDialogPhase } from '../app/shared'
 
@@ -354,33 +354,53 @@ export default function ImportTab({
   }
 
   return (
-    <section className="import-tab" data-testid="import-tab">
+    <section className="import-tab" data-testid="import-tab" aria-labelledby="import-title">
       <div className="workspace-panel import-panel">
-        <div className="panel-heading">
-          <div>
-            <h2>Importar bibliotecas</h2>
-            <p>Trae listas privadas desde perfiles publicos o exports oficiales.</p>
+        <header className="import-hero">
+          <div className="import-hero-copy">
+            <span className="import-eyebrow">
+              <ShieldCheck aria-hidden="true" size={15} />
+              Importación privada
+            </span>
+            <h2 id="import-title">Trae tu biblioteca</h2>
+            <p>Elige un perfil público o sube un archivo. Podrás revisar todo antes de guardarlo.</p>
           </div>
-          <span className="mode-pill">Privado</span>
+          <div className="import-hero-steps" aria-label="Proceso de importación">
+            <span><strong>1</strong> Elige</span>
+            <span><strong>2</strong> Revisa</span>
+            <span><strong>3</strong> Importa</span>
+          </div>
+        </header>
+
+        <div className="import-feedback" aria-live="polite">
+          {status && <FeedbackMessage tone={feedbackToneFromText(status)}>{status}</FeedbackMessage>}
+          {serviceImportUndo && (
+            <div className="feedback-action-row" aria-label="Accion reciente de importacion">
+              <button className="secondary-button" type="button" onClick={() => void undoServiceImport()}>
+                <RotateCcw size={16} />
+                Deshacer importacion
+              </button>
+              <button className="ghost-button" type="button" onClick={() => onNavigate('library')}>
+                <Library size={16} />
+                Ver Biblioteca
+              </button>
+            </div>
+          )}
         </div>
 
-        {status && <FeedbackMessage tone={feedbackToneFromText(status)}>{status}</FeedbackMessage>}
-        {serviceImportUndo && (
-          <div className="feedback-action-row" aria-label="Accion reciente de importacion">
-            <button className="secondary-button" type="button" onClick={() => void undoServiceImport()}>
-              <RotateCcw size={16} />
-              Deshacer importacion
-            </button>
-            <button className="ghost-button" type="button" onClick={() => onNavigate('library')}>
-              <Library size={16} />
-              Ver Biblioteca
-            </button>
-          </div>
-        )}
-
-        <div className="service-import-grid import-provider-grid">
+        <div className="import-methods">
+          <section className="import-method-section" aria-labelledby="import-profile-title">
+            <div className="import-section-heading">
+              <span className="import-section-icon"><UserRound aria-hidden="true" size={18} /></span>
+              <div>
+                <h3 id="import-profile-title">Desde un perfil</h3>
+                <p>Solo necesitamos el usuario o la URL pública.</p>
+              </div>
+            </div>
+            <div className="service-import-grid import-provider-grid">
           <form
-            className="service-import-card"
+            className="service-import-card service-profile-card"
+            aria-busy={serviceImportLoading === 'anilist'}
             onSubmit={(event) => {
               event.preventDefault()
               void preparePublicProfileImport('anilist')
@@ -394,7 +414,7 @@ export default function ImportTab({
               </div>
             </div>
             <label>
-              Usuario o URL publica
+              Usuario o URL pública
               <input
                 value={anilistImportInput}
                 onChange={(event) => setAnilistImportInput(event.target.value)}
@@ -402,13 +422,14 @@ export default function ImportTab({
               />
             </label>
             <button className="secondary-button" disabled={serviceImportLoading === 'anilist'} type="submit">
-              {serviceImportLoading === 'anilist' ? <LoaderCircle size={16} /> : <Search size={16} />}
+              {serviceImportLoading === 'anilist' ? <LoaderCircle className="import-spinner" size={16} /> : <Search size={16} />}
               {serviceImportLoading === 'anilist' ? 'Leyendo perfil...' : 'Leer perfil'}
             </button>
           </form>
 
           <form
-            className="service-import-card"
+            className="service-import-card service-profile-card"
+            aria-busy={serviceImportLoading === 'myanimelist'}
             onSubmit={(event) => {
               event.preventDefault()
               void preparePublicProfileImport('myanimelist')
@@ -418,12 +439,12 @@ export default function ImportTab({
               <BookOpen size={17} />
               <div>
                 <strong>MyAnimeList</strong>
-                <small>Experimental via Jikan</small>
+                <small>Importación mediante Jikan</small>
               </div>
-              <span className="mode-pill warning">Best effort</span>
+              <span className="mode-pill warning">Beta</span>
             </div>
             <label>
-              Usuario o URL publica
+              Usuario o URL pública
               <input
                 value={myAnimeListImportInput}
                 onChange={(event) => setMyAnimeListImportInput(event.target.value)}
@@ -431,27 +452,40 @@ export default function ImportTab({
               />
             </label>
             <button className="secondary-button" disabled={serviceImportLoading === 'myanimelist'} type="submit">
-              {serviceImportLoading === 'myanimelist' ? <LoaderCircle size={16} /> : <Search size={16} />}
+              {serviceImportLoading === 'myanimelist' ? <LoaderCircle className="import-spinner" size={16} /> : <Search size={16} />}
               {serviceImportLoading === 'myanimelist' ? 'Leyendo perfil...' : 'Leer perfil'}
             </button>
           </form>
 
-          <div className="service-import-card">
+            </div>
+          </section>
+
+          <section className="import-method-section" aria-labelledby="import-file-title">
+            <div className="import-section-heading">
+              <span className="import-section-icon"><FileArchive aria-hidden="true" size={18} /></span>
+              <div>
+                <h3 id="import-file-title">Desde un archivo</h3>
+                <p>Usa la exportación oficial, sin modificarla.</p>
+              </div>
+            </div>
+            <div className="service-import-grid import-provider-grid">
+
+          <div className="service-import-card service-file-card" aria-busy={serviceImportLoading === 'letterboxd'}>
             <div className="service-import-card-heading">
               <Film size={17} />
               <div>
                 <strong>Letterboxd</strong>
-                <small>ZIP oficial · max. 10 MB / 5.000 entradas</small>
+                <small>ZIP · hasta 10 MB y 5.000 entradas</small>
               </div>
             </div>
             <details className="service-import-guide">
               <summary>
                 <HelpCircle size={15} />
-                Mini guia
+                Cómo conseguir el ZIP
               </summary>
               <ol>
                 <li>En Letterboxd abre Settings, Data y Export your data.</li>
-                <li>Descarga el ZIP y sueltalo aqui sin descomprimir.</li>
+                <li>Descarga el ZIP y súbelo aquí sin descomprimir.</li>
               </ol>
             </details>
             <label
@@ -459,8 +493,9 @@ export default function ImportTab({
               onDragOver={(event) => event.preventDefault()}
               onDrop={(event) => handleServiceFileDrop('letterboxd', event)}
             >
-              <Upload size={17} />
-              <span>Elegir ZIP</span>
+              {serviceImportLoading === 'letterboxd' ? <LoaderCircle className="import-spinner" size={18} /> : <Upload aria-hidden="true" size={18} />}
+              <span>{serviceImportLoading === 'letterboxd' ? 'Leyendo archivo...' : 'Elegir ZIP'}</span>
+              <small>o arrástralo aquí</small>
               <input
                 accept="application/zip,application/x-zip-compressed,.zip"
                 aria-label="Importar ZIP oficial de Letterboxd"
@@ -473,22 +508,22 @@ export default function ImportTab({
             </label>
           </div>
 
-          <div className="service-import-card">
+          <div className="service-import-card service-file-card" aria-busy={serviceImportLoading === 'goodreads'}>
             <div className="service-import-card-heading">
               <BookOpen size={17} />
               <div>
                 <strong>Goodreads</strong>
-                <small>CSV oficial · max. 10 MB / 5.000 entradas</small>
+                <small>CSV · hasta 10 MB y 5.000 entradas</small>
               </div>
             </div>
             <details className="service-import-guide">
               <summary>
                 <HelpCircle size={15} />
-                Mini guia
+                Cómo conseguir el CSV
               </summary>
               <ol>
                 <li>En Goodreads abre My Books, Import and export.</li>
-                <li>Descarga el CSV y cargalo aqui.</li>
+                <li>Descarga el CSV y súbelo directamente.</li>
               </ol>
             </details>
             <label
@@ -496,8 +531,9 @@ export default function ImportTab({
               onDragOver={(event) => event.preventDefault()}
               onDrop={(event) => handleServiceFileDrop('goodreads', event)}
             >
-              <Upload size={17} />
-              <span>Elegir CSV</span>
+              {serviceImportLoading === 'goodreads' ? <LoaderCircle className="import-spinner" size={18} /> : <Upload aria-hidden="true" size={18} />}
+              <span>{serviceImportLoading === 'goodreads' ? 'Leyendo archivo...' : 'Elegir CSV'}</span>
+              <small>o arrástralo aquí</small>
               <input
                 accept="text/csv,.csv"
                 aria-label="Importar CSV oficial de Goodreads"
@@ -509,7 +545,14 @@ export default function ImportTab({
               />
             </label>
           </div>
+            </div>
+          </section>
         </div>
+
+        <details className="import-privacy-note">
+          <summary>Qué ocurre con los datos importados</summary>
+          <p>Las entradas se guardan en tu biblioteca privada. Nexo solo registra metadatos públicos de las obras para mejorar el catálogo compartido.</p>
+        </details>
       </div>
 
       {serviceImportDialogOpen && (

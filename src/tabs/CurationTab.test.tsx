@@ -71,6 +71,27 @@ function createLibrarySurface(publicItems: PublicCatalogItem[]): LibrarySurface 
 }
 
 describe('CurationTab', () => {
+  it('keeps search, diagnostics and review visible while secondary tools stay collapsed', async () => {
+    const user = userEvent.setup()
+    const publicItem = createPublicCatalogItem()
+    render(<CurationTab library={createLibrarySurface([publicItem])} onActivity={vi.fn()} />)
+
+    expect(await screen.findByRole('heading', { name: 'Catalogo Nexo' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Nueva entrada' })).toBeVisible()
+    expect(screen.getByRole('textbox', { name: 'Buscar en catalogo publico' })).toBeVisible()
+    expect(screen.getByTestId('catalog-diagnostics')).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'Revision prioritaria' })).toBeVisible()
+
+    const advancedLabel = screen.getByText('Opciones avanzadas')
+    const drawer = advancedLabel.closest('details')
+    expect(drawer).not.toHaveAttribute('open')
+
+    await user.click(advancedLabel)
+
+    expect(drawer).toHaveAttribute('open')
+    expect(screen.getByRole('button', { name: 'Plantilla' })).toBeVisible()
+  })
+
   it('labels archive confirmation close button with the entry title', async () => {
     const user = userEvent.setup()
     const publicItem = createPublicCatalogItem()

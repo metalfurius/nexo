@@ -7,7 +7,7 @@ import { itemTypeLabels as typeLabels } from '../lib/libraryItemInsights'
 import { createPublicCatalogSeedTemplate, getPublicCatalogSeedRollbackPlan, getPublicCatalogSeedSummary, parsePublicCatalogSeed, type PublicCatalogSeedRollbackPlan } from '../lib/publicCatalogSeed'
 import { BookOpen, Download, LoaderCircle, Plus, RotateCcw, Search, SlidersHorizontal, Sparkles, Upload, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { CoverArt, DialogFocusReturn, EmptyState, FeedbackMessage, MetricCard, PublicItemEditor, curationStarterTypes, downloadJsonFile, feedbackToneFromText, formatCatalogRepairIssues, formatCatalogSeedRollbackDetail, formatCatalogSeedRollbackStatus, formatCatalogSeedSummary, handleDialogKeyDown, roleLabels, typeIcons, type ActivityRecorder, type LibrarySurface, type PendingCatalogSeedImport } from '../app/shared'
+import { CoverArt, DialogFocusReturn, EmptyState, FeedbackMessage, PublicItemEditor, curationStarterTypes, downloadJsonFile, feedbackToneFromText, formatCatalogRepairIssues, formatCatalogSeedRollbackDetail, formatCatalogSeedRollbackStatus, formatCatalogSeedSummary, handleDialogKeyDown, roleLabels, typeIcons, type ActivityRecorder, type LibrarySurface, type PendingCatalogSeedImport } from '../app/shared'
 
 export default function CurationTab({
   library,
@@ -377,11 +377,12 @@ export default function CurationTab({
 
   return (
     <section className="content-grid curation-layout">
-      <section className="workspace-panel wide">
-        <div className="panel-heading">
+      <section className="workspace-panel wide curation-workspace">
+        <header className="curation-hero">
           <div>
+            <span className="eyebrow">Curacion</span>
             <h2>Catalogo Nexo</h2>
-            <p>Cola visual de fichas publicas: primero arregla lo que se vera en Biblioteca.</p>
+            <p>Revisa lo importante y publica fichas consistentes.</p>
           </div>
           <div className="panel-actions">
             <button className="primary-button" type="button" onClick={() => startNewCatalogItem()}>
@@ -389,7 +390,7 @@ export default function CurationTab({
               Nueva entrada
             </button>
           </div>
-        </div>
+        </header>
         {pendingCatalogSeed && (
           <div className="seed-import-preview" aria-label="Seed de catalogo preparado">
             <div>
@@ -409,31 +410,85 @@ export default function CurationTab({
             </div>
           </div>
         )}
-        <form
-          className="explorer-search two"
-          onSubmit={(event) => {
-            event.preventDefault()
-            void refreshCatalog()
-          }}
-        >
-          <input
-            aria-label="Buscar en catalogo publico"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Buscar entrada publica"
-          />
-          <button className="secondary-button" disabled={isLoading} type="submit">
-            <Search size={18} />
-            {isLoading ? 'Buscando' : 'Buscar'}
-          </button>
-        </form>
+        <div className="curation-command-bar">
+          <form
+            className="explorer-search two"
+            onSubmit={(event) => {
+              event.preventDefault()
+              void refreshCatalog()
+            }}
+          >
+            <input
+              aria-label="Buscar en catalogo publico"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Buscar por titulo, genero o tag"
+            />
+            <button className="secondary-button" disabled={isLoading} type="submit">
+              <Search size={18} />
+              {isLoading ? 'Buscando' : 'Buscar'}
+            </button>
+          </form>
+          <div className="curation-live-summary" aria-label="Resumen del catalogo">
+            <span><strong>{items.length}</strong> fichas</span>
+            <span className={incompleteCount ? 'needs-review' : ''}><strong>{incompleteCount}</strong> pendientes</span>
+            <span><strong>{catalogDiagnostics.coveragePercent}%</strong> completas</span>
+          </div>
+        </div>
+        <section className="catalog-diagnostics-panel" aria-label="Diagnostico del catalogo publico" data-testid="catalog-diagnostics">
+          <div className="catalog-diagnostics-main">
+            <div>
+              <span className="eyebrow">Estado del catalogo</span>
+              <strong>{catalogDiagnostics.summaryLabel}</strong>
+              <p>{catalogDiagnostics.summaryCopy}</p>
+            </div>
+            <div className="catalog-diagnostics-score">
+              <strong>{catalogDiagnostics.coveragePercent}%</strong>
+              <span>{catalogDiagnostics.readyCount}/{catalogDiagnostics.totalItems} completas</span>
+            </div>
+          </div>
+          <div
+            aria-label={`Cobertura del catalogo ${catalogDiagnostics.coveragePercent}%`}
+            className="catalog-diagnostics-meter"
+            role="meter"
+            aria-valuemax={100}
+            aria-valuemin={0}
+            aria-valuenow={catalogDiagnostics.coveragePercent}
+          >
+            <span style={{ width: `${catalogDiagnostics.coveragePercent}%` }} />
+          </div>
+          <div className="catalog-issue-grid" aria-label="Pendientes por tipo de dato">
+            {catalogDiagnostics.issueStats.map((issue) => (
+              <button
+                aria-pressed={issueFilter === issue.id}
+                className={issueFilter === issue.id ? 'catalog-issue-card active' : 'catalog-issue-card'}
+                disabled={issue.count === 0}
+                key={issue.id}
+                type="button"
+                onClick={() => focusCatalogIssue(issue.id)}
+              >
+                <span>{issue.label}</span>
+                <strong>{issue.count}</strong>
+                <small>{issue.detail}</small>
+              </button>
+            ))}
+          </div>
+          {issueFilter !== 'all' && (
+            <div className="catalog-active-issue">
+              <span>Viendo {catalogIssueLabels[issueFilter].toLowerCase()}</span>
+              <button className="ghost-button" type="button" onClick={() => setIssueFilter('all')}>
+                Quitar foco
+              </button>
+            </div>
+          )}
+        </section>
         <details className="curation-admin-drawer" data-close-on-outside>
           <summary>
             <span>
               <SlidersHorizontal size={17} />
-              Herramientas de catalogo
+              Opciones avanzadas
             </span>
-            <small>Plantillas, diagnostico, filtros e importacion viven aqui.</small>
+            <small>Presets, importacion y filtros</small>
           </summary>
           <div className="curation-admin-content">
             <div className="curation-admin-actions" aria-label="Acciones avanzadas de catalogo">
@@ -544,55 +599,6 @@ export default function CurationTab({
                 ))}
               </div>
             </section>
-            <section className="catalog-diagnostics-panel" aria-label="Diagnostico del catalogo publico" data-testid="catalog-diagnostics">
-              <div className="catalog-diagnostics-main">
-                <div>
-                  <span className="eyebrow">Diagnostico</span>
-                  <strong>{catalogDiagnostics.summaryLabel}</strong>
-                  <p>{catalogDiagnostics.summaryCopy}</p>
-                </div>
-                <div className="catalog-diagnostics-score">
-                  <strong>{catalogDiagnostics.coveragePercent}%</strong>
-                  <span>
-                    {catalogDiagnostics.readyCount}/{catalogDiagnostics.totalItems} completas
-                  </span>
-                </div>
-              </div>
-              <div
-                aria-label={`Cobertura del catalogo ${catalogDiagnostics.coveragePercent}%`}
-                className="catalog-diagnostics-meter"
-                role="meter"
-                aria-valuemax={100}
-                aria-valuemin={0}
-                aria-valuenow={catalogDiagnostics.coveragePercent}
-              >
-                <span style={{ width: `${catalogDiagnostics.coveragePercent}%` }} />
-              </div>
-              <div className="catalog-issue-grid" aria-label="Pendientes por tipo de dato">
-                {catalogDiagnostics.issueStats.map((issue) => (
-                  <button
-                    aria-pressed={issueFilter === issue.id}
-                    className={issueFilter === issue.id ? 'catalog-issue-card active' : 'catalog-issue-card'}
-                    disabled={issue.count === 0}
-                    key={issue.id}
-                    type="button"
-                    onClick={() => focusCatalogIssue(issue.id)}
-                  >
-                    <span>{issue.label}</span>
-                    <strong>{issue.count}</strong>
-                    <small>{issue.detail}</small>
-                  </button>
-                ))}
-              </div>
-              {issueFilter !== 'all' && (
-                <div className="catalog-active-issue">
-                  <span>Viendo {catalogIssueLabels[issueFilter].toLowerCase()}</span>
-                  <button className="ghost-button" type="button" onClick={() => setIssueFilter('all')}>
-                    Quitar foco
-                  </button>
-                </div>
-              )}
-            </section>
             <div className="catalog-curation-toolbar">
               <div className="catalog-filter-tabs" role="group" aria-label="Calidad del catalogo">
                 {qualityFilters.map((filter) => (
@@ -658,7 +664,7 @@ export default function CurationTab({
             <div className="catalog-review-heading">
               <div>
                 <h3>Revision prioritaria</h3>
-                <p>Fichas publicas con senales pendientes antes de compartir beta.</p>
+                <p>Las {reviewQueue.length} fichas que mas necesitan atencion.</p>
               </div>
               <div className="catalog-review-heading-actions">
                 {safeRepairableItems.length > 0 && (
@@ -744,6 +750,20 @@ export default function CurationTab({
           </div>
         )}
 
+        <div className="curation-list-heading">
+          <div>
+            <h3>Catalogo completo</h3>
+            <p aria-live="polite">
+              {visibleCatalogItems.length} de {items.length} entradas
+            </p>
+          </div>
+          {hasActiveCatalogFilters && (
+            <button className="ghost-button" type="button" onClick={resetCatalogFilters}>
+              Quitar filtros
+            </button>
+          )}
+        </div>
+
         {isLoading && items.length === 0 ? (
           <EmptyState
             icon={LoaderCircle}
@@ -816,13 +836,6 @@ export default function CurationTab({
           </div>
         )}
       </section>
-
-      <aside className="insight-rail curation-rail">
-        <MetricCard label="Catalogo" value={items.length} />
-        <MetricCard label="Incompletas" value={incompleteCount} />
-        <MetricCard label="Tipos" value={typeCount} />
-        <MetricCard label="Rol" value={roleLabels[library.userRole]} />
-      </aside>
 
       {archiveTarget && (
         <div className="modal-backdrop" role="presentation">
