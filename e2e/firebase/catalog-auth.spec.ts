@@ -50,7 +50,7 @@ test('anonymous mode can search the public catalog and gates private routes', as
 
   const catalogSearch = page.getByLabel('Buscar en el catalogo publico')
   await catalogSearch.fill('Dune')
-  await page.getByRole('button', { name: /^Buscar$/ }).click()
+  await page.getByTestId('catalog-public-masthead').getByRole('button', { name: 'Buscar', exact: true }).click()
 
   await expect(page).toHaveURL(/tab=discover/)
   await expect(page).toHaveURL(/mode=search/)
@@ -77,7 +77,9 @@ test('anonymous mode can search the public catalog and gates private routes', as
 
   const discoverModes = page.getByRole('navigation', { name: 'Modos de Descubrir' })
   await discoverModes.getByRole('button', { name: /^Sorprendeme/ }).click()
-  await page.getByRole('button', { name: 'Sorprendeme', exact: true }).last().click()
+  const surpriseForm = page.locator('form.explorer-discover-form')
+  await expect(surpriseForm).toBeVisible()
+  await surpriseForm.getByRole('button', { name: 'Sorprendeme', exact: true }).click()
   const anonymousResult = page.getByTestId('explorer-random-result')
   await expect(anonymousResult).toContainText(anonymousSurprise.title)
   await anonymousResult.getByRole('button', { name: 'Guardar', exact: true }).click()
@@ -156,7 +158,7 @@ test('email login opens Inicio and roadmap mutations persist through reload and 
   const settingsMenu = page.locator('details.tabbar-more')
   await settingsMenu.locator(':scope > summary').click()
   await settingsMenu.getByRole('menuitem', { name: /Ajustes/ }).click()
-  await page.getByText('Preferencias del dado', { exact: true }).click()
+  await page.getByText('Gustos y filtros', { exact: true }).click()
   const favoriteTags = page.getByLabel('Tags favoritos')
   await expect(favoriteTags).toBeVisible()
   await favoriteTags.fill('borrador-e2e-no-guardado')

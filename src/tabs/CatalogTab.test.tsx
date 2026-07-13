@@ -145,7 +145,7 @@ describe('CatalogTab', () => {
 
     expect(await screen.findByRole('heading', { name: publicItems[0].title })).toBeInTheDocument()
     const masthead = screen.getByTestId('catalog-public-masthead')
-    expect(within(masthead).getByRole('heading', { name: 'Catalogo Nexo' })).toBeVisible()
+    expect(within(masthead).getByRole('heading', { name: 'Buscar en Nexo' })).toBeVisible()
     expect(within(masthead).getByLabelText('Buscar en el catalogo publico')).toBeVisible()
     expect(within(masthead).getByLabelText('Tipo de obra')).toBeVisible()
     expect(within(masthead).getByRole('button', { name: 'Buscar' })).toBeVisible()

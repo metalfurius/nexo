@@ -7,7 +7,7 @@ import { formatRecentRecommendationTime, getRecentRecommendationItems } from '..
 import { recommendItem, scoreCandidates } from '../lib/recommendations'
 import { cloneRoadmapPreferences, createRoadmapUndoMutation, deriveRoadmap } from '../lib/roadmap'
 import { normalizeKey, uniqueNormalizedValues } from '../lib/strings'
-import { AlertTriangle, CheckCircle2, Dice5, Info, Library, LockKeyhole, Moon, Play, RotateCcw, Save, Sparkles, X } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Dice5, Info, Moon, Play, RotateCcw, Save, Sparkles, X } from 'lucide-react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { CoverArt, DiceEligibilityPanel, EmptyState, FeedbackMessage, ItemEditor, ItemIdentity, PreferenceControls, RecommendationSessionPlanView, cloneRecommendationPreferences, dicePreferencePresets, feedbackToneFromText, getPosterBackplateStyle, sameRecommendationPreferences, typeIcons, type ActivityRecorder, type DiceCooldownReactivateRequest, type DiceDecisionSummary, type DicePreferencesSaveRequest, type DiceRecoveryAction, type DiceRollRequest, type DiceRollSummary, type DiceSettingsUndo, type DiceUndoAction, type LibrarySurface } from '../app/shared'
 
@@ -51,9 +51,14 @@ export default function DiceTab({
   const [diceSettingsUndo, setDiceSettingsUndo] = useState<DiceSettingsUndo | undefined>()
   const [diceDecisionSummary, setDiceDecisionSummary] = useState<DiceDecisionSummary | undefined>()
   const [lastRollScope, setLastRollScope] = useState<'roadmap-next' | 'all'>('all')
+  const [pendingDecision, setPendingDecision] = useState<'learn' | 'skip' | 'start' | undefined>()
   const handledCooldownReactivateRequestId = useRef<number | undefined>(undefined)
   const handledSaveRequestId = useRef<number | undefined>(undefined)
   const handledRollRequestId = useRef<number | undefined>(undefined)
+  const revealTimeoutId = useRef<number | undefined>(undefined)
+  const revealDelayResolveRef = useRef<(() => void) | undefined>(undefined)
+  const rollInFlight = useRef(false)
+  const mountedRef = useRef(false)
   const persistedPreferences = library.settings.recommendationPreferences ?? DEFAULT_RECOMMENDATION_PREFERENCES
   const preferences = draftPreferences ?? persistedPreferences
   const hasUnsavedDicePreferences = !sameRecommendationPreferences(preferences, persistedPreferences)
@@ -68,7 +73,6 @@ export default function DiceTab({
   const candidatePreview = showFullDicePool ? scoredCandidates : scoredCandidates.slice(0, 4)
   const hiddenCandidateCount = Math.max(0, scoredCandidates.length - candidatePreview.length)
   const maxCandidateScore = scoredCandidates[0]?.score ?? 1
-  const topCandidate = scoredCandidates[0]
   const unavailableCount = Math.max(0, library.items.length - scoredCandidates.length)
   const poolSize = Math.min(scoredCandidates.length, Math.max(3, Math.ceil(3 + preferences.surprisePercent / 8)))
   const activeDiceFilters = getActiveDiceFilters(preferences, library.settings)
@@ -96,6 +100,19 @@ export default function DiceTab({
   useEffect(() => {
     onRollSummaryChange({ candidateCount: scoredCandidates.length })
   }, [onRollSummaryChange, scoredCandidates.length])
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      if (revealTimeoutId.current !== undefined) window.clearTimeout(revealTimeoutId.current)
+      revealTimeoutId.current = undefined
+      const resolveRevealDelay = revealDelayResolveRef.current
+      revealDelayResolveRef.current = undefined
+      resolveRevealDelay?.()
+      rollInFlight.current = false
+    }
+  }, [])
 
   const diceRecoveryActions: DiceRecoveryAction[] = [
     ...(cooldownRecoveryItems.length
@@ -161,6 +178,8 @@ export default function DiceTab({
     excludedItemId?: string,
     requestedScope: 'roadmap-next' | 'all' = 'all',
   ) => {
+    if (rollInFlight.current || pendingDecision) return
+
     const allRollItems = excludedItemId ? library.items.filter((item) => item.id !== excludedItemId) : library.items
     const roadmapNextIds = new Set(deriveRoadmap(library.items, library.settings.roadmap).next.map((entry) => entry.item.id))
     const scopedItems = requestedScope === 'roadmap-next'
@@ -183,6 +202,7 @@ export default function DiceTab({
     }
 
     setLastRollScope(fellBackToAll ? 'all' : requestedScope)
+    rollInFlight.current = true
     setIsRolling(true)
     setStatus(
       fellBackToAll
@@ -203,12 +223,37 @@ export default function DiceTab({
       },
       library.settings,
     )
-    window.setTimeout(() => {
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+    const revealDelay = reduceMotion
+      ? Promise.resolve()
+      : new Promise<void>((resolve) => {
+          const finishRevealDelay = () => {
+            revealTimeoutId.current = undefined
+            if (revealDelayResolveRef.current === finishRevealDelay) revealDelayResolveRef.current = undefined
+            resolve()
+          }
+          revealDelayResolveRef.current = finishRevealDelay
+          revealTimeoutId.current = window.setTimeout(finishRevealDelay, 420)
+        })
+    let persistenceError: unknown
+    const persistence = next
+      ? library.recordRecommendation(next.item.id, next.reasons).catch((reason: unknown) => {
+          persistenceError = reason
+        })
+      : Promise.resolve()
+
+    try {
+      await Promise.all([revealDelay, persistence])
+      if (!mountedRef.current) return
       setIsRolling(false)
       setRecommendation(next)
-    }, 420)
-    if (next) {
-      await library.recordRecommendation(next.item.id, next.reasons)
+
+      if (persistenceError) {
+        setStatus(persistenceError instanceof Error ? persistenceError.message : 'No se pudo registrar la tirada.')
+        return
+      }
+
+      if (!next) return
       onActivity({
         detail: next.item.title,
         label: 'Tirada registrada',
@@ -216,8 +261,10 @@ export default function DiceTab({
         target: { kind: 'item', id: next.item.id },
         tone: 'success',
       })
+    } finally {
+      rollInFlight.current = false
     }
-  }, [library, onActivity, preferences])
+  }, [library, onActivity, pendingDecision, preferences])
 
   async function rollAnotherRecommendation() {
     if (!recommendation) return
@@ -313,8 +360,9 @@ export default function DiceTab({
   }
 
   async function startRecommendation() {
-    if (!recommendation) return
+    if (!recommendation || pendingDecision) return
     const previousRoadmap = cloneRoadmapPreferences(library.settings.roadmap)
+    setPendingDecision('start')
     try {
       await library.setStatus(recommendation.item.id, 'in_progress')
       setDiceSettingsUndo(undefined)
@@ -341,13 +389,16 @@ export default function DiceTab({
       })
     } catch (reason) {
       setStatus(reason instanceof Error ? reason.message : 'No se pudo actualizar el estado.')
+    } finally {
+      setPendingDecision(undefined)
     }
   }
 
   async function learnRecommendationTaste() {
-    if (!recommendation || !recommendationLearningSignals?.total) return
+    if (!recommendation || !recommendationLearningSignals?.total || pendingDecision) return
 
     const learnedLabels = [...recommendationLearningSignals.genres, ...recommendationLearningSignals.tags]
+    setPendingDecision('learn')
     try {
       await library.saveSettings({
         favoriteGenres: uniqueNormalizedValues([...library.settings.favoriteGenres, ...recommendationLearningSignals.genres]),
@@ -365,11 +416,14 @@ export default function DiceTab({
       })
     } catch (reason) {
       setStatus(reason instanceof Error ? reason.message : 'No se pudieron aprender estos gustos.')
+    } finally {
+      setPendingDecision(undefined)
     }
   }
 
   async function skipRecommendation() {
-    if (!recommendation) return
+    if (!recommendation || pendingDecision) return
+    setPendingDecision('skip')
     try {
       await library.snoozeRecommendation(recommendation.item.id)
       setDiceSettingsUndo(undefined)
@@ -390,6 +444,8 @@ export default function DiceTab({
       })
     } catch (reason) {
       setStatus(reason instanceof Error ? reason.message : 'No se pudo apartar la recomendacion.')
+    } finally {
+      setPendingDecision(undefined)
     }
   }
 
@@ -551,288 +607,98 @@ export default function DiceTab({
   }, [onRollRequestHandled, rollRecommendation, rollRequest])
 
   const shouldShowDiceResult = isRolling || Boolean(recommendation) || !hasCandidates
+  const activeStep = activeDiceDecision ? 2 : recommendation ? 1 : 0
 
   return (
-    <section className={shouldShowDiceResult ? 'dice-layout has-dice-result' : 'dice-layout dice-idle'}>
+    <section className={`dice-layout${shouldShowDiceResult ? ' has-dice-result' : ' dice-idle'}`}>
       <section className="workspace-panel dice-hero" aria-label="Dado ponderado">
-        <div className="dice-hero-copy">
-          <span className="tool-mode-badge dice-mode-badge">
-            <Dice5 size={15} />
-            Dado
-          </span>
-          <span className="eyebrow">Guardadas / elegir ahora</span>
-          <h2>Que sigo ahora?</h2>
-          <p className="hero-copy">Elige una obra que ya guardaste. Para encontrar algo nuevo, abre Explorar.</p>
-          <div className="intent-flow dice-intent-flow" aria-label="Que hace el dado" data-testid="dice-job">
-            <span>
-              <Library size={14} />
-              Guardadas
-            </span>
-            <span>
-              <Dice5 size={14} />
-              Tirada
-            </span>
-            <span>
-              <Play size={14} />
-              Empiezas
-            </span>
+        <ol className="dice-steps" aria-label="Tirar, decidir y afinar" data-testid="dice-job">
+          {['Tirar', 'Decidir', 'Afinar'].map((step, index) => (
+            <li
+              className={index === activeStep ? 'active' : index < activeStep ? 'complete' : undefined}
+              key={step}
+              aria-current={index === activeStep ? 'step' : undefined}
+            >
+              <span>{index + 1}</span>
+              <strong>{step}</strong>
+            </li>
+          ))}
+        </ol>
+
+        <div className="dice-command">
+          <div className="dice-hero-copy">
+            <span className="eyebrow">Tu biblioteca decide</span>
+            <h2>¿Qué sigue?</h2>
+            <p>{scoredCandidates.length ? `${scoredCandidates.length} candidatas · ${intensityLabels[preferences.intensity].toLowerCase()}` : 'Ajusta el pool para volver a tirar.'}</p>
           </div>
-          <p className="tool-boundary dice-boundary">
-            <LockKeyhole size={14} />
-            No busca fuera ni crea fichas.
-          </p>
-        </div>
-        <div className="dice-action-stage">
-          {candidatePreview.length > 0 && (
-            <div className="dice-deck-peek" aria-hidden="true">
-              {candidatePreview.slice(0, 3).map((candidate) => (
-                <CoverArt
-                  key={candidate.item.id}
-                  title={candidate.item.title}
-                  type={candidate.item.type}
-                  posterUrl={candidate.item.posterUrl}
-                />
-              ))}
-            </div>
-          )}
           <button
-            className={isRolling ? 'dice-orb rolling' : 'dice-orb'}
-            disabled={isRolling || !hasCandidates}
-            type="button"
-            onClick={() => void rollRecommendation()}
-            data-testid="roll-button"
             aria-label="Tirar dado ponderado"
+            className={isRolling ? 'dice-roll-button rolling' : 'dice-roll-button'}
+            data-testid="roll-button"
+            disabled={isRolling || Boolean(pendingDecision) || !hasCandidates}
+            type="button"
+            onClick={() => void (recommendation ? rollAnotherRecommendation() : rollRecommendation())}
           >
-            <span className="dice-orb-kicker">{scoredCandidates.length ? `${scoredCandidates.length} candidatas` : 'Sin candidatas'}</span>
-            <Dice5 size={42} />
-            <strong>{isRolling ? 'Eligiendo' : recommendation ? 'Tirar otra' : 'Elegir ahora'}</strong>
+            <span className="dice-roll-icon"><Dice5 size={34} /></span>
+            <span>
+              <small>{isRolling ? 'Barajando' : `${Math.max(poolSize, 0)} en el pool`}</small>
+              <strong>{isRolling ? 'Eligiendo…' : recommendation ? 'Tirar otra' : 'Tirar'}</strong>
+            </span>
           </button>
         </div>
-        <div className="dice-readiness" aria-label="Resumen del dado" data-testid="dice-readiness" role="group">
-          <div className={`${hasCandidates ? 'dice-readiness-card ready' : 'dice-readiness-card warning'}${topCandidate ? ' with-cover' : ''}`}>
-            {topCandidate && (
-              <CoverArt title={topCandidate.item.title} type={topCandidate.item.type} posterUrl={topCandidate.item.posterUrl} />
-            )}
-            <span>{hasCandidates ? 'Listo para tirar' : 'Sin tirada posible'}</span>
-            <strong>{topCandidate ? topCandidate.item.title : 'Ajusta filtros'}</strong>
-            <small>
-              {topCandidate
-                ? `${topCandidate.reasons[0] ?? 'Mejor candidata'} / guardada`
-                : 'Afloja medio, tiempo, tags o pausados.'}
-            </small>
+
+        {candidatePreview.length > 0 && (
+          <div className="dice-candidate-strip" aria-label="Primeras candidatas" data-testid="dice-readiness">
+            {candidatePreview.slice(0, 4).map((candidate, index) => (
+              <button
+                aria-label={`Abrir candidata ${candidate.item.title}`}
+                key={candidate.item.id}
+                type="button"
+                onClick={() => setEditingDiceItem(candidate.item)}
+              >
+                <CoverArt title={candidate.item.title} type={candidate.item.type} posterUrl={candidate.item.posterUrl} />
+                <span>
+                  <small>#{index + 1} · {getDiceFitLabel(candidate.score, maxCandidateScore)}</small>
+                  <strong>{candidate.item.title}</strong>
+                </span>
+              </button>
+            ))}
           </div>
-          <div className="dice-readiness-metrics">
-            <span>
-              <strong>{scoredCandidates.length}</strong>
-              Candidatas guardadas
-            </span>
-            <span>
-              <strong>{intensityLabels[preferences.intensity]}</strong>
-              Modo
-            </span>
-            <span>
-              <strong>{hasUnsavedDicePreferences ? '!' : 'OK'}</strong>
-              Ajustes
-            </span>
-          </div>
-          {(preferences.includePaused || library.settings.blockedTags.length > 0) && (
-            <div className="dice-active-filter-strip" aria-label="Filtros activos del dado">
-              {preferences.includePaused && <span>Incluye pausados</span>}
-              {library.settings.blockedTags.length > 0 && <span>{library.settings.blockedTags.length} senales bloqueadas</span>}
+        )}
+      </section>
+
+      {(status || diceSettingsUndo || diceUndoAction) && (
+        <section className="dice-feedback" aria-live="polite">
+          {status && <FeedbackMessage tone={feedbackToneFromText(status)}>{status}</FeedbackMessage>}
+          {(diceSettingsUndo || diceUndoAction) && (
+            <div className="feedback-action-row" aria-label="Accion reciente del dado">
+              {diceSettingsUndo && (
+                <button className="secondary-button" type="button" onClick={() => void undoDicePreferencesSave()}>
+                  <RotateCcw size={16} />
+                  {getDiceSettingsUndoLabel()}
+                </button>
+              )}
+              {diceUndoAction && (
+                <button className="secondary-button" type="button" onClick={() => void undoDiceDecision()}>
+                  <RotateCcw size={16} />
+                  {getDiceUndoLabel()}
+                </button>
+              )}
             </div>
           )}
-        </div>
-      </section>
-
-      <section className="workspace-panel dice-queue">
-        <div className="panel-heading compact">
-          <div>
-            <h2>Candidatas guardadas</h2>
-            <p>{scoredCandidates.length ? `${scoredCandidates.length} entradas pueden salir` : 'Sin candidatas con estos filtros'}</p>
-          </div>
-        </div>
-        {topCandidate && (
-          <button className="dice-featured-candidate" type="button" onClick={() => setEditingDiceItem(topCandidate.item)}>
-            <CoverArt title={topCandidate.item.title} type={topCandidate.item.type} posterUrl={topCandidate.item.posterUrl} />
-            <span className="dice-featured-copy">
-              <small>Mejor encaje ahora</small>
-              <strong>{topCandidate.item.title}</strong>
-              <em>{topCandidate.reasons[0] ?? 'Lista para salir'}</em>
-            </span>
-            <span className="dice-featured-score">
-              <small>Encaje</small>
-              <strong>{getDiceFitLabel(topCandidate.score, maxCandidateScore)}</strong>
-            </span>
-          </button>
-        )}
-        {candidatePreview.length ? (
-          <details className="dice-pool-detail" data-close-on-outside>
-            <summary>
-              <span>
-                <strong>Por que pueden salir</strong>
-                <small>{unavailableCount} fuera por estado, cooldown o filtros</small>
-              </span>
-              <em>{showFullDicePool ? `${candidatePreview.length} visibles` : `${candidatePreview.length} de ${scoredCandidates.length}`}</em>
-            </summary>
-            <ol className="dice-candidate-list" aria-label="Candidatas del dado" data-testid="dice-candidate-list">
-              {candidatePreview.map((candidate, index) => {
-                const Icon = typeIcons[candidate.item.type]
-
-                return (
-                <li key={candidate.item.id}>
-                  <span className="dice-candidate-rank">#{index + 1}</span>
-                  <span className={`dice-candidate-type ${candidate.item.type}`} aria-hidden="true">
-                    <Icon size={14} />
-                  </span>
-                  <span className="dice-candidate-main">
-                    <strong>{candidate.item.title}</strong>
-                    <small>
-                      {statusLabels[candidate.item.status]} / {typeLabels[candidate.item.type]}
-                    </small>
-                    <span className="dice-candidate-reasons">
-                      {candidate.reasons.slice(0, 2).map((reason) => (
-                        <em key={reason}>{reason}</em>
-                      ))}
-                    </span>
-                  </span>
-                  <span className="dice-candidate-score" aria-label={`Encaje ${getDiceFitLabel(candidate.score, maxCandidateScore)} de ${candidate.item.title}; valor ${candidate.score}`}>
-                    <span>Encaje</span>
-                    <strong>{getDiceFitLabel(candidate.score, maxCandidateScore)}</strong>
-                    <small>Valor {candidate.score}</small>
-                    <span className="dice-score-meter" aria-hidden="true">
-                      <span style={{ width: getDiceScoreMeterWidth(candidate.score, maxCandidateScore) }} />
-                    </span>
-                  </span>
-                </li>
-                )
-              })}
-            </ol>
-            {scoredCandidates.length > 4 && (
-              <button className="ghost-button dice-expand-button" type="button" onClick={() => setShowFullDicePool((current) => !current)}>
-                {showFullDicePool ? 'Ver menos candidatas' : `Ver ${hiddenCandidateCount} mas`}
-              </button>
-            )}
-            <div className="dice-footnotes">
-              <span>{unavailableCount} fuera por estado, cooldown o filtros</span>
-              <span>Pool maximo {poolSize}</span>
-            </div>
-            <DiceEligibilityPanel
-              activeFilters={activeDiceFilters}
-              breakdown={eligibilityBreakdown}
-              recoveryActions={diceRecoveryActions}
-            />
-          </details>
-        ) : (
-          <>
-            <EmptyState
-              icon={Dice5}
-              title="Sin candidatas"
-              detail="Afloja filtros, incluye pausados o anade pendientes desde Estanteria y Explorar."
-            />
-            <DiceEligibilityPanel
-              activeFilters={activeDiceFilters}
-              breakdown={eligibilityBreakdown}
-              recoveryActions={diceRecoveryActions}
-            />
-          </>
-        )}
-      </section>
-
-      <section className="workspace-panel dice-settings">
-        <details className="dice-settings-panel" data-close-on-outside open={hasUnsavedDicePreferences}>
-          <summary aria-label="Abrir modos de tirada">
-            <span className="dice-settings-summary-copy">
-              <strong>Afinar tirada</strong>
-              <small>{preferences.surprisePercent}% sorpresa / {intensityLabels[preferences.intensity]}</small>
-            </span>
-            <span className={hasUnsavedDicePreferences ? 'dice-settings-summary-state pending' : 'dice-settings-summary-state'}>
-              {hasUnsavedDicePreferences ? 'Pendiente' : `${scoredCandidates.length} candidatas`}
-            </span>
-          </summary>
-          <div className="dice-settings-content">
-            <div className="panel-heading">
-              <div>
-                <h2>Modos de tirada</h2>
-                <p>Presets rapidos y filtros para cuando quieras controlar el azar.</p>
-              </div>
-              <button className="secondary-button" disabled={!hasUnsavedDicePreferences} type="button" onClick={savePreferences}>
-                <Save size={17} />
-                {hasUnsavedDicePreferences ? 'Guardar ajustes' : 'Ajustes guardados'}
-              </button>
-            </div>
-            <div className={hasUnsavedDicePreferences ? 'settings-status pending' : 'settings-status'}>
-              <span>{hasUnsavedDicePreferences ? 'Cambios pendientes' : 'Sin cambios pendientes'}</span>
-              <strong>{scoredCandidates.length} candidatas</strong>
-            </div>
-            <div className="dice-preset-grid" aria-label="Presets rapidos del dado">
-              {dicePreferencePresets.map((preset) => {
-                const isActive = sameRecommendationPreferences(preferences, preset.preferences)
-
-                return (
-                  <button
-                    aria-label={`Aplicar preset ${preset.label}`}
-                    aria-pressed={isActive}
-                    className={isActive ? 'dice-preset-card active' : 'dice-preset-card'}
-                    key={preset.id}
-                    type="button"
-                    onClick={() => applyDicePreset(preset.preferences)}
-                  >
-                    <preset.Icon size={16} />
-                    <span>
-                      <strong>{preset.label}</strong>
-                      <small>{preset.detail}</small>
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
-            <details className="dice-tuning-panel" data-close-on-outside open={hasUnsavedDicePreferences}>
-              <summary>
-                <span>Filtros concretos</span>
-                <small>Medio, tiempo, energia y sorpresa</small>
-              </summary>
-              <PreferenceControls preferences={preferences} setPreferences={setPreferences} />
-            </details>
-          </div>
-        </details>
-        {status && <FeedbackMessage tone={feedbackToneFromText(status)}>{status}</FeedbackMessage>}
-        {(diceSettingsUndo || diceUndoAction) && (
-          <div className="feedback-action-row" aria-label="Accion reciente del dado">
-            {diceSettingsUndo && (
-              <button className="secondary-button" type="button" onClick={() => void undoDicePreferencesSave()}>
-                <RotateCcw size={16} />
-                {getDiceSettingsUndoLabel()}
-              </button>
-            )}
-            {diceUndoAction && (
-              <button className="secondary-button" type="button" onClick={() => void undoDiceDecision()}>
-                <RotateCcw size={16} />
-                {getDiceUndoLabel()}
-              </button>
-            )}
-          </div>
-        )}
-      </section>
+        </section>
+      )}
 
       {shouldShowDiceResult && (
-        <section className="workspace-panel result-panel">
-          <div className="panel-heading compact">
-            <div>
-              <h2>Tu siguiente obra</h2>
-              <p>{recommendation ? `Elegida entre ${recommendation.poolSize}` : isRolling ? 'Eligiendo ahora' : 'Sin decision todavia'}</p>
-            </div>
-          </div>
-
+        <section className="workspace-panel result-panel" aria-label="Resultado del dado">
           {isRolling ? (
             <div className="recommendation-result rolling-result" data-testid="recommendation-result">
-              <Dice5 size={30} />
-              <strong>El dado esta eligiendo...</strong>
-              <div className="dice-roll-track" aria-hidden="true">
-                <span />
-                <span />
-                <span />
+              <div className="dice-rolling-mark" aria-hidden="true"><Dice5 size={42} /></div>
+              <div>
+                <span className="eyebrow">01 · Tirar</span>
+                <strong>Eligiendo entre {scoredCandidates.length}</strong>
+                <div className="dice-roll-track" aria-hidden="true"><span /><span /><span /></div>
               </div>
-              <FeedbackMessage>Barajando {scoredCandidates.length} opciones disponibles.</FeedbackMessage>
             </div>
           ) : recommendation ? (
             <div
@@ -840,203 +706,211 @@ export default function DiceTab({
               data-testid="recommendation-result"
               style={getPosterBackplateStyle(recommendation.item.posterUrl)}
             >
-            <div className="recommendation-head">
-              <CoverArt title={recommendation.item.title} type={recommendation.item.type} posterUrl={recommendation.item.posterUrl} />
-              <div className="recommendation-summary">
-                <span className="eyebrow">Dado eligio</span>
-                <ItemIdentity item={recommendation.item} />
-                {activeDiceDecision ? (
-                  <section
-                    className={`recommendation-decision-complete ${activeDiceDecision.kind}`}
-                    aria-label="Decision cerrada del dado"
-                    data-testid="dice-decision-summary"
-                  >
-                    <div className="recommendation-decision-complete-main">
-                      {activeDiceDecision.kind === 'started' ? <Play size={17} /> : <Moon size={17} />}
-                      <div>
-                        <span className="eyebrow">Decision cerrada</span>
-                        <strong>{activeDiceDecision.title}</strong>
-                        <p>{activeDiceDecision.detail}</p>
+              <div className="recommendation-head">
+                <CoverArt
+                  presentation="hero"
+                  priority
+                  title={recommendation.item.title}
+                  type={recommendation.item.type}
+                  posterUrl={recommendation.item.posterUrl}
+                />
+                <div className="recommendation-summary">
+                  <span className="eyebrow">02 · Decidir · Dado eligio</span>
+                  <ItemIdentity item={recommendation.item} />
+                  <p className="dice-primary-reason">{recommendation.reasons[0] ?? 'Es la mejor candidata para este momento.'}</p>
+
+                  <div className="recommendation-scoreboard" aria-label="Resumen de la tirada">
+                    <span><small>Encaje</small><strong>{getDiceFitLabel(recommendation.score, maxCandidateScore)}</strong></span>
+                    <span><small>Pool</small><strong>{recommendation.poolSize}</strong></span>
+                    <span><small>Modo</small><strong>{intensityLabels[preferences.intensity]}</strong></span>
+                  </div>
+
+                  {activeDiceDecision ? (
+                    <section
+                      className={`recommendation-decision-complete ${activeDiceDecision.kind}`}
+                      aria-label="Decision cerrada del dado"
+                      data-testid="dice-decision-summary"
+                    >
+                      <div className="recommendation-decision-complete-main">
+                        {activeDiceDecision.kind === 'started' ? <Play size={18} /> : <Moon size={18} />}
+                        <div>
+                          <span className="eyebrow">Decision cerrada</span>
+                          <strong>{activeDiceDecision.title}</strong>
+                          <p>{activeDiceDecision.detail}</p>
+                        </div>
                       </div>
-                    </div>
-                    <div className="recommendation-decision-complete-actions">
-                      {activeDiceDecision.kind === 'started' && (
-                        <button className="secondary-button" type="button" onClick={openDiceDecisionItem}>
-                          <Info size={16} />
-                          Afinar ficha
+                      <div className="recommendation-decision-complete-actions">
+                        {activeDiceDecision.kind === 'started' && (
+                          <button className="secondary-button" type="button" onClick={openDiceDecisionItem}>
+                            <Info size={16} /> Afinar ficha
+                          </button>
+                        )}
+                        <button className="primary-button" disabled={isRolling} type="button" onClick={() => void rollAnotherRecommendation()}>
+                          <Dice5 size={16} /> Tirar otra
                         </button>
-                      )}
-                      <button className="primary-button" type="button" onClick={() => void rollAnotherRecommendation()}>
-                        <Dice5 size={16} />
-                        Tirar otra
+                      </div>
+                    </section>
+                  ) : (
+                    <div className="action-row recommendation-actions" aria-label="Decision de la tirada">
+                      <button className="primary-button" disabled={Boolean(pendingDecision)} type="button" onClick={() => void startRecommendation()}>
+                        <Play size={16} /> {pendingDecision === 'start' ? 'Empezando…' : 'Empezar'}
+                      </button>
+                      <button className="secondary-button" disabled={Boolean(pendingDecision)} type="button" aria-label="Afinar ficha recomendada" onClick={openDiceDecisionItem}>
+                        <Info size={16} /> Afinar ficha
+                      </button>
+                      <button className="secondary-button" disabled={Boolean(pendingDecision)} type="button" onClick={() => void skipRecommendation()}>
+                        <X size={16} /> {pendingDecision === 'skip' ? 'Apartando…' : 'No hoy'}
                       </button>
                     </div>
-                  </section>
-                ) : (
-                  <section className="recommendation-decision" aria-label="Decision de la tirada">
+                  )}
+
+                  <details className="dice-score-details">
+                    <summary>Desglose de puntuacion</summary>
                     <div>
-                      <span className="eyebrow">Decision</span>
-                      <strong>Quieres seguir con esta ahora?</strong>
-                      <p>Empezar lo marca en curso. No hoy lo aparta hasta manana.</p>
+                      <span>Valor tecnico <strong>{recommendation.score}</strong></span>
+                      <span>Pool considerado <strong>{recommendation.poolSize}</strong></span>
+                      {recommendation.reasons.slice(0, 3).map((reason) => <span key={reason}>{reason}</span>)}
                     </div>
-                    <div className="action-row recommendation-actions">
-                      <button
-                        className="primary-button"
-                        type="button"
-                        onClick={startRecommendation}
-                      >
-                        <Play size={16} />
-                        Empezar
-                      </button>
-                      <button
-                        className="secondary-button"
-                        type="button"
-                        aria-label="Afinar ficha recomendada"
-                        onClick={openDiceDecisionItem}
-                      >
-                        <Info size={16} />
-                        Afinar ficha
-                      </button>
-                      <button
-                        className="secondary-button"
-                        type="button"
-                        onClick={skipRecommendation}
-                      >
-                        <X size={16} />
-                        No hoy
-                      </button>
-                    </div>
-                  </section>
-                )}
-                <div className="recommendation-scoreboard" aria-label="Resumen de la tirada">
-                  <div className="score-card primary">
-                    <span>Encaje</span>
-                    <strong>{getDiceFitLabel(recommendation.score, maxCandidateScore)}</strong>
-                  </div>
-                  <div className="score-card">
-                    <span>Entre</span>
-                    <strong>{recommendation.poolSize}</strong>
-                  </div>
-                  <div className="score-card">
-                    <span>Modo</span>
-                    <strong>{intensityLabels[preferences.intensity]}</strong>
-                  </div>
+                  </details>
                 </div>
-                <details className="dice-score-details">
-                  <summary>Desglose de puntuacion</summary>
-                  <div>
-                    <span>Valor tecnico <strong>{recommendation.score}</strong></span>
-                    <span>Pool considerado <strong>{recommendation.poolSize}</strong></span>
-                    {recommendation.reasons.slice(0, 3).map((reason) => <span key={reason}>{reason}</span>)}
-                  </div>
+              </div>
+
+              <div className="recommendation-detail-grid" aria-label="Afinar la eleccion">
+                <details className="recommendation-detail-panel" data-close-on-outside>
+                  <summary><span><strong>Plan de sesion</strong><small>{getRecommendationSessionPlan(recommendation, preferences).title}</small></span></summary>
+                  <RecommendationSessionPlanView plan={getRecommendationSessionPlan(recommendation, preferences)} />
+                </details>
+                <details className="recommendation-detail-panel" data-close-on-outside>
+                  <summary><span><strong>Por que sale</strong><small>{recommendation.reasons[0] ?? 'Mejor candidata ahora'}</small></span></summary>
+                  <section className="reason-stack" aria-label="Razones de la recomendacion">
+                    <ul>
+                      {recommendation.reasons.map((reason) => (
+                        <li key={reason}><CheckCircle2 size={15} /><span>{reason}</span></li>
+                      ))}
+                    </ul>
+                  </section>
                 </details>
               </div>
-            </div>
-            <div className="recommendation-detail-grid" aria-label="Detalles de la tirada">
-              <details className="recommendation-detail-panel" data-close-on-outside>
-                <summary>
-                  <span>
-                    <strong>Plan de sesion</strong>
-                    <small>{getRecommendationSessionPlan(recommendation, preferences).title}</small>
-                  </span>
-                </summary>
-                <RecommendationSessionPlanView plan={getRecommendationSessionPlan(recommendation, preferences)} />
-              </details>
-              <details className="recommendation-detail-panel" data-close-on-outside>
-                <summary>
-                  <span>
-                    <strong>Por que sale</strong>
-                    <small>{recommendation.reasons[0] ?? 'Mejor candidata ahora'}</small>
-                  </span>
-                </summary>
-                <section className="reason-stack" aria-label="Razones de la recomendacion">
-                  <h3>Por que sale</h3>
-                  <ul>
-                    {recommendation.reasons.map((reason) => (
-                      <li key={reason}>
-                        <CheckCircle2 size={15} />
-                        <span>{reason}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              </details>
-            </div>
-            {recommendationLearningSignals && recommendationLearningSignals.total > 0 && (
-              <section className="recommendation-learning" aria-label="Aprendizaje de gustos del dado" data-testid="dice-learning">
-                <div className="recommendation-learning-main">
-                  <div>
-                    <span className="eyebrow">Aprendizaje</span>
-                    <strong>Senales para recordar</strong>
+
+              {recommendationLearningSignals && recommendationLearningSignals.total > 0 && (
+                <details className="recommendation-learning" data-testid="dice-learning">
+                  <summary>
+                    <span><strong>Afinar gustos</strong><small>{recommendationLearningSignals.total} senales disponibles</small></span>
+                  </summary>
+                  <div className="recommendation-learning-body">
+                    <div className="recommendation-learning-chips">
+                      {recommendationLearningSignals.genres.map((genre) => <span key={`genre-${normalizeKey(genre)}`}><small>Genero</small>{genre}</span>)}
+                      {recommendationLearningSignals.tags.map((tag) => <span key={`tag-${normalizeKey(tag)}`}><small>Tag</small>{tag}</span>)}
+                    </div>
+                    <button className="secondary-button" disabled={Boolean(pendingDecision)} type="button" onClick={() => void learnRecommendationTaste()}>
+                      <Sparkles size={16} /> {pendingDecision === 'learn' ? 'Guardando…' : 'Aprender gustos'}
+                    </button>
                   </div>
-                  <div className="recommendation-learning-chips">
-                    {recommendationLearningSignals.genres.map((genre) => (
-                      <span key={`genre-${normalizeKey(genre)}`}>
-                        <small>Genero</small>
-                        {genre}
-                      </span>
-                    ))}
-                    {recommendationLearningSignals.tags.map((tag) => (
-                      <span key={`tag-${normalizeKey(tag)}`}>
-                        <small>Tag</small>
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-                <button className="secondary-button" type="button" onClick={() => void learnRecommendationTaste()}>
-                  <Sparkles size={16} />
-                  Aprender gustos
-                </button>
-              </section>
-            )}
+                </details>
+              )}
             </div>
           ) : (
-            <EmptyState
-              icon={AlertTriangle}
-              tone="warning"
-              title="No hay tirada posible"
-              detail="Cambia medio, tiempo, senales bloqueadas o incluye pausados para abrir el abanico."
-            />
-          )}
-
-          <section className="recent-rolls" aria-label="Tiradas recientes" data-testid="recent-rolls">
-            <div className="recent-rolls-heading">
-              <h3>Tiradas recientes</h3>
-              <span>{recentRecommendations.length ? `${recentRecommendations.length} ultimas` : 'Sin memoria aun'}</span>
+            <div className="dice-empty-result">
+              <EmptyState icon={AlertTriangle} tone="warning" title="No hay tirada posible" detail="Abre Candidatas o Preferencias para recuperar el pool." />
+              <DiceEligibilityPanel activeFilters={activeDiceFilters} breakdown={eligibilityBreakdown} recoveryActions={diceRecoveryActions} />
             </div>
-            {recentRecommendations.length ? (
-              <ol className="recent-roll-list">
-                {recentRecommendations.map((item) => {
-                  const Icon = typeIcons[item.type]
-
-                  return (
-                    <li key={item.id}>
-                      <button
-                        aria-label={`Afinar tirada reciente ${item.title}`}
-                        type="button"
-                        onClick={() =>
-                          setEditingDiceItem(library.items.find((libraryItem) => libraryItem.id === item.id) ?? item)
-                        }
-                      >
-                        <span className={`recent-roll-icon ${item.type}`}>
-                          <Icon size={14} />
-                        </span>
-                        <span>
-                          <strong>{item.title}</strong>
-                          <small>{formatRecentRecommendationTime(item.lastRecommendedAt)}</small>
-                        </span>
-                      </button>
-                    </li>
-                  )
-                })}
-              </ol>
-            ) : (
-              <p className="muted-line">Las tiradas guardadas apareceran aqui despues de usar el dado.</p>
-            )}
-          </section>
+          )}
         </section>
       )}
+
+      <div className="dice-support-grid">
+        <section className="workspace-panel dice-queue">
+          <details className="dice-pool-detail" data-close-on-outside open={hasCandidates ? undefined : true}>
+            <summary>
+              <span><strong>Candidatas</strong><small>{unavailableCount} fuera por estado, cooldown o filtros</small></span>
+              <em>{scoredCandidates.length}</em>
+            </summary>
+            {candidatePreview.length ? (
+              <>
+                <ol className="dice-candidate-list" aria-label="Candidatas del dado" data-testid="dice-candidate-list">
+                  {candidatePreview.map((candidate, index) => (
+                    <li key={candidate.item.id}>
+                      <button type="button" onClick={() => setEditingDiceItem(candidate.item)}>
+                        <CoverArt title={candidate.item.title} type={candidate.item.type} posterUrl={candidate.item.posterUrl} />
+                        <span className="dice-candidate-main">
+                          <strong>{candidate.item.title}</strong>
+                          <small>{statusLabels[candidate.item.status]} · {typeLabels[candidate.item.type]}</small>
+                          <em>{candidate.reasons[0] ?? 'Lista para salir'}</em>
+                        </span>
+                        <span className="dice-candidate-score" aria-label={`Encaje ${getDiceFitLabel(candidate.score, maxCandidateScore)} de ${candidate.item.title}; valor ${candidate.score}`}>
+                          <strong>{getDiceFitLabel(candidate.score, maxCandidateScore)}</strong>
+                          <span className="dice-score-meter" aria-hidden="true"><span style={{ width: getDiceScoreMeterWidth(candidate.score, maxCandidateScore) }} /></span>
+                        </span>
+                        <span className="dice-candidate-rank" aria-hidden="true">{index + 1}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ol>
+                {scoredCandidates.length > 4 && (
+                  <button className="ghost-button dice-expand-button" type="button" onClick={() => setShowFullDicePool((current) => !current)}>
+                    {showFullDicePool ? 'Ver menos' : `Ver ${hiddenCandidateCount} mas`}
+                  </button>
+                )}
+                <div className="dice-footnotes"><span>{unavailableCount} fuera</span><span>Pool maximo {poolSize}</span></div>
+              </>
+            ) : (
+              <EmptyState icon={Dice5} title="Sin candidatas" detail="Afloja filtros, incluye pausados o añade pendientes." />
+            )}
+            <DiceEligibilityPanel activeFilters={activeDiceFilters} breakdown={eligibilityBreakdown} recoveryActions={diceRecoveryActions} />
+          </details>
+        </section>
+
+        <section className="workspace-panel dice-settings">
+          <details className="dice-settings-panel" data-close-on-outside open={hasUnsavedDicePreferences}>
+            <summary aria-label="Abrir modos de tirada">
+              <span className="dice-settings-summary-copy"><strong>Preferencias</strong><small>{preferences.surprisePercent}% sorpresa · {intensityLabels[preferences.intensity]}</small></span>
+              <span className={hasUnsavedDicePreferences ? 'dice-settings-summary-state pending' : 'dice-settings-summary-state'}>{hasUnsavedDicePreferences ? 'Pendiente' : 'Afinar'}</span>
+            </summary>
+            <div className="dice-settings-content">
+              <div className="dice-preset-grid" aria-label="Presets rapidos del dado">
+                {dicePreferencePresets.map((preset) => {
+                  const isActive = sameRecommendationPreferences(preferences, preset.preferences)
+                  return (
+                    <button aria-label={`Aplicar preset ${preset.label}`} aria-pressed={isActive} className={isActive ? 'dice-preset-card active' : 'dice-preset-card'} key={preset.id} type="button" onClick={() => applyDicePreset(preset.preferences)}>
+                      <preset.Icon size={16} /><span><strong>{preset.label}</strong><small>{preset.detail}</small></span>
+                    </button>
+                  )
+                })}
+              </div>
+              <details className="dice-tuning-panel" data-close-on-outside open={hasUnsavedDicePreferences}>
+                <summary><span>Filtros concretos</span><small>Medio, tiempo, energia y sorpresa</small></summary>
+                <PreferenceControls preferences={preferences} setPreferences={setPreferences} />
+              </details>
+              <button className="secondary-button dice-save-preferences" disabled={!hasUnsavedDicePreferences} type="button" onClick={() => void savePreferences()}>
+                <Save size={17} /> {hasUnsavedDicePreferences ? 'Guardar preferencias' : 'Preferencias guardadas'}
+              </button>
+            </div>
+          </details>
+        </section>
+      </div>
+
+      <details className="workspace-panel recent-rolls" data-testid="recent-rolls">
+        <summary>
+          <span><strong>Tiradas recientes</strong><small>{recentRecommendations.length ? `${recentRecommendations.length} guardadas` : 'Sin memoria aun'}</small></span>
+        </summary>
+        {recentRecommendations.length ? (
+          <ol className="recent-roll-list">
+            {recentRecommendations.map((item) => {
+              const Icon = typeIcons[item.type]
+              return (
+                <li key={item.id}>
+                  <button aria-label={`Afinar tirada reciente ${item.title}`} type="button" onClick={() => setEditingDiceItem(library.items.find((libraryItem) => libraryItem.id === item.id) ?? item)}>
+                    <span className={`recent-roll-icon ${item.type}`}><Icon size={14} /></span>
+                    <span><strong>{item.title}</strong><small>{formatRecentRecommendationTime(item.lastRecommendedAt)}</small></span>
+                  </button>
+                </li>
+              )
+            })}
+          </ol>
+        ) : (
+          <p className="muted-line">Las elecciones apareceran aqui despues de usar el Dado.</p>
+        )}
+      </details>
 
       {editingDiceItem && (
         <ItemEditor

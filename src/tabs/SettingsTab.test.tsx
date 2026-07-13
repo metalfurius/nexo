@@ -95,6 +95,20 @@ describe('SettingsTab', () => {
     expect(within(accountDrawer).getByRole('button', { name: 'Copiar UID de usuario' })).toBeEnabled()
   })
 
+  it('keeps advanced areas collapsed and presents a single save action', async () => {
+    const user = userEvent.setup()
+    renderSettingsTab()
+
+    expect(screen.getByTestId('settings-account-drawer')).not.toHaveAttribute('open')
+    expect(screen.getByTestId('settings-private-data-drawer')).not.toHaveAttribute('open')
+    expect(screen.getByTestId('settings-beta-drawer')).not.toHaveAttribute('open')
+
+    await user.click(screen.getByRole('button', { name: 'Tema Claro' }))
+
+    expect(screen.getAllByRole('button', { name: 'Guardar cambios' })).toHaveLength(1)
+    expect(screen.getByText('Cambios pendientes')).toBeVisible()
+  })
+
   it('hydrates the untouched draft from the first settings snapshot without a transient dirty report', async () => {
     const onUnsavedChange = vi.fn()
     const initialLibrary = createLibrarySurface()

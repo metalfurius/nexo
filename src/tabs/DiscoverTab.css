@@ -1,208 +1,110 @@
 /* Styles loaded with discover. */
 .discover-surface {
   display: grid;
-  gap: 18px;
+  gap: 14px;
   min-width: 0;
-}
-
-.discover-header {
-  background:
-    radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--accent-soft) 86%, transparent), transparent 38%),
-    radial-gradient(circle at 92% 100%, color-mix(in srgb, var(--accent-warm-soft) 78%, transparent), transparent 34%),
-    linear-gradient(145deg, color-mix(in srgb, var(--surface-raised) 96%, var(--surface)), color-mix(in srgb, var(--surface-muted) 88%, transparent));
-  border: 1px solid color-mix(in srgb, var(--accent) 26%, var(--border));
-  border-radius: 14px;
-  box-shadow: 0 18px 48px color-mix(in srgb, var(--surface) 44%, transparent);
-  min-width: 0;
-  overflow: hidden;
-  position: relative;
-}
-
-.discover-header::after {
-  background:
-    linear-gradient(90deg, color-mix(in srgb, var(--accent) 78%, transparent), transparent 58%),
-    linear-gradient(90deg, transparent 58%, color-mix(in srgb, var(--accent-warm) 56%, transparent));
-  bottom: 0;
-  content: '';
-  height: 3px;
-  left: 0;
-  pointer-events: none;
-  position: absolute;
-  right: 0;
-}
-
-.discover-header > div:first-child {
-  display: grid;
-  gap: 7px;
-  min-width: 0;
-}
-
-.discover-header h2 {
-  color: var(--text-strong);
-  font-size: clamp(30px, 4vw, 46px);
-  letter-spacing: -0.035em;
-  line-height: 1.02;
-  margin: 0;
-}
-
-.discover-header p {
-  color: var(--muted);
-  font-size: 14px;
-  line-height: 1.48;
-  margin: 0;
-  max-width: 66ch;
 }
 
 .discover-header {
   align-items: center;
-  display: grid;
-  gap: 24px;
-  grid-template-columns: minmax(260px, 0.72fr) minmax(520px, 1.28fr);
-  padding: 22px 24px;
+  background: color-mix(in srgb, var(--surface-raised) 92%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  border-radius: 12px;
+  display: flex;
+  min-height: 56px;
+  min-width: 0;
+  padding: 5px;
 }
 
-.discover-header h2 {
-  font-size: clamp(30px, 3.4vw, 42px);
+.discover-header-title {
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  padding: 0;
+  position: absolute;
+  width: 1px;
+  clip-path: inset(50%);
 }
 
 .discover-mode-nav {
   display: grid;
-  gap: 8px;
+  gap: 4px;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   min-width: 0;
+  width: min(100%, 520px);
 }
 
 .discover-mode-button {
   align-items: center;
-  background: color-mix(in srgb, var(--surface) 58%, transparent);
-  border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
-  border-radius: 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 9px;
   color: var(--muted);
   cursor: pointer;
-  display: grid;
+  display: inline-flex;
   font: inherit;
-  gap: 9px;
-  grid-template-columns: 32px minmax(0, 1fr);
-  min-height: 66px;
+  gap: 8px;
+  justify-content: center;
+  min-height: 44px;
   min-width: 0;
-  padding: 9px;
-  text-align: left;
+  padding: 0 14px;
   transition:
     background var(--motion-fast) ease,
+    color var(--motion-fast) ease,
     border-color var(--motion-fast) ease,
     transform var(--motion-fast) var(--motion-ease);
 }
 
 .discover-mode-button > svg {
-  background: var(--surface-muted);
-  border: 1px solid var(--border);
-  border-radius: 9px;
-  height: 32px;
-  padding: 7px;
-  width: 32px;
-}
-
-.discover-mode-button > span {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-}
-
-.discover-mode-button strong,
-.discover-mode-button small {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  flex: 0 0 auto;
 }
 
 .discover-mode-button strong {
-  color: var(--text-strong);
-  font-size: 12px;
-}
-
-.discover-mode-button small {
-  color: var(--muted);
-  font-size: 9px;
+  color: inherit;
+  font-size: 13px;
+  white-space: nowrap;
 }
 
 .discover-mode-button:hover:not(.active) {
-  background: color-mix(in srgb, var(--surface-muted) 78%, transparent);
-  border-color: color-mix(in srgb, var(--accent) 36%, var(--border));
+  background: color-mix(in srgb, var(--surface-muted) 72%, transparent);
+  color: var(--text-strong);
   transform: translateY(-1px);
 }
 
 .discover-mode-button.active {
-  background:
-    linear-gradient(135deg, color-mix(in srgb, var(--accent-soft) 88%, transparent), transparent),
-    var(--surface-raised);
-  border-color: color-mix(in srgb, var(--accent) 54%, var(--border));
-  box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--accent) 74%, transparent);
+  background: color-mix(in srgb, var(--accent-soft) 78%, var(--surface-raised));
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--accent) 10%, transparent);
   color: var(--accent-dark);
-}
-
-.discover-mode-button.active > svg {
-  background: color-mix(in srgb, var(--accent-soft) 84%, var(--surface-muted));
-  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
-  color: var(--accent-dark);
-}
-
-@media (max-width: 1180px) {
-  .discover-header {
-    align-items: stretch;
-    grid-template-columns: 1fr;
-  }
 }
 
 @media (max-width: 760px) {
   .discover-surface {
-    gap: 12px;
+    gap: 10px;
   }
 
   .discover-header {
-    border-radius: 12px;
-    gap: 13px;
-    grid-template-columns: 1fr;
-    padding: 14px;
-  }
-
-  .discover-header h2 {
-    font-size: 29px;
-  }
-
-  .discover-header p {
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-    font-size: 12px;
-    line-height: 1.38;
-    overflow: hidden;
+    border-radius: 10px;
+    padding: 4px;
   }
 
   .discover-mode-nav {
-    gap: 4px;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
   }
 
   .discover-mode-button {
-    gap: 4px;
-    grid-template-columns: 1fr;
-    justify-items: center;
-    min-height: 62px;
-    padding: 7px 3px;
-    text-align: center;
-  }
-
-  .discover-mode-button > svg {
-    height: 27px;
-    padding: 6px;
-    width: 27px;
+    gap: 5px;
+    min-height: 44px;
+    padding: 0 7px;
   }
 
   .discover-mode-button strong {
-    font-size: 10px;
+    font-size: 12px;
   }
+}
 
-  .discover-mode-button small {
-    display: none;
+@media (prefers-reduced-motion: reduce) {
+  .discover-mode-button {
+    transition: none;
   }
 }

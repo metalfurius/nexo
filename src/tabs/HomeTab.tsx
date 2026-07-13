@@ -40,6 +40,7 @@ import {
   type LibrarySurface,
 } from '../app/shared'
 import { buildHomeJourneyModel, type HomeJourneyExpandableLane } from './homeJourney'
+import { useRoadmapFlip } from './useRoadmapFlip'
 
 interface HomeTabProps {
   activityClearCount: number
@@ -59,15 +60,26 @@ const laneMeta: Record<RoadmapLane, { index: string; title: string; detail: stri
   later: { index: '03', title: 'Más adelante', detail: 'Sin perderlo de vista' },
 }
 
-function useCompactLayout() {
-  const [compact, setCompact] = useState(() => window.matchMedia('(max-width: 767px)').matches)
+function readJourneyViewport() {
+  if (window.matchMedia('(max-width: 767px)').matches) return 'compact' as const
+  if (window.matchMedia('(max-width: 1099px)').matches) return 'tablet' as const
+  return 'desktop' as const
+}
+
+function useJourneyViewport() {
+  const [viewport, setViewport] = useState(readJourneyViewport)
   useEffect(() => {
-    const query = window.matchMedia('(max-width: 767px)')
-    const sync = () => setCompact(query.matches)
-    query.addEventListener('change', sync)
-    return () => query.removeEventListener('change', sync)
+    const compactQuery = window.matchMedia('(max-width: 767px)')
+    const tabletQuery = window.matchMedia('(max-width: 1099px)')
+    const sync = () => setViewport(readJourneyViewport())
+    compactQuery.addEventListener('change', sync)
+    tabletQuery.addEventListener('change', sync)
+    return () => {
+      compactQuery.removeEventListener('change', sync)
+      tabletQuery.removeEventListener('change', sync)
+    }
   }, [])
-  return compact
+  return viewport
 }
 
 function closeRoadmapMenu(target: HTMLElement) {
@@ -91,21 +103,27 @@ export default function HomeTab({
     [library.items, library.settings.roadmap],
   )
   const [expanded, setExpanded] = useState<Partial<Record<HomeJourneyExpandableLane, boolean>>>({})
+  const [activityOpen, setActivityOpen] = useState(false)
   const [status, setStatus] = useState<string>()
   const [undoMutation, setUndoMutation] = useState<RoadmapMutation>()
   const [pendingMutationKey, setPendingMutationKey] = useState<string>()
   const pendingMutationRef = useRef<string | undefined>(undefined)
-  const compact = useCompactLayout()
+  const journeyBoardRef = useRef<HTMLElement>(null)
+  const viewport = useJourneyViewport()
   const journey = useMemo(
     () => buildHomeJourneyModel({
       expanded,
       items: library.items,
       loading: library.loading,
       roadmap,
-      viewport: compact ? 'compact' : 'desktop',
+      viewport,
     }),
-    [compact, expanded, library.items, library.loading, roadmap],
+    [expanded, library.items, library.loading, roadmap, viewport],
   )
+  const roadmapMotionSignature = (['now', 'next', 'later'] as const)
+    .map((lane) => roadmap[lane].map((entry) => entry.item.id).join(','))
+    .join('|')
+  useRoadmapFlip(journeyBoardRef, roadmapMotionSignature)
   const isPending = Boolean(pendingMutationKey)
 
   async function apply(mutation: RoadmapMutation, message: string, mutationKey = 'roadmap') {
@@ -318,6 +336,9 @@ export default function HomeTab({
     return (
       <article
         className={`roadmap-card journey-feature-card ${entry.item.posterUrl ? 'has-poster' : 'generated-poster'}`}
+        aria-busy={pendingMutationKey === entry.item.id || undefined}
+        data-pending={pendingMutationKey === entry.item.id || undefined}
+        data-roadmap-item-id={entry.item.id}
         style={getPosterBackplateStyle(entry.item.posterUrl)}
       >
         <div className="journey-feature-atmosphere" aria-hidden="true" />
@@ -330,12 +351,9 @@ export default function HomeTab({
             type={entry.item.type}
           />
           <span className="journey-feature-copy">
-            <small>{itemTypeLabels[entry.item.type]} · {entry.placement === 'automatic' ? 'Sugerido por Nexo' : 'Fijado por ti'}</small>
+            <small>{lane === 'now' ? 'Ahora' : 'Próximo'} · {itemTypeLabels[entry.item.type]} · {entry.placement === 'automatic' ? 'Sugerido' : 'Fijado'}</small>
             <strong>{entry.item.title}</strong>
             <em>{progress}</em>
-            <span className="journey-feature-note">
-              {lane === 'now' ? 'Tu historia en curso' : 'El próximo capítulo de tu ruta'}
-            </span>
           </span>
         </button>
         <div className="roadmap-card-actions journey-feature-actions">
@@ -361,7 +379,13 @@ export default function HomeTab({
 
   function renderNowCompanion(entry: RoadmapEntry) {
     return (
-      <article className="roadmap-card now-companion" key={entry.item.id}>
+      <article
+        aria-busy={pendingMutationKey === entry.item.id || undefined}
+        className="roadmap-card now-companion"
+        data-pending={pendingMutationKey === entry.item.id || undefined}
+        data-roadmap-item-id={entry.item.id}
+        key={entry.item.id}
+      >
         <button className="roadmap-card-main" type="button" onClick={() => onOpenItem(entry.item)}>
           <CoverArt title={entry.item.title} type={entry.item.type} posterUrl={entry.item.posterUrl} />
           <span>
@@ -371,9 +395,6 @@ export default function HomeTab({
           </span>
         </button>
         <div className="roadmap-card-actions">
-          <button className="secondary-button" type="button" onClick={() => onOpenItem(entry.item)}>
-            Abrir
-          </button>
           {renderRoadmapMenu(entry, 'now')}
         </div>
       </article>
@@ -382,7 +403,13 @@ export default function HomeTab({
 
   function renderNextCard(entry: RoadmapEntry) {
     return (
-      <article className="roadmap-card atlas-poster-card" key={entry.item.id}>
+      <article
+        aria-busy={pendingMutationKey === entry.item.id || undefined}
+        className="roadmap-card atlas-poster-card"
+        data-pending={pendingMutationKey === entry.item.id || undefined}
+        data-roadmap-item-id={entry.item.id}
+        key={entry.item.id}
+      >
         <button className="roadmap-card-main" type="button" onClick={() => onOpenItem(entry.item)}>
           <CoverArt title={entry.item.title} type={entry.item.type} posterUrl={entry.item.posterUrl} />
           <span>
@@ -408,7 +435,14 @@ export default function HomeTab({
 
   function renderLaterEntry(entry: RoadmapEntry) {
     return (
-      <article className="roadmap-card atlas-timeline-card" key={entry.item.id}>
+      <article
+        aria-busy={pendingMutationKey === entry.item.id || undefined}
+        className={`roadmap-card atlas-timeline-card ${entry.item.posterUrl ? 'has-poster' : 'generated-poster'}`}
+        data-pending={pendingMutationKey === entry.item.id || undefined}
+        data-roadmap-item-id={entry.item.id}
+        key={entry.item.id}
+        style={getPosterBackplateStyle(entry.item.posterUrl)}
+      >
         <span className="atlas-timeline-node" aria-hidden="true" />
         <button className="roadmap-card-main" type="button" onClick={() => onOpenItem(entry.item)}>
           <CoverArt title={entry.item.title} type={entry.item.type} posterUrl={entry.item.posterUrl} />
@@ -482,24 +516,30 @@ export default function HomeTab({
   }
 
   const heroKind = journey.hero.kind
+  const primaryLaneCount = journey.hero.kind === 'next-chapter' ? 1 : roadmap.now.length
+  const primaryLaneLabel = journey.hero.kind === 'next-chapter' ? 'próximo' : 'en curso'
+  const lastActivity = library.activityEntries[0]
   return (
     <section className="home-surface" aria-busy={isPending || undefined}>
-      <header className="home-atlas-intro">
-        <div className="home-atlas-title">
-          <span className="eyebrow"><Map size={15} />Atlas cultural vivo</span>
-          <h2>Tu ruta</h2>
-          <p>Una cartografía personal de lo que estás viviendo, lo siguiente y aquello que merece esperar.</p>
+      <header className="home-route-summary">
+        <div className="home-route-counts" aria-label="Resumen de Tu ruta">
+          <Map size={18} aria-hidden="true" />
+          <span><strong>{primaryLaneCount}</strong> {primaryLaneLabel}</span>
+          <span><strong>{journey.next.total}</strong> después</span>
+          <span><strong>{roadmap.later.length}</strong> más tarde</span>
         </div>
         <div className="home-hero-actions">
-          <button className="primary-button" type="button" onClick={onAdd}><Plus size={17} />Añadir</button>
           <button
             className="secondary-button"
             type="button"
+            aria-label="Elegir con Dado"
             onClick={() => onRollDice(roadmap.next.length ? 'roadmap-next' : 'all')}
+            disabled={isPending}
           >
-            <Dice5 size={17} />Elegir con Dado
+            <Dice5 size={17} /><span>Elegir</span><span className="sr-only"> con Dado</span>
           </button>
         </div>
+        <h2 className="sr-only">Tu ruta</h2>
       </header>
 
       {(status || isPending) && (
@@ -509,20 +549,22 @@ export default function HomeTab({
         </div>
       )}
 
-      <section className={`roadmap-board home-journey-grid hero-${heroKind}`} aria-label="Tu ruta de obras">
+      <section ref={journeyBoardRef} className={`roadmap-board home-journey-grid hero-${heroKind}`} aria-label="Tu ruta de obras">
         <section className="roadmap-lane now atlas-now" aria-labelledby="roadmap-now">
           <header className="atlas-section-heading">
-            <span>{laneMeta.now.index}</span>
-            <div><h3 id="roadmap-now">{laneMeta.now.title}</h3><p>{laneMeta.now.detail}</p></div>
-            <strong>{roadmap.now.length}</strong>
+            <div><h3 id="roadmap-now">{journey.hero.kind === 'next-chapter' ? 'Próximo' : laneMeta.now.title}</h3></div>
+            <strong>{primaryLaneCount}</strong>
           </header>
-          {journey.hero.kind === 'current' ? renderFeature(journey.hero.entry, 'now') : journey.hero.kind === 'invitation' ? (
+          {journey.hero.kind === 'current'
+            ? renderFeature(journey.hero.entry, 'now')
+            : journey.hero.kind === 'next-chapter'
+              ? renderFeature(journey.hero.entry, 'next')
+              : (
             <div className="atlas-invitation">
               <span className="atlas-invitation-mark"><Map size={23} /></span>
               <div>
-                <span className="eyebrow">Abre una nueva ruta</span>
-                <strong>Tu siguiente historia aún no tiene nombre</strong>
-                <p>Busca una obra o añade algo que ya tengas en mente.</p>
+                <strong>Elige tu próxima historia</strong>
+                <p>Añade una obra o encuentra algo nuevo.</p>
               </div>
               <div className="atlas-invitation-actions">
                 <button className="primary-button" type="button" onClick={() => onNavigate('discover')}>
@@ -533,69 +575,76 @@ export default function HomeTab({
                 </button>
               </div>
             </div>
-          ) : (
-            <div className="atlas-lane-empty now-empty">
-              <Play size={20} />
-              <span><strong>Nada en marcha</strong><small>Tu próximo capítulo está listo para empezar.</small></span>
-            </div>
           )}
-          {journey.additionalNow.length > 0 && (
+          {journey.additionalNow.total > 0 && (
             <section className="now-companions" aria-label="También en marcha">
-              <header><span>También en marcha</span><strong>{journey.additionalNow.length}</strong></header>
-              <div>{journey.additionalNow.map(renderNowCompanion)}</div>
+              <header><span>También en marcha</span><strong>{journey.additionalNow.total}</strong></header>
+              <div id="home-additional-now-list">{journey.additionalNow.visibleEntries.map(renderNowCompanion)}</div>
+              {journey.additionalNow.canExpand && (
+                <button
+                  aria-controls="home-additional-now-list"
+                  aria-expanded={journey.additionalNow.expanded}
+                  className="roadmap-expand"
+                  type="button"
+                  onClick={() => setExpanded((current) => ({ ...current, now: !current.now }))}
+                >
+                  {journey.additionalNow.expanded ? 'Ver menos' : `Ver ${journey.additionalNow.hiddenCount} más`}
+                </button>
+              )}
             </section>
           )}
         </section>
 
         <section className="roadmap-lane next atlas-next" aria-labelledby="roadmap-next">
           <header className="atlas-section-heading">
-            <span>{laneMeta.next.index}</span>
-            <div><h3 id="roadmap-next">{laneMeta.next.title}</h3><p>{laneMeta.next.detail}</p></div>
-            <strong>{roadmap.next.length}</strong>
+            <div><h3 id="roadmap-next">{laneMeta.next.title}</h3></div>
+            <strong>{journey.next.total}</strong>
           </header>
-          {journey.hero.kind === 'next-chapter' && renderFeature(journey.hero.entry, 'next')}
-          <div className="roadmap-list journey-poster-grid">
+          <div className="roadmap-list journey-poster-grid" id="home-next-list">
             {journey.next.visibleEntries.map(renderNextCard)}
-            {!roadmap.next.length && (
+            {!journey.next.total && (
               <div className="atlas-lane-empty">
                 <Sparkles size={19} />
-                <span><strong>El horizonte está abierto</strong><small>Añade o descubre una nueva posibilidad.</small></span>
+                <span><strong>Busca lo siguiente</strong></span>
               </div>
             )}
           </div>
           {journey.next.canExpand && (
             <button
+              aria-controls="home-next-list"
+              aria-expanded={journey.next.expanded}
               className="roadmap-expand"
               type="button"
               onClick={() => setExpanded((current) => ({ ...current, next: !current.next }))}
             >
-              {journey.next.expanded ? 'Ver menos' : `Ver todas (${journey.next.total})`}
+              {journey.next.expanded ? 'Ver menos' : `Ver ${journey.next.hiddenCount} más`}
             </button>
           )}
         </section>
 
         <section className="roadmap-lane later atlas-later" aria-labelledby="roadmap-later">
           <header className="atlas-section-heading">
-            <span>{laneMeta.later.index}</span>
-            <div><h3 id="roadmap-later">{laneMeta.later.title}</h3><p>{laneMeta.later.detail}</p></div>
+            <div><h3 id="roadmap-later">{laneMeta.later.title}</h3></div>
             <strong>{journey.later.total}</strong>
           </header>
-          <div className="roadmap-list atlas-timeline">
+          <div className="roadmap-list atlas-timeline" id="home-later-list">
             {journey.later.visibleEntries.map(renderLaterEntry)}
             {!journey.later.total && (
               <div className="atlas-lane-empty later-empty">
                 <Clock3 size={19} />
-                <span><strong>Sin equipaje pendiente</strong><small>Lo que aparques para más tarde aparecerá aquí.</small></span>
+                <span><strong>Sin obras para más tarde</strong></span>
               </div>
             )}
           </div>
           {journey.later.canExpand && (
             <button
+              aria-controls="home-later-list"
+              aria-expanded={journey.later.expanded}
               className="roadmap-expand"
               type="button"
               onClick={() => setExpanded((current) => ({ ...current, later: !current.later }))}
             >
-              {journey.later.expanded ? 'Ver menos' : `Ver todas (${journey.later.total})`}
+              {journey.later.expanded ? 'Ver menos' : `Ver ${journey.later.hiddenCount} más`}
             </button>
           )}
         </section>
@@ -604,8 +653,7 @@ export default function HomeTab({
       {journey.recentCompleted.length > 0 && (
         <section className="home-completed home-credits" aria-label="Completadas recientes">
           <header>
-            <span className="eyebrow">Créditos recientes</span>
-            <h3>Historias que ya forman parte de ti</h3>
+            <h3>Completadas</h3>
           </header>
           <div>
             {journey.recentCompleted.map((item, index) => (
@@ -620,20 +668,33 @@ export default function HomeTab({
         </section>
       )}
 
-      <SessionActivityPanel
-        entries={library.activityEntries.slice(0, 8)}
-        clearedCount={activityClearCount}
-        onClear={onClearActivity}
-        onUndoClear={onUndoClearActivity}
-        onSelect={(entry) => onNavigate(
-          entry.target?.kind === 'item'
-            ? 'library'
-            : entry.tab === 'catalog' || entry.tab === 'explorer'
-              ? 'discover'
-              : entry.tab as AppTab,
-          entry.target,
-        )}
-      />
+      {(lastActivity || activityClearCount > 0) && (
+        <details
+          className="home-activity-disclosure"
+          open={activityOpen}
+          onToggle={(event) => setActivityOpen(event.currentTarget.open)}
+        >
+          <summary aria-label="Historial de actividad">
+            <span>Actividad</span>
+            <strong>{lastActivity?.label ?? 'Actividad limpiada'}</strong>
+            <ChevronDown size={16} aria-hidden="true" />
+          </summary>
+          <SessionActivityPanel
+            entries={library.activityEntries.slice(0, 8)}
+            clearedCount={activityClearCount}
+            onClear={onClearActivity}
+            onUndoClear={onUndoClearActivity}
+            onSelect={(entry) => onNavigate(
+              entry.target?.kind === 'item'
+                ? 'library'
+                : entry.tab === 'catalog' || entry.tab === 'explorer'
+                  ? 'discover'
+                  : entry.tab as AppTab,
+              entry.target,
+            )}
+          />
+        </details>
+      )}
     </section>
   )
 }

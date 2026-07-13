@@ -1,9 +1,12 @@
 import {
   BookOpen,
   Check,
+  ChevronDown,
   Dice5,
   Download,
   Filter,
+  ImageOff,
+  MoreHorizontal,
   Pencil,
   Plus,
   RotateCcw,
@@ -629,14 +632,20 @@ export function LibraryTab({
 
   const syncLabel = getSyncLabel(library.syncState)
   const selectionControlsVisible = selectionMode || selectedItemIds.length > 0
+  const activeFilterCount = [
+    Boolean(query.trim()),
+    statusFilter !== 'all',
+    typeFilter !== 'all',
+    smartView !== 'all',
+    sortMode !== 'focus',
+  ].filter(Boolean).length
 
   return (
     <section className="library-v2" aria-labelledby="library-v2-title">
       <header className="library-v2-heading">
-        <div>
-          <span className="library-v2-eyebrow">Coleccion privada</span>
+        <div className="library-v2-heading-copy">
           <h2 id="library-v2-title">Biblioteca</h2>
-          <p>Busca y actualiza lo que ya has guardado.</p>
+          <span>{library.items.length} {library.items.length === 1 ? 'obra' : 'obras'}</span>
         </div>
         <div className="library-v2-heading-actions">
           <button className="library-v2-button secondary" type="button" onClick={onRollDice}>
@@ -684,6 +693,8 @@ export function LibraryTab({
         >
           <Filter size={17} />
           Filtros
+          {activeFilterCount > 0 && <span className="library-v2-filter-count" aria-label={`${activeFilterCount} filtros activos`}>{activeFilterCount}</span>}
+          <ChevronDown className="library-v2-filter-chevron" size={15} aria-hidden="true" />
         </button>
       </section>
 
@@ -731,20 +742,54 @@ export function LibraryTab({
               <Check size={16} />
               {allVisibleSelected ? 'Quitar seleccion visible' : 'Seleccionar visibles'}
             </button>
+            <span className="library-v2-more-label"><MoreHorizontal size={16} />Más acciones</span>
             <button className="library-v2-button quiet" type="button" onClick={() => onNavigate('import')}>
               <Upload size={16} />
               Importar
             </button>
-            <button className="library-v2-button quiet" disabled={!library.items.length} type="button" onClick={exportLibraryView}>
+            {!selectedItems.length && <button className="library-v2-button quiet" disabled={!library.items.length} type="button" onClick={exportLibraryView}>
               <Download size={16} />
-              {selectedItems.length ? 'Exportar seleccion' : 'Exportar biblioteca'}
-            </button>
+              Exportar biblioteca
+            </button>}
             <button className="library-v2-button quiet" disabled={!hasViewChanges && !selectedItemIds.length} type="button" onClick={resetView}>
               <RotateCcw size={16} />
               Restablecer
             </button>
           </div>
         </section>
+      )}
+
+      {activeFilterCount > 0 && (
+        <div className="library-v2-active-filters" aria-label="Filtros activos">
+          {query.trim() && (
+            <button type="button" onClick={() => setQuery('')} aria-label={`Quitar busqueda ${query.trim()}`}>
+              <span>Búsqueda</span>{query.trim()}<X size={14} />
+            </button>
+          )}
+          {statusFilter !== 'all' && (
+            <button type="button" onClick={() => setStatusFilter('all')} aria-label={`Quitar filtro de estado ${itemStatusLabels[statusFilter]}`}>
+              <span>Estado</span>{itemStatusLabels[statusFilter]}<X size={14} />
+            </button>
+          )}
+          {typeFilter !== 'all' && (
+            <button type="button" onClick={() => setTypeFilter('all')} aria-label={`Quitar filtro de tipo ${itemTypeLabels[typeFilter]}`}>
+              <span>Tipo</span>{itemTypeLabels[typeFilter]}<X size={14} />
+            </button>
+          )}
+          {smartView !== 'all' && (
+            <button type="button" onClick={() => setSmartView('all')} aria-label={`Quitar vista ${getSmartViewLabel(smartView)}`}>
+              <span>Vista</span>{getSmartViewLabel(smartView)}<X size={14} />
+            </button>
+          )}
+          {sortMode !== 'focus' && (
+            <button type="button" onClick={() => setSortMode('focus')} aria-label={`Quitar orden ${sortLabels[sortMode]}`}>
+              <span>Orden</span>{sortLabels[sortMode]}<X size={14} />
+            </button>
+          )}
+          {activeFilterCount > 1 && (
+            <button className="clear" type="button" onClick={resetView}>Limpiar todo</button>
+          )}
+        </div>
       )}
 
       <div className="library-v2-summary" aria-live="polite" data-testid="library-filter-summary">
@@ -755,11 +800,24 @@ export function LibraryTab({
 
       {selectedItemIds.length > 0 && (
         <section className="library-v2-selection" aria-label="Seleccion de biblioteca">
-          <span><strong>{selectedItemIds.length}</strong> seleccionadas</span>
-          <button className="library-v2-button quiet" type="button" onClick={() => setSelectedItemIds([])}>
-            <X size={16} />
-            Limpiar seleccion
-          </button>
+          <div>
+            <strong>{selectedItemIds.length}</strong>{' '}
+            <span>seleccionadas</span>
+          </div>
+          <div className="library-v2-selection-actions">
+            <button className="library-v2-button quiet" type="button" onClick={exportLibraryView}>
+              <Download size={16} />
+              Exportar seleccion
+            </button>
+            <button className="library-v2-button quiet" type="button" onClick={toggleVisibleSelection}>
+              <Check size={16} />
+              {allVisibleSelected ? 'Quitar visibles' : 'Sumar visibles'}
+            </button>
+            <button className="library-v2-button quiet" type="button" onClick={() => setSelectedItemIds([])}>
+              <X size={16} />
+              Limpiar seleccion
+            </button>
+          </div>
         </section>
       )}
 
@@ -773,7 +831,7 @@ export function LibraryTab({
       )}
 
       {library.loading && !library.items.length ? (
-        <LibraryEmptyState loading onAdd={openNewItem} />
+        <LibrarySkeleton />
       ) : filteredItems.length ? (
         <div
           className={`library-v2-grid ${density}`}
@@ -807,7 +865,7 @@ export function LibraryTab({
       ) : library.items.length ? (
         <LibraryNoMatches onReset={resetView} />
       ) : (
-        <LibraryEmptyState onAdd={openNewItem} />
+        <LibraryEmptyState onAdd={openNewItem} onDiscover={() => onNavigate('discover')} />
       )}
 
       {renderedItems.length < filteredItems.length && (
@@ -866,18 +924,36 @@ function LibraryItemCard({
   onStatus: (status: ItemStatus) => void
 }) {
   const progress = formatProgress(item)
-  const cardClassName = selected ? 'library-v2-card selected' : 'library-v2-card'
+  const progressRatio = getProgressRatio(item)
+  const [failedPosterUrl, setFailedPosterUrl] = useState<string>()
+  const posterHasError = Boolean(item.posterUrl && failedPosterUrl === item.posterUrl)
+  const cardClassName = [
+    'library-v2-card',
+    selected ? 'selected' : '',
+    busy ? 'pending' : '',
+  ].filter(Boolean).join(' ')
 
   return (
-    <article className={cardClassName} data-status={item.status} role="listitem">
+    <article aria-busy={busy} className={cardClassName} data-status={item.status} role="listitem">
       <div className="library-v2-cover" aria-hidden="true">
-        {item.posterUrl ? <img alt="" loading="lazy" src={item.posterUrl} /> : <BookOpen size={density === 'mosaic' ? 22 : 30} />}
+        {item.posterUrl ? (
+          <>
+            <img
+              alt=""
+              hidden={posterHasError}
+              loading="lazy"
+              src={item.posterUrl}
+              onError={() => setFailedPosterUrl(item.posterUrl)}
+            />
+            <span className="library-v2-cover-fallback" hidden={!posterHasError}><ImageOff size={density === 'mosaic' ? 22 : 30} /></span>
+          </>
+        ) : <span className="library-v2-cover-fallback"><BookOpen size={density === 'mosaic' ? 22 : 30} /></span>}
       </div>
       <div className="library-v2-card-body">
         <div className="library-v2-card-title-row">
           <div>
             <span>{itemTypeLabels[item.type]}</span>
-            <h3>{item.title}</h3>
+            <h3 title={item.title}>{item.title}</h3>
           </div>
           {showSelection && (
             <label className="library-v2-card-select">
@@ -891,10 +967,13 @@ function LibraryItemCard({
           {progress && <span>{progress}</span>}
           {typeof item.rating === 'number' && <span>{item.rating}/10</span>}
         </div>
+        {progressRatio !== undefined && (
+          <div className="library-v2-progress" aria-hidden="true"><span style={{ width: `${progressRatio}%` }} /></div>
+        )}
         {(item.genres.length > 0 || item.tags.length > 0) && (
           <div className="library-v2-card-tags" aria-label={`Etiquetas de ${item.title}`}>
             {uniqueTextValues([...item.genres, ...item.tags])
-              .slice(0, density === 'mosaic' ? 2 : 3)
+              .slice(0, 2)
               .map((tag, index) => <span key={`${tag}-${index}`}>{tag}</span>)}
           </div>
         )}
@@ -910,10 +989,10 @@ function LibraryItemCard({
               {ITEM_STATUSES.map((status) => <option key={status} value={status}>{itemStatusLabels[status]}</option>)}
             </select>
           </label>
-          <button aria-label={`Editar ${item.title}`} className="library-v2-icon-button" type="button" onClick={onEdit}>
+          <button aria-label={`Editar ${item.title}`} className="library-v2-icon-button" disabled={busy} type="button" onClick={onEdit}>
             <Pencil size={16} />
           </button>
-          <button aria-label={`Borrar ${item.title}`} className="library-v2-icon-button danger" type="button" onClick={onDelete}>
+          <button aria-label={`Borrar ${item.title}`} className="library-v2-icon-button danger" disabled={busy} type="button" onClick={onDelete}>
             <Trash2 size={16} />
           </button>
         </div>
@@ -1034,76 +1113,99 @@ function LibraryItemEditor({
             onClick={requestCancel}
           ><X size={18} /></button>
         </header>
-        <div className="library-v2-editor-grid">
-          <label className="wide">
-            <span>Titulo</span>
-            <input
-              autoFocus={isNew}
-              disabled={metadataLocked}
-              required
-              value={draft.title}
-              onChange={(event) => update('title', event.target.value)}
-            />
-          </label>
-          <label>
-            <span>Tipo</span>
-            <select disabled={metadataLocked} value={draft.type} onChange={(event) => update('type', event.target.value as ItemType)}>
-              {ITEM_TYPES.map((type) => <option key={type} value={type}>{itemTypeLabels[type]}</option>)}
-            </select>
-          </label>
-          <label>
-            <span>Estado</span>
-            <select value={draft.status} onChange={(event) => update('status', event.target.value as ItemStatus)}>
-              {ITEM_STATUSES.map((status) => <option key={status} value={status}>{itemStatusLabels[status]}</option>)}
-            </select>
-          </label>
-          <label>
-            <span>Progreso actual</span>
-            <input
-              autoFocus={!isNew && item.status === 'in_progress'}
-              min="0"
-              step="0.5"
-              type="number"
-              value={draft.progressCurrent}
-              onChange={(event) => update('progressCurrent', event.target.value)}
-            />
-          </label>
-          <label>
-            <span>Progreso total</span>
-            <input min="0" step="0.5" type="number" value={draft.progressTotal} onChange={(event) => update('progressTotal', event.target.value)} />
-          </label>
-          <label>
-            <span>Unidad</span>
-            <select value={draft.progressUnit} onChange={(event) => update('progressUnit', event.target.value as ProgressUnit)}>
-              {PROGRESS_UNITS.map((unit) => <option key={unit} value={unit}>{progressUnitLabels[unit].plural}</option>)}
-            </select>
-          </label>
-          <label>
-            <span>Nota / 10</span>
-            <input max="10" min="0" step="0.5" type="number" value={draft.rating} onChange={(event) => update('rating', event.target.value)} />
-          </label>
-          <label className="wide">
-            <span>Generos</span>
-            <input placeholder="Fantasia, aventura" value={draft.genres} onChange={(event) => update('genres', event.target.value)} />
-          </label>
-          <label className="wide">
-            <span>Tags</span>
-            <input placeholder="Corta, cozy, multijugador" value={draft.tags} onChange={(event) => update('tags', event.target.value)} />
-          </label>
-          <label className="wide">
-            <span>Tono</span>
-            <input placeholder="Relajado, intenso" value={draft.moodTags} onChange={(event) => update('moodTags', event.target.value)} />
-          </label>
-          <label className="wide">
-            <span>Portada</span>
-            <input type="url" value={draft.posterUrl} onChange={(event) => update('posterUrl', event.target.value)} />
-          </label>
-          <label className="wide">
-            <span>Notas</span>
-            <textarea rows={4} value={draft.notes} onChange={(event) => update('notes', event.target.value)} />
-          </label>
+        <div className="library-v2-editor-content">
+          <fieldset className="library-v2-editor-section">
+            <legend>Esencial</legend>
+            <div className="library-v2-editor-grid">
+              <label className="wide">
+                <span>Titulo</span>
+                <input
+                  autoFocus={isNew}
+                  disabled={metadataLocked}
+                  required
+                  value={draft.title}
+                  onChange={(event) => update('title', event.target.value)}
+                />
+              </label>
+              <label>
+                <span>Tipo</span>
+                <select disabled={metadataLocked} value={draft.type} onChange={(event) => update('type', event.target.value as ItemType)}>
+                  {ITEM_TYPES.map((type) => <option key={type} value={type}>{itemTypeLabels[type]}</option>)}
+                </select>
+              </label>
+              <label>
+                <span>Estado</span>
+                <select value={draft.status} onChange={(event) => update('status', event.target.value as ItemStatus)}>
+                  {ITEM_STATUSES.map((status) => <option key={status} value={status}>{itemStatusLabels[status]}</option>)}
+                </select>
+              </label>
+              <label>
+                <span>Nota / 10</span>
+                <input max="10" min="0" step="0.5" type="number" value={draft.rating} onChange={(event) => update('rating', event.target.value)} />
+              </label>
+            </div>
+            {metadataLocked && <p className="library-v2-editor-note">Titulo y tipo proceden del catalogo; tus datos personales siguen siendo editables.</p>}
+          </fieldset>
+
+          <fieldset className="library-v2-editor-section">
+            <legend>Progreso</legend>
+            <div className="library-v2-editor-grid progress">
+              <label>
+                <span>Progreso actual</span>
+                <input
+                  autoFocus={!isNew && item.status === 'in_progress'}
+                  min="0"
+                  step="0.5"
+                  type="number"
+                  value={draft.progressCurrent}
+                  onChange={(event) => update('progressCurrent', event.target.value)}
+                />
+              </label>
+              <label>
+                <span>Progreso total</span>
+                <input min="0" step="0.5" type="number" value={draft.progressTotal} onChange={(event) => update('progressTotal', event.target.value)} />
+              </label>
+              <label>
+                <span>Unidad</span>
+                <select value={draft.progressUnit} onChange={(event) => update('progressUnit', event.target.value as ProgressUnit)}>
+                  {PROGRESS_UNITS.map((unit) => <option key={unit} value={unit}>{progressUnitLabels[unit].plural}</option>)}
+                </select>
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset className="library-v2-editor-section">
+            <legend>Organización</legend>
+            <div className="library-v2-editor-grid">
+              <label className="wide">
+                <span>Generos</span>
+                <input placeholder="Fantasia, aventura" value={draft.genres} onChange={(event) => update('genres', event.target.value)} />
+              </label>
+              <label className="wide">
+                <span>Tags</span>
+                <input placeholder="Corta, cozy, multijugador" value={draft.tags} onChange={(event) => update('tags', event.target.value)} />
+              </label>
+              <label className="wide">
+                <span>Tono</span>
+                <input placeholder="Relajado, intenso" value={draft.moodTags} onChange={(event) => update('moodTags', event.target.value)} />
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset className="library-v2-editor-section">
+            <legend>Detalles</legend>
+            <div className="library-v2-editor-grid">
+              <label className="wide">
+                <span>Portada</span>
+                <input type="url" value={draft.posterUrl} onChange={(event) => update('posterUrl', event.target.value)} />
+              </label>
+              <label className="wide">
+                <span>Notas</span>
+                <textarea rows={4} value={draft.notes} onChange={(event) => update('notes', event.target.value)} />
+              </label>
+            </div>
+          </fieldset>
         </div>
-        {metadataLocked && <p className="library-v2-editor-note">Titulo y tipo proceden del catalogo; tus datos personales siguen siendo editables.</p>}
         {discardPromptOpen && (
           <div className="library-v2-feedback danger" role="alert">
             <span>Hay cambios sin guardar. Guardalos o descartalos antes de cerrar.</span>
@@ -1157,13 +1259,32 @@ function ConfirmDeleteDialog({
   )
 }
 
-function LibraryEmptyState({ loading = false, onAdd }: { loading?: boolean; onAdd: () => void }) {
+function LibrarySkeleton() {
   return (
-    <section className="library-v2-empty" aria-label={loading ? 'Cargando biblioteca' : 'Biblioteca vacia'}>
+    <section className="library-v2-skeleton" aria-label="Cargando biblioteca" aria-busy="true">
+      <span className="sr-only">Cargando tu biblioteca...</span>
+      {Array.from({ length: 8 }, (_, index) => (
+        <div className="library-v2-skeleton-card" key={index} aria-hidden="true">
+          <span className="cover" />
+          <span className="line strong" />
+          <span className="line" />
+          <span className="line short" />
+        </div>
+      ))}
+    </section>
+  )
+}
+
+function LibraryEmptyState({ onAdd, onDiscover }: { onAdd: () => void; onDiscover: () => void }) {
+  return (
+    <section className="library-v2-empty" aria-label="Biblioteca vacia">
       <BookOpen size={34} aria-hidden="true" />
-      <h3>{loading ? 'Cargando tu biblioteca...' : 'Tu biblioteca esta lista para empezar'}</h3>
-      <p>{loading ? 'Recuperando tus obras guardadas.' : 'Anade una obra manualmente o buscala desde Descubrir.'}</p>
-      {!loading && <button className="library-v2-button primary" type="button" onClick={onAdd}><Plus size={17} />Anadir obra</button>}
+      <h3>Empieza tu biblioteca</h3>
+      <p>Guarda una obra o encuentra tu próxima favorita.</p>
+      <div className="library-v2-empty-actions">
+        <button className="library-v2-button primary" type="button" onClick={onAdd}><Plus size={17} />Anadir obra</button>
+        <button className="library-v2-button secondary" type="button" onClick={onDiscover}>Descubrir</button>
+      </div>
     </section>
   )
 }
@@ -1250,6 +1371,13 @@ function getSearchText(item: ListItem) {
     ...item.moodTags,
     item.notes ?? '',
   ].join(' '))
+}
+
+function getProgressRatio(item: ListItem) {
+  if (typeof item.progressCurrent !== 'number' || typeof item.progressTotal !== 'number' || item.progressTotal <= 0) {
+    return undefined
+  }
+  return Math.min(100, Math.max(0, (item.progressCurrent / item.progressTotal) * 100))
 }
 
 function splitTextValues(value: string) {

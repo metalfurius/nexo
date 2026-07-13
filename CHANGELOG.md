@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.3.0 - 2026-07-13
+
+- Rebuilt Nexo around a compact 96 px desktop rail, a 56 px top bar, tablet navigation and a five-destination mobile dock so content owns the screen.
+- Replaced functional display typography and long narrative copy with a legible sans hierarchy while keeping Instrument Serif only as a restrained brand accent.
+- Redesigned Inicio as a visual route with one clear focus, compact active works, an actionable Después queue, a cover-led Más adelante shelf and collapsible recent activity.
+- Added pending states, 44 px critical actions and spatial roadmap transitions while preserving every move, reorder, start, complete, hide and undo operation.
+- Simplified Descubrir into three clear modes with stable search tools, a focused surprise result and a visible Pendientes decision queue.
+- Rebuilt Biblioteca with sticky progressive filters, removable chips, full-set bulk selection, a 24-item render window and a responsive side-sheet editor.
+- Reworked Dado into a Tirar → Decidir → Afinar flow with a 420 ms reveal, one primary decision and secondary detail disclosures.
+- Clarified Importar, Ajustes and Curación with primary workflows first and guides, diagnostics and advanced controls behind accessible disclosures.
+- Added deterministic visual QA across six viewport sizes and seven themes, keyboard and reduced-motion coverage, Firebase/PWA E2E validation and stricter bundle budgets.
+- Kept Firebase schemas, public APIs, persisted roadmap data and existing imports/backups fully compatible.
+
 ## 1.2.0 - 2026-07-12
 
 - Reimagined Inicio as an editorial, cinematic “Atlas cultural vivo” with an organic route instead of a dashboard grid.

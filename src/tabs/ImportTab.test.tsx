@@ -215,6 +215,17 @@ describe('ImportTab', () => {
     })
   })
 
+  it('presents profile and file imports as clear accessible paths', () => {
+    render(<ImportTab library={createLibrarySurface()} onActivity={vi.fn()} onNavigate={vi.fn()} />)
+
+    expect(screen.getByRole('heading', { name: 'Trae tu biblioteca' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Desde un perfil' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Desde un archivo' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Importar ZIP oficial de Letterboxd')).toBeInTheDocument()
+    expect(screen.getByLabelText('Importar CSV oficial de Goodreads')).toBeInTheDocument()
+    expect(screen.getByText('Qué ocurre con los datos importados')).toBeInTheDocument()
+  })
+
   it('completes the private import before public catalog registration finishes', async () => {
     const { duplicatePreviewItem, frierenPreviewItem } = createPreviewItems()
     const importedItem = createImportedItem()

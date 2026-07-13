@@ -70,6 +70,7 @@ export default function ExplorerTab({
   const [discoverDuration, setDiscoverDuration] = useState<ExternalDiscoverDuration>('any')
   const [discoverCandidate, setDiscoverCandidate] = useState<DiscoveryCandidate | undefined>()
   const [discoverLoading, setDiscoverLoading] = useState(false)
+  const [queueExpanded, setQueueExpanded] = useState(false)
   const handledCandidateDismissRequestId = useRef<number | undefined>(undefined)
   const handledCandidateRequestId = useRef<number | undefined>(undefined)
   const handledCandidateSaveRequestId = useRef<number | undefined>(undefined)
@@ -97,7 +98,6 @@ export default function ExplorerTab({
     decisionSummaryDetail,
     decisionSummaryTitle,
     discoveryCounts,
-    dominantSourceLabel,
     feedCandidates,
     isSourceFilteredEmpty,
     sourceCounts,
@@ -105,6 +105,8 @@ export default function ExplorerTab({
     totalDiscoveryCount,
     visibleCandidates,
   } = explorerDecision
+  const queueFeedCandidates = queueExpanded ? feedCandidates : feedCandidates.slice(0, 4)
+  const hiddenQueueCandidateCount = Math.max(0, feedCandidates.length - queueFeedCandidates.length)
   const canSaveVisibleQueue = view === 'queued' && sourceFilter !== 'all' && visibleCandidates.length > 0
   const showCandidateFeedHeader = totalDiscoveryCount > 0 || visibleCandidates.length > 0 || view !== 'queued' || isSourceFilteredEmpty
   const explorerShelfItems = useMemo(() => library.items.slice(0, 3), [library.items])
@@ -170,11 +172,13 @@ export default function ExplorerTab({
 
   function changeExplorerView(nextView: DiscoveryStatus) {
     setView(nextView)
+    setQueueExpanded(false)
     setCompletedExplorerQueue(undefined)
   }
 
   function changeExplorerSourceFilter(nextFilter: ExplorerSourceFilter) {
     setSourceFilter(nextFilter)
+    setQueueExpanded(false)
     setCompletedExplorerQueue(undefined)
   }
 
@@ -872,12 +876,8 @@ export default function ExplorerTab({
           <div className="explorer-command-main">
             <div className="explorer-command-heading">
               <div>
-                <span className="tool-mode-badge explorer-mode-badge">
-                  <Sparkles size={15} />
-                  Explorar
-                </span>
-                <span className="eyebrow">Fuera de tu estanteria</span>
                 <h2>Sorprendeme</h2>
+                <p>Elige el tipo y deja que Nexo encuentre la siguiente obra.</p>
               </div>
             </div>
 
@@ -972,336 +972,323 @@ export default function ExplorerTab({
           </section>
         )}
 
-        <details className="explorer-tools-panel explorer-history-panel" open={surfaceMode === 'queue'}>
-          <summary aria-label="Abrir historial avanzado del explorador">
-            <span>
-              <SlidersHorizontal size={16} />
-              <strong>Avanzado</strong>
-              <small>{discoveryCounts.queued} por revisar / historial y busqueda manual</small>
-            </span>
-            <em>Oculto</em>
-          </summary>
-          <div className="explorer-tools-content">
-            <form
-              className="explorer-search explorer-command-search"
-              onSubmit={(event) => {
-                event.preventDefault()
-                void runDiscoverySearch()
-              }}
-            >
-              <label className="search-field explorer-query-field">
-                <Search size={18} />
-                <input
-                  aria-label="Buscar en explorador"
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Frieren, Dune, Hollow Knight..."
-                />
-              </label>
-              <select
-                aria-label="Tipo de busqueda en explorador"
-                value={type}
-                onChange={(event) => void changeSearchType(event.target.value as ExplorerSearchType)}
-              >
-                <option value="any">Todo</option>
-                <option value="watch">Ver</option>
-                <option value="game">Juego</option>
-                <option value="book">Libro</option>
-                <option value="anime">Anime</option>
-                <option value="manga">Manga</option>
-                <option value="manhwa">Manhwa</option>
-              </select>
-              <button className="secondary-button" disabled={loading} type="submit">
-                <Search size={18} />
-                {loading ? 'Buscando' : 'Buscar'}
-              </button>
-            </form>
-
-        {totalDiscoveryCount > 0 && (
+        {surfaceMode === 'queue' && (
           <>
-            <details className="explorer-tools-panel" data-close-on-outside open={sourceFilter !== 'all' || view !== 'queued'}>
-              <summary aria-label="Abrir filtros e historial del explorador">
+            <header className="explorer-queue-header">
+              <div>
+                <h2>Pendientes</h2>
+                <span>{discoveryCounts.queued} por decidir</span>
+              </div>
+              <div className="explorer-queue-summary" aria-label="Resumen de pendientes">
+                <span><strong>{discoveryCounts.saved}</strong> guardados</span>
+                <span><strong>{discoveryCounts.dismissed}</strong> descartados</span>
+                <span><strong>{decisionProgressPercent}%</strong> decidido</span>
+              </div>
+            </header>
+
+            <details className="explorer-tools-panel explorer-history-panel">
+              <summary aria-label="Abrir filtros, historial y busqueda del explorador">
                 <span>
                   <SlidersHorizontal size={16} />
-                  <strong>Filtros e historial</strong>
-                  <small>{discoveryCounts.queued} por revisar / {activeSourceLabel}</small>
+                  <strong>Filtros y busqueda</strong>
+                  <small>{activeSourceLabel} / {discoveryStatusLabels[view]}</small>
                 </span>
-                <em>{decisionProgressPercent}% decidido</em>
+                <em>{totalDiscoveryCount ? `${decisionProgressPercent}%` : 'Opcional'}</em>
               </summary>
               <div className="explorer-tools-content">
-                <div className="explorer-control-deck">
-                  <div className="explorer-status-strip" role="tablist" aria-label="Estado de descubrimiento">
-                    {(['queued', 'saved', 'dismissed'] as const).map((status) => (
-                      <button
-                        aria-selected={view === status}
-                        className={view === status ? 'stat-chip active' : 'stat-chip'}
-                        data-status={status}
-                        key={status}
-                        role="tab"
-                        type="button"
-                        onClick={() => changeExplorerView(status)}
-                      >
-                        <span>{discoveryStatusLabels[status]}</span>
-                        <strong>{discoveryCounts[status]}</strong>
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="explorer-source-strip" role="group" aria-label="Filtrar descubrimientos por origen">
-                    {explorerSourceFilters.map((filter) => (
-                      <button
-                        aria-pressed={sourceFilter === filter.id}
-                        className={sourceFilter === filter.id ? 'source-filter-chip active' : 'source-filter-chip'}
-                        key={filter.id}
-                        type="button"
-                        onClick={() => changeExplorerSourceFilter(filter.id)}
-                      >
-                        <span>{filter.label}</span>
-                        <small>{filter.detail}</small>
-                        <strong>{sourceCounts[filter.id]}</strong>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <section className="explorer-decision-panel" aria-label="Estado de decision del explorador" data-testid="explorer-decision-panel">
-                  <div className="explorer-decision-main">
-                    <div>
-                      <span className="eyebrow">Explorar</span>
-                      <strong>{decisionSummaryTitle}</strong>
-                      <p>{decisionSummaryDetail}</p>
-                    </div>
-                    <div className="explorer-progress-badge">
-                      <strong>{decisionProgressPercent}%</strong>
-                      <span>historial decidido</span>
-                    </div>
-                  </div>
-                  <div
-                    aria-label={`Progreso de decision ${decisionProgressPercent}%`}
-                    className="explorer-decision-meter"
-                    role="meter"
-                    aria-valuemax={100}
-                    aria-valuemin={0}
-                    aria-valuenow={decisionProgressPercent}
+                <form
+                  className="explorer-search explorer-command-search"
+                  onSubmit={(event) => {
+                    event.preventDefault()
+                    void runDiscoverySearch()
+                  }}
+                >
+                  <label className="search-field explorer-query-field">
+                    <Search size={18} />
+                    <input
+                      aria-label="Buscar en explorador"
+                      value={query}
+                      onChange={(event) => setQuery(event.target.value)}
+                      placeholder="Frieren, Dune, Hollow Knight..."
+                    />
+                  </label>
+                  <select
+                    aria-label="Tipo de busqueda en explorador"
+                    value={type}
+                    onChange={(event) => void changeSearchType(event.target.value as ExplorerSearchType)}
                   >
-                    <span style={{ width: `${decisionProgressPercent}%` }} />
-                  </div>
-                  <div className="explorer-decision-facts">
-                    <span>
-                      <strong>{spotlightCandidate?.title ?? 'Sin siguiente'}</strong>
-                      Siguiente
-                    </span>
-                    <span>
-                      <strong>{dominantSourceLabel}</strong>
-                      Origen fuerte
-                    </span>
-                    <span>
-                      <strong>{activeSourceLabel}</strong>
-                      Filtro
-                    </span>
-                  </div>
-                  <div className="explorer-decision-actions">
-                    {sourceFilter !== 'all' && (
-                      <button className="secondary-button" type="button" onClick={() => changeExplorerSourceFilter('all')}>
-                        Ver todos los origenes
-                      </button>
-                    )}
-                    {canSaveVisibleQueue && (
-                      <button className="secondary-button" type="button" onClick={() => void saveVisibleQueue()}>
-                        <Plus size={16} />
-                        Guardar vista
-                      </button>
-                    )}
-                    {canDismissVisibleQueue && (
-                      <button className="ghost-button danger-ghost" type="button" onClick={() => void dismissVisibleQueue()}>
-                        <X size={16} />
-                        Descartar vista
-                      </button>
-                    )}
-                  </div>
-                </section>
-              </div>
-            </details>
-          </>
-        )}
-
-        {completedExplorerQueue && (
-          <section
-            className="explorer-completion-card"
-            aria-label={`Bandeja resuelta ${completedExplorerQueue.sourceLabel}`}
-            data-testid="explorer-completion"
-          >
-            <div className="explorer-completion-main">
-              <CheckCircle2 size={18} />
-              <div>
-                <span className="eyebrow">Bandeja resuelta</span>
-                <strong>{completedExplorerQueue.title}</strong>
-                <p>{completedExplorerQueue.detail}</p>
-              </div>
-            </div>
-            <div className="explorer-completion-actions">
-              <button className="primary-button" type="button" onClick={openCompletedExplorerQueue}>
-                {completedExplorerQueue.actionLabel}
-              </button>
-              <button className="ghost-button" type="button" onClick={() => setCompletedExplorerQueue(undefined)}>
-                Cerrar
-              </button>
-            </div>
-          </section>
-        )}
-
-        {showCandidateFeedHeader && (
-          <div className="candidate-feed-header">
-            <div>
-              <h3>{spotlightCandidate ? 'Para revisar' : view === 'queued' ? 'Descubrir' : discoveryStatusLabels[view]}</h3>
-              <p>
-                {spotlightCandidate
-                  ? 'Guarda si encaja o descartalo para limpiar la busqueda.'
-                  : view === 'queued'
-                  ? 'Busca por titulo o lanza una pista cuando no sepas por donde empezar.'
-                  : 'Historial ligero de decisiones del explorador.'}
-              </p>
-            </div>
-            <span className="feed-count-pill">
-              {visibleCandidates.length} / {candidatesInView.length} {activeSourceLabel}
-            </span>
-          </div>
-        )}
-
-        {spotlightCandidate && (
-          <section className="candidate-spotlight" aria-label="Obra encontrada" data-testid="candidate-spotlight">
-            <div className="candidate-spotlight-media">
-              <CoverArt title={spotlightCandidate.title} type={spotlightCandidate.type} posterUrl={spotlightCandidate.posterUrl} />
-            </div>
-            <div className="candidate-spotlight-body">
-              <div className="candidate-meta">
-                <span className="source-pill">{sourceLabels[spotlightCandidate.source]}</span>
-                <span>{typeLabels[spotlightCandidate.type]}</span>
-                {spotlightCandidate.releaseYear && <span>{spotlightCandidate.releaseYear}</span>}
-                {spotlightEffortSignal && <span>{spotlightEffortSignal}</span>}
-              </div>
-              <span className="eyebrow">Resultado listo</span>
-              <h3>{spotlightCandidate.title}</h3>
-              <p className="candidate-spotlight-overview">{spotlightCandidate.overview || `${typeLabels[spotlightCandidate.type]} para explorar`}</p>
-              <div className="tag-row">
-                {spotlightCandidate.genres.slice(0, 4).map((genre) => (
-                  <span key={genre}>{genre}</span>
-                ))}
-              </div>
-              <CandidateDecisionBriefView brief={getCandidateDecisionBrief(spotlightCandidate, library.isModerator)} />
-              <div className="candidate-spotlight-actions" aria-label={`Decidir ${spotlightCandidate.title}`}>
-                <button className="primary-button" type="button" onClick={() => void saveCandidate(spotlightCandidate)} aria-label={`Guardar ${spotlightCandidate.title}`}>
-                  <Plus size={17} />
-                  Guardar
-                </button>
-                <button className="secondary-button" type="button" onClick={() => setSelected(spotlightCandidate)} aria-label={`Abrir ficha ${spotlightCandidate.title}`}>
-                  <Eye size={17} />
-                  Ver ficha
-                </button>
-                <button className="ghost-button danger-ghost" type="button" onClick={() => void dismissCandidate(spotlightCandidate)} aria-label={`Descartar ${spotlightCandidate.title}`}>
-                  <X size={17} />
-                  Descartar
-                </button>
-                {library.isModerator && (
-                  <button
-                    className="ghost-button"
-                    type="button"
-                    onClick={() => openCatalogDraft(spotlightCandidate)}
-                    aria-label={`${spotlightCandidate.source === 'nexo' ? 'Editar catalogo' : 'Crear catalogo'} ${spotlightCandidate.title}`}
-                  >
-                    <ShieldCheck size={17} />
-                    Catalogo
+                    <option value="any">Todo</option>
+                    <option value="watch">Ver</option>
+                    <option value="game">Juego</option>
+                    <option value="book">Libro</option>
+                    <option value="anime">Anime</option>
+                    <option value="manga">Manga</option>
+                    <option value="manhwa">Manhwa</option>
+                  </select>
+                  <button className="secondary-button" disabled={loading} type="submit">
+                    <Search size={18} />
+                    {loading ? 'Buscando' : 'Buscar'}
                   </button>
-                )}
-              </div>
-            </div>
-          </section>
-        )}
+                </form>
 
-        {visibleCandidates.length ? (
-          <div className="candidate-grid">
-            {feedCandidates.map((candidate) => (
-              <DiscoveryCard
-                candidate={candidate}
-                key={candidate.id}
-                onDetails={() => setSelected(candidate)}
-                onDismiss={() => dismissCandidate(candidate)}
-                onRestore={() => restoreCandidate(candidate)}
-                onSave={() => saveCandidate(candidate)}
-                onCurate={library.isModerator ? () => openCatalogDraft(candidate) : undefined}
-              />
-            ))}
-            {!feedCandidates.length && spotlightCandidate && (
-              <p className="candidate-feed-note">No hay mas hallazgos en esta vista.</p>
-            )}
-          </div>
-        ) : (
-          <div className={explorerShelfItems.length > 0 ? 'explorer-empty-state with-constellation' : 'explorer-empty-state'}>
-            {explorerShelfItems.length > 0 && (
-              <div className="explorer-empty-constellation" aria-hidden="true">
-                {explorerShelfItems.map((item) => (
-                  <CoverArt key={item.id} title={item.title} type={item.type} posterUrl={item.posterUrl} />
-                ))}
-              </div>
-            )}
-            <EmptyState
-              icon={view === 'queued' ? Sparkles : view === 'saved' ? CheckCircle2 : X}
-              tone={view === 'dismissed' ? 'muted' : 'neutral'}
-              title={
-                isSourceFilteredEmpty
-                  ? `Sin resultados ${activeSourceLabel}`
-                  : hasHeroStarterIdeas && view === 'queued'
-                    ? 'Desde tu estanteria'
-                    : discoveryEmptyCopy[view].title
-              }
-              detail={
-                isSourceFilteredEmpty
-                  ? 'Este estado tiene hallazgos, pero ninguno coincide con el origen seleccionado.'
-                  : hasHeroStarterIdeas && view === 'queued'
-                    ? 'Abre una busqueda relacionada con algo que ya guardaste.'
-                  : discoveryEmptyCopy[view].detail
-              }
-              action={
-                view === 'queued' && !isSourceFilteredEmpty ? (
-                  <div className="explorer-empty-actions explorer-starter-actions">
-                    <div className="explorer-primary-empty-actions">
-                      <button className="primary-button" type="button" onClick={() => void recommendFromLibrary()}>
-                        <Sparkles size={16} />
-                        Recomendar desde mi estanteria
-                      </button>
-                      {query.trim() && (
-                        <button className="secondary-button" disabled={!query.trim() || loading} type="button" onClick={() => void runDiscoverySearch()}>
-                          <Search size={16} />
-                          Usar consulta
-                        </button>
-                      )}
-                    </div>
-                    {!hasHeroStarterIdeas && explorerStarterIdeas.length > 0 && (
-                      <div className="explorer-starter-grid" aria-label="Ideas rapidas de exploracion">
-                        {explorerStarterIdeas.map((idea) => (
+                {totalDiscoveryCount > 0 && (
+                  <>
+                    <div className="explorer-control-deck">
+                      <div className="explorer-status-strip" role="tablist" aria-label="Estado de descubrimiento">
+                        {(['queued', 'saved', 'dismissed'] as const).map((status) => (
                           <button
-                            className="explorer-starter-card"
-                            key={idea.id}
+                            aria-selected={view === status}
+                            className={view === status ? 'stat-chip active' : 'stat-chip'}
+                            data-status={status}
+                            key={status}
+                            role="tab"
                             type="button"
-                            onClick={() => void startExplorerIdea(idea)}
+                            onClick={() => changeExplorerView(status)}
                           >
-                            <CoverArt title={idea.title} type={idea.type} posterUrl={idea.posterUrl} />
-                            <span>
-                              <small>{idea.kicker}</small>
-                              <strong>{idea.title}</strong>
-                            </span>
+                            <span>{discoveryStatusLabels[status]}</span>
+                            <strong>{discoveryCounts[status]}</strong>
                           </button>
                         ))}
                       </div>
+
+                      <div className="explorer-source-strip" role="group" aria-label="Filtrar descubrimientos por origen">
+                        {explorerSourceFilters.map((filter) => (
+                          <button
+                            aria-pressed={sourceFilter === filter.id}
+                            className={sourceFilter === filter.id ? 'source-filter-chip active' : 'source-filter-chip'}
+                            key={filter.id}
+                            type="button"
+                            onClick={() => changeExplorerSourceFilter(filter.id)}
+                          >
+                            <span>{filter.label}</span>
+                            <strong>{sourceCounts[filter.id]}</strong>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <section className="explorer-decision-panel" aria-label="Estado de decision del explorador" data-testid="explorer-decision-panel">
+                      <div className="explorer-decision-main">
+                        <div>
+                          <strong>{decisionSummaryTitle}</strong>
+                          <p>{decisionSummaryDetail}</p>
+                        </div>
+                        <div className="explorer-progress-badge">
+                          <strong>{decisionProgressPercent}%</strong>
+                          <span>decidido</span>
+                        </div>
+                      </div>
+                      <div
+                        aria-label={`Progreso de decision ${decisionProgressPercent}%`}
+                        className="explorer-decision-meter"
+                        role="meter"
+                        aria-valuemax={100}
+                        aria-valuemin={0}
+                        aria-valuenow={decisionProgressPercent}
+                      >
+                        <span style={{ width: `${decisionProgressPercent}%` }} />
+                      </div>
+                      <div className="explorer-decision-actions">
+                        {sourceFilter !== 'all' && (
+                          <button className="secondary-button" type="button" onClick={() => changeExplorerSourceFilter('all')}>
+                            Ver todos
+                          </button>
+                        )}
+                        {canSaveVisibleQueue && (
+                          <button className="secondary-button" type="button" onClick={() => void saveVisibleQueue()}>
+                            <Plus size={16} />
+                            Guardar vista
+                          </button>
+                        )}
+                        {canDismissVisibleQueue && (
+                          <button className="ghost-button danger-ghost" type="button" onClick={() => void dismissVisibleQueue()}>
+                            <X size={16} />
+                            Descartar vista
+                          </button>
+                        )}
+                      </div>
+                    </section>
+                  </>
+                )}
+              </div>
+            </details>
+
+            {completedExplorerQueue && (
+              <section
+                className="explorer-completion-card"
+                aria-label={`Bandeja resuelta ${completedExplorerQueue.sourceLabel}`}
+                data-testid="explorer-completion"
+              >
+                <div className="explorer-completion-main">
+                  <CheckCircle2 size={18} />
+                  <div>
+                    <strong>{completedExplorerQueue.title}</strong>
+                    <p>{completedExplorerQueue.detail}</p>
+                  </div>
+                </div>
+                <div className="explorer-completion-actions">
+                  <button className="primary-button" type="button" onClick={openCompletedExplorerQueue}>
+                    {completedExplorerQueue.actionLabel}
+                  </button>
+                  <button className="ghost-button" type="button" onClick={() => setCompletedExplorerQueue(undefined)}>
+                    Cerrar
+                  </button>
+                </div>
+              </section>
+            )}
+
+            {showCandidateFeedHeader && (
+              <div className="candidate-feed-header">
+                <h3>{spotlightCandidate ? 'Ahora' : view === 'queued' ? 'Pendientes' : discoveryStatusLabels[view]}</h3>
+                <span className="feed-count-pill">
+                  {visibleCandidates.length} / {candidatesInView.length} {activeSourceLabel}
+                </span>
+              </div>
+            )}
+
+            <div className={spotlightCandidate ? 'explorer-queue-stage has-spotlight' : 'explorer-queue-stage'}>
+              {spotlightCandidate && (
+                <section className="candidate-spotlight" aria-label="Obra encontrada" data-testid="candidate-spotlight">
+                  <div className="candidate-spotlight-media">
+                    <CoverArt title={spotlightCandidate.title} type={spotlightCandidate.type} posterUrl={spotlightCandidate.posterUrl} />
+                  </div>
+                  <div className="candidate-spotlight-body">
+                    <div className="candidate-meta">
+                      <span className="source-pill">{sourceLabels[spotlightCandidate.source]}</span>
+                      <span>{typeLabels[spotlightCandidate.type]}</span>
+                      {spotlightCandidate.releaseYear && <span>{spotlightCandidate.releaseYear}</span>}
+                      {spotlightEffortSignal && <span>{spotlightEffortSignal}</span>}
+                    </div>
+                    <h3>{spotlightCandidate.title}</h3>
+                    <p className="candidate-spotlight-overview">{spotlightCandidate.overview || `${typeLabels[spotlightCandidate.type]} para explorar`}</p>
+                    <div className="tag-row">
+                      {spotlightCandidate.genres.slice(0, 4).map((genre) => (
+                        <span key={genre}>{genre}</span>
+                      ))}
+                    </div>
+                    <CandidateDecisionBriefView brief={getCandidateDecisionBrief(spotlightCandidate, library.isModerator)} />
+                    <div className="candidate-spotlight-actions" aria-label={`Decidir ${spotlightCandidate.title}`}>
+                      <button className="primary-button" type="button" onClick={() => void saveCandidate(spotlightCandidate)} aria-label={`Guardar ${spotlightCandidate.title}`}>
+                        <Plus size={17} />
+                        Guardar
+                      </button>
+                      <button className="secondary-button" type="button" onClick={() => setSelected(spotlightCandidate)} aria-label={`Abrir ficha ${spotlightCandidate.title}`}>
+                        <Eye size={17} />
+                        Ver ficha
+                      </button>
+                      <button className="ghost-button danger-ghost" type="button" onClick={() => void dismissCandidate(spotlightCandidate)} aria-label={`Descartar ${spotlightCandidate.title}`}>
+                        <X size={17} />
+                        Descartar
+                      </button>
+                      {library.isModerator && (
+                        <button
+                          className="ghost-button"
+                          type="button"
+                          onClick={() => openCatalogDraft(spotlightCandidate)}
+                          aria-label={`${spotlightCandidate.source === 'nexo' ? 'Editar catalogo' : 'Crear catalogo'} ${spotlightCandidate.title}`}
+                        >
+                          <ShieldCheck size={17} />
+                          Catalogo
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </section>
+              )}
+
+              {visibleCandidates.length ? (
+                <section className="explorer-queue-lane" aria-label="Siguientes hallazgos">
+                  {feedCandidates.length > 0 && <h3>A continuacion</h3>}
+                  <div className="candidate-grid">
+                    {queueFeedCandidates.map((candidate) => (
+                      <DiscoveryCard
+                        candidate={candidate}
+                        key={candidate.id}
+                        onDetails={() => setSelected(candidate)}
+                        onDismiss={() => dismissCandidate(candidate)}
+                        onRestore={() => restoreCandidate(candidate)}
+                        onSave={() => saveCandidate(candidate)}
+                        onCurate={library.isModerator ? () => openCatalogDraft(candidate) : undefined}
+                      />
+                    ))}
+                    {!feedCandidates.length && spotlightCandidate && (
+                      <p className="candidate-feed-note">Ultimo hallazgo de esta vista.</p>
                     )}
                   </div>
-                ) : undefined
-              }
-            />
-          </div>
+                  {hiddenQueueCandidateCount > 0 && (
+                    <button className="ghost-button explorer-queue-more" type="button" onClick={() => setQueueExpanded(true)}>
+                      Ver {hiddenQueueCandidateCount} mas
+                    </button>
+                  )}
+                </section>
+              ) : (
+                <div className={explorerShelfItems.length > 0 ? 'explorer-empty-state with-constellation' : 'explorer-empty-state'}>
+                  {explorerShelfItems.length > 0 && (
+                    <div className="explorer-empty-constellation" aria-hidden="true">
+                      {explorerShelfItems.map((item) => (
+                        <CoverArt key={item.id} title={item.title} type={item.type} posterUrl={item.posterUrl} />
+                      ))}
+                    </div>
+                  )}
+                  <EmptyState
+                    icon={view === 'queued' ? Sparkles : view === 'saved' ? CheckCircle2 : X}
+                    tone={view === 'dismissed' ? 'muted' : 'neutral'}
+                    title={
+                      isSourceFilteredEmpty
+                        ? `Sin resultados ${activeSourceLabel}`
+                        : hasHeroStarterIdeas && view === 'queued'
+                          ? 'Desde tu estanteria'
+                          : discoveryEmptyCopy[view].title
+                    }
+                    detail={
+                      isSourceFilteredEmpty
+                        ? 'No hay hallazgos de este origen.'
+                        : hasHeroStarterIdeas && view === 'queued'
+                          ? 'Elige una obra para encontrar algo relacionado.'
+                          : discoveryEmptyCopy[view].detail
+                    }
+                    action={
+                      view === 'queued' && !isSourceFilteredEmpty ? (
+                        <div className="explorer-empty-actions explorer-starter-actions">
+                          <div className="explorer-primary-empty-actions">
+                            <button className="primary-button" type="button" onClick={() => void recommendFromLibrary()}>
+                              <Sparkles size={16} />
+                              Recomendar desde mi estanteria
+                            </button>
+                            {query.trim() && (
+                              <button className="secondary-button" disabled={!query.trim() || loading} type="button" onClick={() => void runDiscoverySearch()}>
+                                <Search size={16} />
+                                Usar consulta
+                              </button>
+                            )}
+                          </div>
+                          {!hasHeroStarterIdeas && explorerStarterIdeas.length > 0 && (
+                            <div className="explorer-starter-grid" aria-label="Ideas rapidas de exploracion">
+                              {explorerStarterIdeas.map((idea) => (
+                                <button
+                                  className="explorer-starter-card"
+                                  key={idea.id}
+                                  type="button"
+                                  onClick={() => void startExplorerIdea(idea)}
+                                >
+                                  <CoverArt title={idea.title} type={idea.type} posterUrl={idea.posterUrl} />
+                                  <span>
+                                    <small>{idea.kicker}</small>
+                                    <strong>{idea.title}</strong>
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ) : undefined
+                    }
+                  />
+                </div>
+              )}
+            </div>
+          </>
         )}
-          </div>
-        </details>
       </section>
 
       {selected && (

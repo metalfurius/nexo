@@ -290,7 +290,7 @@ test.describe('Anadir global y Descubrir', () => {
     await page.locator('.global-add-button').click()
     await page.getByRole('dialog', { name: 'Añadir a Nexo' }).getByRole('button', { name: 'Importar biblioteca' }).click()
     await expect(page).toHaveURL(/tab=import/)
-    await expect(page.getByRole('heading', { name: 'Importar bibliotecas' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Trae tu biblioteca' })).toBeVisible()
   })
 
   test('mantiene Buscar, Sorprendeme y Pendientes bajo una sola pestaña', async ({ page }) => {
@@ -483,7 +483,7 @@ test.describe('Shell, utilidades y operaciones', () => {
 
     await openUtility(page, 'Ajustes')
     await expect(page).toHaveURL(/tab=settings/)
-    await expect(page.getByRole('heading', { name: 'Tu Nexo' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Ajustes' })).toBeVisible()
     await expect(more.locator(':scope > summary')).toHaveClass(/active/)
     await openUtility(page, 'Importar')
     await expect(page).toHaveURL(/tab=import/)
@@ -636,7 +636,7 @@ test.describe('Responsive, temas y accesibilidad', () => {
 
       if (viewport.width <= 390) {
         const heading = page.getByRole('heading', { name: 'Tu ruta', exact: true })
-        const addCta = page.locator('.home-hero-actions .primary-button')
+        const addCta = page.getByRole('button', { name: 'Añadir', exact: true })
         await expect(heading).toBeVisible()
         await expect(addCta).toBeVisible()
         for (const locator of [heading, addCta]) {

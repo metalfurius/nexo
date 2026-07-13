@@ -38,6 +38,7 @@ test.describe('Regresiones de continuidad 1.1.50', () => {
     await editor.getByRole('button', { name: 'Guardar ficha' }).click()
 
     await page.getByRole('button', { name: 'Inicio', exact: true }).click()
+    await page.getByLabel('Historial de actividad').click()
     const activity = page.getByTestId('session-activity')
     await expect(activity).toContainText('Obra anadida')
     await expect(activity).toContainText('Historial 1.1.50')

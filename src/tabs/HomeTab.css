@@ -1,99 +1,94 @@
 .home-surface {
   display: grid;
-  gap: 26px;
+  gap: 18px;
   min-width: 0;
   position: relative;
 }
 
-.home-surface::before {
-  background:
-    radial-gradient(circle, color-mix(in srgb, var(--accent-warm) 48%, transparent) 0 2px, transparent 2.5px),
-    linear-gradient(90deg, color-mix(in srgb, var(--atlas-line) 42%, transparent), transparent 76%);
-  background-position: 0 50%, 0 50%;
-  background-repeat: no-repeat;
-  background-size: 5px 5px, min(420px, 38vw) 1px;
-  content: '';
-  height: 5px;
-  pointer-events: none;
-  position: absolute;
-  right: 0;
-  top: 18px;
-  width: min(440px, 38vw);
+.home-route-summary {
+  align-items: center;
+  animation: home-enter var(--motion-enter) var(--ease-enter) backwards;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+  min-height: 58px;
+  padding: 4px 0 13px;
 }
 
-.home-atlas-intro {
-  align-items: end;
-  display: grid;
-  gap: 28px;
-  grid-template-columns: minmax(0, 1fr) auto;
-  min-width: 0;
-  padding: 8px 2px 4px;
-  position: relative;
-}
-
-.home-atlas-title {
-  display: grid;
-  gap: 6px;
+.home-route-counts {
+  align-items: center;
+  color: var(--text);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 13px;
+  font-weight: 750;
+  gap: 10px 17px;
   min-width: 0;
 }
 
-.home-atlas-title .eyebrow {
+.home-route-counts > svg {
+  color: var(--accent-dark);
+  flex: 0 0 auto;
+}
+
+.home-route-counts > span {
   align-items: center;
   display: inline-flex;
-  gap: 7px;
-  width: max-content;
+  gap: 5px;
+  white-space: nowrap;
 }
 
-.home-atlas-title h2 {
-  color: var(--atlas-ink);
-  font-family: var(--font-display);
-  font-size: clamp(52px, 6.4vw, 92px);
-  font-weight: 400;
-  letter-spacing: -0.045em;
-  line-height: 0.86;
-  margin: 0;
-  max-width: 11ch;
-  text-wrap: balance;
+.home-route-counts > span::before {
+  background: var(--accent);
+  border-radius: 999px;
+  content: '';
+  height: 5px;
+  width: 5px;
 }
 
-.home-atlas-title p {
-  border-left: 2px solid var(--atlas-line-strong);
-  color: var(--muted);
-  font-size: 14px;
-  line-height: 1.55;
-  margin: 9px 0 0;
-  max-width: 64ch;
-  padding-left: 14px;
+.home-route-counts > span:nth-of-type(2)::before {
+  background: var(--accent-warm);
+}
+
+.home-route-counts > span:nth-of-type(3)::before {
+  background: color-mix(in srgb, var(--accent-warm) 62%, var(--text));
+}
+
+.home-route-counts strong {
+  color: var(--text-strong);
+  font-size: 16px;
+  font-weight: 900;
 }
 
 .home-hero-actions {
   align-items: center;
   display: flex;
-  flex-wrap: wrap;
+  flex: 0 0 auto;
   gap: 8px;
-  justify-content: flex-end;
 }
 
-.home-hero-actions > button,
-.home-atlas-intro.empty > .primary-button {
-  min-height: 48px;
+.home-hero-actions > button {
+  min-height: 44px;
   white-space: nowrap;
 }
 
 .home-status {
   align-items: center;
-  background: var(--atlas-paper);
+  animation: home-feedback-enter 180ms var(--ease-enter) both;
+  background: var(--surface-raised);
+  border: 1px solid color-mix(in srgb, var(--accent) 50%, var(--border));
   border-left: 3px solid var(--accent);
+  border-radius: 9px;
   color: var(--text);
   display: flex;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 750;
   gap: 12px;
   justify-content: space-between;
-  margin: -8px 0 0;
   min-height: 42px;
   overflow: hidden;
-  padding: 8px 12px;
+  padding: 7px 11px;
 }
 
 .home-status > span {
@@ -110,7 +105,7 @@
   cursor: pointer;
   flex: 0 0 auto;
   font: inherit;
-  min-height: 32px;
+  min-height: 44px;
   padding: 4px 8px;
 }
 
@@ -127,160 +122,104 @@
   border: 0;
   box-shadow: none;
   display: grid;
-  gap: 14px;
+  gap: 12px;
   min-width: 0;
   padding: 0;
 }
 
 .home-surface .atlas-now {
+  animation: home-focus-enter 240ms var(--ease-enter) backwards;
   grid-column: span 7;
 }
 
 .home-surface .atlas-next {
-  background:
-    linear-gradient(145deg, color-mix(in srgb, var(--accent-soft) 18%, transparent), transparent 58%),
-    var(--atlas-paper);
-  border: 1px solid color-mix(in srgb, var(--atlas-line) 72%, var(--border));
-  border-radius: 4px var(--atlas-radius-large) 4px var(--atlas-radius-large);
+  animation: home-enter 220ms 48ms var(--ease-enter) backwards;
   grid-column: span 5;
-  padding: 18px;
 }
 
 .home-surface .atlas-later {
-  border-bottom: 1px solid color-mix(in srgb, var(--atlas-line) 66%, var(--border));
-  border-top: 1px solid color-mix(in srgb, var(--atlas-line) 66%, var(--border));
+  border-top: 1px solid var(--border);
   grid-column: 1 / -1;
-  padding: 22px 0 20px;
-}
-
-.home-journey-grid.hero-next-chapter .atlas-now,
-.home-journey-grid.hero-invitation .atlas-now {
-  grid-column: span 4;
-}
-
-.home-journey-grid.hero-next-chapter .atlas-next,
-.home-journey-grid.hero-invitation .atlas-next {
-  grid-column: span 8;
+  padding-top: 16px;
 }
 
 .atlas-section-heading {
   align-items: center;
-  display: grid;
-  gap: 11px;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  min-width: 0;
-}
-
-.atlas-section-heading > span {
-  color: var(--accent-dark);
-  font-family: var(--font-display);
-  font-size: 25px;
-  line-height: 1;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  min-height: 30px;
 }
 
 .atlas-section-heading > div {
-  display: grid;
-  gap: 1px;
   min-width: 0;
 }
 
 .atlas-section-heading h3 {
   color: var(--text-strong);
-  font-family: var(--font-display);
-  font-size: 27px;
-  font-weight: 400;
-  letter-spacing: -0.025em;
-  line-height: 1;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  line-height: 1.2;
   margin: 0;
-}
-
-.atlas-section-heading p {
-  color: var(--muted);
-  font-size: 11px;
-  line-height: 1.3;
-  margin: 0;
+  text-transform: uppercase;
 }
 
 .atlas-section-heading > strong,
 .now-companions > header strong {
   align-items: center;
-  border: 1px solid color-mix(in srgb, var(--atlas-line) 74%, var(--border));
+  border: 1px solid var(--border);
   border-radius: 999px;
   color: var(--muted);
   display: inline-flex;
-  font-size: 11px;
-  height: 28px;
+  font-size: 10px;
+  height: 25px;
   justify-content: center;
-  min-width: 28px;
+  min-width: 25px;
   padding: 0 7px;
-}
-
-.home-surface .roadmap-list {
-  display: grid;
-  gap: 10px;
-  min-width: 0;
-}
-
-.home-surface .roadmap-card {
-  min-width: 0;
-  position: relative;
 }
 
 .journey-feature-card {
   background:
-    radial-gradient(circle at 86% 16%, color-mix(in srgb, var(--accent-warm) 28%, transparent), transparent 30%),
-    linear-gradient(145deg, #182125, #090d0f 72%);
-  border: 1px solid color-mix(in srgb, #fff 13%, transparent);
-  border-radius: var(--atlas-radius-large) 4px var(--atlas-radius-large) 4px;
-  box-shadow: var(--atlas-shadow-poster);
+    linear-gradient(90deg, rgba(5, 9, 11, 0.96), rgba(5, 9, 11, 0.68) 60%, rgba(5, 9, 11, 0.35)),
+    linear-gradient(145deg, #142023, #080c0e);
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--border));
+  border-radius: 14px;
+  box-shadow: 0 18px 48px color-mix(in srgb, #000 30%, transparent);
   display: grid;
   isolation: isolate;
-  min-height: 420px;
+  min-height: 340px;
   overflow: hidden;
-  padding: 24px;
+  padding: 18px;
+  position: relative;
 }
 
 .journey-feature-atmosphere {
   background-image:
-    linear-gradient(90deg, rgba(5, 8, 10, 0.96) 0%, rgba(5, 8, 10, 0.76) 48%, rgba(5, 8, 10, 0.38) 100%),
-    linear-gradient(0deg, rgba(5, 8, 10, 0.86), transparent 68%),
+    linear-gradient(90deg, rgba(5, 8, 10, 0.82), rgba(5, 8, 10, 0.42)),
     var(--item-poster-image, linear-gradient(145deg, var(--accent-soft), var(--accent-warm-soft)));
   background-position: center;
   background-size: cover;
-  filter: blur(14px) saturate(0.86);
-  inset: -28px;
-  opacity: 0.78;
+  filter: blur(10px) saturate(0.84);
+  inset: -18px;
+  opacity: 0.62;
   pointer-events: none;
   position: absolute;
-  transform: scale(1.08);
-  z-index: -2;
-}
-
-.journey-feature-card::after {
-  background:
-    radial-gradient(circle at 20% 22%, rgba(255, 255, 255, 0.08) 0 1px, transparent 1.4px),
-    repeating-linear-gradient(115deg, transparent 0 36px, rgba(255, 255, 255, 0.025) 36px 37px);
-  background-size: 8px 8px, auto;
-  content: '';
-  inset: 0;
-  mix-blend-mode: soft-light;
-  opacity: 0.44;
-  pointer-events: none;
-  position: absolute;
+  transform: scale(1.06);
   z-index: -1;
 }
 
 .journey-feature-main {
   align-items: center;
-  align-self: stretch;
   background: transparent;
   border: 0;
   color: #fff;
   cursor: pointer;
   display: grid;
   font: inherit;
-  gap: clamp(20px, 3vw, 38px);
-  grid-template-columns: clamp(142px, 34%, 210px) minmax(0, 1fr);
+  gap: clamp(18px, 2.5vw, 34px);
+  grid-template-columns: clamp(150px, 29%, 195px) minmax(0, 1fr);
   min-width: 0;
   padding: 0;
   text-align: left;
@@ -289,28 +228,28 @@
 
 .journey-feature-main .cover-art {
   aspect-ratio: 2 / 3;
-  border: 1px solid rgba(255, 255, 255, 0.24);
-  border-radius: 3px 18px 3px 18px;
-  box-shadow: 0 28px 58px rgba(0, 0, 0, 0.52);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  box-shadow: 0 20px 42px rgba(0, 0, 0, 0.42);
   height: auto;
-  max-height: 300px;
-  min-height: 214px;
-  transform: rotate(-1.5deg);
+  max-height: 280px;
+  min-height: 210px;
+  transform: none;
   width: 100%;
 }
 
 .journey-feature-copy {
   align-content: center;
   display: grid;
-  gap: 8px;
+  gap: 9px;
   min-width: 0;
 }
 
 .journey-feature-copy > small {
-  color: #b7f0ee;
+  color: #9ee8e5;
   font-size: 10px;
-  font-weight: 850;
-  letter-spacing: 0.08em;
+  font-weight: 900;
+  letter-spacing: 0.06em;
   line-height: 1.3;
   text-transform: uppercase;
 }
@@ -318,87 +257,49 @@
 .journey-feature-copy > strong {
   color: #fff;
   display: -webkit-box;
-  font-family: var(--font-display);
-  font-size: clamp(36px, 4vw, 58px);
-  font-weight: 400;
-  letter-spacing: -0.035em;
-  line-height: 0.94;
+  font-family: inherit;
+  font-size: clamp(34px, 3.2vw, 52px);
+  font-weight: 850;
+  letter-spacing: -0.045em;
+  line-height: 0.98;
   overflow: hidden;
   overflow-wrap: anywhere;
-  text-wrap: balance;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
 }
 
 .journey-feature-copy > em {
-  color: rgba(255, 255, 255, 0.78);
+  color: rgba(255, 255, 255, 0.76);
   font-size: 13px;
   font-style: normal;
-  font-weight: 700;
-}
-
-.journey-feature-note {
-  border-left: 1px solid rgba(255, 255, 255, 0.36);
-  color: rgba(255, 255, 255, 0.66);
-  font-family: var(--font-display);
-  font-size: 17px;
-  line-height: 1.2;
-  margin-top: 8px;
-  padding-left: 10px;
+  font-weight: 750;
 }
 
 .journey-feature-actions {
   align-items: center;
-  align-self: end;
-  display: grid;
+  display: flex;
   gap: 8px;
-  grid-template-columns: minmax(0, 1fr) 44px;
-  margin-top: 20px;
+  margin-top: 16px;
   min-width: 0;
   position: relative;
   z-index: 4;
 }
 
 .journey-feature-actions > .primary-button {
-  min-height: 46px;
-  width: 100%;
+  min-height: 44px;
+  min-width: min(230px, calc(100% - 52px));
+  width: auto;
 }
 
-.now-companions {
-  border-top: 1px solid color-mix(in srgb, var(--atlas-line) 62%, var(--border));
+.home-surface .roadmap-list {
   display: grid;
-  gap: 10px;
-  padding-top: 13px;
+  gap: 0;
+  min-width: 0;
 }
 
-.now-companions > header {
-  align-items: center;
-  color: var(--muted);
-  display: flex;
-  font-size: 10px;
-  font-weight: 850;
-  justify-content: space-between;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-}
-
-.now-companions > header strong {
-  height: 23px;
-  min-width: 23px;
-}
-
-.now-companions > div {
-  display: grid;
-  gap: 9px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.now-companion {
-  border-bottom: 1px solid color-mix(in srgb, var(--atlas-line) 58%, var(--border));
-  display: grid;
-  gap: 7px;
-  grid-template-columns: minmax(0, 1fr) auto;
-  padding: 7px 0 10px;
+.home-surface .roadmap-card {
+  min-width: 0;
+  position: relative;
 }
 
 .home-surface .roadmap-card-main:not(.journey-feature-main) {
@@ -417,14 +318,10 @@
   width: 100%;
 }
 
-.home-surface .roadmap-card-main:not(.journey-feature-main):hover strong {
-  color: var(--accent-dark);
-}
-
 .home-surface .roadmap-card-main:not(.journey-feature-main) .cover-art {
   aspect-ratio: 2 / 3;
-  border-radius: 2px 9px 2px 9px;
-  box-shadow: 0 9px 22px color-mix(in srgb, #000 32%, transparent);
+  border-radius: 7px;
+  box-shadow: 0 8px 18px color-mix(in srgb, #000 26%, transparent);
   height: 81px;
   width: 54px;
 }
@@ -435,16 +332,11 @@
   min-width: 0;
 }
 
-.home-surface .roadmap-card-main:not(.journey-feature-main) small,
-.home-surface .roadmap-card-main:not(.journey-feature-main) strong,
-.home-surface .roadmap-card-main:not(.journey-feature-main) em {
-  min-width: 0;
-}
-
 .home-surface .roadmap-card-main:not(.journey-feature-main) small {
   color: var(--accent-dark);
   font-size: 9px;
-  font-weight: 850;
+  font-weight: 900;
+  letter-spacing: 0.035em;
   line-height: 1.25;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -456,10 +348,10 @@
   color: var(--text-strong);
   display: -webkit-box;
   font-size: 13px;
-  line-height: 1.26;
+  font-weight: 800;
+  line-height: 1.25;
   overflow: hidden;
   overflow-wrap: anywhere;
-  transition: color var(--motion-fast) ease;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
@@ -474,134 +366,214 @@
   white-space: nowrap;
 }
 
-.now-companion .roadmap-card-main {
-  grid-column: 1 / -1;
+.now-companions {
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 9px;
+  padding-top: 12px;
+}
+
+.now-companions > header {
+  align-items: center;
+  color: var(--accent-dark);
+  display: flex;
+  font-size: 10px;
+  font-weight: 900;
+  justify-content: space-between;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.now-companions > div {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.now-companion {
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) 44px;
+  padding: 7px 0 10px;
+}
+
+.now-companion .roadmap-card-actions {
+  display: block;
+}
+
+.journey-poster-grid {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: visible;
+}
+
+.atlas-poster-card {
+  align-items: center;
+  background: color-mix(in srgb, var(--surface-raised) 56%, transparent);
+  border-bottom: 1px solid var(--border);
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-height: 100px;
+  padding: 9px 10px;
+  transition: background-color 160ms ease, border-color 160ms ease;
+}
+
+.atlas-poster-card:last-child {
+  border-bottom: 0;
 }
 
 .home-surface .roadmap-card-actions:not(.journey-feature-actions) {
   align-items: center;
   display: grid;
   gap: 6px;
-  grid-template-columns: minmax(0, 1fr) 38px;
+  grid-template-columns: auto 44px;
   min-width: 0;
-}
-
-.now-companion .roadmap-card-actions {
-  grid-column: 1 / -1;
 }
 
 .home-surface .roadmap-card-actions > .primary-button,
 .home-surface .roadmap-card-actions > .secondary-button {
   font-size: 10px;
-  min-height: 38px;
+  min-height: 44px;
+  min-width: 86px;
+  padding: 0 10px;
+  width: auto;
+}
+
+.atlas-timeline {
+  display: grid !important;
+  gap: 12px !important;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.atlas-timeline-card {
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  display: grid;
+  gap: 0;
   min-width: 0;
-  padding: 0 8px;
+  overflow: visible;
+  position: relative;
+}
+
+.atlas-timeline-node {
+  display: none;
+}
+
+.home-surface .atlas-timeline-card .roadmap-card-main {
+  border-radius: 11px 11px 0 0;
+  display: block;
+  overflow: hidden;
+  position: relative;
+}
+
+.home-surface .roadmap-card:has(.roadmap-card-menu[open]) {
+  position: relative;
+  z-index: 60;
+}
+
+.home-surface .atlas-timeline-card .roadmap-card-main .cover-art {
+  aspect-ratio: 16 / 10;
+  border-radius: 0;
+  box-shadow: none;
+  height: auto;
   width: 100%;
 }
 
-.journey-poster-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+.atlas-timeline-card .roadmap-card-main > span {
+  background: linear-gradient(180deg, transparent, rgba(4, 7, 9, 0.9));
+  bottom: 0;
+  color: #fff;
+  gap: 2px !important;
+  left: 0;
+  padding: 30px 10px 9px;
+  position: absolute;
+  right: 0;
 }
 
-.atlas-poster-card {
-  border-bottom: 1px solid color-mix(in srgb, var(--atlas-line) 58%, var(--border));
-  display: grid;
-  gap: 9px;
-  padding: 8px 0 13px;
+.atlas-timeline-card .roadmap-card-main small,
+.atlas-timeline-card .roadmap-card-main em {
+  color: rgba(255, 255, 255, 0.72) !important;
 }
 
-.atlas-next .journey-feature-card {
-  margin-bottom: 5px;
+.atlas-timeline-card .roadmap-card-main strong {
+  color: #fff !important;
 }
 
-.hero-next-chapter .atlas-next .journey-feature-card {
-  min-height: 390px;
+.atlas-timeline-card .roadmap-card-actions {
+  border-top: 1px solid var(--border);
+  grid-template-columns: minmax(0, 1fr) 44px !important;
+  padding: 8px;
+}
+
+.atlas-timeline-card .roadmap-card-actions > .secondary-button {
+  width: 100%;
 }
 
 .atlas-lane-empty {
   align-items: center;
-  border: 1px dashed color-mix(in srgb, var(--atlas-line) 72%, var(--border));
+  border: 1px dashed var(--border);
+  border-radius: 10px;
   color: var(--muted);
   display: grid;
   font-size: 12px;
-  gap: 11px;
+  gap: 10px;
   grid-column: 1 / -1;
   grid-template-columns: auto minmax(0, 1fr);
-  min-height: 90px;
-  padding: 15px;
+  min-height: 76px;
+  padding: 13px;
 }
 
 .atlas-lane-empty svg {
   color: var(--accent-dark);
 }
 
-.atlas-lane-empty span {
-  display: grid;
-  gap: 2px;
-}
-
 .atlas-lane-empty strong {
   color: var(--text-strong);
-  font-family: var(--font-display);
-  font-size: 18px;
-  font-weight: 400;
-}
-
-.atlas-lane-empty small {
-  color: var(--muted);
-  font-size: 11px;
-}
-
-.now-empty {
-  align-self: stretch;
-  min-height: 190px;
+  font-size: 13px;
 }
 
 .atlas-invitation {
   align-content: center;
-  background:
-    radial-gradient(circle at 82% 12%, color-mix(in srgb, var(--accent-warm-soft) 86%, transparent), transparent 34%),
-    linear-gradient(140deg, var(--atlas-paper), color-mix(in srgb, var(--surface) 88%, var(--accent-soft)));
-  border: 1px solid color-mix(in srgb, var(--atlas-line) 74%, var(--border));
-  border-radius: var(--atlas-radius-large) 4px var(--atlas-radius-large) 4px;
+  background: linear-gradient(135deg, var(--surface-raised), color-mix(in srgb, var(--accent-soft) 36%, var(--surface)));
+  border: 1px solid color-mix(in srgb, var(--accent) 36%, var(--border));
+  border-radius: 14px;
   display: grid;
-  gap: 20px;
+  gap: 16px;
   min-height: 300px;
-  padding: clamp(22px, 4vw, 42px);
-  position: relative;
+  padding: clamp(22px, 4vw, 38px);
 }
 
 .atlas-invitation-mark {
   align-items: center;
-  border: 1px solid var(--atlas-line-strong);
+  border: 1px solid var(--accent);
   border-radius: 999px;
   color: var(--accent-dark);
   display: inline-flex;
-  height: 50px;
+  height: 46px;
   justify-content: center;
-  width: 50px;
+  width: 46px;
 }
 
 .atlas-invitation > div:not(.atlas-invitation-actions) {
   display: grid;
-  gap: 6px;
-  max-width: 54ch;
+  gap: 5px;
 }
 
 .atlas-invitation > div > strong {
   color: var(--text-strong);
-  font-family: var(--font-display);
-  font-size: clamp(31px, 4vw, 47px);
-  font-weight: 400;
-  letter-spacing: -0.03em;
-  line-height: 0.98;
-  text-wrap: balance;
+  font-size: clamp(28px, 3vw, 42px);
+  letter-spacing: -0.035em;
+  line-height: 1;
 }
 
 .atlas-invitation p {
   color: var(--muted);
   font-size: 12px;
-  margin: 3px 0 0;
+  margin: 0;
 }
 
 .atlas-invitation-actions {
@@ -610,63 +582,10 @@
   gap: 8px;
 }
 
-.atlas-timeline {
-  display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  padding-top: 25px;
-  position: relative;
-}
-
-.atlas-timeline::before {
-  background: linear-gradient(90deg, var(--atlas-line-strong), var(--atlas-line), transparent);
-  content: '';
-  height: 1px;
-  left: 8px;
-  position: absolute;
-  right: 8px;
-  top: 10px;
-}
-
-.atlas-timeline-card {
-  display: grid;
-  gap: 9px;
-  padding: 7px 0 0;
-  position: relative;
-}
-
-.atlas-timeline-node {
-  background: var(--surface-raised);
-  border: 2px solid var(--accent-warm);
-  border-radius: 999px;
-  box-shadow: 0 0 0 5px color-mix(in srgb, var(--surface) 86%, transparent);
-  height: 10px;
-  left: 8px;
-  position: absolute;
-  top: -19px;
-  width: 10px;
-}
-
-.atlas-timeline-card .roadmap-card-main {
-  align-items: start;
-  grid-template-columns: 48px minmax(0, 1fr);
-}
-
-.home-surface .atlas-timeline-card .roadmap-card-main .cover-art {
-  height: 72px;
-  width: 48px;
-}
-
-.later-empty {
-  grid-column: 1 / -1;
-}
-
 .roadmap-expand {
   align-items: center;
-  align-self: end;
   background: transparent;
   border: 0;
-  border-bottom: 1px solid currentColor;
   color: var(--accent-dark);
   cursor: pointer;
   display: inline-flex;
@@ -674,7 +593,7 @@
   font-size: 11px;
   font-weight: 850;
   justify-self: end;
-  min-height: 34px;
+  min-height: 44px;
   padding: 4px 2px;
 }
 
@@ -688,22 +607,22 @@
 
 .roadmap-card-menu > summary {
   align-items: center;
-  background: color-mix(in srgb, var(--surface-muted) 86%, transparent);
-  border: 1px solid color-mix(in srgb, var(--atlas-line) 72%, var(--border));
-  border-radius: 999px;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 9px;
   color: var(--muted);
   cursor: pointer;
   display: flex;
-  height: 38px;
+  height: 44px;
   justify-content: center;
   list-style: none;
-  width: 38px;
+  width: 44px;
 }
 
 .journey-feature-card .roadmap-card-menu > summary {
   background: rgba(5, 8, 10, 0.62);
   border-color: rgba(255, 255, 255, 0.24);
-  color: rgba(255, 255, 255, 0.78);
+  color: rgba(255, 255, 255, 0.84);
   height: 44px;
   width: 44px;
 }
@@ -714,7 +633,7 @@
 
 .roadmap-card-menu > summary:focus-visible {
   outline: 2px solid var(--focus);
-  outline-offset: 3px;
+  outline-offset: 2px;
 }
 
 .roadmap-card-menu[open] > summary {
@@ -724,21 +643,17 @@
 }
 
 .roadmap-card-menu > div {
-  animation: atlas-menu-enter var(--motion-fast) var(--motion-ease) both;
+  animation: home-menu-enter 140ms var(--ease-enter) both;
   background: var(--surface-raised);
   border: 1px solid var(--border);
-  border-radius: var(--atlas-radius-small);
-  bottom: calc(100% + 8px);
-  box-shadow: var(--atlas-shadow-soft);
+  border-radius: 10px;
+  box-shadow: 0 16px 38px color-mix(in srgb, #000 34%, transparent);
   display: grid;
-  gap: 2px;
-  max-height: min(440px, calc(100vh - 80px));
-  min-width: 220px;
-  overflow-y: auto;
-  padding: 6px;
+  min-width: 210px;
+  padding: 5px;
   position: absolute;
   right: 0;
-  width: max-content;
+  top: calc(100% + 6px);
   z-index: 40;
 }
 
@@ -748,577 +663,414 @@
   border: 0;
   border-radius: 7px;
   color: var(--text);
-  cursor: pointer;
   display: flex;
   font: inherit;
   font-size: 12px;
   gap: 8px;
-  justify-content: flex-start;
-  min-height: 35px;
-  padding: 5px 9px;
+  min-height: 44px;
+  padding: 7px 9px;
   text-align: left;
-  width: 100%;
 }
 
-.roadmap-card-menu > div > button:hover:not(:disabled),
-.roadmap-card-menu > div > button:focus-visible {
-  background: var(--surface-muted);
+.roadmap-card-menu > div > button:hover:not(:disabled) {
+  background: var(--accent-soft);
   color: var(--text-strong);
 }
 
-.roadmap-card-menu > div > button:disabled {
+.roadmap-card-menu > div > button:disabled,
+.roadmap-card-menu > summary[aria-disabled='true'] {
   cursor: not-allowed;
-  opacity: 0.38;
+  opacity: 0.46;
+}
+
+.roadmap-card[data-pending='true'] {
+  border-color: var(--accent);
+}
+
+.roadmap-card[data-pending='true']::after {
+  animation: home-pending 320ms var(--ease-enter) both;
+  border: 2px solid var(--accent);
+  border-radius: inherit;
+  content: '';
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
 }
 
 .home-credits {
-  align-items: start;
-  border-bottom: 1px solid color-mix(in srgb, var(--atlas-line) 64%, var(--border));
-  border-top: 1px solid color-mix(in srgb, var(--atlas-line) 64%, var(--border));
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  border-top: 1px solid var(--border);
   display: grid;
-  gap: 26px;
-  grid-template-columns: minmax(230px, 0.72fr) minmax(0, 1.6fr);
-  padding: 20px 0;
-}
-
-.home-credits > header {
-  display: grid;
-  gap: 4px;
+  gap: 14px;
+  grid-template-columns: 130px minmax(0, 1fr);
+  padding: 12px 0;
 }
 
 .home-credits h3 {
   color: var(--text-strong);
-  font-family: var(--font-display);
-  font-size: 27px;
-  font-weight: 400;
-  letter-spacing: -0.02em;
-  line-height: 1.05;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
   margin: 0;
-  text-wrap: balance;
+  text-transform: uppercase;
 }
 
 .home-credits > div {
   display: grid;
-  gap: 6px;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .home-credits > div > button {
   align-items: center;
   background: transparent;
-  border: 0;
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  border: 1px solid transparent;
+  border-radius: 9px;
   color: var(--text);
-  cursor: pointer;
   display: grid;
   font: inherit;
-  gap: 11px;
-  grid-template-columns: 25px 34px minmax(0, 1fr) auto;
+  gap: 8px;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
   min-height: 54px;
-  padding: 4px 3px;
+  padding: 5px;
   text-align: left;
 }
 
 .home-credits > div > button > span {
-  color: var(--accent-dark);
-  font-family: var(--font-display);
-  font-size: 17px;
+  display: none;
 }
 
 .home-credits .cover-art {
-  border-radius: 2px 6px 2px 6px;
-  height: 45px;
+  border-radius: 6px;
+  height: 44px;
   width: 30px;
 }
 
 .home-credits > div > button > strong {
-  color: var(--text-strong);
-  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.home-credits > div > button:hover > strong,
-.home-credits > div > button:hover > svg {
-  color: var(--accent-dark);
+.home-credits > div > button:hover {
+  background: var(--surface-raised);
+  border-color: var(--border);
 }
 
-.home-surface > .session-activity-panel {
-  background: transparent;
-  border: 0;
-  border-top: 1px solid color-mix(in srgb, var(--atlas-line) 52%, var(--border));
-  border-radius: 0;
-  margin: -6px 0 0;
-  padding: 14px 0 0;
+.home-activity-disclosure {
+  border-bottom: 1px solid var(--border);
+}
+
+.home-activity-disclosure > summary {
+  align-items: center;
+  color: var(--muted);
+  cursor: pointer;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  list-style: none;
+  min-height: 48px;
+  padding: 5px 2px;
+}
+
+.home-activity-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
+.home-activity-disclosure > summary > span {
+  color: var(--text-strong);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.home-activity-disclosure > summary > strong {
+  font-size: 12px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.home-activity-disclosure[open] > summary > svg {
+  transform: rotate(180deg);
+}
+
+.home-activity-disclosure > .session-activity-panel {
+  margin: 0 0 12px;
 }
 
 .home-empty-atlas {
-  min-height: min(720px, calc(100vh - 120px));
+  align-content: center;
+  min-height: min(620px, calc(100dvh - 130px));
 }
 
 .home-atlas-intro.empty {
   align-items: center;
-  min-height: 280px;
-  padding-block: clamp(24px, 7vh, 78px);
+  background: linear-gradient(135deg, var(--surface-raised), color-mix(in srgb, var(--accent-soft) 42%, var(--surface)));
+  border: 1px solid color-mix(in srgb, var(--accent) 38%, var(--border));
+  border-radius: 14px;
+  display: grid;
+  gap: 24px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: clamp(24px, 5vw, 56px);
 }
 
-.home-atlas-intro.empty .home-atlas-title h2 {
-  max-width: 14ch;
+.home-atlas-title {
+  display: grid;
+  gap: 7px;
+}
+
+.home-atlas-title .eyebrow {
+  align-items: center;
+  display: inline-flex;
+  gap: 7px;
+}
+
+.home-atlas-title h2 {
+  color: var(--text-strong);
+  font-family: inherit;
+  font-size: clamp(34px, 4vw, 54px);
+  font-weight: 850;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  margin: 0;
+  max-width: 18ch;
+}
+
+.home-atlas-title p {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+  margin: 0;
+  max-width: 52ch;
 }
 
 .home-onboarding {
   display: grid;
-  gap: 0;
+  gap: 1px;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  position: relative;
 }
 
 .home-onboarding-route {
-  background: linear-gradient(90deg, var(--atlas-line-strong), var(--atlas-line), transparent);
-  height: 1px;
-  left: 34px;
-  pointer-events: none;
-  position: absolute;
-  right: 34px;
-  top: 29px;
+  display: none;
 }
 
 .home-onboarding > button {
-  align-content: start;
+  align-items: center;
   background: transparent;
   border: 0;
+  border-top: 1px solid var(--border);
   color: var(--text);
-  cursor: pointer;
   display: grid;
   font: inherit;
-  gap: 14px 10px;
-  grid-template-columns: 44px minmax(0, 1fr);
-  min-height: 190px;
-  padding: 4px clamp(14px, 2.3vw, 34px) 24px;
-  position: relative;
+  gap: 9px;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  min-height: 82px;
+  padding: 12px;
   text-align: left;
 }
 
 .home-onboarding > button + button {
-  border-left: 1px solid color-mix(in srgb, var(--atlas-line) 44%, var(--border));
-}
-
-.home-onboarding > button > svg {
-  background: var(--surface-raised);
-  border: 1px solid var(--atlas-line-strong);
-  border-radius: 999px;
-  color: var(--accent-dark);
-  grid-column: 1;
-  grid-row: 1;
-  height: 52px;
-  padding: 14px;
-  position: relative;
-  width: 52px;
-  z-index: 1;
+  border-left: 1px solid var(--border);
 }
 
 .home-onboarding-index {
-  color: var(--accent-warm);
-  font-family: var(--font-display);
-  font-size: 18px;
-  grid-column: 2;
-  grid-row: 1;
-  justify-self: end;
+  color: var(--accent-dark);
+  font-size: 10px;
+  font-weight: 900;
 }
 
 .home-onboarding > button > span:last-child {
   display: grid;
-  gap: 5px;
-  grid-column: 1 / -1;
+  gap: 2px;
 }
 
 .home-onboarding strong {
   color: var(--text-strong);
-  font-family: var(--font-display);
-  font-size: 30px;
-  font-weight: 400;
-  line-height: 1;
+  font-size: 14px;
 }
 
 .home-onboarding small {
   color: var(--muted);
-  font-size: 12px;
-  line-height: 1.45;
-}
-
-.home-onboarding > button:hover:not(:disabled) strong {
-  color: var(--accent-dark);
+  font-size: 10px;
 }
 
 .home-onboarding > button:disabled {
-  cursor: not-allowed;
   opacity: 0.52;
 }
 
 .home-loading {
-  overflow: hidden;
+  min-height: 520px;
 }
 
 .home-loading-intro,
 .home-loading-grid > div {
-  animation: atlas-loading 1.2s ease-in-out infinite alternate;
-  background: linear-gradient(100deg, var(--surface-muted), var(--surface-elevated), var(--surface-muted));
-  background-size: 220% 100%;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  position: relative;
+}
+
+.home-loading-intro::after,
+.home-loading-grid > div::after {
+  animation: home-skeleton 1.4s linear infinite;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--text-strong) 7%, transparent), transparent);
+  content: '';
+  inset: 0;
+  position: absolute;
+  transform: translateX(-100%);
 }
 
 .home-loading-intro {
-  height: 150px;
-  width: min(620px, 82%);
+  height: 58px;
+  width: 100%;
 }
 
 .home-loading-grid {
   display: grid;
-  gap: 18px;
-  grid-template-columns: 1.35fr 0.8fr;
+  gap: 20px;
+  grid-template-columns: 7fr 5fr;
 }
 
 .home-loading-grid > div {
-  border-radius: var(--atlas-radius-large) 4px var(--atlas-radius-large) 4px;
-  min-height: 390px;
+  min-height: 350px;
 }
 
 .home-loading-grid > div:last-child {
   grid-column: 1 / -1;
-  min-height: 150px;
+  min-height: 180px;
 }
 
-@keyframes atlas-menu-enter {
-  from { opacity: 0; transform: translateY(6px) scale(0.98); }
+@media (hover: hover) and (pointer: fine) {
+  .journey-feature-card,
+  .atlas-poster-card,
+  .atlas-timeline-card {
+    transition: border-color 180ms var(--ease-enter), transform 180ms var(--ease-enter);
+  }
+
+  .journey-feature-card:hover,
+  .atlas-poster-card:hover,
+  .atlas-timeline-card:hover {
+    border-color: color-mix(in srgb, var(--accent) 62%, var(--border));
+    transform: translateY(-2px);
+  }
+
+  .journey-feature-main .cover-art,
+  .atlas-timeline-card .cover-art {
+    transition: transform 180ms var(--ease-enter);
+  }
+
+  .journey-feature-card:hover .journey-feature-main .cover-art,
+  .atlas-timeline-card:hover .cover-art {
+    transform: scale(1.015);
+  }
+}
+
+@keyframes home-enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes home-focus-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes home-feedback-enter {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes home-menu-enter {
+  from { opacity: 0; transform: translateY(4px) scale(0.985); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-@keyframes atlas-loading {
-  from { background-position: 100% 0; opacity: 0.58; }
-  to { background-position: 0 0; opacity: 0.94; }
+@keyframes home-pending {
+  from { opacity: 0.85; }
+  to { opacity: 0; }
+}
+
+@keyframes home-skeleton {
+  to { transform: translateX(100%); }
 }
 
 @media (max-width: 1099px) {
-  .home-journey-grid,
-  .home-journey-grid.hero-next-chapter,
-  .home-journey-grid.hero-invitation {
+  .home-journey-grid {
     grid-template-columns: 1fr;
   }
 
   .home-surface .atlas-now,
   .home-surface .atlas-next,
-  .home-surface .atlas-later,
-  .home-journey-grid.hero-next-chapter .atlas-now,
-  .home-journey-grid.hero-next-chapter .atlas-next,
-  .home-journey-grid.hero-invitation .atlas-now,
-  .home-journey-grid.hero-invitation .atlas-next {
+  .home-surface .atlas-later {
     grid-column: 1;
+  }
+
+  .journey-poster-grid {
+    display: grid;
+    gap: 0;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .atlas-poster-card:nth-child(odd) {
+    border-right: 1px solid var(--border);
   }
 
   .atlas-timeline {
-    gap: 0;
-    grid-template-columns: 1fr;
-    padding: 0 0 0 25px;
-  }
-
-  .atlas-timeline::before {
-    background: linear-gradient(180deg, var(--atlas-line-strong), var(--atlas-line), transparent);
-    bottom: 8px;
-    height: auto;
-    left: 5px;
-    right: auto;
-    top: 8px;
-    width: 1px;
-  }
-
-  .atlas-timeline-card {
-    border-bottom: 1px solid color-mix(in srgb, var(--border) 66%, transparent);
-    grid-template-columns: minmax(0, 1fr) minmax(160px, 0.34fr);
-    padding: 10px 0;
-  }
-
-  .atlas-timeline-node {
-    left: -24px;
-    top: 21px;
-  }
-
-  .atlas-timeline-card .roadmap-card-main {
-    grid-column: 1;
-  }
-
-  .atlas-timeline-card .roadmap-card-actions {
-    align-self: center;
-    grid-column: 2;
-  }
-
-  .later-empty {
-    margin-left: -25px;
-  }
-
-  .home-loading-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .home-loading-grid > div:last-child {
-    grid-column: 1;
-  }
-}
-
-@media (min-width: 1100px) and (max-height: 780px) {
-  .home-surface {
-    gap: 18px;
-  }
-
-  .home-atlas-title h2 {
-    font-size: 64px;
-  }
-
-  .home-atlas-title p {
-    font-size: 12px;
-    line-height: 1.4;
-    margin-top: 4px;
-  }
-
-  .home-journey-grid {
-    gap: 16px;
-  }
-
-  .home-surface .roadmap-lane {
-    gap: 10px;
-  }
-
-  .journey-feature-card {
-    min-height: 340px;
-    padding: 18px;
-  }
-
-  .journey-feature-main {
-    gap: 24px;
-    grid-template-columns: minmax(120px, 172px) minmax(0, 1fr);
-  }
-
-  .journey-feature-main .cover-art {
-    max-height: 240px;
-    min-height: 180px;
-  }
-
-  .journey-feature-copy > strong {
-    font-size: 44px;
-  }
-
-  .journey-feature-actions {
-    margin-top: 12px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 767px) {
   .home-surface {
-    gap: 19px;
+    gap: 15px;
   }
 
-  .home-surface::before {
+  .home-route-summary {
+    align-items: stretch;
+    gap: 10px;
+    min-height: 0;
+  }
+
+  .home-route-counts {
+    font-size: 10px;
+    gap: 7px 10px;
+  }
+
+  .home-route-counts > svg {
     display: none;
   }
 
-  .home-atlas-intro {
-    align-items: stretch;
-    gap: 18px;
-    grid-template-columns: 1fr;
-    padding-top: 4px;
+  .home-route-counts strong {
+    font-size: 13px;
   }
 
-  .home-atlas-title h2 {
-    font-size: clamp(51px, 16vw, 68px);
-  }
-
-  .home-atlas-title p {
-    font-size: 12px;
-    line-height: 1.45;
-    margin-top: 6px;
-  }
-
-  .home-hero-actions {
-    display: grid;
-    gap: 8px;
-    grid-template-columns: minmax(0, 0.72fr) minmax(0, 1.28fr);
-  }
-
-  .home-hero-actions > button,
-  .home-atlas-intro.empty > .primary-button {
-    font-size: 11px;
+  .home-hero-actions > button {
     min-height: 44px;
-    min-width: 0;
-    padding-inline: 8px;
-    width: 100%;
-  }
-
-  .home-status {
-    font-size: 11px;
-    margin-top: -3px;
+    padding-inline: 10px;
   }
 
   .home-journey-grid {
-    gap: 24px;
+    gap: 20px;
   }
 
-  .home-surface .atlas-next {
-    border-radius: 3px 19px 3px 19px;
-    padding: 14px;
-  }
-
-  .home-surface .atlas-later {
-    padding-block: 18px;
-  }
-
-  .atlas-section-heading h3 {
-    font-size: 25px;
-  }
-
-  .journey-feature-card,
-  .hero-next-chapter .atlas-next .journey-feature-card {
-    border-radius: 20px 3px 20px 3px;
+  .journey-feature-card {
     min-height: 0;
-    padding: 16px;
+    padding: 14px;
   }
 
   .journey-feature-main {
     align-items: center;
-    gap: 16px;
-    grid-template-columns: minmax(90px, 31%) minmax(0, 1fr);
-  }
-
-  .journey-feature-main .cover-art {
-    min-height: 150px;
-  }
-
-  .journey-feature-copy > strong {
-    font-size: clamp(31px, 10vw, 44px);
-    -webkit-line-clamp: 4;
-  }
-
-  .journey-feature-note {
-    display: none;
-  }
-
-  .journey-feature-actions {
-    margin-top: 15px;
-  }
-
-  .now-companions > div,
-  .journey-poster-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .atlas-poster-card,
-  .now-companion {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .home-surface .roadmap-card-main:not(.journey-feature-main) {
-    grid-template-columns: 50px minmax(0, 1fr);
-  }
-
-  .home-surface .roadmap-card-main:not(.journey-feature-main) .cover-art {
-    height: 75px;
-    width: 50px;
-  }
-
-  .atlas-timeline-card {
-    gap: 8px;
-    grid-template-columns: 1fr;
-  }
-
-  .atlas-timeline-card .roadmap-card-actions {
-    grid-column: 1;
-  }
-
-  .roadmap-card-menu > div {
-    max-width: calc(100vw - 36px);
-    min-width: min(220px, calc(100vw - 36px));
-  }
-
-  .home-credits {
     gap: 14px;
-    grid-template-columns: 1fr;
-    padding-block: 17px;
-  }
-
-  .home-credits h3 {
-    font-size: 24px;
-  }
-
-  .home-atlas-intro.empty {
-    align-items: stretch;
-    min-height: 0;
-    padding-block: 20px 4px;
-  }
-
-  .home-onboarding {
-    gap: 0;
-    grid-template-columns: 1fr;
-    padding-left: 20px;
-  }
-
-  .home-onboarding-route {
-    background: linear-gradient(180deg, var(--atlas-line-strong), var(--atlas-line), transparent);
-    bottom: 42px;
-    height: auto;
-    left: 45px;
-    right: auto;
-    top: 31px;
-    width: 1px;
-  }
-
-  .home-onboarding > button {
-    gap: 12px;
-    grid-template-columns: 52px minmax(0, 1fr) auto;
-    min-height: 108px;
-    padding: 10px 0 14px;
-  }
-
-  .home-onboarding > button + button {
-    border-left: 0;
-    border-top: 1px solid color-mix(in srgb, var(--atlas-line) 38%, var(--border));
-  }
-
-  .home-onboarding > button > svg {
-    grid-column: 1;
-    grid-row: 1 / span 2;
-  }
-
-  .home-onboarding-index {
-    grid-column: 3;
-    grid-row: 1;
-    padding-right: 4px;
-  }
-
-  .home-onboarding > button > span:last-child {
-    align-self: center;
-    grid-column: 2;
-    grid-row: 1 / span 2;
-  }
-
-  .home-onboarding strong {
-    font-size: 27px;
-  }
-
-  .home-loading-intro {
-    height: 130px;
-    width: 86%;
-  }
-
-  .home-loading-grid > div {
-    min-height: 320px;
-  }
-}
-
-@media (max-width: 420px) {
-  .journey-feature-main {
-    align-items: start;
-    grid-template-columns: 88px minmax(0, 1fr);
+    grid-template-columns: 96px minmax(0, 1fr);
   }
 
   .journey-feature-main .cover-art {
-    min-height: 132px;
+    min-height: 144px;
   }
 
   .journey-feature-copy > small {
@@ -1326,7 +1078,171 @@
   }
 
   .journey-feature-copy > strong {
-    font-size: 30px;
+    font-size: clamp(27px, 8vw, 36px);
+    -webkit-line-clamp: 4;
+  }
+
+  .journey-feature-copy > em {
+    font-size: 11px;
+  }
+
+  .journey-feature-actions {
+    margin-top: 12px;
+  }
+
+  .journey-feature-actions > .primary-button {
+    min-width: 0;
+  }
+
+  .now-companions > div,
+  .journey-poster-grid,
+  .atlas-timeline {
+    grid-template-columns: 1fr;
+  }
+
+  .atlas-poster-card:nth-child(odd) {
+    border-right: 0;
+  }
+
+  .atlas-poster-card {
+    min-height: 98px;
+  }
+
+  .home-surface .roadmap-card-actions:not(.journey-feature-actions) {
+    grid-template-columns: 44px;
+  }
+
+  .atlas-poster-card .roadmap-card-actions,
+  .atlas-timeline-card .roadmap-card-actions {
+    grid-template-columns: 44px 44px !important;
+  }
+
+  .atlas-poster-card .roadmap-card-actions > .primary-button,
+  .atlas-timeline-card .roadmap-card-actions > .secondary-button {
+    align-items: center;
+    clip: auto;
+    clip-path: none;
+    display: inline-flex;
+    font-size: 0;
+    height: 44px;
+    justify-content: center;
+    margin: 0;
+    min-height: 44px;
+    min-width: 44px;
+    overflow: visible;
+    padding: 0;
+    position: static;
+    white-space: normal;
+    width: 44px;
+  }
+
+  .atlas-timeline-card {
+    align-items: center;
+    border-bottom: 1px solid var(--border);
+    border-left: 0;
+    border-radius: 0;
+    border-right: 0;
+    border-top: 0;
+    display: grid;
+    gap: 8px;
+    grid-template-columns: minmax(0, 1fr) 94px;
+    padding: 8px 0;
+  }
+
+  .home-surface .atlas-timeline-card .roadmap-card-main {
+    align-items: center;
+    display: grid;
+    gap: 10px;
+    grid-template-columns: 54px minmax(0, 1fr);
+  }
+
+  .home-surface .atlas-timeline-card .roadmap-card-main .cover-art {
+    aspect-ratio: 2 / 3;
+    border-radius: 7px;
+    height: 81px;
+    width: 54px;
+  }
+
+  .atlas-timeline-card .roadmap-card-main > span {
+    background: transparent;
+    color: inherit;
+    padding: 0;
+    position: static;
+  }
+
+  .atlas-timeline-card .roadmap-card-main small {
+    color: var(--accent-dark) !important;
+  }
+
+  .atlas-timeline-card .roadmap-card-main strong {
+    color: var(--text-strong) !important;
+  }
+
+  .atlas-timeline-card .roadmap-card-main em {
+    color: var(--muted) !important;
+  }
+
+  .atlas-timeline-card .roadmap-card-actions {
+    border: 0;
+    padding: 0;
+  }
+
+  .roadmap-card-menu > div {
+    max-width: calc(100vw - 28px);
+    min-width: min(220px, calc(100vw - 28px));
+  }
+
+  .home-credits {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+  }
+
+  .home-credits > div {
+    grid-template-columns: 1fr;
+  }
+
+  .home-atlas-intro.empty {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+    padding: 22px;
+  }
+
+  .home-onboarding {
+    grid-template-columns: 1fr;
+  }
+
+  .home-onboarding > button + button {
+    border-left: 0;
+  }
+
+  .home-loading-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .home-loading-grid > div,
+  .home-loading-grid > div:last-child {
+    grid-column: 1;
+    min-height: 260px;
+  }
+}
+
+@media (max-width: 420px) {
+  .home-route-summary {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .journey-feature-main {
+    align-items: start;
+    grid-template-columns: 86px minmax(0, 1fr);
+  }
+
+  .journey-feature-main .cover-art {
+    min-height: 129px;
+  }
+
+  .journey-feature-copy > strong {
+    font-size: 27px;
   }
 }
 
@@ -1340,7 +1256,15 @@
     transition-duration: 0.01ms !important;
   }
 
-  .journey-feature-main .cover-art {
-    transform: none;
+  .journey-feature-atmosphere,
+  .journey-feature-main .cover-art,
+  .atlas-timeline-card .cover-art,
+  .home-activity-disclosure > summary > svg {
+    transform: none !important;
+  }
+
+  .home-loading-intro::after,
+  .home-loading-grid > div::after {
+    display: none;
   }
 }

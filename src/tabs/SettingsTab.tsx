@@ -10,9 +10,9 @@ import { getPrivateDataHealth, getPrivateTaxonomyRepairDraft, type PrivateTasteS
 import { mergeListText, normalizeKey, splitList } from '../lib/strings'
 import { isFirestoreOfflinePersistenceEnabled, setFirestoreOfflinePersistenceEnabled } from '../services/devicePreferences'
 import { getNotificationIntentState, type NotificationIntentState, setNotificationIntentEnabled } from '../services/notificationService'
-import { Archive, Bell, Check, CheckCircle2, Copy, Dice5, Download, Info, Plus, RotateCcw, Save, Search, ShieldCheck, Sparkles, Trash2, Upload, X } from 'lucide-react'
+import { Bell, Check, CheckCircle2, Copy, Dice5, Download, Info, Plus, RotateCcw, Save, Search, ShieldCheck, Sparkles, Trash2, Upload, X } from 'lucide-react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { AdminRolesPanel, DialogFocusReturn, FeedbackMessage, ItemEditor, MetricCard, PreferencePreview, cloneUserSettings, downloadLibraryBackup, feedbackToneFromText, formatBackupImportSummary, formatLibraryImportRollbackDetail, formatLibraryImportRollbackStatus, getNotificationActionStatus, getNotificationStatusLabel, handleDialogKeyDown, roleLabels, sameList, settingsDraftFromSettings, themeLabels, themeOptions, type ActivityRecorder, type AppTab, type AuthUserSummary, type LibrarySurface, type PendingBackupImport, type PrivateDataAction, type SettingsDraft, type SettingsSaveRequest, type SettingsTasteSuggestionsRequest, type SettingsTaxonomyRepairRequest } from '../app/shared'
+import { AdminRolesPanel, DialogFocusReturn, FeedbackMessage, ItemEditor, PreferencePreview, cloneUserSettings, downloadLibraryBackup, feedbackToneFromText, formatBackupImportSummary, formatLibraryImportRollbackDetail, formatLibraryImportRollbackStatus, getNotificationActionStatus, getNotificationStatusLabel, handleDialogKeyDown, roleLabels, sameList, settingsDraftFromSettings, themeLabels, themeOptions, type ActivityRecorder, type AppTab, type AuthUserSummary, type LibrarySurface, type PendingBackupImport, type PrivateDataAction, type SettingsDraft, type SettingsSaveRequest, type SettingsTasteSuggestionsRequest, type SettingsTaxonomyRepairRequest } from '../app/shared'
 
 interface DeletedPrivateItemsUndo {
   items: ListItem[]
@@ -684,7 +684,7 @@ export default function SettingsTab({
       detail: 'Descargar copia privada',
       Icon: Download,
       id: 'backup',
-      label: 'Backup JSON',
+      label: 'Exportar backup JSON',
       onClick: exportPrivateBackup,
     },
     {
@@ -712,8 +712,9 @@ export default function SettingsTab({
       >
         <div className="panel-heading">
           <div>
-            <h2>Tu Nexo</h2>
-            <p>Tema, descubrimiento y privacidad sin ruido.</p>
+            <span className="eyebrow">Tu espacio</span>
+            <h2>Ajustes</h2>
+            <p>Apariencia, gustos y datos en un solo lugar.</p>
           </div>
           <button className="primary-button" disabled={!hasUnsavedChanges || settingsSavePending} type="submit">
             <Save size={17} />
@@ -721,66 +722,13 @@ export default function SettingsTab({
           </button>
         </div>
 
-        <div className={hasUnsavedChanges ? 'settings-status pending' : 'settings-status'}>
-          <span>{hasUnsavedChanges ? 'Ajustes sin guardar' : 'Sin cambios pendientes'}</span>
-          <strong>{typeLabels[draft.explorerDefaultType]}</strong>
-        </div>
-
-        <section className="settings-theme-stage" aria-label="Apariencia de Nexo" data-testid="settings-theme-stage">
-          <div className="settings-theme-preview">
-            <div>
-              <span className="eyebrow">Apariencia</span>
-              <h3>{draftThemeOption.label}</h3>
-              <p>{draftThemeOption.detail}</p>
-            </div>
-            <span className="settings-theme-preview-swatch" aria-hidden="true">
-              {draftThemeOption.swatches.map((swatch) => (
-                <span key={swatch} style={{ background: swatch }} />
-              ))}
-            </span>
-          </div>
-          <div className="settings-theme-picker">
-            <div className="settings-section-heading">
-              <h3>Tema de Nexo</h3>
-              <p>Elige el tono que quieres recordar.</p>
-            </div>
-            <div className="theme-option-grid" role="group" aria-label="Tema">
-              {themeOptions.map((option) => (
-                <button
-                  aria-label={`Tema ${option.label}`}
-                  className={draft.theme === option.id ? 'theme-option active' : 'theme-option'}
-                  key={option.id}
-                  type="button"
-                  onClick={() => updateDraft((current) => ({ ...current, theme: option.id }))}
-                >
-                  <span className="theme-swatch" aria-hidden="true">
-                    {option.swatches.map((swatch) => (
-                      <span key={swatch} style={{ background: swatch }} />
-                    ))}
-                  </span>
-                  <span className="theme-option-copy">
-                    <strong>{option.label}</strong>
-                    <small>{option.detail}</small>
-                  </span>
-                  {draft.theme === option.id && (
-                    <span className="theme-option-status" aria-hidden="true">
-                      <Check size={13} />
-                      Actual
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
-        </section>
-
         <section className="settings-confidence-panel" aria-label="Estado de cuenta y datos" data-testid="settings-confidence">
           <div className="settings-confidence-main">
             <span className="account-avatar small">{accountInitial}</span>
             <div>
-              <span className="eyebrow">Estado de cuenta</span>
-              <strong>{hasUnsavedChanges ? 'Ajustes pendientes' : 'Cuenta lista'}</strong>
-              <p>{hasUnsavedChanges ? 'Guarda los cambios para que Dado y Explorador usen esta configuracion.' : 'Preferencias, rol y biblioteca privada estan sincronizados.'}</p>
+              <span className="eyebrow">{accountLabel}</span>
+              <strong>{hasUnsavedChanges ? 'Ajustes pendientes' : 'Todo al dia'}</strong>
+              <p>{user?.email ?? 'Sesion local'}</p>
             </div>
           </div>
           <div className="settings-confidence-facts">
@@ -789,25 +737,17 @@ export default function SettingsTab({
               Rol
             </span>
             <span>
-              <strong>{themeLabels[draft.theme]}</strong>
-              Tema
+              <strong>{syncStatusLabel}</strong>
+              Datos
             </span>
             <span>
               <strong>{library.items.length}</strong>
               Entradas
             </span>
-            <span>
-              <strong>{queuedDiscoveryCount}</strong>
-              Cola
-            </span>
           </div>
           {hasUnsavedChanges ? (
             <div className="settings-confidence-actions">
               <span className="settings-pending-badge">Cambios pendientes</span>
-              <button className="secondary-button" type="submit">
-                <Save size={16} />
-                Guardar ajustes
-              </button>
             </div>
           ) : (
             <span className="settings-confidence-rest">
@@ -817,16 +757,46 @@ export default function SettingsTab({
           )}
         </section>
 
-        <div className="settings-overview" aria-label="Resumen de ajustes">
-          <MetricCard label="Favoritos" value={draftFavoriteGenres.length + draftFavoriteTags.length} />
-          <MetricCard label="Bloqueados" value={draftBlockedTags.length} />
-          <MetricCard label="Explorador" value={typeLabels[draft.explorerDefaultType]} />
-        </div>
-
-        <div className="settings-section">
-          <h3>Explorador</h3>
-          <label>
-            Tipo por defecto
+        <section className="settings-theme-stage" aria-label="Apariencia de Nexo" data-testid="settings-theme-stage">
+          <div className="settings-section-heading">
+            <div>
+              <span className="eyebrow">Apariencia</span>
+              <h3>{draftThemeOption.label}</h3>
+            </div>
+            <p>{draftThemeOption.detail}</p>
+          </div>
+          <div className="theme-option-grid" role="group" aria-label="Tema">
+            {themeOptions.map((option) => (
+              <button
+                aria-label={`Tema ${option.label}`}
+                className={draft.theme === option.id ? 'theme-option active' : 'theme-option'}
+                key={option.id}
+                type="button"
+                onClick={() => updateDraft((current) => ({ ...current, theme: option.id }))}
+              >
+                <span className="theme-swatch" aria-hidden="true">
+                  {option.swatches.map((swatch) => (
+                    <span key={swatch} style={{ background: swatch }} />
+                  ))}
+                </span>
+                <span className="theme-option-copy">
+                  <strong>{option.label}</strong>
+                  <small>{option.detail}</small>
+                </span>
+                {draft.theme === option.id && (
+                  <span className="theme-option-status" aria-hidden="true">
+                    <Check size={13} />
+                    Actual
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+          <label className="settings-default-type">
+            <span>
+              <strong>Explorador por defecto</strong>
+              <small>Qué quieres buscar primero</small>
+            </span>
             <select
               value={draft.explorerDefaultType}
               onChange={(event) =>
@@ -845,13 +815,13 @@ export default function SettingsTab({
               <option value="manhwa">Manhwa</option>
             </select>
           </label>
-        </div>
+        </section>
 
         <details className="settings-section settings-taste-panel" data-close-on-outside>
           <summary>
             <span>
-              <strong>Preferencias del dado</strong>
-              <small>Tags, generos y bloqueos personales</small>
+              <strong>Gustos y filtros</strong>
+              <small>Personaliza Dado y Descubrir</small>
             </span>
             <em>{tasteSummary}</em>
           </summary>
@@ -1230,10 +1200,6 @@ export default function SettingsTab({
             <ShieldCheck size={17} />
             <span>Tus notas, ratings, progreso y pesos viven bajo tu usuario. El catalogo Nexo no recibe esos cambios privados.</span>
           </div>
-          <button className="secondary-button data-backup-button" type="button" onClick={exportPrivateBackup}>
-            <Archive size={17} />
-            Exportar backup JSON
-          </button>
           </div>
         </details>
 

@@ -33,11 +33,11 @@ function createDeferred<T>() {
   return { promise, reject, resolve }
 }
 
-function createLibrarySurface(searchCatalog: LibrarySurface['searchCatalog']) {
+function createLibrarySurface(searchCatalog: LibrarySurface['searchCatalog'], discoveryCandidates: DiscoveryCandidate[] = []) {
   return {
     items: [],
     settings: DEFAULT_SETTINGS,
-    discoveryCandidates: [],
+    discoveryCandidates,
     isModerator: false,
     searchCatalog,
     queueDiscoveryCandidates: vi.fn().mockResolvedValue(1),
@@ -46,6 +46,57 @@ function createLibrarySurface(searchCatalog: LibrarySurface['searchCatalog']) {
 }
 
 describe('ExplorerTab concurrent searches', () => {
+  it('keeps the pending focus visible while secondary tools start collapsed', () => {
+    const candidate = createCandidate('focus', 'La obra pendiente')
+    const library = createLibrarySurface(vi.fn().mockResolvedValue([]), [candidate])
+
+    render(
+      <ExplorerTab
+        library={library}
+        onActivity={vi.fn()}
+        onCandidateDismissRequestHandled={vi.fn()}
+        onCandidateRequestHandled={vi.fn()}
+        onCandidateSaveRequestHandled={vi.fn()}
+        onPromptCardRequestHandled={vi.fn()}
+        onSearchRequestHandled={vi.fn()}
+        onSignIn={vi.fn()}
+        onVisibleDismissRequestHandled={vi.fn()}
+        onVisibleSaveRequestHandled={vi.fn()}
+        surfaceMode="queue"
+      />,
+    )
+
+    expect(screen.getByTestId('candidate-spotlight')).toHaveTextContent(candidate.title)
+    expect(screen.getByText('Filtros y busqueda').closest('details')).not.toHaveAttribute('open')
+  })
+
+  it('keeps a compact four-item queue until the user asks for the rest', async () => {
+    const user = userEvent.setup()
+    const candidates = Array.from({ length: 7 }, (_entry, index) => createCandidate(`candidate-${index}`, `Obra ${index}`))
+    const library = createLibrarySurface(vi.fn().mockResolvedValue([]), candidates)
+
+    render(
+      <ExplorerTab
+        library={library}
+        onActivity={vi.fn()}
+        onCandidateDismissRequestHandled={vi.fn()}
+        onCandidateRequestHandled={vi.fn()}
+        onCandidateSaveRequestHandled={vi.fn()}
+        onPromptCardRequestHandled={vi.fn()}
+        onSearchRequestHandled={vi.fn()}
+        onSignIn={vi.fn()}
+        onVisibleDismissRequestHandled={vi.fn()}
+        onVisibleSaveRequestHandled={vi.fn()}
+        surfaceMode="queue"
+      />,
+    )
+
+    expect(screen.getByRole('heading', { name: 'Obra 4' })).toBeVisible()
+    expect(screen.queryByText('Obra 5')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Ver 2 mas' }))
+    expect(screen.getByRole('heading', { name: 'Obra 6' })).toBeVisible()
+  })
+
   it('ignores stale results without enqueueing them or clearing the active loading state', async () => {
     const user = userEvent.setup()
     const first = createDeferred<DiscoveryCandidate[]>()
@@ -71,6 +122,7 @@ describe('ExplorerTab concurrent searches', () => {
       />,
     )
 
+    await user.click(screen.getByText('Filtros y busqueda').closest('summary') as HTMLElement)
     const input = screen.getByLabelText('Buscar en explorador')
     const form = input.closest('form') as HTMLFormElement
     await user.type(input, 'Primera')
