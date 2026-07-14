@@ -31,16 +31,13 @@ import {
   type UserSettings,
   nowIso,
 } from '../domain/types'
-import { buildPublicCatalogItem, externalCandidateToDiscovery, publicItemToDiscovery, shouldPreserveDiscoveryDecision } from '../lib/catalog'
-import { dedupeCatalogSearchCandidates, rankCatalogSearchCandidates, scoreCatalogSearchCandidate } from '../lib/catalogSearch'
+import { buildPublicCatalogItem, shouldPreserveDiscoveryDecision } from '../lib/catalog'
+import { rankCatalogSearchCandidates, scoreCatalogSearchCandidate } from '../lib/catalogSearch'
 import { normalizeKey, slugify, uniqueValues } from '../lib/strings'
 import { normalizeRoadmapPreferences } from '../lib/roadmap'
 import { getFirebaseServices } from './firebaseDb'
-import {
-  recordCatalogDemands,
-  searchRemoteCatalog,
-  type CatalogDemandItem,
-} from './remoteCatalog'
+import { recordCatalogDemands, type CatalogDemandItem } from './remoteCatalog'
+import { searchCatalogSources } from './catalogSearchClient'
 import { getSnapshotDocumentId, removeRoadmapIds, withoutUndefined } from './libraryRepositoryUtils'
 
 export interface RepositorySnapshotState {
@@ -244,25 +241,11 @@ export function createFirestoreRepository(userId: string): LibraryRepository | u
       return searchExternalClientSide(searchQuery, type)
     },
     async searchCatalog(searchQuery, type) {
-      const cleanedQuery = searchQuery.trim()
-      let remoteCandidates: DiscoveryCandidate[] | undefined
-      if (cleanedQuery.length >= 2) {
-        remoteCandidates = await searchRemoteCatalog(cleanedQuery, type).catch(() => undefined)
-      }
-
-      const [publicItems, externalCandidates] = await Promise.all([
-        this.searchPublicCatalog(cleanedQuery, type),
-        cleanedQuery.length >= 2 ? this.searchExternal(cleanedQuery, type ?? 'any') : Promise.resolve([]),
-      ])
-      return rankCatalogSearchCandidates(
-        uniqueDiscoveryCandidates([
-          ...(remoteCandidates ?? []),
-          ...publicItems.map(publicItemToDiscovery),
-          ...externalCandidates.map(externalCandidateToDiscovery),
-        ]),
-        cleanedQuery,
-        type,
-      ).slice(0, 24)
+      const result = await searchCatalogSources({
+        query: searchQuery,
+        type: (type ?? 'any') as import('../domain/types').ExplorerSearchType,
+      })
+      return result.candidates
     },
     async searchPublicCatalog(searchQuery, type) {
       const snapshot = await getDocs(collection(services.db, 'publicItems'))
@@ -660,10 +643,6 @@ function matchesSearchType(itemType: string, requestedType?: string) {
 async function searchExternalClientSide(searchQuery: string, type: string): Promise<ExternalCandidate[]> {
   const { searchExternalSources } = await import('./externalSearch')
   return searchExternalSources(searchQuery, type)
-}
-
-function uniqueDiscoveryCandidates(candidates: DiscoveryCandidate[]) {
-  return dedupeCatalogSearchCandidates(candidates)
 }
 
 async function recordSavedDiscoveryCandidateInPublicCatalog(

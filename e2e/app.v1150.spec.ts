@@ -47,7 +47,7 @@ test.beforeEach(async ({ page }) => {
     })
   })
 
-  await page.route('**/catalog-proxy/search**', async (route) => {
+  await page.route(/\/catalog-proxy\/(?:v1\/catalog\/)?search(?:\?|$)/, async (route) => {
     const url = new URL(route.request().url())
     const query = url.searchParams.get('q')?.toLowerCase() ?? ''
     await route.fulfill({
@@ -56,7 +56,25 @@ test.beforeEach(async ({ page }) => {
     })
   })
 
-  await page.route('**/catalog-proxy/discover**', async (route) => {
+  await page.route('**/public-catalog**', async (route) => {
+    const url = new URL(route.request().url())
+    const query = url.searchParams.get('q')?.toLowerCase() ?? ''
+    await route.fulfill({
+      contentType: 'application/json',
+      json: {
+        items: query.includes('odisea')
+          ? [{
+              ...externalBook,
+              description: externalBook.overview,
+              searchAliases: [],
+              updatedAt: externalBook.createdAt,
+            }]
+          : [],
+      },
+    })
+  })
+
+  await page.route(/\/catalog-proxy\/(?:v1\/catalog\/)?discover(?:\?|$)/, async (route) => {
     await route.fulfill({ contentType: 'application/json', json: { result: surpriseGame } })
   })
 })
@@ -81,7 +99,7 @@ async function openUtility(page: Page, label: 'Importar' | 'Ajustes' | 'Curar') 
   await more.getByRole('menuitem').filter({ hasText: label }).click()
 }
 
-async function selectDiscoverMode(page: Page, label: 'Buscar' | 'Sorprendeme' | 'Pendientes') {
+async function selectDiscoverMode(page: Page, label: 'Buscar' | 'Sorprendeme' | 'Revisar') {
   const modes = page.getByRole('navigation', { name: 'Modos de Descubrir' })
   await modes.getByRole('button', { name: new RegExp(`^${label}`) }).click()
 }
@@ -293,16 +311,17 @@ test.describe('Anadir global y Descubrir', () => {
     await expect(page.getByRole('heading', { name: 'Trae tu biblioteca' })).toBeVisible()
   })
 
-  test('mantiene Buscar, Sorprendeme y Pendientes bajo una sola pestaña', async ({ page }) => {
+  test('mantiene Buscar, Sorprendeme y Revisar bajo una sola pestaña', async ({ page }) => {
     await page.goto('/?tab=discover&mode=search')
     const modes = page.getByRole('navigation', { name: 'Modos de Descubrir' })
     await expect(modes.getByRole('button')).toHaveCount(3)
     await expect(modes.getByRole('button', { name: /^Buscar/ })).toHaveAttribute('aria-current', 'page')
     await selectDiscoverMode(page, 'Sorprendeme')
     await expect(page).toHaveURL(/mode=surprise/)
-    await expect(page.getByRole('heading', { name: 'Sorprendeme' })).toBeVisible()
-    await selectDiscoverMode(page, 'Pendientes')
+    await expect(page.getByRole('heading', { name: /Sorpr.ndeme/ })).toBeVisible()
+    await selectDiscoverMode(page, 'Revisar')
     await expect(page).toHaveURL(/mode=queue/)
+    await expect(page.getByRole('heading', { name: 'Hallazgos por revisar' })).toBeVisible()
     await page.goBack()
     await expect(page).toHaveURL(/mode=surprise/)
   })
@@ -318,52 +337,47 @@ test.describe('Anadir global y Descubrir', () => {
     await expect(page).toHaveURL(/mode=surprise/)
   })
 
-  test('el catalogo anonimo busca solo en Nexo y protege las acciones privadas', async ({ page }) => {
-    let externalSearches = 0
-    await page.route('**/catalog-proxy/search**', async (route) => {
-      externalSearches += 1
-      await route.fulfill({ contentType: 'application/json', json: { results: [externalBook] } })
-    })
+  test('el catalogo anonimo protege las acciones privadas', async ({ page }) => {
     await page.goto('/?tab=discover&mode=search')
     await page.getByLabel('Buscar en el catalogo publico').fill('Odisea')
     await page.getByTestId('catalog-public-masthead').getByRole('button', { name: 'Buscar', exact: true }).click()
     const card = page.locator('article.catalog-public-card').filter({ hasText: 'Odisea' })
     await expect(card).toBeVisible()
-    expect(externalSearches).toBe(0)
-    await card.getByRole('button', { name: 'Guardar', exact: true }).click()
+    await card.first().getByRole('button', { name: 'Guardar', exact: true }).click()
     await expect(page.getByRole('status')).toContainText('Entra en Nexo para guardar obras')
-    await card.getByRole('button', { name: 'Mandar al Explorador Odisea' }).click()
-    await expect(page.getByRole('status')).toContainText('Entra en Nexo para mandar hallazgos')
+    await card.first().getByRole('button', { name: /Revisar despu.s Odisea/ }).click()
+    await expect(page.getByRole('status')).toContainText('Entra en Nexo para guardar hallazgos')
     await page.getByRole('button', { name: 'Biblioteca', exact: true }).click()
     await expect(page.getByTestId('library-grid')).not.toContainText('Odisea')
   })
 
   test('sorprende, guarda y coloca el resultado externo en la ruta', async ({ page }) => {
     await page.goto('/?tab=discover&mode=surprise')
-    await page.getByRole('button', { name: 'Sorprendeme', exact: true }).last().click()
+    await page.locator('form.explorer-discover-form').getByRole('button', { name: /^Sorpr.ndeme$/ }).click()
     const result = page.getByTestId('explorer-random-result')
     await expect(result).toContainText('V Rising')
     await result.getByRole('button', { name: 'Guardar', exact: true }).click()
     const followup = page.getByLabel('Siguiente paso de la obra guardada')
     await expect(followup).toContainText('V Rising')
-    await followup.getByRole('button', { name: 'Poner en Despues' }).click()
+    await followup.getByRole('button', { name: /Poner en Despu.s/ }).click()
     await page.getByRole('button', { name: 'Inicio', exact: true }).click()
     await expect(roadmapLane(page, 'next')).toContainText('V Rising')
   })
 
-  test('envia un hallazgo a Pendientes y lo resuelve desde la cola', async ({ page }) => {
-    await page.goto('/?tab=discover&mode=queue')
-    const history = page.locator('details.explorer-history-panel')
-    if (!(await history.evaluate((element) => (element as HTMLDetailsElement).open))) {
-      await history.locator(':scope > summary').click()
-    }
-    await history.getByLabel('Buscar en explorador').fill('Odisea')
-    await history.getByLabel('Tipo de busqueda en explorador').selectOption('book')
-    await history.locator('form.explorer-search button[type="submit"]').click()
-    const spotlight = page.getByTestId('candidate-spotlight')
-    await expect(spotlight).toContainText('Odisea')
-    await spotlight.getByRole('button', { name: 'Guardar Odisea' }).click()
-    await expect(page.getByText(/Odisea guardado en Biblioteca/)).toBeVisible()
+  test('abre Revisar desde una busqueda sin recuperar el buscador anidado', async ({ page }) => {
+    await page.goto('/?tab=discover&mode=search')
+    await page.getByLabel('Buscar en el catalogo publico').fill('Odisea')
+    await page.getByTestId('catalog-public-masthead').getByRole('button', { name: 'Buscar', exact: true }).click()
+
+    const result = page.locator('article.catalog-public-card').filter({ hasText: 'Odisea' }).first()
+    await expect(result).toBeVisible()
+    await result.getByRole('button', { name: /Revisar despu.s Odisea/ }).click()
+    await expect(page.getByRole('status')).toContainText('Entra en Nexo para guardar hallazgos')
+
+    await selectDiscoverMode(page, 'Revisar')
+    await expect(page).toHaveURL(/mode=queue/)
+    await expect(page.getByLabel('Buscar en explorador')).toHaveCount(0)
+    await expect(page.getByRole('heading', { name: 'Hallazgos por revisar' })).toBeVisible()
   })
 })
 
@@ -624,7 +638,7 @@ test.describe('Responsive, temas y accesibilidad', () => {
     for (const viewport of viewports) {
       await page.setViewportSize(viewport)
 
-      for (const route of ['home', 'discover&mode=search', 'library', 'dice']) {
+      for (const route of ['home', 'discover&mode=search', 'discover&mode=queue', 'library', 'dice']) {
         await page.goto(`/?tab=${route}`)
         await expect.poll(() => page.evaluate(() => ({ height: window.innerHeight, width: window.innerWidth }))).toEqual(viewport)
         await expectNoHorizontalOverflow(page)
@@ -657,10 +671,10 @@ test.describe('Responsive, temas y accesibilidad', () => {
     }
   })
 
-  test('los siete temas mantienen legibles las cuatro superficies principales', async ({ page }, testInfo) => {
+  test('los siete temas mantienen legibles las superficies principales', async ({ page }, testInfo) => {
     testInfo.setTimeout(90_000)
     const themes = ['dark', 'light', 'rose', 'forest', 'ocean', 'mint', 'aurora']
-    const routes = ['home', 'discover&mode=search', 'library', 'dice', 'settings']
+    const routes = ['home', 'discover&mode=search', 'discover&mode=queue', 'library', 'dice', 'settings']
     for (const theme of themes) {
       await page.goto('/?tab=home')
       await page.evaluate((value) => window.localStorage.setItem('nexo-theme', value), theme)
@@ -676,7 +690,7 @@ test.describe('Responsive, temas y accesibilidad', () => {
   test('los siete temas mantienen contraste AA en las superficies principales', async ({ page }, testInfo) => {
     testInfo.setTimeout(180_000)
     const themes = ['dark', 'light', 'rose', 'forest', 'ocean', 'mint', 'aurora']
-    const routes = ['home', 'discover&mode=search', 'library', 'dice', 'settings']
+    const routes = ['home', 'discover&mode=search', 'discover&mode=queue', 'library', 'dice', 'settings']
 
     for (const theme of themes) {
       await page.goto('/?tab=home')
@@ -691,7 +705,7 @@ test.describe('Responsive, temas y accesibilidad', () => {
 
   test('las superficies principales no tienen violaciones moderate o superiores WCAG', async ({ page }, testInfo) => {
     testInfo.setTimeout(90_000)
-    for (const route of ['home', 'discover&mode=search', 'library', 'dice', 'settings']) {
+    for (const route of ['home', 'discover&mode=search', 'discover&mode=queue', 'library', 'dice', 'settings']) {
       await page.goto(`/?tab=${route}`)
       await expectNoReleaseA11yViolations(page, route)
     }

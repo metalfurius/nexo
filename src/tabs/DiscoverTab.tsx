@@ -12,9 +12,6 @@ import {
   type ExplorerCandidateRequest,
   type ExplorerCandidateSaveRequest,
   type ExplorerPromptCardRequest,
-  type ExplorerSearchRequest,
-  type ExplorerVisibleDismissRequest,
-  type ExplorerVisibleSaveRequest,
   type LibrarySurface,
 } from '../app/shared'
 
@@ -34,20 +31,14 @@ interface DiscoverTabProps {
   onCandidateSaveRequestHandled: () => void
   onNavigate: (tab: AppTab) => void
   onPromptCardRequestHandled: () => void
-  onSearchRequestHandled: () => void
   onSignIn: () => void
-  onVisibleDismissRequestHandled: () => void
-  onVisibleSaveRequestHandled: () => void
   promptCardRequest?: ExplorerPromptCardRequest
-  searchRequest?: ExplorerSearchRequest
-  visibleDismissRequest?: ExplorerVisibleDismissRequest
-  visibleSaveRequest?: ExplorerVisibleSaveRequest
 }
 
 const modes: Array<{ id: DiscoverMode; label: string; Icon: typeof Search }> = [
   { id: 'search', label: 'Buscar', Icon: Search },
   { id: 'surprise', label: 'Sorprendeme', Icon: Sparkles },
-  { id: 'queue', label: 'Pendientes', Icon: ListChecks },
+  { id: 'queue', label: 'Revisar', Icon: ListChecks },
 ]
 
 function writeDiscoverMode(mode: DiscoverMode, historyMode: 'push' | 'replace' = 'push') {
@@ -68,6 +59,7 @@ function writeDiscoverMode(mode: DiscoverMode, historyMode: 'push' | 'replace' =
 
 export default function DiscoverTab(props: DiscoverTabProps) {
   const [mode, setMode] = useState<DiscoverMode>(() => readDiscoverMode())
+  const queuedReviewCount = props.library.discoveryCandidates.filter((candidate) => candidate.status === 'queued').length
 
   useEffect(() => {
     const syncMode = () => setMode(readDiscoverMode())
@@ -96,6 +88,11 @@ export default function DiscoverTab(props: DiscoverTabProps) {
             >
               <Icon size={17} />
               <strong>{label}</strong>
+              {id === 'queue' && (
+                <span className="discover-mode-count" aria-label={`${queuedReviewCount} por revisar`}>
+                  {queuedReviewCount}
+                </span>
+              )}
             </button>
           ))}
         </nav>
@@ -118,19 +115,13 @@ export default function DiscoverTab(props: DiscoverTabProps) {
             library={props.library}
             requiresSignIn={props.requiresSignIn}
             promptCardRequest={props.promptCardRequest}
-            searchRequest={props.searchRequest}
             surfaceMode={mode}
-            visibleDismissRequest={props.visibleDismissRequest}
-            visibleSaveRequest={props.visibleSaveRequest}
             onActivity={props.onActivity}
             onCandidateDismissRequestHandled={props.onCandidateDismissRequestHandled}
             onCandidateRequestHandled={props.onCandidateRequestHandled}
             onCandidateSaveRequestHandled={props.onCandidateSaveRequestHandled}
             onPromptCardRequestHandled={props.onPromptCardRequestHandled}
-            onSearchRequestHandled={props.onSearchRequestHandled}
             onSignIn={props.onSignIn}
-            onVisibleDismissRequestHandled={props.onVisibleDismissRequestHandled}
-            onVisibleSaveRequestHandled={props.onVisibleSaveRequestHandled}
           />
         )}
       </Suspense>

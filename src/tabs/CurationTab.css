@@ -33,7 +33,7 @@
   color: var(--text-strong);
   font-family: var(--font-ui);
   font-size: clamp(28px, 3vw, 38px);
-  font-weight: 900;
+  font-weight: 800;
   letter-spacing: -0.045em;
   line-height: 1;
   margin: 0;
@@ -83,7 +83,7 @@
   display: flex;
   flex-wrap: wrap;
   font-size: 12px;
-  font-weight: 750;
+  font-weight: 700;
   gap: 5px;
   justify-content: flex-end;
 }
@@ -170,7 +170,7 @@
 
 .catalog-diagnostics-score span {
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 800;
   white-space: nowrap;
 }
@@ -225,8 +225,8 @@
 }
 
 .catalog-issue-card span {
-  font-size: 10px;
-  font-weight: 900;
+  font-size: 12px;
+  font-weight: 800;
   overflow: hidden;
   text-overflow: ellipsis;
   text-transform: uppercase;
@@ -242,7 +242,7 @@
 
 .catalog-issue-card small {
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -324,7 +324,7 @@
   color: var(--text-strong);
   display: inline-flex;
   font-size: 13px;
-  font-weight: 850;
+  font-weight: 800;
   gap: 8px;
 }
 
@@ -366,7 +366,7 @@
   align-items: baseline;
   color: var(--muted);
   display: inline-flex;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
   gap: 4px;
   min-height: 32px;
@@ -393,8 +393,8 @@
 
 .curation-starter-strip > span {
   color: var(--muted);
-  font-size: 11px;
-  font-weight: 900;
+  font-size: 12px;
+  font-weight: 800;
   text-transform: uppercase;
 }
 
@@ -459,8 +459,8 @@
 .catalog-curation-tools label {
   color: var(--muted);
   display: grid;
-  font-size: 11px;
-  font-weight: 850;
+  font-size: 12px;
+  font-weight: 800;
   gap: 5px;
 }
 
@@ -502,7 +502,7 @@
 .curation-template-card small {
   color: var(--muted);
   display: -webkit-box;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.35;
   overflow: hidden;
   -webkit-box-orient: vertical;
@@ -519,9 +519,9 @@
   background: var(--accent-soft);
   border-radius: 999px;
   color: var(--accent-dark);
-  font-size: 10px;
+  font-size: 12px;
   font-style: normal;
-  font-weight: 850;
+  font-weight: 800;
   max-width: 120px;
   overflow: hidden;
   padding: 4px 6px;
@@ -561,7 +561,7 @@
 
 .catalog-filter-chip span {
   font-size: 12px;
-  font-weight: 850;
+  font-weight: 800;
 }
 
 .catalog-filter-chip strong {
@@ -584,7 +584,7 @@
 
 .catalog-count-line {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
   margin: -4px 0 0;
 }
 
@@ -609,7 +609,7 @@
   color: var(--text-strong);
   font-family: var(--font-ui);
   font-size: 16px;
-  font-weight: 900;
+  font-weight: 800;
   letter-spacing: -0.02em;
   margin: 0;
 }
@@ -634,7 +634,7 @@
   border: 1px solid var(--border);
   border-radius: 999px;
   display: inline-flex;
-  font-size: 10px;
+  font-size: 12px;
   height: 20px;
   justify-content: center;
   min-width: 20px;
@@ -689,7 +689,7 @@
 
 .catalog-review-copy > span {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .catalog-review-tags {
@@ -702,7 +702,7 @@
   background: var(--danger-bg);
   border-radius: 999px;
   color: var(--danger-text);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 800;
   padding: 4px 6px;
 }
@@ -738,7 +738,7 @@
 .seed-import-preview span,
 .seed-import-preview small {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .curation-list-heading {
@@ -805,7 +805,7 @@
 .catalog-body p {
   color: var(--muted);
   display: -webkit-box;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.35;
   margin: 0;
   overflow: hidden;
@@ -827,7 +827,7 @@
   border: 0;
   border-radius: 999px;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 800;
   line-height: 1;
   padding: 4px 6px;
@@ -838,14 +838,14 @@
   color: var(--accent-dark);
   display: flex;
   flex-wrap: wrap;
-  font-size: 11px;
-  font-weight: 850;
+  font-size: 12px;
+  font-weight: 800;
   gap: 6px;
 }
 
 .catalog-quality small {
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .catalog-quality.warning {
@@ -1149,7 +1149,7 @@
   }
 
   .curation-live-summary span {
-    font-size: 10px;
+    font-size: 12px;
   }
 
   .curation-admin-actions,

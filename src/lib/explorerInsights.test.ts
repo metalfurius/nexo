@@ -2,11 +2,9 @@ import { describe, expect, it } from 'vitest'
 import type { DiscoveryCandidate } from '../domain/types'
 import {
   discoveryEmptyCopy,
-  getCandidateDecisionBrief,
+  explorerSourceFilters,
   getDiscoverySourceFilter,
   getDiscoveryStatusCounts,
-  getDominantExplorerSourceLabel,
-  getExplorerDecisionState,
   getExplorerSourceCounts,
   getVisibleExplorerCandidates,
 } from './explorerInsights'
@@ -63,92 +61,21 @@ describe('explorer insights', () => {
     expect(discoveryEmptyCopy.dismissed.title).toBe('No hay descartes')
   })
 
-  it('builds the queued decision state with spotlight, feed and progress', () => {
-    const candidates = [
-      candidate({ id: 'nexo', title: 'Nexo', source: 'nexo', status: 'queued' }),
-      candidate({ id: 'external', title: 'External', source: 'tmdb', status: 'queued' }),
-      candidate({ id: 'prompt', title: 'Prompt', source: 'prompt', status: 'queued' }),
-      candidate({ id: 'saved', title: 'Saved', source: 'rawg', status: 'saved' }),
-      candidate({ id: 'dismissed', title: 'Dismissed', source: 'anilist', status: 'dismissed' }),
-    ]
-    const state = getExplorerDecisionState(candidates, 'queued', 'all')
-
-    expect(state.discoveryCounts).toEqual({ queued: 3, saved: 1, dismissed: 1 })
-    expect(state.sourceCounts).toEqual({ all: 3, nexo: 1, external: 1, prompt: 1 })
-    expect(state.queuedSourceCounts).toEqual({ all: 3, nexo: 1, external: 1, prompt: 1 })
-    expect(state.spotlightCandidate?.id).toBe('nexo')
-    expect(state.feedCandidates.map((entry) => entry.id)).toEqual(['external', 'prompt'])
-    expect(state.decisionProgressPercent).toBe(40)
-    expect(state.decisionSummaryTitle).toBe('3 por decidir')
-    expect(state.decisionSummaryDetail).toBe('Revisa hallazgos uno a uno. Guardar los manda a Biblioteca; descartar limpia ruido.')
-    expect(state.activeSourceLabel).toBe('Todo')
-    expect(state.canDismissVisibleQueue).toBe(false)
-  })
-
-  it('filters the queued state by source and enables scoped dismissal', () => {
+  it('filters the review inbox by source with clear user-facing labels', () => {
     const candidates = [
       candidate({ id: 'nexo', source: 'nexo', status: 'queued' }),
       candidate({ id: 'tmdb', source: 'tmdb', status: 'queued' }),
       candidate({ id: 'rawg', source: 'rawg', status: 'queued' }),
     ]
     const visible = getVisibleExplorerCandidates(candidates, 'external')
-    const state = getExplorerDecisionState(candidates, 'queued', 'external')
 
     expect(visible.map((entry) => entry.id)).toEqual(['tmdb', 'rawg'])
-    expect(state.visibleCandidates.map((entry) => entry.id)).toEqual(['tmdb', 'rawg'])
-    expect(state.spotlightCandidate?.id).toBe('tmdb')
-    expect(state.activeSourceLabel).toBe('APIs')
-    expect(state.decisionSummaryTitle).toBe('2 por decidir')
-    expect(state.decisionSummaryDetail).toBe('APIs activo: revisa solo este origen sin tocar el resto.')
-    expect(state.canDismissVisibleQueue).toBe(true)
+    expect(explorerSourceFilters.map(({ id, label }) => [id, label])).toEqual([
+      ['all', 'Todos los orígenes'],
+      ['nexo', 'Catálogo Nexo'],
+      ['external', 'Fuentes externas'],
+      ['prompt', 'Ideas guardadas'],
+    ])
   })
 
-  it('reports filtered-empty historical views without a spotlight', () => {
-    const state = getExplorerDecisionState(
-      [
-        candidate({ id: 'saved-nexo', source: 'nexo', status: 'saved' }),
-        candidate({ id: 'dismissed-prompt', source: 'prompt', status: 'dismissed' }),
-      ],
-      'saved',
-      'prompt',
-    )
-
-    expect(state.candidatesInView.map((entry) => entry.id)).toEqual(['saved-nexo'])
-    expect(state.visibleCandidates).toEqual([])
-    expect(state.spotlightCandidate).toBeUndefined()
-    expect(state.isSourceFilteredEmpty).toBe(true)
-    expect(state.decisionSummaryTitle).toBe('0 guardados')
-    expect(state.decisionSummaryDetail).toBe('Consulta decisiones pasadas y recupera descartes si cambias de idea.')
-  })
-
-  it('selects the dominant visible source label', () => {
-    expect(getDominantExplorerSourceLabel({ all: 0, nexo: 0, external: 0, prompt: 0 })).toBe('Sin origen')
-    expect(getDominantExplorerSourceLabel({ all: 5, nexo: 1, external: 3, prompt: 1 })).toBe('APIs')
-  })
-
-  it('explains the next action for each candidate source', () => {
-    expect(getCandidateDecisionBrief(candidate({ source: 'nexo' }), false)).toMatchObject({
-      action: 'Guardar copia privada',
-      title: 'Ficha curada de Nexo',
-    })
-    expect(getCandidateDecisionBrief(candidate({ source: 'prompt' }), false)).toMatchObject({
-      action: 'Convertir en pendiente',
-      title: 'Idea ligera',
-    })
-    expect(getCandidateDecisionBrief(candidate({ source: 'tmdb' }), false)).toMatchObject({
-      action: 'Guardar en privado',
-      facts: [
-        { label: 'Origen', value: 'TMDB' },
-        { label: 'Destino', value: 'Privado' },
-      ],
-      title: 'Encontrado fuera de Nexo',
-    })
-    expect(getCandidateDecisionBrief(candidate({ source: 'rawg' }), true)).toMatchObject({
-      action: 'Guardar o pasar a catalogo',
-      facts: [
-        { label: 'Origen', value: 'RAWG' },
-        { label: 'Destino', value: 'Biblioteca' },
-      ],
-    })
-  })
 })

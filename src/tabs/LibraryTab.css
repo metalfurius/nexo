@@ -42,7 +42,7 @@
   color: var(--text-strong);
   font-family: var(--font-ui, inherit);
   font-size: clamp(1.45rem, 2.4vw, 2rem);
-  font-weight: 820;
+  font-weight: 800;
   letter-spacing: -0.035em;
   line-height: 1.05;
 }
@@ -50,14 +50,14 @@
 .library-v2-heading-copy > span {
   color: var(--muted);
   font-size: 0.78rem;
-  font-weight: 720;
+  font-weight: 700;
   white-space: nowrap;
 }
 
 .library-v2-eyebrow {
   color: var(--accent-dark);
   font-size: 0.75rem;
-  font-weight: 850;
+  font-weight: 800;
   letter-spacing: 0.09em;
   text-transform: uppercase;
 }
@@ -86,7 +86,7 @@
   display: inline-flex;
   font: inherit;
   font-size: 0.78rem;
-  font-weight: 780;
+  font-weight: 800;
   gap: 7px;
   justify-content: center;
   min-height: 44px;
@@ -237,7 +237,7 @@
 .library-v2-editor-grid label > span {
   color: var(--muted);
   font-size: 0.75rem;
-  font-weight: 760;
+  font-weight: 700;
   letter-spacing: 0.01em;
 }
 
@@ -286,7 +286,7 @@
   color: var(--muted);
   display: inline-flex;
   font-size: 0.75rem;
-  font-weight: 780;
+  font-weight: 800;
   gap: 5px;
   margin-left: auto;
   text-transform: uppercase;
@@ -309,7 +309,7 @@
 .library-v2-active-filters button span {
   color: var(--muted);
   font-size: 0.75rem;
-  font-weight: 650;
+  font-weight: 600;
 }
 
 .library-v2-active-filters button.clear {
@@ -556,7 +556,7 @@
 .library-v2-card-title-row span {
   color: var(--accent-dark);
   font-size: 0.75rem;
-  font-weight: 820;
+  font-weight: 800;
   letter-spacing: 0.035em;
   text-transform: uppercase;
 }
@@ -565,8 +565,8 @@
   color: var(--text-strong);
   display: -webkit-box;
   font-family: var(--font-ui, inherit);
-  font-size: 0.9rem;
-  font-weight: 790;
+  font-size: 0.95rem;
+  font-weight: 800;
   line-height: 1.28;
   margin-top: 3px;
   overflow: hidden;
@@ -593,7 +593,7 @@
 }
 
 .library-v2-card-meta,
-.library-v2-card-tags {
+.library-v2-card-categories > div {
   align-items: center;
   display: flex;
   flex-wrap: wrap;
@@ -602,10 +602,11 @@
 }
 
 .library-v2-card-meta span,
-.library-v2-card-tags span {
+.library-v2-card-categories span {
   background: var(--surface-muted);
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
   border-radius: 999px;
-  color: var(--muted);
+  color: var(--text);
   font-size: 0.75rem;
   line-height: 1.15;
   max-width: 100%;
@@ -615,10 +616,36 @@
   white-space: nowrap;
 }
 
+.library-v2-card-categories {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.library-v2-card-categories > small {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.025em;
+  line-height: 1.15;
+}
+
+.library-v2-card-categories .more {
+  background: color-mix(in srgb, var(--accent-soft) 68%, var(--surface-muted));
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--border));
+  color: var(--accent-dark);
+  font-weight: 700;
+}
+
 .library-v2-card-meta .status {
   border: 1px solid var(--border);
   color: var(--text);
-  font-weight: 760;
+  font-weight: 700;
+}
+
+.library-v2-card-meta .status.wishlist {
+  background: color-mix(in srgb, var(--surface-elevated) 82%, var(--surface-muted));
+  color: var(--text-strong);
 }
 
 .library-v2-card-meta .status.in_progress {
@@ -663,7 +690,7 @@
 
 .library-v2-grid.list .library-v2-card-title-row,
 .library-v2-grid.list .library-v2-card-meta,
-.library-v2-grid.list .library-v2-card-tags,
+.library-v2-grid.list .library-v2-card-categories,
 .library-v2-grid.list .library-v2-progress {
   grid-column: 1;
 }
@@ -850,7 +877,7 @@
 .library-v2-editor-section legend {
   color: var(--text-strong);
   font-size: 0.78rem;
-  font-weight: 820;
+  font-weight: 800;
   padding: 0 6px;
 }
 

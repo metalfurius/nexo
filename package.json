@@ -1,7 +1,7 @@
 {
   "name": "nexo",
   "private": true,
-  "version": "1.3.0",
+  "version": "1.3.1",
   "type": "module",
   "scripts": {
     "dev": "vite --host localhost",
@@ -47,7 +47,7 @@
     "worker:secret:tmdb": "wrangler secret put TMDB_READ_TOKEN --config workers/catalog-proxy/wrangler.jsonc"
   },
   "dependencies": {
-    "@fontsource/instrument-serif": "5.2.8",
+    "@fontsource-variable/inter": "5.2.8",
     "fflate": "^0.8.3",
     "firebase": "^12.14.0",
     "lucide-react": "^1.17.0",

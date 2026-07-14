@@ -165,6 +165,15 @@ describe('app tab routing', () => {
     expect(readCatalogRouteState()).toEqual({ query: 'Dune', type: 'any' })
   })
 
+  it('limits catalog queries read from and written to the URL', () => {
+    const longQuery = 'd'.repeat(180)
+    window.history.replaceState(null, '', `/?tab=discover&mode=search&q=${longQuery}`)
+
+    expect(readCatalogRouteState().query).toHaveLength(120)
+    writeCatalogRouteState({ query: longQuery, type: 'any' }, 'replace')
+    expect(new URLSearchParams(window.location.search).get('q')).toHaveLength(120)
+  })
+
   it('writes clean shareable catalog state while omitting defaults', () => {
     window.history.replaceState(null, '', '/?tab=library&item=movie-dune#catalog')
 

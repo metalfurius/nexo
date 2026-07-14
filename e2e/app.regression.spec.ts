@@ -1,10 +1,13 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
 test.beforeEach(async ({ page }) => {
-  await page.route('**/catalog-proxy/search**', async (route) => {
+  await page.route(/\/catalog-proxy\/(?:v1\/catalog\/)?search(?:\?|$)/, async (route) => {
     await route.fulfill({ contentType: 'application/json', json: { results: [] } })
   })
-  await page.route('**/catalog-proxy/discover**', async (route) => {
+  await page.route('**/public-catalog**', async (route) => {
+    await route.fulfill({ contentType: 'application/json', json: { items: [] } })
+  })
+  await page.route(/\/catalog-proxy\/(?:v1\/catalog\/)?discover(?:\?|$)/, async (route) => {
     await route.fulfill({ contentType: 'application/json', json: { result: null } })
   })
 })

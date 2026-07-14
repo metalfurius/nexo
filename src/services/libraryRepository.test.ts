@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_ROADMAP_PREFERENCES, DEFAULT_WEIGHTS, type DiscoveryCandidate, type ListItem, type PublicCatalogItem } from '../domain/types'
+import { externalCandidateToDiscovery, publicItemToDiscovery } from '../lib/catalog'
 import { createFirestoreRepository } from './libraryRepository'
 
 const mocks = vi.hoisted(() => ({
@@ -24,6 +25,7 @@ const firebaseServices = vi.hoisted(() => ({
 
 const searchMocks = vi.hoisted(() => ({
   recordCatalogDemands: vi.fn(),
+  searchCatalogSources: vi.fn(),
   searchExternalSources: vi.fn(),
   searchRemoteCatalog: vi.fn(),
 }))
@@ -51,6 +53,10 @@ vi.mock('./externalSearch', () => ({
 vi.mock('./remoteCatalog', () => ({
   recordCatalogDemands: searchMocks.recordCatalogDemands,
   searchRemoteCatalog: searchMocks.searchRemoteCatalog,
+}))
+
+vi.mock('./catalogSearchClient', () => ({
+  searchCatalogSources: searchMocks.searchCatalogSources,
 }))
 
 vi.mock('firebase/firestore', () => ({
@@ -103,6 +109,7 @@ describe('createFirestoreRepository', () => {
     mocks.setDoc.mockResolvedValue(undefined)
     mocks.where.mockImplementation((field: string, operator: string, value: unknown) => ({ field, kind: 'where', operator, value }))
     searchMocks.searchExternalSources.mockResolvedValue([])
+    searchMocks.searchCatalogSources.mockResolvedValue({ candidates: [], partial: false, sources: ['publicCatalog', 'catalogApi'] })
     searchMocks.recordCatalogDemands.mockResolvedValue(undefined)
     searchMocks.searchRemoteCatalog.mockResolvedValue(undefined)
   })
@@ -826,8 +833,8 @@ describe('createFirestoreRepository', () => {
 
   it('does not write public catalog items from signed-in searches', async () => {
     const repository = createFirestoreRepository('user-1')
-    searchMocks.searchExternalSources.mockResolvedValueOnce([
-      {
+    searchMocks.searchCatalogSources.mockResolvedValueOnce({
+      candidates: [externalCandidateToDiscovery({
         id: 'anilist-154587',
         title: 'Frieren: Beyond Journey End',
         type: 'anime',
@@ -845,16 +852,17 @@ describe('createFirestoreRepository', () => {
           sourceUrl: 'https://anilist.co/anime/154587',
         },
         createdAt: '2026-01-01T00:00:00.000Z',
-      },
-    ])
-    mocks.getDocs
-      .mockResolvedValueOnce({ docs: [] })
-      .mockResolvedValueOnce({ docs: [] })
-      .mockResolvedValueOnce({ docs: [] })
+      })],
+      partial: false,
+      sources: ['publicCatalog', 'catalogApi'],
+    })
 
     const results = await repository?.searchCatalog('Frieren', 'anime')
 
-    expect(searchMocks.searchRemoteCatalog).toHaveBeenCalledWith('Frieren', 'anime')
+    expect(searchMocks.searchCatalogSources).toHaveBeenCalledWith({ query: 'Frieren', type: 'anime' })
+    expect(searchMocks.searchRemoteCatalog).not.toHaveBeenCalled()
+    expect(searchMocks.searchExternalSources).not.toHaveBeenCalled()
+    expect(mocks.getDocs).not.toHaveBeenCalled()
     expect(mocks.setDoc).not.toHaveBeenCalled()
     expect(results?.[0]).toEqual(
       expect.objectContaining({
@@ -887,62 +895,24 @@ describe('createFirestoreRepository', () => {
       createdBy: 'moderator',
       updatedBy: 'moderator',
     }
-    searchMocks.searchExternalSources.mockResolvedValueOnce([
-      {
-        id: 'tmdb-438631',
-        title: 'Dune',
-        type: 'movie',
-        source: 'tmdb',
-        sourceId: '438631',
-        overview: 'External TMDB copy.',
-        posterUrl: 'https://image.tmdb.org/t/p/w342/dune.jpg',
-        releaseYear: 2021,
-        genres: ['Ciencia ficcion', 'Aventura'],
-        externalRefs: {
-          tmdbId: '438631',
-          sourceUrl: 'https://www.themoviedb.org/movie/438631',
-        },
-        createdAt: '2026-01-01T00:00:00.000Z',
-      },
-    ])
-    mocks.getDocs
-      .mockResolvedValueOnce({
-        docs: [
-          {
-            data: () => publicDune,
-          },
-        ],
-      })
+    searchMocks.searchCatalogSources.mockResolvedValueOnce({
+      candidates: [publicItemToDiscovery(publicDune)],
+      partial: false,
+      sources: ['publicCatalog', 'catalogApi'],
+    })
 
     const results = await repository?.searchCatalog('Dune', 'watch')
 
     expect(results).toHaveLength(1)
     expect(results?.[0]).toEqual(expect.objectContaining({ title: 'Dune' }))
+    expect(mocks.getDocs).not.toHaveBeenCalled()
     expect(mocks.setDoc).not.toHaveBeenCalled()
   })
 
   it('uses external metadata to enrich stale remote catalog matches without catalog writes', async () => {
     const repository = createFirestoreRepository('user-1')
-    const staleRemoteCandidate: DiscoveryCandidate = {
-      id: 'external-anilist-154587',
-      title: 'Frieren',
-      type: 'anime',
-      status: 'queued',
-      origin: 'externalSearch',
-      source: 'anilist',
-      sourceId: '154587',
-      genres: ['Fantasy'],
-      tags: ['anime', 'anilist'],
-      moodTags: [],
-      externalRefs: {
-        anilistId: '154587',
-      },
-      createdAt: '2026-01-01T00:00:00.000Z',
-      updatedAt: '2026-01-01T00:00:00.000Z',
-    }
-    searchMocks.searchRemoteCatalog.mockResolvedValueOnce([staleRemoteCandidate])
-    searchMocks.searchExternalSources.mockResolvedValueOnce([
-      {
+    searchMocks.searchCatalogSources.mockResolvedValueOnce({
+      candidates: [externalCandidateToDiscovery({
         id: 'anilist-154587',
         title: 'Frieren: Beyond Journey End',
         type: 'anime',
@@ -960,16 +930,17 @@ describe('createFirestoreRepository', () => {
           sourceUrl: 'https://anilist.co/anime/154587',
         },
         createdAt: '2026-01-01T00:00:00.000Z',
-      },
-    ])
-    mocks.getDocs
-      .mockResolvedValueOnce({ docs: [] })
-      .mockResolvedValueOnce({ docs: [] })
-      .mockResolvedValueOnce({ docs: [] })
+      })],
+      partial: false,
+      sources: ['publicCatalog', 'catalogApi'],
+    })
 
     const results = await repository?.searchCatalog('Frieren', 'anime')
 
-    expect(searchMocks.searchExternalSources).toHaveBeenCalledWith('Frieren', 'anime')
+    expect(searchMocks.searchCatalogSources).toHaveBeenCalledWith({ query: 'Frieren', type: 'anime' })
+    expect(searchMocks.searchExternalSources).not.toHaveBeenCalled()
+    expect(searchMocks.searchRemoteCatalog).not.toHaveBeenCalled()
+    expect(mocks.getDocs).not.toHaveBeenCalled()
     expect(mocks.setDoc).not.toHaveBeenCalled()
     expect(results).toEqual(
       expect.arrayContaining([

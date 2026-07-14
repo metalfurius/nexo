@@ -45,6 +45,7 @@ describe('library item insights', () => {
   it('exports the shared labels used by item UI', () => {
     expect(itemTypeLabels.watch).toBe('Ver')
     expect(itemTypeLabels.book).toBe('Libros')
+    expect(itemStatusLabels.wishlist).toBe('Por empezar')
     expect(itemStatusLabels.in_progress).toBe('En progreso')
     expect(itemSourceLabels.public).toBe('Catalogo Nexo')
     expect(getProgressEditorMode('anime')).toBe('structured')
@@ -172,7 +173,7 @@ describe('library item insights', () => {
       ),
     ).toEqual([
       { label: 'Catalogo Nexo', tone: 'strong' },
-      { label: 'Pendiente' },
+      { label: 'Por empezar' },
       { label: 'Dado 30min' },
     ])
   })

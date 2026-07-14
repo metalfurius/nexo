@@ -22,6 +22,41 @@ function validPrivateItem(id: string) {
   }
 }
 
+function validPrivatePublicItem(id: string) {
+  const timestamp = '2026-01-01T00:00:00.000Z'
+  return {
+    id,
+    title: 'Dune',
+    type: 'book',
+    status: 'wishlist',
+    progressCurrent: 0,
+    progressUnit: 'pages',
+    genres: ['sci-fi', 'politica', 'aventura'],
+    tags: ['novela', 'desierto', 'saga'],
+    moodTags: ['denso', 'epico'],
+    weights: { priority: 1, surprise: 0.35, challenge: 0.5 },
+    source: 'public',
+    externalRefs: { sourceUrl: 'https://openlibrary.org/search?q=Dune+Frank+Herbert' },
+    publicItemId: 'book-dune',
+    publicSnapshot: {
+      id: 'book-dune',
+      title: 'Dune',
+      type: 'book',
+      description: 'Politica, ecologia, mesianismo y poder.',
+      releaseYear: 1965,
+      genres: ['sci-fi', 'politica', 'aventura'],
+      tags: ['novela', 'desierto', 'saga'],
+      moodTags: ['denso', 'epico'],
+      searchAliases: [],
+      externalRefs: { sourceUrl: 'https://openlibrary.org/search?q=Dune+Frank+Herbert' },
+      canonicalKey: 'book:dune',
+      updatedAt: timestamp,
+    },
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  }
+}
+
 function validDiscoveryCandidate(id: string) {
   const timestamp = '2026-01-01T00:00:00.000Z'
   return {
@@ -74,6 +109,15 @@ maybeDescribe('firestore.rules emulator', () => {
     await expect(getDoc(activityRef)).resolves.toBeTruthy()
   })
 
+  it('allows a complete public catalog snapshot to be saved in the private library', async () => {
+    const ownerDb = env.authenticatedContext('owner').firestore()
+    const itemId = 'book-dune-book-dune'
+    const itemRef = doc(ownerDb, 'users', 'owner', 'items', itemId)
+
+    await expect(setDoc(itemRef, validPrivatePublicItem(itemId))).resolves.toBeUndefined()
+    await expect(getDoc(itemRef)).resolves.toBeTruthy()
+  })
+
   it('rejects a partial status mutation when the private item no longer exists', async () => {
     const ownerDb = env.authenticatedContext('owner').firestore()
     const ghostRef = doc(ownerDb, 'users', 'owner', 'items', 'deleted-concurrently')
@@ -86,9 +130,43 @@ maybeDescribe('firestore.rules emulator', () => {
   it('allows complete discovery candidates but rejects decision merges that would create ghosts', async () => {
     const ownerDb = env.authenticatedContext('owner').firestore()
     const candidateRef = doc(ownerDb, 'users', 'owner', 'externalCandidates', 'book-dune')
+    const publicCandidateRef = doc(ownerDb, 'users', 'owner', 'externalCandidates', 'public-book-dune')
     const ghostRef = doc(ownerDb, 'users', 'owner', 'externalCandidates', 'deleted-concurrently')
 
     await expect(setDoc(candidateRef, validDiscoveryCandidate('book-dune'))).resolves.toBeUndefined()
+    await expect(setDoc(publicCandidateRef, {
+      id: 'public-book-dune',
+      title: 'Dune',
+      type: 'book',
+      status: 'queued',
+      origin: 'publicCatalog',
+      source: 'nexo',
+      sourceId: 'book-dune',
+      overview: 'Politica, ecologia, mesianismo y poder.',
+      releaseYear: 1965,
+      genres: ['sci-fi', 'politica', 'aventura'],
+      tags: ['novela', 'desierto', 'saga'],
+      moodTags: ['denso', 'epico'],
+      searchAliases: [],
+      externalRefs: { sourceUrl: 'https://openlibrary.org/search?q=Dune+Frank+Herbert' },
+      publicItemId: 'book-dune',
+      publicSnapshot: {
+        id: 'book-dune',
+        title: 'Dune',
+        type: 'book',
+        description: 'Politica, ecologia, mesianismo y poder.',
+        releaseYear: 1965,
+        genres: ['sci-fi', 'politica', 'aventura'],
+        tags: ['novela', 'desierto', 'saga'],
+        moodTags: ['denso', 'epico'],
+        searchAliases: [],
+        externalRefs: { sourceUrl: 'https://openlibrary.org/search?q=Dune+Frank+Herbert' },
+        canonicalKey: 'book:dune',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      },
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    })).resolves.toBeUndefined()
     await expect(setDoc(candidateRef, {
       id: 'book-dune',
       status: 'dismissed',

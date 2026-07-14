@@ -54,6 +54,34 @@ test('production public catalog endpoint returns Dune in Todo', async ({ request
 })
 
 test('production anonymous UI searches Dune in Todo', async ({ page }) => {
+  expect(publicCatalogUrl, 'E2E_PUBLIC_CATALOG_URL or VITE_PUBLIC_CATALOG_URL must be configured').toBeTruthy()
+  expect(catalogProxyUrl, 'E2E_CATALOG_API_URL must be configured').toBeTruthy()
+  const publicEndpoint = new URL(publicCatalogUrl as string)
+  const gatewayEndpoint = new URL(
+    'v1/catalog/search',
+    (catalogProxyUrl as string).endsWith('/') ? catalogProxyUrl as string : `${catalogProxyUrl}/`,
+  )
+  const counts = { callable: 0, directProvider: 0, gateway: 0, publicCatalog: 0 }
+  const directProviderHosts = new Set([
+    'api.rawg.io',
+    'api.themoviedb.org',
+    'books.googleapis.com',
+    'graphql.anilist.co',
+    'openlibrary.org',
+  ])
+  page.on('request', (request) => {
+    const url = new URL(request.url())
+    const isDuneRequest = url.searchParams.get('q')?.toLocaleLowerCase('es') === 'dune'
+    if (isDuneRequest && url.origin === publicEndpoint.origin && url.pathname === publicEndpoint.pathname) {
+      counts.publicCatalog += 1
+    }
+    if (isDuneRequest && url.origin === gatewayEndpoint.origin && url.pathname === gatewayEndpoint.pathname) {
+      counts.gateway += 1
+    }
+    if (directProviderHosts.has(url.hostname)) counts.directProvider += 1
+    if (/\/searchCatalog(?:\?|$)/.test(url.pathname)) counts.callable += 1
+  })
+
   await page.goto('/')
   const catalogSearch = page.getByLabel('Buscar en el catalogo publico')
   await catalogSearch.fill('Dune')
@@ -81,6 +109,10 @@ test('production anonymous UI searches Dune in Todo', async ({ page }) => {
   const duneCards = page.locator('article.catalog-public-card').filter({ hasText: 'Dune' })
   await expect(duneCards.first()).toBeVisible()
   await expect(page.getByRole('status').filter({ hasText: 'resultados para explorar' })).toBeVisible()
+  await expect(catalogSubmit).toBeEnabled()
+  await expect.poll(() => counts).toEqual({ callable: 0, directProvider: 0, gateway: 1, publicCatalog: 1 })
+  await page.waitForTimeout(3_000)
+  expect(counts).toEqual({ callable: 0, directProvider: 0, gateway: 1, publicCatalog: 1 })
 
   await page.reload()
   const reloadedCatalogSearch = page.getByLabel('Buscar en el catalogo publico')
@@ -90,6 +122,15 @@ test('production anonymous UI searches Dune in Todo', async ({ page }) => {
   await expect(reloadedCatalogSearch).toHaveValue('Dune')
   await expect(page.locator('article.catalog-public-card').filter({ hasText: 'Dune' }).first()).toBeVisible()
   await expect(page.getByRole('status').filter({ hasText: 'resultados para explorar' })).toBeVisible()
+  expect(counts.callable).toBe(0)
+  expect(counts.directProvider).toBe(0)
+  expect(counts.gateway).toBeGreaterThanOrEqual(1)
+  expect(counts.gateway).toBeLessThanOrEqual(2)
+  expect(counts.publicCatalog).toBeGreaterThanOrEqual(1)
+  expect(counts.publicCatalog).toBeLessThanOrEqual(2)
+  const hydratedCounts = { ...counts }
+  await page.waitForTimeout(3_000)
+  expect(counts).toEqual(hydratedCounts)
 })
 
 test('production moderator signs in with email without Google', async ({ page }) => {

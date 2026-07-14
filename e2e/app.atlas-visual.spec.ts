@@ -36,6 +36,18 @@ test.describe('Atlas visual determinista', () => {
       await renderAtlasTheme(page, theme)
       await expectAtlasMilestones(page, theme, viewport, mobile ? 'mobile' : 'desktop')
       await attachAtlasScreenshot(page, testInfo, theme, mobile)
+
+      await prepareReviewFixture(page)
+      await expect(page.getByRole('heading', { name: 'Hallazgos por revisar' })).toBeVisible()
+      await expect(page.locator('article.review-card').first()).toBeVisible()
+      await attachAtlasSurfaceScreenshot(page, testInfo, theme, mobile, 'review')
+
+      await page.goto('/?tab=library')
+      await expect(page.getByRole('heading', { name: 'Biblioteca' })).toBeVisible()
+      const libraryGrid = page.getByTestId('library-grid')
+      await expect(libraryGrid).toBeVisible()
+      await expect(libraryGrid.getByRole('listitem').first()).toBeVisible()
+      await attachAtlasSurfaceScreenshot(page, testInfo, theme, mobile, 'library')
     }
   })
 
@@ -48,13 +60,20 @@ test.describe('Atlas visual determinista', () => {
       await page.setViewportSize({ height: viewport.height, width: viewport.width })
       await page.goto('/?tab=home')
       await expectHomeReady(page)
+      await ensurePosterInLaterShelf(page)
+      await page.evaluate(async () => document.fonts.ready)
 
       const metrics = await readChromeMetrics(page)
       expect(metrics.scrollWidth, `${viewport.width}px genera overflow horizontal`).toBeLessThanOrEqual(viewport.width)
       expect(metrics.topbar.height).toBeCloseTo(56, 0)
       expect(metrics.summary.height).toBeLessThanOrEqual(72)
-      expect(metrics.functionalFont).not.toContain('Instrument Serif')
-      expect(metrics.functionalFont).toMatch(/Inter|ui-sans-serif|system-ui|Segoe UI|sans-serif/i)
+      expect(metrics.functionalFont).toContain('Inter Variable')
+      expect(metrics.brandFont).toContain('Inter Variable')
+      expect(metrics.interLoaded).toBe(true)
+      expect(metrics.externalFontRequests).toEqual([])
+      expect(metrics.laterColumnCount).toBe(viewport.kind === 'desktop' ? 5 : viewport.kind === 'tablet' ? 3 : 1)
+      expect(metrics.laterCover.objectFit).toBe('contain')
+      expect(metrics.laterCover.ratio).toBeCloseTo(2 / 3, 1)
 
       if (viewport.kind === 'desktop') {
         expect(metrics.navigation.position).toBe('fixed')
@@ -63,7 +82,6 @@ test.describe('Atlas visual determinista', () => {
         expect(metrics.navigation.width).toBeCloseTo(96, 0)
         expect(metrics.topbar.left).toBeCloseTo(metrics.navigation.right, 0)
         expect(metrics.stage.left).toBeGreaterThanOrEqual(metrics.navigation.right - 1)
-        expect(metrics.brandFont).toContain('Instrument Serif')
       } else if (viewport.kind === 'tablet') {
         expect(metrics.navigation.position).toBe('sticky')
         expect(metrics.navigation.left).toBeCloseTo(0, 0)
@@ -133,6 +151,9 @@ test.describe('Atlas visual determinista', () => {
 })
 
 async function installDeterministicRoutes(page: Page) {
+  await page.addInitScript(() => {
+    Math.random = () => 0.125
+  })
   await page.route(externalPosterPattern, async (route) => {
     await route.fulfill({
       body: atlasPoster,
@@ -141,10 +162,13 @@ async function installDeterministicRoutes(page: Page) {
       status: 200,
     })
   })
-  await page.route('**/catalog-proxy/search**', async (route) => {
+  await page.route(/\/catalog-proxy\/(?:v1\/catalog\/)?search(?:\?|$)/, async (route) => {
     await route.fulfill({ contentType: 'application/json', json: { results: [] } })
   })
-  await page.route('**/catalog-proxy/discover**', async (route) => {
+  await page.route('**/public-catalog**', async (route) => {
+    await route.fulfill({ contentType: 'application/json', json: { items: [] } })
+  })
+  await page.route(/\/catalog-proxy\/(?:v1\/catalog\/)?discover(?:\?|$)/, async (route) => {
     await route.fulfill({ contentType: 'application/json', json: { result: null } })
   })
 }
@@ -164,7 +188,9 @@ async function readChromeMetrics(page: Page) {
     const topbar = document.querySelector<HTMLElement>('.topbar')
     const functionalTitle = document.querySelector<HTMLElement>('.journey-feature-copy > strong')
     const brand = document.querySelector<HTMLElement>('.tabbar-brand strong')
-    if (!shell || !navigation || !stage || !summary || !topbar || !functionalTitle || !brand) {
+    const laterList = document.querySelector<HTMLElement>('.atlas-timeline')
+    const laterPoster = document.querySelector<HTMLImageElement>('.atlas-timeline-card .cover-art img')
+    if (!shell || !navigation || !stage || !summary || !topbar || !functionalTitle || !brand || !laterList || !laterPoster) {
       throw new Error('Chrome o Inicio incompleto')
     }
     const toBounds = (element: HTMLElement) => {
@@ -178,9 +204,22 @@ async function readChromeMetrics(page: Page) {
         width: rect.width,
       }
     }
+    const laterPosterBounds = laterPoster.getBoundingClientRect()
+    const laterPosterStyle = getComputedStyle(laterPoster)
     return {
       brandFont: getComputedStyle(brand).fontFamily,
+      externalFontRequests: performance
+        .getEntriesByType('resource')
+        .filter((entry) => (entry as PerformanceResourceTiming).initiatorType === 'font')
+        .map((entry) => new URL(entry.name).origin)
+        .filter((origin) => origin !== window.location.origin),
       functionalFont: getComputedStyle(functionalTitle).fontFamily,
+      interLoaded: document.fonts.check('16px "Inter Variable"'),
+      laterColumnCount: getComputedStyle(laterList).gridTemplateColumns.split(/\s+/).filter(Boolean).length,
+      laterCover: {
+        objectFit: laterPosterStyle.objectFit,
+        ratio: laterPosterBounds.width / laterPosterBounds.height,
+      },
       navigation: { ...toBounds(navigation), position: getComputedStyle(navigation).position },
       scrollWidth: document.documentElement.scrollWidth,
       shell: toBounds(shell),
@@ -197,7 +236,7 @@ async function renderAtlasTheme(page: Page, theme: AtlasTheme) {
     : 'light'
   await page.emulateMedia({ colorScheme, reducedMotion: 'reduce' })
   await page.evaluate((nextTheme) => window.localStorage.setItem('nexo-theme', nextTheme), theme)
-  await page.reload({ waitUntil: 'domcontentloaded' })
+  await page.goto('/?tab=home', { waitUntil: 'domcontentloaded' })
 
   await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
   await expectHomeReady(page)
@@ -256,8 +295,8 @@ async function expectAtlasMilestones(
   expect(styles.surface).toBe(themeExpectations[theme].surface)
   expect(styles.colorScheme).toBe(themeExpectations[theme].colorScheme)
   expect(styles.motionReduced).toBe(true)
-  expect(styles.functionalFont).not.toContain('Instrument Serif')
-  expect(styles.brandFont).toContain('Instrument Serif')
+  expect(styles.functionalFont).toContain('Inter Variable')
+  expect(styles.brandFont).toContain('Inter Variable')
   expect(styles.scrollWidth).toBeLessThanOrEqual(viewport.width)
   expect(shellBox.width).toBeCloseTo(viewport.width, 0)
   expect(topbarBox.y).toBeCloseTo(0, 0)
@@ -282,6 +321,35 @@ async function expectAtlasMilestones(
     expect(nextBox.x).toBeGreaterThan(nowBox.x + nowBox.width)
     expect(laterBox.y).toBeGreaterThan(Math.max(nowBox.y + nowBox.height, nextBox.y + nextBox.height))
   }
+}
+
+async function ensurePosterInLaterShelf(page: Page) {
+  const outerWilds = page.locator('.atlas-next article.roadmap-card').filter({ hasText: 'Outer Wilds' })
+  if (await outerWilds.count()) {
+    await outerWilds.getByLabel('Organizar Outer Wilds').click()
+    await outerWilds.getByRole('button', { name: /Mover a M/ }).click()
+  }
+  const laterPoster = page.locator('.atlas-timeline-card .cover-art img').first()
+  await expect(laterPoster).toBeVisible()
+  await expect.poll(() => laterPoster.evaluate((image) => {
+    const poster = image as HTMLImageElement
+    return poster.complete && poster.naturalWidth > 0
+  })).toBe(true)
+  await page.evaluate(() => window.scrollTo({ left: 0, top: 0 }))
+}
+
+async function prepareReviewFixture(page: Page) {
+  await page.goto('/?tab=discover&mode=queue')
+  if (await page.locator('article.review-card').count()) return
+
+  await page.getByRole('button', { name: 'Busqueda rapida' }).click()
+  const palette = page.getByRole('dialog', { name: 'Abrir en Nexo' })
+  await palette.getByLabel('Buscar en Nexo').fill('Recomendar desde mi estanteria')
+  await palette.getByRole('button', { name: /^Ejecutar Recomendar desde mi estanteria$/ }).click()
+  await expect(page).toHaveURL(/mode=queue/)
+  await expect(page.locator('article.review-card').first()).toBeVisible()
+  const toastClose = page.getByRole('button', { name: 'Cerrar notificacion' })
+  if (await toastClose.count()) await toastClose.click()
 }
 
 async function expectCriticalActions(page: Page) {
@@ -392,6 +460,20 @@ async function requiredBox(locator: Locator) {
 async function attachAtlasScreenshot(page: Page, testInfo: TestInfo, theme: 'dark' | 'light', mobile: boolean) {
   const formFactor = mobile ? 'mobile-390x844' : 'desktop-1440x900'
   const name = `atlas-${formFactor}-${theme}`
+  const path = testInfo.outputPath(`${name}.png`)
+  await page.screenshot({ animations: 'disabled', caret: 'hide', fullPage: false, path })
+  await testInfo.attach(name, { path, contentType: 'image/png' })
+}
+
+async function attachAtlasSurfaceScreenshot(
+  page: Page,
+  testInfo: TestInfo,
+  theme: 'dark' | 'light',
+  mobile: boolean,
+  surface: 'library' | 'review',
+) {
+  const formFactor = mobile ? 'mobile-390x844' : 'desktop-1440x900'
+  const name = `atlas-${surface}-${formFactor}-${theme}`
   const path = testInfo.outputPath(`${name}.png`)
   await page.screenshot({ animations: 'disabled', caret: 'hide', fullPage: false, path })
   await testInfo.attach(name, { path, contentType: 'image/png' })

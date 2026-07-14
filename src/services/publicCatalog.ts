@@ -5,7 +5,12 @@ import { uniqueNormalizedValues } from '../lib/strings'
 const defaultPublicCatalogLimit = 24
 const maxPublicCatalogLimit = 100
 
-export async function fetchPublicCatalog(query = '', type = 'any', limit = 24): Promise<PublicCatalogItem[] | undefined> {
+export async function fetchPublicCatalog(
+  query = '',
+  type = 'any',
+  limit = 24,
+  signal?: AbortSignal,
+): Promise<PublicCatalogItem[] | undefined> {
   const url = readPublicCatalogUrl()
   if (!url) return undefined
 
@@ -13,7 +18,7 @@ export async function fetchPublicCatalog(query = '', type = 'any', limit = 24): 
   if (type) url.searchParams.set('type', type)
   url.searchParams.set('limit', String(normalizePublicCatalogLimit(limit)))
 
-  const response = await fetch(url, { headers: { accept: 'application/json' } })
+  const response = await fetch(url, { headers: { accept: 'application/json' }, signal })
   if (!response.ok) return undefined
 
   const payload = (await response.json()) as { items?: unknown }

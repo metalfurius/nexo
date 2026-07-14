@@ -26,17 +26,14 @@ vi.mock('./ExplorerTab', () => ({
 function createProps(): Parameters<typeof DiscoverTab>[0] {
   return {
     isSignedIn: true,
-    library: {} as LibrarySurface,
+    library: { discoveryCandidates: [] } as unknown as LibrarySurface,
     onActivity: vi.fn(),
     onCandidateDismissRequestHandled: vi.fn(),
     onCandidateRequestHandled: vi.fn(),
     onCandidateSaveRequestHandled: vi.fn(),
     onNavigate: vi.fn(),
     onPromptCardRequestHandled: vi.fn(),
-    onSearchRequestHandled: vi.fn(),
     onSignIn: vi.fn(),
-    onVisibleDismissRequestHandled: vi.fn(),
-    onVisibleSaveRequestHandled: vi.fn(),
   }
 }
 
@@ -53,6 +50,7 @@ describe('DiscoverTab', () => {
     render(<DiscoverTab {...props} />)
 
     expect(screen.getByRole('button', { name: /Buscar/ })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByLabelText('0 por revisar')).toBeVisible()
     expect(await screen.findByRole('region', { name: 'Buscar mock' })).toBeVisible()
     expect(tabMocks.catalog).toHaveBeenLastCalledWith(expect.objectContaining({
       isSignedIn: false,
@@ -80,17 +78,17 @@ describe('DiscoverTab', () => {
     expect(window.location.search).toContain('catalogQ=Dune')
   })
 
-  it('writes a canonical URL and removes search state when switching to Pendientes', async () => {
+  it('writes a canonical URL and removes search state when switching to Revisar', async () => {
     const user = userEvent.setup()
     window.history.replaceState(null, '', '/?tab=catalog&catalogQ=Dune&catalogType=book&q=legacy&type=watch#route')
     render(<DiscoverTab {...createProps()} />)
 
-    await user.click(screen.getByRole('button', { name: /Pendientes/ }))
+    await user.click(screen.getByRole('button', { name: /Revisar/ }))
 
     expect(await screen.findByRole('region', { name: 'Explorer mock' })).toBeVisible()
     expect(window.location.search).toBe('?tab=discover&mode=queue')
     expect(window.location.hash).toBe('#route')
-    expect(screen.getByRole('button', { name: /Pendientes/ })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByRole('button', { name: /Revisar/ })).toHaveAttribute('aria-current', 'page')
   })
 
   it('keeps shareable search state when returning to Buscar', async () => {
@@ -118,19 +116,17 @@ describe('DiscoverTab', () => {
     expect(await screen.findByRole('region', { name: 'Buscar mock' })).toBeVisible()
   })
 
-  it('forwards queue action requests to Explorer unchanged', async () => {
+  it('forwards individual queue action requests to Explorer unchanged', async () => {
     window.history.replaceState(null, '', '/?tab=discover&mode=queue')
     const props = createProps()
     props.requiresSignIn = true
     props.candidateRequest = { candidateId: 'candidate-1', requestId: 7 }
-    props.visibleSaveRequest = { requestId: 8, sourceFilter: 'all' }
     render(<DiscoverTab {...props} />)
 
     expect(await screen.findByRole('region', { name: 'Explorer mock' })).toBeVisible()
     expect(tabMocks.explorer).toHaveBeenLastCalledWith(expect.objectContaining({
       candidateRequest: props.candidateRequest,
       requiresSignIn: true,
-      visibleSaveRequest: props.visibleSaveRequest,
       onCandidateRequestHandled: props.onCandidateRequestHandled,
       onSignIn: props.onSignIn,
     }))

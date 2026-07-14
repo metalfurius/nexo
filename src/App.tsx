@@ -4,7 +4,7 @@ import { type ActivityEntry, DEFAULT_RECOMMENDATION_PREFERENCES, DEFAULT_SETTING
 import { useAuth } from './hooks/useAuth'
 import { useLibrary } from './hooks/useLibrary'
 import { getActivityDestinationTab } from './lib/activityInsights'
-import { type ExplorerSourceFilter, getDiscoverySourceFilter, getExplorerSourceFilterLabel, discoverySourceLabels as sourceLabels } from './lib/explorerInsights'
+import { discoverySourceLabels as sourceLabels } from './lib/explorerInsights'
 import { getLibraryFocusItems, getLibraryFocusReason, getLibraryReviewQueues, getLibrarySmartViewOptions, type LibrarySmartView } from './lib/libraryInsights'
 import { activateLibraryImportRollbackOwner } from './lib/libraryImportRollbackStore'
 import { isItemInCooldown, itemStatusLabels as statusLabels, itemTypeLabels as typeLabels } from './lib/libraryItemInsights'
@@ -13,7 +13,7 @@ import { getPrivateDataHealth, getPrivateTaxonomyRepairDraft } from './lib/priva
 import { normalizeKey, slugify, uniqueNormalizedValues } from './lib/strings'
 import { Archive, Check, CheckCircle2, Dice5, Download, Home, Library, List, Moon, Palette, Pause, Play, Plus, RotateCcw, Save, Search, ShieldCheck, Sparkles, Trash2, Upload, X } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
-import { NavigationDiscardPrompt, ShellState, activityTabLabels, blankItem, canonicalizeLegacyAppRoute, cloneActivityEntry, downloadLibraryBackup, getActivityFocus, getActivityIcon, getLibraryReviewQueueIcon, getLibrarySelectionSignals, getPrimaryItemAction, hasExplicitAppRoute, isStandalonePwa, isThemeMode, libraryPriorityOptions, librarySelectionSignalLabels, librarySortLabels, readInitialActivityFocus, readInitialAppTab, themeMetaColors, themeOptions, themeStorageKey, typeIcons, useCloseDetailsOnOutsideClick, writeAppTabToUrl, type ActivityFocus, type AppTab, type BeforeInstallPromptEvent, type DiceCooldownReactivateRequest, type DicePreferencesSaveRequest, type DiceRollRequest, type DiceRollSummary, type ExplorerCandidateDismissRequest, type ExplorerCandidateRequest, type ExplorerCandidateSaveRequest, type ExplorerPromptCardRequest, type ExplorerSearchRequest, type ExplorerVisibleDismissRequest, type ExplorerVisibleSaveRequest, type LibraryImportRequest, type LibraryPrimaryActionRequest, type LibraryPriorityLevel, type LibraryResetViewRequest, type LibraryReviewRequest, type LibrarySelectedDiceActionRequest, type LibrarySelectedExportRequest, type LibrarySelectedPriorityRequest, type LibrarySelectedSignalsRequest, type LibrarySelectedStatusRequest, type LibrarySelectionSignalAction, type LibrarySelectionSignalKind, type LibrarySmartViewRequest, type LibrarySortModeRequest, type LibraryStatusFilterRequest, type LibraryTypeFilterRequest, type LibraryVisibleSelectionRequest, type LibraryVisibleSelectionSummary, type PendingNavigation, type QuickSearchCommand, type SettingsSaveRequest, type SettingsTasteSuggestionsRequest, type SettingsTaxonomyRepairRequest, type ShellNavItem } from './app/shared'
+import { NavigationDiscardPrompt, ShellState, activityTabLabels, blankItem, canonicalizeLegacyAppRoute, cloneActivityEntry, downloadLibraryBackup, getActivityFocus, getActivityIcon, getLibraryReviewQueueIcon, getLibrarySelectionSignals, getPrimaryItemAction, hasExplicitAppRoute, isStandalonePwa, isThemeMode, libraryPriorityOptions, librarySelectionSignalLabels, librarySortLabels, readInitialActivityFocus, readInitialAppTab, themeMetaColors, themeOptions, themeStorageKey, typeIcons, useCloseDetailsOnOutsideClick, writeAppTabToUrl, type ActivityFocus, type AppTab, type BeforeInstallPromptEvent, type DiceCooldownReactivateRequest, type DicePreferencesSaveRequest, type DiceRollRequest, type DiceRollSummary, type ExplorerCandidateDismissRequest, type ExplorerCandidateRequest, type ExplorerCandidateSaveRequest, type ExplorerPromptCardRequest, type LibraryImportRequest, type LibraryPrimaryActionRequest, type LibraryPriorityLevel, type LibraryResetViewRequest, type LibraryReviewRequest, type LibrarySelectedDiceActionRequest, type LibrarySelectedExportRequest, type LibrarySelectedPriorityRequest, type LibrarySelectedSignalsRequest, type LibrarySelectedStatusRequest, type LibrarySelectionSignalAction, type LibrarySelectionSignalKind, type LibrarySmartViewRequest, type LibrarySortModeRequest, type LibraryStatusFilterRequest, type LibraryTypeFilterRequest, type LibraryVisibleSelectionRequest, type LibraryVisibleSelectionSummary, type PendingNavigation, type QuickSearchCommand, type SettingsSaveRequest, type SettingsTasteSuggestionsRequest, type SettingsTaxonomyRepairRequest, type ShellNavItem } from './app/shared'
 import AppChrome from './app/AppChrome'
 import FeatureErrorBoundary from './app/FeatureErrorBoundary'
 import { appIntentReducer, type AppIntent, type AppIntentDraft } from './app/intents'
@@ -64,13 +64,10 @@ function App() {
   const [diceRollRequest, setDiceRollRequest] = useState<DiceRollRequest | undefined>()
   const [dicePreferencesSaveRequest, setDicePreferencesSaveRequest] = useState<DicePreferencesSaveRequest | undefined>()
   const [diceCooldownReactivateRequest, setDiceCooldownReactivateRequest] = useState<DiceCooldownReactivateRequest | undefined>()
-  const [explorerSearchRequest, setExplorerSearchRequest] = useState<ExplorerSearchRequest | undefined>()
   const [explorerPromptCardRequest, setExplorerPromptCardRequest] = useState<ExplorerPromptCardRequest | undefined>()
   const [explorerCandidateRequest, setExplorerCandidateRequest] = useState<ExplorerCandidateRequest | undefined>()
   const [explorerCandidateSaveRequest, setExplorerCandidateSaveRequest] = useState<ExplorerCandidateSaveRequest | undefined>()
   const [explorerCandidateDismissRequest, setExplorerCandidateDismissRequest] = useState<ExplorerCandidateDismissRequest | undefined>()
-  const [explorerVisibleSaveRequest, setExplorerVisibleSaveRequest] = useState<ExplorerVisibleSaveRequest | undefined>()
-  const [explorerVisibleDismissRequest, setExplorerVisibleDismissRequest] = useState<ExplorerVisibleDismissRequest | undefined>()
   const [settingsTaxonomyRepairRequest, setSettingsTaxonomyRepairRequest] = useState<SettingsTaxonomyRepairRequest | undefined>()
   const [settingsTasteSuggestionsRequest, setSettingsTasteSuggestionsRequest] = useState<SettingsTasteSuggestionsRequest | undefined>()
   const [settingsSaveRequest, setSettingsSaveRequest] = useState<SettingsSaveRequest | undefined>()
@@ -105,8 +102,6 @@ function App() {
   const explorerCandidateRequestId = useRef(0)
   const explorerCandidateSaveRequestId = useRef(0)
   const explorerCandidateDismissRequestId = useRef(0)
-  const explorerVisibleSaveRequestId = useRef(0)
-  const explorerVisibleDismissRequestId = useRef(0)
   const settingsTaxonomyRepairRequestId = useRef(0)
   const settingsTasteSuggestionsRequestId = useRef(0)
   const settingsSaveRequestId = useRef(0)
@@ -181,13 +176,10 @@ function App() {
     setDicePreferencesSaveRequest(undefined)
     setDiceCooldownReactivateRequest(undefined)
     setDiceRollSummary(undefined)
-    setExplorerSearchRequest(undefined)
     setExplorerPromptCardRequest(undefined)
     setExplorerCandidateRequest(undefined)
     setExplorerCandidateSaveRequest(undefined)
     setExplorerCandidateDismissRequest(undefined)
-    setExplorerVisibleSaveRequest(undefined)
-    setExplorerVisibleDismissRequest(undefined)
     setSettingsTaxonomyRepairRequest(undefined)
     setSettingsTasteSuggestionsRequest(undefined)
     setSettingsSaveRequest(undefined)
@@ -386,13 +378,10 @@ function App() {
   const clearDiceRollRequest = useCallback(() => setDiceRollRequest(undefined), [])
   const clearDicePreferencesSaveRequest = useCallback(() => setDicePreferencesSaveRequest(undefined), [])
   const clearDiceCooldownReactivateRequest = useCallback(() => setDiceCooldownReactivateRequest(undefined), [])
-  const clearExplorerSearchRequest = useCallback(() => setExplorerSearchRequest(undefined), [])
   const clearExplorerPromptCardRequest = useCallback(() => setExplorerPromptCardRequest(undefined), [])
   const clearExplorerCandidateRequest = useCallback(() => setExplorerCandidateRequest(undefined), [])
   const clearExplorerCandidateSaveRequest = useCallback(() => setExplorerCandidateSaveRequest(undefined), [])
   const clearExplorerCandidateDismissRequest = useCallback(() => setExplorerCandidateDismissRequest(undefined), [])
-  const clearExplorerVisibleSaveRequest = useCallback(() => setExplorerVisibleSaveRequest(undefined), [])
-  const clearExplorerVisibleDismissRequest = useCallback(() => setExplorerVisibleDismissRequest(undefined), [])
   const clearSettingsTaxonomyRepairRequest = useCallback(() => setSettingsTaxonomyRepairRequest(undefined), [])
   const clearSettingsTasteSuggestionsRequest = useCallback(() => setSettingsTasteSuggestionsRequest(undefined), [])
   const clearSettingsSaveRequest = useCallback(() => setSettingsSaveRequest(undefined), [])
@@ -619,16 +608,6 @@ function App() {
     setExplorerCandidateDismissRequest({ candidateId, requestId: explorerCandidateDismissRequestId.current })
   }
 
-  function requestExplorerVisibleSave(sourceFilter: ExplorerSourceFilter) {
-    explorerVisibleSaveRequestId.current += 1
-    setExplorerVisibleSaveRequest({ requestId: explorerVisibleSaveRequestId.current, sourceFilter })
-  }
-
-  function requestExplorerVisibleDismiss(sourceFilter: ExplorerSourceFilter) {
-    explorerVisibleDismissRequestId.current += 1
-    setExplorerVisibleDismissRequest({ requestId: explorerVisibleDismissRequestId.current, sourceFilter })
-  }
-
   function requestSettingsTaxonomyRepair() {
     settingsTaxonomyRepairRequestId.current += 1
     setSettingsTaxonomyRepairRequest({ requestId: settingsTaxonomyRepairRequestId.current })
@@ -779,44 +758,6 @@ function App() {
 
     setActivityFocus(undefined)
     requestExplorerCandidateDismiss(candidate.id)
-    setActiveTabState('discover')
-    writeDiscoverLocation('queue')
-  }
-
-  function saveExplorerVisibleQueueFromPalette(sourceFilter: ExplorerSourceFilter) {
-    setQuickSearchOpen(false)
-    if (activeTab === 'discover') {
-      setActivityFocus(undefined)
-      requestExplorerVisibleSave(sourceFilter)
-      writeDiscoverLocation('queue')
-      return
-    }
-    if (tabsWithUnsavedChanges[activeTab]) {
-      setPendingNavigation({ explorerVisibleSaveSourceFilter: sourceFilter, source: 'app', tab: 'discover' })
-      return
-    }
-
-    setActivityFocus(undefined)
-    requestExplorerVisibleSave(sourceFilter)
-    setActiveTabState('discover')
-    writeDiscoverLocation('queue')
-  }
-
-  function dismissExplorerVisibleQueueFromPalette(sourceFilter: ExplorerSourceFilter) {
-    setQuickSearchOpen(false)
-    if (activeTab === 'discover') {
-      setActivityFocus(undefined)
-      requestExplorerVisibleDismiss(sourceFilter)
-      writeDiscoverLocation('queue')
-      return
-    }
-    if (tabsWithUnsavedChanges[activeTab]) {
-      setPendingNavigation({ explorerVisibleDismissSourceFilter: sourceFilter, source: 'app', tab: 'discover' })
-      return
-    }
-
-    setActivityFocus(undefined)
-    requestExplorerVisibleDismiss(sourceFilter)
     setActiveTabState('discover')
     writeDiscoverLocation('queue')
   }
@@ -1222,8 +1163,6 @@ function App() {
       explorerCandidateSaveId,
       explorerPromptCard,
       explorerSearchQuery,
-      explorerVisibleDismissSourceFilter,
-      explorerVisibleSaveSourceFilter,
       focus,
       libraryImport,
       libraryPrimaryActionItemId,
@@ -1263,12 +1202,6 @@ function App() {
     }
     if (explorerPromptCard) {
       requestExplorerPromptCard()
-    }
-    if (explorerVisibleDismissSourceFilter) {
-      requestExplorerVisibleDismiss(explorerVisibleDismissSourceFilter)
-    }
-    if (explorerVisibleSaveSourceFilter) {
-      requestExplorerVisibleSave(explorerVisibleSaveSourceFilter)
     }
     if (draftItem) {
       setLibraryDraftRequest(draftItem)
@@ -1332,9 +1265,7 @@ function App() {
         explorerCandidateId ||
           explorerCandidateDismissId ||
           explorerCandidateSaveId ||
-          explorerPromptCard ||
-          explorerVisibleDismissSourceFilter ||
-          explorerVisibleSaveSourceFilter,
+          explorerPromptCard,
       )
       writeDiscoverLocation(explorerSearchQuery ? 'search' : hasQueueIntent ? 'queue' : 'search', {
         historyMode: source === 'history' ? 'replace' : 'push',
@@ -1349,22 +1280,6 @@ function App() {
   const quickSearchFocusAction = quickSearchFocusItem ? getPrimaryItemAction(quickSearchFocusItem.status) : undefined
   const quickSearchReviewQueues = getLibraryReviewQueues(library.items)
   const quickSearchQueuedCandidate = library.discoveryCandidates.find((candidate) => candidate.status === 'queued')
-  const quickSearchQueuedSourceCounts = library.discoveryCandidates.reduce<Record<ExplorerSourceFilter, number>>(
-    (counts, candidate) => {
-      if (candidate.status !== 'queued') return counts
-
-      counts.all += 1
-      counts[getDiscoverySourceFilter(candidate)] += 1
-      return counts
-    },
-    { all: 0, external: 0, nexo: 0, prompt: 0 },
-  )
-  const quickSearchExplorerSaveSource = (['external', 'nexo', 'prompt'] as const).find(
-    (source) => quickSearchQueuedSourceCounts[source] > 0,
-  )
-  const quickSearchExplorerSaveSourceLabel = quickSearchExplorerSaveSource
-    ? getExplorerSourceFilterLabel(quickSearchExplorerSaveSource)
-    : undefined
   const quickSearchCooldownCount = library.items.filter(
     (item) => item.status !== 'completed' && item.status !== 'dropped' && isItemInCooldown(item),
   ).length
@@ -1527,38 +1442,6 @@ function App() {
               sourceLabels[quickSearchQueuedCandidate.source]
             } ${typeLabels[quickSearchQueuedCandidate.type]}`,
             title: 'Descartar siguiente hallazgo',
-            tone: 'command' as const,
-          },
-        ]
-      : []),
-    ...(quickSearchExplorerSaveSource && quickSearchExplorerSaveSourceLabel
-      ? [
-          {
-            Icon: Plus,
-            detail: `${quickSearchQueuedSourceCounts[quickSearchExplorerSaveSource]} ${
-              quickSearchQueuedSourceCounts[quickSearchExplorerSaveSource] === 1 ? 'hallazgo' : 'hallazgos'
-            } / ${quickSearchExplorerSaveSourceLabel}`,
-            id: `explorer-save-visible-${quickSearchExplorerSaveSource}`,
-            meta: 'Explorador',
-            run: () => saveExplorerVisibleQueueFromPalette(quickSearchExplorerSaveSource),
-            searchText: `guardar vista explorador cola lote ${quickSearchExplorerSaveSourceLabel} hallazgos fuentes APIs Nexo ideas`,
-            title: 'Guardar vista del explorador',
-            tone: 'section' as const,
-          },
-        ]
-      : []),
-    ...(quickSearchExplorerSaveSource && quickSearchExplorerSaveSourceLabel
-      ? [
-          {
-            Icon: X,
-            detail: `${quickSearchQueuedSourceCounts[quickSearchExplorerSaveSource]} ${
-              quickSearchQueuedSourceCounts[quickSearchExplorerSaveSource] === 1 ? 'hallazgo' : 'hallazgos'
-            } / ${quickSearchExplorerSaveSourceLabel}`,
-            id: `explorer-dismiss-visible-${quickSearchExplorerSaveSource}`,
-            meta: 'Explorador',
-            run: () => dismissExplorerVisibleQueueFromPalette(quickSearchExplorerSaveSource),
-            searchText: `descartar vista explorador limpiar cola lote ${quickSearchExplorerSaveSourceLabel} hallazgos fuentes APIs Nexo ideas quitar`,
-            title: 'Descartar vista del explorador',
             tone: 'command' as const,
           },
         ]
@@ -2000,19 +1883,13 @@ function App() {
                 library={library}
                 requiresSignIn={auth.isFirebaseConfigured && !auth.user}
                 promptCardRequest={explorerPromptCardRequest}
-                searchRequest={explorerSearchRequest}
-                visibleDismissRequest={explorerVisibleDismissRequest}
-                visibleSaveRequest={explorerVisibleSaveRequest}
                 onActivity={recordVisibleActivity}
                 onCandidateDismissRequestHandled={clearExplorerCandidateDismissRequest}
                 onCandidateRequestHandled={clearExplorerCandidateRequest}
                 onCandidateSaveRequestHandled={clearExplorerCandidateSaveRequest}
                 onNavigate={changeActiveTab}
                 onPromptCardRequestHandled={clearExplorerPromptCardRequest}
-                onSearchRequestHandled={clearExplorerSearchRequest}
                 onSignIn={requestSignIn}
-                onVisibleDismissRequestHandled={clearExplorerVisibleDismissRequest}
-                onVisibleSaveRequestHandled={clearExplorerVisibleSaveRequest}
               />
             </FeatureErrorBoundary>
           )}

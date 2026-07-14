@@ -4,6 +4,13 @@ import { type DiscoveryCandidate, type ExplorerSearchType, type ListItem } from 
 import { discoverySourceLabels as sourceLabels } from '../lib/explorerInsights'
 import { getDiscoveryCandidateEffortSignal, itemTypeLabels as typeLabels } from '../lib/libraryItemInsights'
 import { moveRoadmapItem } from '../lib/roadmap'
+import {
+  cleanCatalogSearchQuery,
+  maxCatalogSearchQueryLength,
+  type CatalogSearchRequest,
+  type CatalogSearchResult,
+} from '../services/catalogSearchClient'
+import { createCatalogSearchController } from '../services/catalogSearchController'
 import { Check, CheckCircle2, Eye, Library, LoaderCircle, LogIn, Plus, Search, Sparkles, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
@@ -33,6 +40,8 @@ interface CatalogTabProps {
 
 const adsEnabled = import.meta.env.VITE_ADS_ENABLED === 'true'
 const catalogPublicPageSize = 24
+type CatalogRequestReason = 'filter' | 'hydrate' | 'navigation' | 'submit'
+type CatalogRequestPhase = 'empty' | 'error' | 'idle' | 'loading' | 'success'
 
 export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate, onSignIn }: CatalogTabProps) {
   const initialCatalogRouteState = readCatalogRouteState()
@@ -42,11 +51,17 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
   const [visibleLimit, setVisibleLimit] = useState(catalogPublicPageSize)
   const [catalogResultLabel, setCatalogResultLabel] = useState('obras del catalogo')
   const [selectedCandidate, setSelectedCandidate] = useState<DiscoveryCandidate | undefined>()
-  const [loading, setLoading] = useState(true)
+  const [requestPhase, setRequestPhase] = useState<CatalogRequestPhase>('loading')
   const [status, setStatus] = useState<string | undefined>()
   const [recentlySavedItem, setRecentlySavedItem] = useState<ListItem>()
   const libraryRef = useRef(library)
+  const isSignedInRef = useRef(isSignedIn)
+  const onActivityRef = useRef(onActivity)
   const catalogRequestId = useRef(0)
+  const didHydrateRoute = useRef(false)
+  const recordedSearchActivityKeys = useRef(new Set<string>())
+  const [catalogSearchController] = useState(() => createCatalogSearchController())
+  const loading = requestPhase === 'loading'
   const visibleCandidates = useMemo(() => candidates.slice(0, visibleLimit), [candidates, visibleLimit])
   const visibleSavedCount = useMemo(
     () =>
@@ -86,12 +101,24 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
     libraryRef.current = library
   }, [library])
 
+  useEffect(() => {
+    if (isSignedInRef.current !== isSignedIn) recordedSearchActivityKeys.current.clear()
+    isSignedInRef.current = isSignedIn
+    onActivityRef.current = onActivity
+  }, [isSignedIn, onActivity])
+
   const runCatalogRequest = useCallback(async (
     nextQuery: string,
     nextType: ExplorerSearchType,
-    options: { historyMode?: 'push' | 'replace'; syncInputs?: boolean; writeRoute?: boolean } = {},
+    options: {
+      force?: boolean
+      historyMode?: 'push' | 'replace'
+      reason?: CatalogRequestReason
+      syncInputs?: boolean
+      writeRoute?: boolean
+    } = {},
   ) => {
-    const cleanedQuery = nextQuery.trim()
+    const cleanedQuery = cleanCatalogSearchQuery(nextQuery)
     const requestId = ++catalogRequestId.current
     if (options.syncInputs) {
       setQuery(cleanedQuery)
@@ -106,35 +133,43 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
         options.historyMode ?? 'push',
       )
     }
-    setLoading(true)
+    setRequestPhase('loading')
     setStatus(undefined)
     setRecentlySavedItem(undefined)
     try {
-      const currentLibrary = libraryRef.current
-      const nextCandidates =
-        cleanedQuery.length >= 2
-          ? isSignedIn
-            ? await currentLibrary.searchCatalog(cleanedQuery, nextType)
-            : (await currentLibrary.searchPublicCatalog(cleanedQuery, nextType)).map(currentLibrary.publicItemToDiscovery)
-          : nextType === 'any'
-            ? (await currentLibrary.listPublicCatalog()).map(currentLibrary.publicItemToDiscovery)
-            : (await currentLibrary.searchPublicCatalog('', nextType)).map(currentLibrary.publicItemToDiscovery)
+      const result = await catalogSearchController.run(
+        { query: cleanedQuery, type: nextType, limit: 48 },
+        (request) => loadCatalogSearch(libraryRef.current, request),
+        { force: options.force },
+      )
       if (requestId !== catalogRequestId.current) return
+      const nextCandidates = result.candidates
       const nextVisibleCount = Math.min(catalogPublicPageSize, nextCandidates.length)
       const nextResultLabel = cleanedQuery.length >= 2 ? 'resultados para explorar' : 'obras del catalogo'
 
       setCandidates(nextCandidates)
       setVisibleLimit(catalogPublicPageSize)
       setCatalogResultLabel(nextResultLabel)
+      setRequestPhase(nextCandidates.length ? 'success' : 'empty')
       setStatus(
         nextCandidates.length
-          ? formatCatalogVisibleStatus(nextVisibleCount, nextCandidates.length, nextResultLabel, isSignedIn)
-          : isSignedIn
+          ? `${formatCatalogVisibleStatus(nextVisibleCount, nextCandidates.length, nextResultLabel, isSignedInRef.current)}${
+              result.partial ? ' Algunas fuentes no respondieron.' : ''
+            }`
+          : isSignedInRef.current
             ? 'Sin resultados en Nexo ni en las fuentes disponibles.'
             : 'Sin resultados en el catalogo publico.',
       )
-      if (isSignedIn && cleanedQuery.length >= 2 && nextCandidates.length) {
-        onActivity({
+      const activityKey = `${nextType}:${cleanedQuery.toLocaleLowerCase('es')}`
+      if (
+        options.reason === 'submit' &&
+        isSignedInRef.current &&
+        cleanedQuery.length >= 2 &&
+        nextCandidates.length &&
+        !recordedSearchActivityKeys.current.has(activityKey)
+      ) {
+        recordedSearchActivityKeys.current.add(activityKey)
+        onActivityRef.current({
           detail: `${nextCandidates.length} resultados para "${cleanedQuery}"`,
           label: 'Catalogo explorado',
           tab: 'discover',
@@ -143,46 +178,72 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
       }
     } catch (reason) {
       if (requestId !== catalogRequestId.current) return
+      setRequestPhase('error')
       setCandidates([])
       setStatus(reason instanceof Error ? reason.message : 'No se pudo buscar en el catalogo.')
-    } finally {
-      if (requestId === catalogRequestId.current) setLoading(false)
     }
-  }, [isSignedIn, onActivity])
+  }, [catalogSearchController])
 
   useEffect(() => {
-    const routeState = readCatalogRouteState()
+    if (library.loading || didHydrateRoute.current) return
     const timeoutId = window.setTimeout(() => {
-      void runCatalogRequest(routeState.query, routeState.type)
+      if (didHydrateRoute.current) return
+      didHydrateRoute.current = true
+      const routeState = readCatalogRouteState()
+      void runCatalogRequest(routeState.query, routeState.type, { reason: 'hydrate' })
     }, 0)
     return () => window.clearTimeout(timeoutId)
-  }, [isSignedIn, library.loading, runCatalogRequest])
+  }, [library.loading, runCatalogRequest])
+
+  useEffect(() => () => {
+    catalogRequestId.current += 1
+    catalogSearchController.cancel()
+  }, [catalogSearchController])
 
   useEffect(() => {
     function syncCatalogFromUrl() {
+      didHydrateRoute.current = true
       const searchParams = new URLSearchParams(window.location.search)
       const routedTab = searchParams.get('tab')
-      if (searchParams.get('item') || (routedTab && routedTab !== 'catalog' && routedTab !== 'discover')) return
+      if (searchParams.get('item') || (routedTab && routedTab !== 'catalog' && routedTab !== 'discover')) {
+        catalogRequestId.current += 1
+        catalogSearchController.cancel()
+        return
+      }
 
       const routeState = readCatalogRouteState()
-      void runCatalogRequest(routeState.query, routeState.type, { syncInputs: true })
+      void runCatalogRequest(routeState.query, routeState.type, { reason: 'navigation', syncInputs: true })
     }
 
     window.addEventListener('popstate', syncCatalogFromUrl)
     return () => window.removeEventListener('popstate', syncCatalogFromUrl)
-  }, [runCatalogRequest])
+  }, [catalogSearchController, runCatalogRequest])
 
   function submitCatalogSearch() {
-    void runCatalogRequest(query, type, { syncInputs: true, writeRoute: true })
+    void runCatalogRequest(query, type, {
+      force: requestPhase === 'empty' || requestPhase === 'error',
+      reason: 'submit',
+      syncInputs: true,
+      writeRoute: true,
+    })
+  }
+
+  function changeCatalogQuery(nextQuery: string) {
+    didHydrateRoute.current = true
+    catalogRequestId.current += 1
+    catalogSearchController.cancel()
+    setQuery(nextQuery)
+    setRequestPhase(candidates.length ? 'success' : 'idle')
+    setStatus(undefined)
   }
 
   function changeCatalogType(nextType: ExplorerSearchType) {
     setType(nextType)
-    void runCatalogRequest(query, nextType, { syncInputs: true, writeRoute: true })
+    void runCatalogRequest(query, nextType, { reason: 'filter', syncInputs: true, writeRoute: true })
   }
 
   function clearCatalogSearch() {
-    void runCatalogRequest('', 'any', { syncInputs: true, writeRoute: true })
+    void runCatalogRequest('', 'any', { reason: 'filter', syncInputs: true, writeRoute: true })
   }
 
   async function saveCandidate(candidate: DiscoveryCandidate) {
@@ -219,13 +280,13 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
 
   async function queueCandidate(candidate: DiscoveryCandidate) {
     if (!isSignedIn) {
-      setStatus('Entra en Nexo para mandar hallazgos al Explorador.')
+      setStatus('Entra en Nexo para guardar hallazgos y revisarlos despues.')
       onSignIn()
       return
     }
 
     const queuedCount = await library.queueDiscoveryCandidates([candidate])
-    setStatus(queuedCount ? `${candidate.title} enviado al Explorador.` : `${candidate.title} ya estaba en tu Explorador.`)
+    setStatus(queuedCount ? `${candidate.title} queda para revisar después.` : `${candidate.title} ya estaba para revisar.`)
     onNavigate('discover')
     const url = new URL(window.location.href)
     url.searchParams.set('tab', 'discover')
@@ -282,8 +343,9 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
               <input
                 aria-label="Buscar en el catalogo publico"
                 placeholder="Buscar obra, saga, autor o juego"
+                maxLength={maxCatalogSearchQueryLength}
                 value={query}
-                onChange={(event) => setQuery(event.target.value)}
+                onChange={(event) => changeCatalogQuery(event.target.value)}
               />
             </label>
             <select
@@ -416,6 +478,22 @@ export default function CatalogTab({ isSignedIn, library, onActivity, onNavigate
   )
 }
 
+async function loadCatalogSearch(
+  library: LibrarySurface,
+  request: CatalogSearchRequest,
+): Promise<CatalogSearchResult> {
+  if (library.searchCatalogRequest) return library.searchCatalogRequest(request)
+
+  const candidates = request.query.length >= 2
+    ? await library.searchCatalog(request.query, request.type)
+    : request.type === 'any'
+      ? (await library.listPublicCatalog()).map(library.publicItemToDiscovery)
+      : (await library.searchPublicCatalog('', request.type)).map(library.publicItemToDiscovery)
+
+  if (request.signal?.aborted) throw request.signal.reason
+  return { candidates, partial: false, sources: ['publicCatalog'] }
+}
+
 function getCatalogTypeSummary(type: ExplorerSearchType) {
   if (type === 'any') return 'Todo'
   if (type === 'watch') return 'Ver'
@@ -491,8 +569,8 @@ function CatalogPublicCard({
             className="icon-button catalog-public-icon-action"
             type="button"
             onClick={onQueue}
-            aria-label={`Mandar al Explorador ${candidate.title}`}
-            title="Mandar al Explorador"
+            aria-label={`Revisar después ${candidate.title}`}
+            title="Revisar después"
           >
             <Library size={16} />
           </button>
@@ -566,7 +644,7 @@ function CatalogPublicDialog({
               {isSaved
                 ? 'Esta ficha ya esta guardada en tu Biblioteca.'
                 : isSignedIn
-                  ? 'Tu sesion permite guardar esta obra o mandarla al Explorador.'
+                  ? 'Tu sesion permite guardar esta obra o dejarla para revisar después.'
                   : 'Inicia sesion para convertir esta ficha publica en una entrada privada.'}
             </span>
           </div>
@@ -582,7 +660,7 @@ function CatalogPublicDialog({
             </button>
             <button className="secondary-button" type="button" onClick={isSignedIn ? onQueue : onSignIn}>
               <Library size={16} />
-              {isSignedIn ? 'Mandar al Explorador' : 'Explorar con cuenta'}
+              {isSignedIn ? 'Revisar después' : 'Explorar con cuenta'}
             </button>
           </div>
         </div>
