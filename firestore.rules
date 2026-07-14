@@ -111,6 +111,10 @@ service cloud.firestore {
       return !('publicSnapshot' in data)
         || (
           data.publicSnapshot is map
+          // This is an owner-scoped convenience snapshot inside the private
+          // item. Its shape stays allowlisted, while the validated top-level
+          // fields avoid repeating every bound and exhausting the 1,000-expression
+          // rules budget.
           && data.publicSnapshot.keys().hasOnly([
             'id',
             'title',
@@ -128,14 +132,6 @@ service cloud.firestore {
             'canonicalKey',
             'updatedAt'
           ])
-          && optionalBoundedMapString(data.publicSnapshot, 'id', 120)
-          && optionalBoundedMapString(data.publicSnapshot, 'title', 200)
-          && optionalBoundedMapString(data.publicSnapshot, 'description', 20000)
-          && (!('genres' in data.publicSnapshot) || (data.publicSnapshot.genres is list && data.publicSnapshot.genres.size() <= 64))
-          && (!('tags' in data.publicSnapshot) || (data.publicSnapshot.tags is list && data.publicSnapshot.tags.size() <= 64))
-          && (!('moodTags' in data.publicSnapshot) || (data.publicSnapshot.moodTags is list && data.publicSnapshot.moodTags.size() <= 64))
-          && (!('searchAliases' in data.publicSnapshot) || (data.publicSnapshot.searchAliases is list && data.publicSnapshot.searchAliases.size() <= 64))
-          && (!('externalRefs' in data.publicSnapshot) || data.publicSnapshot.externalRefs is map)
         );
     }
 
