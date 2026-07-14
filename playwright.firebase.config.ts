@@ -25,6 +25,7 @@ export default defineConfig({
       VITE_FIREBASE_STORAGE_BUCKET: `${projectId}.firebasestorage.app`,
       VITE_FIREBASE_MESSAGING_SENDER_ID: '947336888836',
       VITE_FIREBASE_APP_ID: '1:947336888836:web:e2e',
+      VITE_CATALOG_API_URL: 'http://127.0.0.1:5175/catalog-proxy',
       VITE_CATALOG_PROXY_URL: 'http://127.0.0.1:5175/catalog-proxy',
       VITE_PUBLIC_CATALOG_URL: publicCatalogUrl,
       VITE_DEMO_MODE: 'false',

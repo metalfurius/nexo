@@ -172,6 +172,47 @@ describe('useLibrary', () => {
     ])
   })
 
+  it('does not write or reorder an identical queued candidate', async () => {
+    const user = { uid: 'user-1', email: null, displayName: null }
+    const { result } = renderHook(() => useLibrary(user))
+    await waitFor(() => expect(repositoryMock.subscribeItems).toHaveBeenCalled())
+
+    await act(async () => {
+      await result.current.queueDiscoveryCandidates([candidate])
+    })
+    const firstUpdatedAt = result.current.discoveryCandidates[0].updatedAt
+    let queuedCount = -1
+    await act(async () => {
+      queuedCount = await result.current.queueDiscoveryCandidates([
+        { ...candidate, updatedAt: '2099-01-01T00:00:00.000Z' },
+      ])
+    })
+
+    expect(queuedCount).toBe(0)
+    expect(repositoryMock.saveDiscoveryCandidate).toHaveBeenCalledTimes(1)
+    expect(result.current.discoveryCandidates[0].updatedAt).toBe(firstUpdatedAt)
+  })
+
+  it('persists enriched queued metadata once and then deduplicates it', async () => {
+    const user = { uid: 'user-1', email: null, displayName: null }
+    const { result } = renderHook(() => useLibrary(user))
+    await waitFor(() => expect(repositoryMock.subscribeItems).toHaveBeenCalled())
+    const enrichedCandidate = { ...candidate, overview: 'Una ficha enriquecida.' }
+
+    await act(async () => {
+      await result.current.queueDiscoveryCandidates([candidate])
+      await result.current.queueDiscoveryCandidates([enrichedCandidate])
+      await result.current.queueDiscoveryCandidates([
+        { ...enrichedCandidate, updatedAt: '2099-01-01T00:00:00.000Z' },
+      ])
+    })
+
+    expect(repositoryMock.saveDiscoveryCandidate).toHaveBeenCalledTimes(2)
+    expect(result.current.discoveryCandidates[0]).toEqual(
+      expect.objectContaining({ overview: 'Una ficha enriquecida.', status: 'queued' }),
+    )
+  })
+
   it('delegates unified catalog search for signed-in users', async () => {
     const user = {
       uid: 'user-1',

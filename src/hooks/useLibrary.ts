@@ -23,8 +23,13 @@ import {
   discoveryToListItem,
   externalCandidateToDiscovery,
   publicItemToDiscovery,
-  shouldPreserveDiscoveryDecision,
+  prepareDiscoveryCandidateForQueue,
 } from '../lib/catalog'
+import {
+  dedupeCatalogSearchCandidates,
+  rankCatalogSearchCandidates,
+  scoreCatalogSearchCandidate,
+} from '../lib/catalogSearch'
 import {
   applyRoadmapMutationToLibrary,
   cleanupRoadmapPreferences,
@@ -36,6 +41,11 @@ import { uniqueValues } from '../lib/strings'
 import { isFirebaseConfigured } from '../services/firebaseConfig'
 import { isFirestoreOfflinePersistenceEnabled } from '../services/devicePreferences'
 import { fetchPublicCatalog } from '../services/publicCatalog'
+import {
+  searchCatalogSources,
+  type CatalogSearchRequest,
+  type CatalogSearchResult,
+} from '../services/catalogSearchClient'
 import type { LibraryRepository, RepositorySnapshotState } from '../services/libraryRepository'
 import { demoExternalCandidates, getSyncErrorMessage, isPermissionDeniedError, limitActivityEntries, matchesSearchType, mergeActivityEntries, mergeCandidates, mergeSettings, preserveLockedCatalogFields, requireRemotePublicCatalog, toUserProfileSeed, upsertCatalogItem, upsertItem, type SignedInUserProfile } from './libraryState'
 
@@ -130,6 +140,7 @@ export function useLibrary(user?: SignedInUserProfile | null) {
   }
   const itemsRef = useRef(items)
   const settingsRef = useRef(settings)
+  const discoveryCandidatesRef = useRef(visibleDiscoveryCandidates)
   const roadmapMutationQueueRef = useRef<Promise<void>>(Promise.resolve())
   const roadmapMutationSessionRef = useRef(userId)
   const activePrivateSessionRef = useRef(userId)
@@ -138,6 +149,7 @@ export function useLibrary(user?: SignedInUserProfile | null) {
     activePrivateSessionRef.current = userId
     itemsRef.current = emptyLibraryItems
     settingsRef.current = mergeSettings({})
+    discoveryCandidatesRef.current = []
     roadmapMutationSessionRef.current = userId
     roadmapMutationQueueRef.current = Promise.resolve()
   }
@@ -149,6 +161,12 @@ export function useLibrary(user?: SignedInUserProfile | null) {
   useEffect(() => {
     settingsRef.current = settings
   }, [settings])
+
+  useEffect(() => {
+    discoveryCandidatesRef.current = expectsRemote
+      ? privateSliceOwnerMatches ? discoveryCandidates : []
+      : usesDemoMode ? discoveryCandidates : []
+  }, [discoveryCandidates, expectsRemote, privateSliceOwnerMatches, usesDemoMode])
 
   useEffect(() => {
     if (roadmapMutationSessionRef.current === userId) return
@@ -651,7 +669,6 @@ export function useLibrary(user?: SignedInUserProfile | null) {
       return requireRemotePublicCatalog(() => fetchPublicCatalog(query, type ?? 'any', anonymousPublicCatalogLimit))
     }
 
-    const { rankCatalogSearchCandidates, scoreCatalogSearchCandidate } = await import('../lib/catalogSearch')
     const normalized = query.trim().toLowerCase()
     const matchingItems = publicCatalog
       .filter((item) => !item.archivedAt)
@@ -668,20 +685,30 @@ export function useLibrary(user?: SignedInUserProfile | null) {
     if (repository) return repository.searchCatalog(query, type)
 
     const cleanedQuery = query.trim()
-    const [catalogSearch, publicItems, externalCandidates] = await Promise.all([
-      import('../lib/catalogSearch'),
+    const [publicItems, externalCandidates] = await Promise.all([
       searchPublicCatalog(cleanedQuery, type),
       cleanedQuery.length >= 2 ? searchExternal(cleanedQuery, type ?? 'any') : Promise.resolve([]),
     ])
 
-    return catalogSearch.rankCatalogSearchCandidates(
-      catalogSearch.dedupeCatalogSearchCandidates([
+    return rankCatalogSearchCandidates(
+      dedupeCatalogSearchCandidates([
         ...publicItems.map(publicItemToDiscovery),
         ...externalCandidates.map(externalCandidateToDiscovery),
       ]),
       cleanedQuery,
       type,
     ).slice(0, 24)
+  }
+
+  async function searchCatalogRequest(request: CatalogSearchRequest): Promise<CatalogSearchResult> {
+    if (isFirebaseConfigured || hasConfiguredCatalogSearchEndpoints()) return searchCatalogSources(request)
+
+    const candidates = (await searchPublicCatalog(request.query, request.type)).map(publicItemToDiscovery)
+    return {
+      candidates,
+      partial: false,
+      sources: ['publicCatalog'],
+    }
   }
 
   async function listPublicCatalog(): Promise<PublicCatalogItem[]> {
@@ -730,19 +757,23 @@ export function useLibrary(user?: SignedInUserProfile | null) {
 
   async function queueDiscoveryCandidates(candidates: DiscoveryCandidate[]) {
     requirePrivateSession()
-    const normalized = candidates.map((candidate) => ({
-      ...candidate,
-      status: candidate.status ?? 'queued',
-      updatedAt: nowIso(),
-    }))
-    const currentCandidatesById = new Map(discoveryCandidates.map((candidate) => [candidate.id, candidate]))
-    const candidatesToPersist = normalized.filter(
-      (candidate) => !shouldPreserveDiscoveryDecision(currentCandidatesById.get(candidate.id), candidate),
-    )
-    setDiscoveryCandidates((current) => mergeCandidates(normalized, current))
+    const timestamp = nowIso()
+    const candidatesById = new Map(discoveryCandidatesRef.current.map((candidate) => [candidate.id, candidate]))
+    const candidatesToPersist = new Map<string, DiscoveryCandidate>()
+    for (const incoming of candidates) {
+      const prepared = prepareDiscoveryCandidateForQueue(candidatesById.get(incoming.id), incoming, timestamp)
+      candidatesById.set(incoming.id, prepared.candidate)
+      if (prepared.persist) candidatesToPersist.set(prepared.candidate.id, prepared.candidate)
+    }
+    if (!candidatesToPersist.size) return 0
+
+    const nextCandidates = [...candidatesById.values()]
+      .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+    discoveryCandidatesRef.current = nextCandidates
+    setDiscoveryCandidates(nextCandidates)
     if (repository) {
       const persistCandidates = async () => {
-        for (const candidate of candidatesToPersist) {
+        for (const candidate of candidatesToPersist.values()) {
           await repository.saveDiscoveryCandidate(candidate)
         }
       }
@@ -751,7 +782,7 @@ export function useLibrary(user?: SignedInUserProfile | null) {
         'No se pudo persistir la cola de exploracion.',
       )
     }
-    return candidatesToPersist.length
+    return candidatesToPersist.size
   }
 
   async function dismissDiscoveryCandidate(candidateId: string) {
@@ -953,6 +984,7 @@ export function useLibrary(user?: SignedInUserProfile | null) {
     recordRecommendation,
     searchExternal,
     searchCatalog,
+    searchCatalogRequest,
     listPublicCatalog,
     searchPublicCatalog,
     saveSettings,
@@ -974,4 +1006,11 @@ export function useLibrary(user?: SignedInUserProfile | null) {
     publicItemToDiscovery,
     externalCandidateToDiscovery,
   }
+}
+
+function hasConfiguredCatalogSearchEndpoints() {
+  return Boolean(
+    String(import.meta.env.VITE_PUBLIC_CATALOG_URL ?? '').trim() ||
+    String(import.meta.env.VITE_CATALOG_API_URL ?? '').trim(),
+  )
 }

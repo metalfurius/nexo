@@ -15,6 +15,21 @@ const anonymousSurprise = {
   externalRefs: {},
   createdAt: '2026-07-11T00:00:00.000Z',
 }
+const externalDune = {
+  id: 'tmdb-438631',
+  title: 'Dune',
+  type: 'movie',
+  source: 'tmdb',
+  sourceId: '438631',
+  overview: 'Una casa noble frente al desierto de Arrakis.',
+  posterUrl: 'https://images.example.test/dune.svg',
+  releaseYear: 2021,
+  genres: ['Ciencia ficcion', 'Aventura'],
+  tags: [],
+  moodTags: [],
+  externalRefs: {},
+  createdAt: '2026-07-11T00:00:00.000Z',
+}
 
 test('anonymous mode can search the public catalog and gates private routes', async ({ page, request }) => {
   const endpointResponse = await request.get(publicCatalogUrl, {
@@ -39,7 +54,10 @@ test('anonymous mode can search the public catalog and gates private routes', as
       contentType: 'image/svg+xml',
     })
   })
-  await page.route('**/catalog-proxy/discover**', async (route) => {
+  await page.route('**/catalog-proxy/v1/catalog/search**', async (route) => {
+    await route.fulfill({ contentType: 'application/json', json: { results: [] } })
+  })
+  await page.route(/\/catalog-proxy\/(?:v1\/catalog\/)?discover(?:\?|$)/, async (route) => {
     await route.fulfill({ contentType: 'application/json', json: { result: anonymousSurprise } })
   })
 
@@ -79,7 +97,7 @@ test('anonymous mode can search the public catalog and gates private routes', as
   await discoverModes.getByRole('button', { name: /^Sorprendeme/ }).click()
   const surpriseForm = page.locator('form.explorer-discover-form')
   await expect(surpriseForm).toBeVisible()
-  await surpriseForm.getByRole('button', { name: 'Sorprendeme', exact: true }).click()
+  await surpriseForm.getByRole('button', { name: /^Sorpr.ndeme$/ }).click()
   const anonymousResult = page.getByTestId('explorer-random-result')
   await expect(anonymousResult).toContainText(anonymousSurprise.title)
   await anonymousResult.getByRole('button', { name: 'Guardar', exact: true }).click()
@@ -96,6 +114,79 @@ test('anonymous mode can search the public catalog and gates private routes', as
   await page.getByRole('button', { name: 'Inicio' }).click()
   await expect(page.getByRole('dialog', { name: 'Entrar en Nexo' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Descubrir' })).toHaveAttribute('aria-current', 'page')
+})
+
+test('authenticated Dune search makes one request per catalog origin and then stays stable', async ({ page }) => {
+  const counts = { callable: 0, directProvider: 0, gateway: 0, publicCatalog: 0 }
+  const publicPath = new URL(publicCatalogUrl).pathname
+  const directProviderHosts = new Set([
+    'api.rawg.io',
+    'api.themoviedb.org',
+    'books.googleapis.com',
+    'graphql.anilist.co',
+    'openlibrary.org',
+  ])
+
+  page.on('request', (request) => {
+    const url = new URL(request.url())
+    const isDuneRequest = url.searchParams.get('q')?.toLocaleLowerCase('es') === 'dune'
+    if (isDuneRequest && url.pathname === publicPath) counts.publicCatalog += 1
+    if (isDuneRequest && url.pathname.endsWith('/catalog-proxy/v1/catalog/search')) counts.gateway += 1
+    if (directProviderHosts.has(url.hostname)) counts.directProvider += 1
+    if (/\/searchCatalog(?:\?|$)/.test(url.pathname)) counts.callable += 1
+  })
+
+  await page.route('**/catalog-proxy/v1/catalog/search**', async (route) => {
+    await route.fulfill({ contentType: 'application/json', json: { results: [externalDune] } })
+  })
+  await page.route('https://images.example.test/**', async (route) => {
+    await route.fulfill({
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="80" height="120"><rect width="80" height="120" fill="#245c66"/></svg>',
+      contentType: 'image/svg+xml',
+    })
+  })
+
+  await page.goto('/')
+  await signIn(page)
+  await page.goto('/?tab=discover&mode=search')
+
+  const catalogSearch = page.getByLabel('Buscar en el catalogo publico')
+  await catalogSearch.fill('Dune')
+  const submit = page.getByTestId('catalog-public-masthead').getByRole('button', { name: 'Buscar', exact: true })
+  await submit.click()
+
+  await expect(page.locator('article.catalog-public-card').filter({ hasText: 'Dune' }).first()).toBeVisible()
+  await expect(page.getByRole('status').filter({ hasText: 'resultados para explorar' })).toBeVisible()
+  await expect(submit).toBeEnabled()
+  await expect(submit).toHaveText(/Buscar$/)
+  await expect.poll(() => counts).toEqual({ callable: 0, directProvider: 0, gateway: 1, publicCatalog: 1 })
+
+  await page.waitForTimeout(3_000)
+  expect(counts).toEqual({ callable: 0, directProvider: 0, gateway: 1, publicCatalog: 1 })
+
+  const duneResult = page.locator('article.catalog-public-card').filter({ hasText: 'Dune' }).first()
+  await duneResult.getByRole('button', { name: /Revisar despu.s Dune/ }).click()
+  await expect(page).toHaveURL(/mode=queue/)
+  await expect(page.getByLabel('Buscar en explorador')).toHaveCount(0)
+  await expect(page.getByRole('status', { name: 'Sincronizacion pendiente' })).toHaveCount(0)
+  await page.reload()
+  await expect(page).toHaveURL(/mode=queue/)
+  const reviewCard = page.locator('article.review-card').filter({ hasText: 'Dune' }).first()
+  await expect(reviewCard).toBeVisible()
+  await reviewCard.getByRole('button', { name: 'Guardar en Biblioteca' }).click()
+  const saveStatus = page.getByRole('status').filter({ hasText: 'Dune guardado en Biblioteca' })
+  await expect(saveStatus).toBeVisible()
+  await saveStatus.getByRole('button', { name: 'Deshacer guardado' }).click()
+  await expect(page.getByRole('status').filter({ hasText: 'recuperado para revisar' })).toBeVisible()
+  await expect(page.getByRole('status', { name: 'Sincronizacion pendiente' })).toHaveCount(0)
+
+  await page.getByRole('button', { name: 'Inicio', exact: true }).click()
+  const history = page.getByLabel('Historial de actividad')
+  await expect(history).toBeVisible()
+  await history.click()
+  await expect(
+    page.getByTestId('session-activity').locator('.session-activity-item').filter({ hasText: 'Catalogo explorado' }),
+  ).toHaveCount(1)
 })
 
 test('email login opens Inicio and roadmap mutations persist through reload and undo', async ({ page }) => {
@@ -186,6 +277,8 @@ async function signIn(page: Page) {
   await dialog.getByLabel('Email').fill(modEmail)
   await dialog.getByLabel(/Contrase/).fill(modPassword)
   await dialog.getByRole('button', { name: 'Entrar con email' }).click()
+  await expect(dialog).not.toBeVisible()
+  await expect(page.getByLabel('Rol: Moderador')).toBeVisible()
 }
 
 async function reloadHome(page: Page) {

@@ -140,6 +140,32 @@ describe('LibraryTab simplificada', () => {
     expect(screen.queryByText(/catalogo/i)).not.toBeInTheDocument()
   })
 
+  it('distingue generos de etiquetas y resume categorias sin ocultarlas a lectores de pantalla', () => {
+    const genres = ['Ciencia ficcion', 'Aventura', 'Drama', 'Misterio']
+    const cardsSurface = createSurface([
+      createItem('genres', { title: 'Con generos', genres, tags: ['No debe sustituirlos'] }),
+      createItem('tags', { title: 'Solo etiquetas', tags: ['Cozy', 'Corta', 'Ligera', 'Indie'] }),
+    ])
+    cardsSurface.settings.libraryViewMode = 'cards'
+    const cardsView = renderLibrary(cardsSurface)
+
+    const genreCategories = screen.getByLabelText(`Géneros de Con generos: ${genres.join(', ')}`)
+    expect(within(genreCategories).getByText('Géneros')).toBeInTheDocument()
+    expect(within(genreCategories).getByText('+1')).toBeInTheDocument()
+    expect(genreCategories).not.toHaveTextContent('No debe sustituirlos')
+    expect(screen.getByLabelText('Etiquetas de Solo etiquetas: Cozy, Corta, Ligera, Indie')).toHaveTextContent('+1')
+    expect(screen.getByRole('heading', { name: 'Con generos' }).closest('article')?.querySelector('.status')).toHaveTextContent('Por empezar')
+
+    cardsView.unmount()
+    const mosaicSurface = createSurface([createItem('mosaic', { title: 'Compacta', genres })])
+    mosaicSurface.settings.libraryViewMode = 'mosaic'
+    renderLibrary(mosaicSurface)
+
+    const mosaicCategories = screen.getByLabelText(`Géneros de Compacta: ${genres.join(', ')}`)
+    expect(mosaicCategories).toHaveTextContent('Ciencia ficcionAventura+2')
+    expect(mosaicCategories).not.toHaveTextContent('Drama')
+  })
+
   it('filtra por tipo, ordena, persiste densidad y restablece la vista', async () => {
     const user = userEvent.setup()
     const surface = createSurface([

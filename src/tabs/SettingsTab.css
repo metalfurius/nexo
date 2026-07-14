@@ -39,7 +39,7 @@
   color: var(--text-strong);
   font-family: var(--font-ui);
   font-size: clamp(30px, 4vw, 46px);
-  font-weight: 850;
+  font-weight: 800;
   letter-spacing: -0.045em;
   line-height: 0.96;
   margin: 5px 0 8px;
@@ -86,7 +86,7 @@
   color: var(--accent-dark);
   display: inline-flex;
   font-size: 16px;
-  font-weight: 900;
+  font-weight: 800;
   height: 42px;
   justify-content: center;
   width: 42px;
@@ -123,7 +123,7 @@
 .settings-confidence-facts span {
   color: var(--muted);
   display: grid;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 800;
   gap: 3px;
   letter-spacing: 0.02em;
@@ -163,7 +163,7 @@
   color: var(--accent-dark);
   display: inline-flex;
   font-size: 12px;
-  font-weight: 850;
+  font-weight: 800;
   gap: 7px;
   min-height: 40px;
   white-space: nowrap;
@@ -206,7 +206,7 @@
   color: var(--text-strong);
   font-family: var(--font-ui);
   font-size: 22px;
-  font-weight: 850;
+  font-weight: 800;
   letter-spacing: -0.025em;
   line-height: 1.05;
   margin: 3px 0 0;
@@ -339,7 +339,7 @@
 
 .settings-default-type small {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .settings-default-type select {
@@ -410,7 +410,7 @@
 .settings-taste-panel > summary small,
 .settings-drawer > summary small {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.3;
   overflow-wrap: anywhere;
 }
@@ -418,7 +418,7 @@
 .settings-taste-panel > summary em,
 .settings-drawer > summary em {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
   font-style: normal;
   font-weight: 800;
   white-space: nowrap;
@@ -465,7 +465,7 @@
 
 .taste-suggestions-heading span {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .taste-suggestion-row {
@@ -492,8 +492,8 @@
 .taste-suggestion-chip span,
 .taste-suggestion-chip small {
   color: var(--muted);
-  font-size: 10px;
-  font-weight: 850;
+  font-size: 12px;
+  font-weight: 800;
   text-transform: uppercase;
 }
 
@@ -590,7 +590,7 @@
   color: var(--accent-dark);
   display: inline-flex;
   font-size: 18px;
-  font-weight: 900;
+  font-weight: 800;
   height: 48px;
   justify-content: center;
   width: 48px;
@@ -654,12 +654,12 @@
 .data-health-grid span,
 .data-health-grid small {
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.25;
 }
 
 .data-health-grid span {
-  font-weight: 850;
+  font-weight: 800;
   text-transform: uppercase;
 }
 
@@ -747,8 +747,8 @@
 .private-health-signals span,
 .private-health-review-item span {
   color: var(--muted);
-  font-size: 10px;
-  font-weight: 850;
+  font-size: 12px;
+  font-weight: 800;
   text-transform: uppercase;
 }
 
@@ -760,7 +760,7 @@
 .private-health-signals small,
 .private-health-review-item small {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.35;
 }
 
@@ -820,7 +820,7 @@
 
 .private-action-item small {
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.25;
 }
 
@@ -850,7 +850,7 @@
 .backup-import-preview span,
 .backup-import-preview small {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .data-safety-note {
@@ -878,7 +878,7 @@
   border: 1px solid var(--border);
   border-radius: 999px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
   padding: 7px 10px;
 }
 

@@ -44,7 +44,7 @@
   color: var(--muted);
   display: flex;
   font-size: 0.76rem;
-  font-weight: 750;
+  font-weight: 700;
   gap: 7px;
   letter-spacing: 0.02em;
   min-width: 0;
@@ -111,7 +111,7 @@
   color: var(--text-strong);
   font-family: inherit;
   font-size: clamp(2.15rem, 5vw, 4.8rem);
-  font-weight: 790;
+  font-weight: 800;
   letter-spacing: -0.065em;
   line-height: 0.98;
   margin: 0;
@@ -171,8 +171,8 @@
 }
 
 .dice-roll-button small {
-  font-size: 0.7rem;
-  font-weight: 720;
+  font-size: 0.75rem;
+  font-weight: 700;
   opacity: 0.8;
 }
 
@@ -235,8 +235,8 @@
 
 .dice-candidate-strip small {
   color: var(--accent);
-  font-size: 0.67rem;
-  font-weight: 780;
+  font-size: 0.75rem;
+  font-weight: 800;
   text-transform: uppercase;
 }
 
@@ -343,7 +343,7 @@
   color: var(--text-strong);
   font-family: inherit;
   font-size: clamp(1.8rem, 4vw, 4rem);
-  font-weight: 790;
+  font-weight: 800;
   letter-spacing: -0.052em;
   line-height: 1;
   overflow-wrap: anywhere;
@@ -378,7 +378,7 @@
 
 .recommendation-scoreboard small {
   color: var(--muted);
-  font-size: 0.69rem;
+  font-size: 0.75rem;
 }
 
 .recommendation-scoreboard strong {
@@ -465,7 +465,7 @@
 .dice-score-details > summary {
   color: var(--muted);
   cursor: pointer;
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 700;
   list-style-position: inside;
 }
@@ -481,7 +481,7 @@
   background: color-mix(in srgb, var(--surface-muted) 86%, transparent);
   border-radius: 8px;
   color: var(--muted);
-  font-size: 0.69rem;
+  font-size: 0.75rem;
   padding: 6px 8px;
 }
 
@@ -549,7 +549,7 @@
 .recommendation-detail-panel > summary small,
 .recommendation-learning > summary small {
   color: var(--muted);
-  font-size: 0.69rem;
+  font-size: 0.75rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -613,7 +613,7 @@
   border-radius: 999px;
   color: var(--text);
   display: flex;
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   gap: 5px;
   padding: 5px 8px;
 }
@@ -755,7 +755,7 @@
 .dice-settings-panel > summary small,
 .recent-rolls > summary small {
   color: var(--muted);
-  font-size: 0.71rem;
+  font-size: 0.75rem;
 }
 
 .dice-pool-detail > summary em {
@@ -778,8 +778,8 @@
   border: 1px solid var(--border);
   border-radius: 999px;
   color: var(--muted);
-  font-size: 0.7rem;
-  font-weight: 760;
+  font-size: 0.75rem;
+  font-weight: 800;
   margin-left: auto;
   padding: 6px 9px;
 }
@@ -865,7 +865,7 @@
 .dice-candidate-main small,
 .dice-candidate-main em {
   color: var(--muted);
-  font-size: 0.67rem;
+  font-size: 0.75rem;
   font-style: normal;
 }
 
@@ -877,7 +877,7 @@
 
 .dice-candidate-score strong {
   color: var(--text-strong);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
 }
 
 .dice-score-meter {
@@ -896,8 +896,8 @@
 
 .dice-candidate-rank {
   color: var(--muted);
-  font-size: 0.67rem;
-  font-weight: 760;
+  font-size: 0.75rem;
+  font-weight: 800;
   text-align: right;
 }
 
@@ -914,7 +914,7 @@
 
 .dice-footnotes span {
   color: var(--muted);
-  font-size: 0.67rem;
+  font-size: 0.75rem;
 }
 
 .dice-footnotes span + span::before {
@@ -943,7 +943,7 @@
 
 .dice-eligibility-head p {
   color: var(--muted);
-  font-size: 0.67rem;
+  font-size: 0.75rem;
   margin: 2px 0 0;
 }
 
@@ -983,7 +983,7 @@
 .eligibility-grid strong,
 .eligibility-reasons span,
 .eligibility-filters span {
-  font-size: 0.67rem;
+  font-size: 0.75rem;
 }
 
 .eligibility-grid span,
@@ -1034,7 +1034,7 @@
 
 .eligibility-recovery-heading p {
   color: var(--muted);
-  font-size: 0.67rem;
+  font-size: 0.75rem;
   margin: 0;
 }
 
@@ -1064,12 +1064,12 @@
 }
 
 .eligibility-recovery-action strong {
-  font-size: 0.7rem;
+  font-size: 0.75rem;
 }
 
 .eligibility-recovery-action small {
   color: var(--muted);
-  font-size: 0.62rem;
+  font-size: 0.75rem;
 }
 
 .dice-settings-content {
@@ -1120,12 +1120,12 @@
 
 .dice-preset-card strong {
   color: var(--text-strong);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
 }
 
 .dice-preset-card small {
   color: var(--muted);
-  font-size: 0.64rem;
+  font-size: 0.75rem;
 }
 
 .dice-tuning-panel {
@@ -1145,13 +1145,13 @@
 
 .dice-tuning-panel > summary > span {
   color: var(--text-strong);
-  font-size: 0.72rem;
-  font-weight: 720;
+  font-size: 0.75rem;
+  font-weight: 700;
 }
 
 .dice-tuning-panel > summary > small {
   color: var(--muted);
-  font-size: 0.64rem;
+  font-size: 0.75rem;
 }
 
 .dice-tuning-panel > .controls-grid,
@@ -1171,7 +1171,7 @@
 .dice-tuning-panel .controls-grid label {
   color: var(--muted);
   display: grid;
-  font-size: 0.67rem;
+  font-size: 0.75rem;
   gap: 5px;
 }
 
@@ -1246,12 +1246,12 @@
 
 .recent-roll-list strong {
   color: var(--text-strong);
-  font-size: 0.7rem;
+  font-size: 0.75rem;
 }
 
 .recent-roll-list small {
   color: var(--muted);
-  font-size: 0.63rem;
+  font-size: 0.75rem;
 }
 
 .recent-rolls > .muted-line {

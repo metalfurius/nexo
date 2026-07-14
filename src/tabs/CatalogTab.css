@@ -97,8 +97,8 @@
   color: var(--muted);
   display: flex;
   flex-wrap: wrap;
-  font-size: 11px;
-  font-weight: 850;
+  font-size: 12px;
+  font-weight: 800;
   gap: 6px;
   grid-column: 3;
   justify-content: end;
@@ -239,7 +239,7 @@
   display: flex;
   flex-wrap: nowrap;
   font-size: 12px;
-  font-weight: 760;
+  font-weight: 800;
   gap: 6px;
   line-height: 1.2;
   min-width: 0;
@@ -377,7 +377,7 @@
   color: var(--accent-dark);
   display: grid;
   font-size: 12px;
-  font-weight: 780;
+  font-weight: 800;
   gap: 8px;
   grid-template-columns: 16px minmax(0, 1fr);
   line-height: 1.35;
@@ -401,8 +401,8 @@
 
 .ad-slot span {
   color: var(--muted);
-  font-size: 10px;
-  font-weight: 900;
+  font-size: 12px;
+  font-weight: 800;
   letter-spacing: 0;
   text-transform: uppercase;
 }
@@ -517,7 +517,7 @@
 
   .catalog-public-source-badge {
     bottom: 4px;
-    font-size: 8px;
+    font-size: 12px;
     left: 4px;
     padding: 4px;
     top: auto;

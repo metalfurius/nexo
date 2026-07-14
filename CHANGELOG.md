@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.3.1 - 2026-07-14
+
+- Stabilized authenticated catalog searches with a single cancelable controller, a ten-second global deadline and at most one public-catalog plus one gateway request per query.
+- Removed callable, full-collection and direct-provider fallbacks from the interactive search path while preserving partial results and explicit recovery.
+- Renamed the discovery inbox to Revisar and replaced its nested search, progress meter, spotlight and bulk commands with clear review cards and per-item actions.
+- Unified the interface on self-hosted Inter Variable, normalized weights, and made the global Añadir action visually neutral.
+- Reworked the Más adelante shelf around complete 2:3 covers and clarified Biblioteca with Por empezar plus accessible genre/tag summaries.
+- Split private Firestore validators by collection and covered full public snapshots without exhausting the rules expression budget.
+- Expanded unit, Firebase, production, responsive, theme, contrast and visual coverage for search stability and the refreshed Inicio, Revisar and Biblioteca surfaces.
+
 ## 1.3.0 - 2026-07-13
 
 - Rebuilt Nexo around a compact 96 px desktop rail, a 56 px top bar, tablet navigation and a five-destination mobile dock so content owns the screen.

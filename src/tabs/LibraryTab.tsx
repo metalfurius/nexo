@@ -927,6 +927,12 @@ function LibraryItemCard({
   const progressRatio = getProgressRatio(item)
   const [failedPosterUrl, setFailedPosterUrl] = useState<string>()
   const posterHasError = Boolean(item.posterUrl && failedPosterUrl === item.posterUrl)
+  const genreCategories = uniqueTextValues(item.genres)
+  const categoryLabel = genreCategories.length > 0 ? 'Géneros' : 'Etiquetas'
+  const categories = genreCategories.length > 0 ? genreCategories : uniqueTextValues(item.tags)
+  const visibleCategoryLimit = density === 'mosaic' ? 2 : 3
+  const visibleCategories = categories.slice(0, visibleCategoryLimit)
+  const hiddenCategoryCount = Math.max(0, categories.length - visibleCategories.length)
   const cardClassName = [
     'library-v2-card',
     selected ? 'selected' : '',
@@ -970,11 +976,17 @@ function LibraryItemCard({
         {progressRatio !== undefined && (
           <div className="library-v2-progress" aria-hidden="true"><span style={{ width: `${progressRatio}%` }} /></div>
         )}
-        {(item.genres.length > 0 || item.tags.length > 0) && (
-          <div className="library-v2-card-tags" aria-label={`Etiquetas de ${item.title}`}>
-            {uniqueTextValues([...item.genres, ...item.tags])
-              .slice(0, 2)
-              .map((tag, index) => <span key={`${tag}-${index}`}>{tag}</span>)}
+        {categories.length > 0 && (
+          <div
+            className="library-v2-card-categories"
+            role="group"
+            aria-label={`${categoryLabel} de ${item.title}: ${categories.join(', ')}`}
+          >
+            <small aria-hidden="true">{categoryLabel}</small>
+            <div aria-hidden="true">
+              {visibleCategories.map((category, index) => <span key={`${category}-${index}`}>{category}</span>)}
+              {hiddenCategoryCount > 0 && <span className="more">+{hiddenCategoryCount}</span>}
+            </div>
           </div>
         )}
         <div className="library-v2-card-actions">

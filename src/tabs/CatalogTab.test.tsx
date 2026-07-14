@@ -1,9 +1,11 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { StrictMode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_SETTINGS, type DiscoveryCandidate, type ItemType, type ListItem, type PublicCatalogItem } from '../domain/types'
 import { buildPublicCatalogItem, discoveryToListItem, externalCandidateToDiscovery, publicItemToDiscovery } from '../lib/catalog'
 import { scoreCatalogSearchCandidate } from '../lib/catalogSearch'
+import type { CatalogSearchResult } from '../services/catalogSearchClient'
 import type { LibrarySurface } from '../app/shared'
 import CatalogTab from './CatalogTab'
 
@@ -166,14 +168,14 @@ describe('CatalogTab', () => {
     expect(within(screen.getByTestId('catalog-public-masthead')).getByText('1 guardada')).toBeVisible()
     const savedButton = card.getByRole('button', { name: 'Guardado' })
     expect(savedButton).toBeDisabled()
-    expect(card.getByRole('button', { name: `Mandar al Explorador ${publicItem.title}` })).toBeEnabled()
+    expect(card.getByRole('button', { name: `Revisar después ${publicItem.title}` })).toBeEnabled()
     expect(card.getByRole('button', { name: `Ver ficha de ${publicItem.title}` })).toBeEnabled()
     expect(screen.queryByText('Biblioteca conectada')).not.toBeInTheDocument()
 
     await userEvent.click(card.getByRole('button', { name: `Ver ficha de ${publicItem.title}` }))
     const dialog = screen.getByRole('dialog', { name: publicItem.title })
     expect(within(dialog).getByRole('button', { name: 'Guardado' })).toBeDisabled()
-    expect(within(dialog).getByRole('button', { name: 'Mandar al Explorador' })).toBeEnabled()
+    expect(within(dialog).getByRole('button', { name: 'Revisar después' })).toBeEnabled()
   })
 
   it('keeps long public descriptions out of the gallery card and in the detail dialog', async () => {
@@ -353,6 +355,108 @@ describe('CatalogTab', () => {
     expect(screen.queryByRole('heading', { name: 'Arrival' })).not.toBeInTheDocument()
   })
 
+  it('hydrates exactly once in StrictMode', async () => {
+    window.history.replaceState(null, '', '/?catalogQ=Dune')
+    const dune = createPublicCatalogItem(1, { id: 'book-dune', title: 'Dune', type: 'book' })
+    const { library } = createLibrarySurface({ publicItems: [dune] })
+    library.searchCatalog = vi.fn(async () => [publicItemToDiscovery(dune)])
+
+    render(
+      <StrictMode>
+        <CatalogTab
+          isSignedIn
+          library={library}
+          onActivity={vi.fn()}
+          onNavigate={vi.fn()}
+          onSignIn={vi.fn()}
+        />
+      </StrictMode>,
+    )
+
+    expect(await screen.findByRole('heading', { name: 'Dune' })).toBeVisible()
+    expect(library.searchCatalog).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not repeat a routed authenticated search when callbacks or loading state rerender', async () => {
+    window.history.replaceState(null, '', '/?catalogQ=Dune')
+    const dune = createPublicCatalogItem(1, { id: 'book-dune', title: 'Dune', type: 'book' })
+    const { library } = createLibrarySurface({ publicItems: [dune] })
+    library.searchCatalog = vi.fn(async () => [publicItemToDiscovery(dune)])
+    const view = render(
+      <CatalogTab
+        isSignedIn
+        library={library}
+        onActivity={vi.fn()}
+        onNavigate={vi.fn()}
+        onSignIn={vi.fn()}
+      />,
+    )
+
+    expect(await screen.findByRole('heading', { name: 'Dune' })).toBeVisible()
+    view.rerender(
+      <CatalogTab
+        isSignedIn
+        library={{ ...library, loading: true }}
+        onActivity={vi.fn()}
+        onNavigate={vi.fn()}
+        onSignIn={vi.fn()}
+      />,
+    )
+    view.rerender(
+      <CatalogTab
+        isSignedIn
+        library={{ ...library, loading: false }}
+        onActivity={vi.fn()}
+        onNavigate={vi.fn()}
+        onSignIn={vi.fn()}
+      />,
+    )
+    await act(async () => undefined)
+
+    expect(library.searchCatalog).toHaveBeenCalledTimes(1)
+  })
+
+  it('records activity only once after an explicit successful submit', async () => {
+    const dune = createPublicCatalogItem(1, { id: 'book-dune', title: 'Dune', type: 'book' })
+    const { library } = createLibrarySurface({ publicItems: [dune] })
+    const onActivity = vi.fn()
+    render(
+      <CatalogTab
+        isSignedIn
+        library={library}
+        onActivity={onActivity}
+        onNavigate={vi.fn()}
+        onSignIn={vi.fn()}
+      />,
+    )
+
+    await screen.findByRole('heading', { name: 'Dune' })
+    await userEvent.type(screen.getByLabelText('Buscar en el catalogo publico'), 'Dune')
+    await userEvent.click(screen.getByRole('button', { name: 'Buscar' }))
+    await waitFor(() => expect(onActivity).toHaveBeenCalledTimes(1))
+    await userEvent.click(screen.getByRole('button', { name: 'Buscar' }))
+
+    expect(library.searchCatalog).toHaveBeenCalledTimes(1)
+    expect(onActivity).toHaveBeenCalledTimes(1)
+  })
+
+  it('forces a fresh request when retrying a failed or empty search', async () => {
+    window.history.replaceState(null, '', '/?catalogQ=Dune')
+    const dune = createPublicCatalogItem(1, { id: 'book-dune', title: 'Dune', type: 'book' })
+    const { library } = createLibrarySurface({ publicItems: [] })
+    library.searchCatalog = vi.fn()
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([publicItemToDiscovery(dune)])
+
+    renderCatalog(library)
+
+    await screen.findByRole('heading', { name: 'Sin resultados' })
+    await userEvent.click(screen.getByRole('button', { name: 'Reintentar busqueda' }))
+
+    expect(await screen.findByRole('heading', { name: 'Dune' })).toBeVisible()
+    expect(library.searchCatalog).toHaveBeenCalledTimes(2)
+  })
+
   it('writes catalog type URL state when filtering without a query', async () => {
     const publicItems = [
       createPublicCatalogItem(1, { title: 'Chainsaw Man', type: 'manga' }),
@@ -392,6 +496,26 @@ describe('CatalogTab', () => {
     expect(screen.getByLabelText('Tipo de obra')).toHaveValue('watch')
     expect(screen.getAllByRole('heading', { name: 'Dune' })).toHaveLength(1)
     expect(screen.queryByRole('heading', { name: 'Arrival' })).not.toBeInTheDocument()
+  })
+
+  it('lets an immediate popstate replace the pending initial hydration', async () => {
+    window.history.replaceState(null, '', '/?catalogQ=Dune')
+    const solaris = createPublicCatalogItem(1, { id: 'book-solaris', title: 'Solaris', type: 'book' })
+    const { library } = createLibrarySurface({ publicItems: [solaris] })
+    library.searchCatalog = vi.fn(async (query: string) => (
+      query === 'Solaris' ? [publicItemToDiscovery(solaris)] : []
+    ))
+
+    renderCatalog(library)
+    act(() => {
+      window.history.pushState(null, '', '/?catalogQ=Solaris&catalogType=book')
+      window.dispatchEvent(new PopStateEvent('popstate'))
+    })
+
+    expect(await screen.findByRole('heading', { name: 'Solaris' })).toBeVisible()
+    await new Promise((resolve) => window.setTimeout(resolve, 10))
+    expect(library.searchCatalog).toHaveBeenCalledTimes(1)
+    expect(library.searchCatalog).toHaveBeenCalledWith('Solaris', 'book')
   })
 
   it('clears catalog route state and reloads the public catalog', async () => {
@@ -446,6 +570,34 @@ describe('CatalogTab', () => {
     expect(searchInput).toHaveValue('Dune')
     expect(screen.queryByRole('heading', { name: 'Arrival' })).not.toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent('Mostrando 2 de 2 resultados para explorar.')
+  })
+
+  it('cancels an active search as soon as the query changes', async () => {
+    const arrival = createPublicCatalogItem(1, { id: 'movie-arrival', title: 'Arrival', type: 'movie' })
+    const { library } = createLibrarySurface({ publicItems: [arrival] })
+    let duneSignal: AbortSignal | undefined
+    library.searchCatalogRequest = vi.fn(async (request): Promise<CatalogSearchResult> => {
+      if (!request.query) {
+        return { candidates: [publicItemToDiscovery(arrival)], partial: false, sources: ['publicCatalog'] }
+      }
+      duneSignal = request.signal
+      return new Promise<CatalogSearchResult>((_resolve, reject) => {
+        request.signal?.addEventListener('abort', () => reject(request.signal?.reason), { once: true })
+      })
+    })
+
+    renderCatalog(library)
+
+    await screen.findByRole('heading', { name: 'Arrival' })
+    const input = screen.getByLabelText('Buscar en el catalogo publico')
+    await userEvent.type(input, 'Dune')
+    await userEvent.click(screen.getByRole('button', { name: 'Buscar' }))
+    await waitFor(() => expect(library.searchCatalogRequest).toHaveBeenCalledTimes(2))
+    await userEvent.type(input, ' 2')
+
+    expect(duneSignal?.aborted).toBe(true)
+    expect(input).toHaveValue('Dune 2')
+    expect(screen.queryByRole('heading', { name: 'Buscando en el catalogo' })).not.toBeInTheDocument()
   })
 
   it('filters the Nexo catalog by type without requiring a query', async () => {

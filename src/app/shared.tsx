@@ -5,7 +5,7 @@ import { getActivityContinuitySummary, getActivityDestinationTab } from '../lib/
 import { buildPublicCatalogItem } from '../lib/catalog'
 import { buildCatalogDescriptionDraft, type CatalogIssueKey, catalogIssueShortLabels, draftCatalogQualityWarnings } from '../lib/catalogInsights'
 import { type DiceEligibilityBreakdown, type RecommendationSessionPlan } from '../lib/diceInsights'
-import { type CandidateDecisionBrief, discoveryStatusLabels, type ExplorerSourceFilter, discoverySourceLabels as sourceLabels } from '../lib/explorerInsights'
+import { discoveryStatusLabels, discoverySourceLabels as sourceLabels } from '../lib/explorerInsights'
 import { getExternalRefEntries } from '../lib/externalRefs'
 import { createLibraryExportPayload, type LibraryImportRollbackPlan, type LibraryImportSummary, type ParsedLibraryImport } from '../lib/libraryBackup'
 import { getLibraryFocusItems, isItemReadyForDicePulse, type LibraryReviewQueue, type LibrarySmartView } from '../lib/libraryInsights'
@@ -15,7 +15,7 @@ import { type PublicCatalogSeedResult, type PublicCatalogSeedRollbackPlan, type 
 import { mergeListText, normalizeKey, slugify, splitList, toggleListTextValue, uniqueNormalizedValues, uniqueValues } from '../lib/strings'
 import { type ExternalDiscoverDuration, type ExternalDiscoverType, externalSourceCredits } from '../services/externalSourceCredits'
 import { importSourceLabels } from '../services/importSourceLabels'
-import { AlertTriangle, BookOpen, Check, CheckCircle2, Copy, Dice5, Download, Eye, Film, Gamepad2, Info, Library, LoaderCircle, type LucideIcon, Minus, Moon, MoreHorizontal, Pause, Play, Plus, RotateCcw, Search, ShieldCheck, Sparkles, Star, Trash2, Upload, X } from 'lucide-react'
+import { AlertTriangle, BookOpen, Check, CheckCircle2, Copy, Dice5, Download, Film, Gamepad2, Info, Library, LoaderCircle, type LucideIcon, Minus, Moon, MoreHorizontal, Pause, Play, Plus, RotateCcw, Search, ShieldCheck, Sparkles, Star, Trash2, Upload, X } from 'lucide-react'
 import { type CSSProperties, type KeyboardEvent, type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { CoverArt } from './CoverArt'
 
@@ -301,11 +301,6 @@ export interface DiceCooldownReactivateRequest {
   requestId: number
 }
 
-export interface ExplorerSearchRequest {
-  query: string
-  requestId: number
-}
-
 export interface ExplorerPromptCardRequest {
   requestId: number
 }
@@ -323,16 +318,6 @@ export interface ExplorerCandidateSaveRequest {
 export interface ExplorerCandidateDismissRequest {
   candidateId: string
   requestId: number
-}
-
-export interface ExplorerVisibleSaveRequest {
-  requestId: number
-  sourceFilter: ExplorerSourceFilter
-}
-
-export interface ExplorerVisibleDismissRequest {
-  requestId: number
-  sourceFilter: ExplorerSourceFilter
 }
 
 export interface SettingsTaxonomyRepairRequest {
@@ -356,8 +341,6 @@ export type PendingNavigation = {
   explorerCandidateSaveId?: string
   explorerPromptCard?: boolean
   explorerSearchQuery?: string
-  explorerVisibleDismissSourceFilter?: ExplorerSourceFilter
-  explorerVisibleSaveSourceFilter?: ExplorerSourceFilter
   focus?: ActivityFocus
   libraryImport?: boolean
   libraryPrimaryActionItemId?: string
@@ -726,6 +709,7 @@ export interface CatalogRouteState {
 }
 
 const catalogRouteTypeIds = new Set<ExplorerSearchType>(libraryCatalogSearchTypes.map((option) => option.id))
+const catalogRouteQueryMaxLength = 120
 
 export function explorerSearchTypeForItemType(itemType: ItemType): ExplorerSearchType {
   if (itemType === 'movie' || itemType === 'series') return 'watch'
@@ -775,8 +759,16 @@ export function canonicalizeLegacyAppRoute() {
 
   url.searchParams.set('tab', 'discover')
   url.searchParams.set('mode', tab === 'explorer' ? 'surprise' : 'search')
-  if (legacyQuery?.trim()) url.searchParams.set('q', legacyQuery.trim())
-  if (legacyType?.trim()) url.searchParams.set('type', legacyType.trim())
+  if (legacyQuery !== null) {
+    const query = legacyQuery.trim().slice(0, catalogRouteQueryMaxLength)
+    if (query) url.searchParams.set('q', query)
+    else url.searchParams.delete('q')
+  }
+  if (legacyType !== null) {
+    const type = legacyType.trim() as ExplorerSearchType
+    if (catalogRouteTypeIds.has(type) && type !== 'any') url.searchParams.set('type', type)
+    else url.searchParams.delete('type')
+  }
   url.searchParams.delete('catalogQ')
   url.searchParams.delete('catalogType')
   window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`)
@@ -790,7 +782,8 @@ export function readInitialActivityFocus(): ActivityFocus | undefined {
 
 export function readCatalogRouteState(): CatalogRouteState {
   const searchParams = new URLSearchParams(window.location.search)
-  const query = searchParams.get('q')?.trim() ?? searchParams.get('catalogQ')?.trim() ?? ''
+  const query = (searchParams.get('q')?.trim() ?? searchParams.get('catalogQ')?.trim() ?? '')
+    .slice(0, catalogRouteQueryMaxLength)
   const rawType = (searchParams.get('type') ?? searchParams.get('catalogType'))?.trim() as ExplorerSearchType | undefined
   const type = rawType && catalogRouteTypeIds.has(rawType) ? rawType : 'any'
   return { query, type }
@@ -805,7 +798,7 @@ export function writeCatalogRouteState(
   mode: 'push' | 'replace' = 'push',
 ) {
   const url = new URL(window.location.href)
-  const query = state.query.trim()
+  const query = state.query.trim().slice(0, catalogRouteQueryMaxLength)
   const type = catalogRouteTypeIds.has(state.type) ? state.type : 'any'
 
   url.searchParams.set('tab', 'discover')
@@ -1608,6 +1601,9 @@ export interface LibrarySurface {
   recordRecommendation: (itemId: string, reasons: string[]) => Promise<void>
   searchExternal: (query: string, type: string) => Promise<ExternalCandidate[]>
   searchCatalog: (query: string, type?: string) => Promise<DiscoveryCandidate[]>
+  searchCatalogRequest?: (
+    request: import('../services/catalogSearchClient').CatalogSearchRequest,
+  ) => Promise<import('../services/catalogSearchClient').CatalogSearchResult>
   listPublicCatalog: () => Promise<PublicCatalogItem[]>
   searchPublicCatalog: (query: string, type?: string) => Promise<PublicCatalogItem[]>
   saveSettings: (settings: Partial<UserSettings>) => Promise<void>
@@ -2388,128 +2384,6 @@ export function PreferenceControls({
   )
 }
 
-export function DiscoveryCard({
-  candidate,
-  onDetails,
-  onCurate,
-  onDismiss,
-  onRestore,
-  onSave,
-}: {
-  candidate: DiscoveryCandidate
-  onDetails: () => void
-  onCurate?: () => void
-  onDismiss: () => void
-  onRestore: () => void
-  onSave: () => void
-}) {
-  const isQueued = candidate.status === 'queued'
-  const isDismissed = candidate.status === 'dismissed'
-  const catalogActionLabel = candidate.source === 'nexo' ? 'Editar catalogo' : 'Crear catalogo'
-  const effortSignal = getDiscoveryCandidateEffortSignal(candidate)
-
-  function openDetailsFromKeyboard(event: KeyboardEvent<HTMLDivElement>) {
-    if (event.key !== 'Enter' && event.key !== ' ') return
-
-    event.preventDefault()
-    onDetails()
-  }
-
-  return (
-    <article className={`discovery-card ${candidate.status}`}>
-      <div
-        aria-label={`Ver detalles ${candidate.title}`}
-        className="candidate-main"
-        role="button"
-        tabIndex={0}
-        onClick={onDetails}
-        onKeyDown={openDetailsFromKeyboard}
-      >
-        <CoverArt title={candidate.title} type={candidate.type} posterUrl={candidate.posterUrl} />
-        <div className="discovery-body">
-          <div className="candidate-meta">
-            <span className="source-pill">{sourceLabels[candidate.source]}</span>
-            {!isQueued && <span className={`candidate-status ${candidate.status}`}>{discoveryStatusLabels[candidate.status]}</span>}
-            <span>{typeLabels[candidate.type]}</span>
-            {candidate.releaseYear && <span>{candidate.releaseYear}</span>}
-            {effortSignal && <span>{effortSignal}</span>}
-          </div>
-          <h3>{candidate.title}</h3>
-          <p>{candidate.overview || `${typeLabels[candidate.type]} para explorar`}</p>
-          <div className="tag-row">
-            {candidate.genres.slice(0, 2).map((genre) => (
-              <span key={genre}>{genre}</span>
-            ))}
-          </div>
-        </div>
-      </div>
-      <div className={isQueued ? 'candidate-card-actions' : 'candidate-card-actions resolved'}>
-        {isQueued ? (
-          <div className="candidate-action-rail" aria-label={`Acciones rapidas ${candidate.title}`}>
-            <span className="candidate-action-kicker">Decidir</span>
-            <button className="candidate-save-action" type="button" onClick={onSave} aria-label={`Guardar ${candidate.title}`}>
-              <Plus size={17} />
-              <span>
-                <strong>Guardar</strong>
-                <small>Biblioteca</small>
-              </span>
-            </button>
-            <div className="candidate-secondary-strip">
-              {onCurate && (
-                <button className="candidate-icon-action" type="button" onClick={onCurate} aria-label={`${catalogActionLabel} ${candidate.title}`} title={catalogActionLabel}>
-                  <ShieldCheck size={16} />
-                </button>
-              )}
-              <button className="candidate-icon-action" type="button" onClick={onDetails} aria-label={`Abrir ficha ${candidate.title}`} title="Detalles">
-                <Eye size={16} />
-              </button>
-              <button className="candidate-icon-action danger" type="button" onClick={onDismiss} aria-label={`Descartar ${candidate.title}`} title="Descartar">
-                <X size={16} />
-              </button>
-            </div>
-          </div>
-        ) : (
-          <>
-            <span className="candidate-footnote">
-              {candidate.status === 'saved' ? 'Ya esta en tu biblioteca' : 'Apartado de tus pendientes'}
-            </span>
-            {isDismissed && (
-              <button className="candidate-primary-action secondary" type="button" onClick={onRestore} aria-label={`Recuperar ${candidate.title}`}>
-                <RotateCcw size={16} />
-                <span>Recuperar</span>
-              </button>
-            )}
-          </>
-        )}
-      </div>
-    </article>
-  )
-}
-
-export function CandidateDecisionBriefView({ brief }: { brief: CandidateDecisionBrief }) {
-  return (
-    <section className="candidate-decision-brief" aria-label="Siguiente paso del hallazgo">
-      <div className="candidate-decision-main">
-        <span className="eyebrow">{brief.title}</span>
-        <strong>{brief.action}</strong>
-        <p>{brief.detail}</p>
-      </div>
-      <div className="candidate-decision-facts">
-        <span>
-          <small>Accion</small>
-          <strong>{brief.action}</strong>
-        </span>
-        {brief.facts.map((fact) => (
-          <span key={fact.label}>
-            <small>{fact.label}</small>
-            <strong>{fact.value}</strong>
-          </span>
-        ))}
-      </div>
-    </section>
-  )
-}
-
 export function downloadLibraryBackup(items: ListItem[], settings: UserSettings | undefined, prefix: string) {
   downloadJsonFile(createLibraryExportPayload(items, settings), `${prefix}-${new Date().toISOString().slice(0, 10)}.json`)
 }
@@ -2997,6 +2871,7 @@ export function ItemIdentity({ item }: { item: ListItem }) {
 
 export function CandidateDialog({
   candidate,
+  pending = false,
   onClose,
   onCurate,
   onDismiss,
@@ -3004,6 +2879,7 @@ export function CandidateDialog({
   onSave,
 }: {
   candidate: DiscoveryCandidate
+  pending?: boolean
   onClose: () => void
   onCurate?: () => void
   onDismiss: () => void
@@ -3029,6 +2905,7 @@ export function CandidateDialog({
         <button
           aria-label={`Cerrar detalle de ${candidate.title}`}
           className="icon-button dialog-close"
+          disabled={pending}
           type="button"
           autoFocus
           onClick={onClose}
@@ -3054,7 +2931,7 @@ export function CandidateDialog({
           </div>
           {isDismissed && (
             <div className="action-row detail-actions">
-              <button className="primary-button" type="button" onClick={onRestore}>
+              <button className="primary-button" disabled={pending} type="button" onClick={onRestore}>
                 <RotateCcw size={16} />
                 Recuperar a cola
               </button>
@@ -3062,17 +2939,17 @@ export function CandidateDialog({
           )}
           {isQueued && (
             <div className="action-row detail-actions">
-              <button className="primary-button" type="button" onClick={onSave}>
+              <button className="primary-button" disabled={pending} type="button" onClick={onSave}>
                 <Plus size={16} />
                 Guardar en Biblioteca
               </button>
               {onCurate && (
-                <button className="secondary-button" type="button" onClick={onCurate}>
+                <button className="secondary-button" disabled={pending} type="button" onClick={onCurate}>
                   <ShieldCheck size={16} />
                   {catalogActionLabel}
                 </button>
               )}
-              <button className="ghost-button danger-text" type="button" onClick={onDismiss}>
+              <button className="ghost-button danger-text" disabled={pending} type="button" onClick={onDismiss}>
                 <X size={16} />
                 Descartar
               </button>

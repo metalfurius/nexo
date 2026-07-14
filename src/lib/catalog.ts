@@ -164,6 +164,72 @@ export function shouldPreserveDiscoveryDecision(
   return Boolean(existing && incoming.status === 'queued' && (existing.status === 'saved' || existing.status === 'dismissed'))
 }
 
+export function prepareDiscoveryCandidateForQueue(
+  existing: DiscoveryCandidate | undefined,
+  incoming: DiscoveryCandidate,
+  updatedAt = nowIso(),
+): { candidate: DiscoveryCandidate; persist: boolean } {
+  if (shouldPreserveDiscoveryDecision(existing, incoming)) {
+    return { candidate: existing!, persist: false }
+  }
+
+  if (!existing) {
+    return {
+      candidate: {
+        ...incoming,
+        status: 'queued',
+        updatedAt,
+      },
+      persist: true,
+    }
+  }
+
+  const candidate: DiscoveryCandidate = {
+    ...existing,
+    ...incoming,
+    overview: incoming.overview ?? existing.overview,
+    posterUrl: incoming.posterUrl ?? existing.posterUrl,
+    releaseYear: incoming.releaseYear ?? existing.releaseYear,
+    progressTotal: incoming.progressTotal ?? existing.progressTotal,
+    progressUnit: incoming.progressUnit ?? existing.progressUnit,
+    genres: incoming.genres.length ? incoming.genres : existing.genres,
+    tags: incoming.tags.length ? incoming.tags : existing.tags,
+    moodTags: incoming.moodTags.length ? incoming.moodTags : existing.moodTags,
+    searchAliases: incoming.searchAliases?.length ? incoming.searchAliases : existing.searchAliases,
+    externalRefs: { ...existing.externalRefs, ...incoming.externalRefs },
+    publicItemId: incoming.publicItemId ?? existing.publicItemId,
+    publicSnapshot: incoming.publicSnapshot ?? existing.publicSnapshot,
+    savedItemId: undefined,
+    dismissedAt: undefined,
+    createdAt: existing.createdAt,
+    status: 'queued',
+    updatedAt,
+  }
+
+  return discoveryCandidateContentKey(candidate) === discoveryCandidateContentKey(existing)
+    ? { candidate: existing, persist: false }
+    : { candidate, persist: true }
+}
+
+function discoveryCandidateContentKey(candidate: DiscoveryCandidate) {
+  const content = Object.fromEntries(
+    Object.entries(candidate).filter(([key]) => key !== 'createdAt' && key !== 'updatedAt'),
+  )
+  return stableCatalogValue(content)
+}
+
+function stableCatalogValue(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableCatalogValue).join(',')}]`
+  if (value && typeof value === 'object') {
+    return `{${Object.entries(value as Record<string, unknown>)
+      .filter(([, entry]) => entry !== undefined)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, entry]) => `${JSON.stringify(key)}:${stableCatalogValue(entry)}`)
+      .join(',')}}`
+  }
+  return JSON.stringify(value)
+}
+
 export function mergeDiscoveryCandidate(existing: DiscoveryCandidate | undefined, incoming: DiscoveryCandidate) {
   if (!existing) return incoming
   if (shouldPreserveDiscoveryDecision(existing, incoming)) return existing

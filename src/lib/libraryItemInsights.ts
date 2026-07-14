@@ -42,7 +42,7 @@ export const itemTypeLabels: Record<ItemType | 'any' | 'watch' | 'animeManga', s
 
 export const itemStatusLabels: Record<ItemStatus | 'all', string> = {
   all: 'Todo',
-  wishlist: 'Pendiente',
+  wishlist: 'Por empezar',
   in_progress: 'En progreso',
   paused: 'Pausado',
   completed: 'Completado',

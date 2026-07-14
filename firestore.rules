@@ -61,11 +61,6 @@ service cloud.firestore {
       return !(field in data) || data[field] is number;
     }
 
-    function optionalBoundedMapList(data, field, maximum) {
-      return !(field in data)
-        || (data[field] is list && data[field].size() <= maximum);
-    }
-
     function hasValidExternalRefs(data) {
       return !('externalRefs' in data)
         || (
@@ -135,19 +130,12 @@ service cloud.firestore {
           ])
           && optionalBoundedMapString(data.publicSnapshot, 'id', 120)
           && optionalBoundedMapString(data.publicSnapshot, 'title', 200)
-          && (!('type' in data.publicSnapshot) || isValidItemType(data.publicSnapshot.type))
           && optionalBoundedMapString(data.publicSnapshot, 'description', 20000)
-          && optionalMapNumber(data.publicSnapshot, 'releaseYear')
-          && optionalMapNumber(data.publicSnapshot, 'progressTotal')
-          && (!('progressUnit' in data.publicSnapshot) || isValidProgressUnit(data.publicSnapshot.progressUnit))
-          && optionalBoundedMapList(data.publicSnapshot, 'genres', 64)
-          && optionalBoundedMapList(data.publicSnapshot, 'tags', 64)
-          && optionalBoundedMapList(data.publicSnapshot, 'moodTags', 64)
-          && optionalBoundedMapList(data.publicSnapshot, 'searchAliases', 64)
-          && optionalBoundedMapString(data.publicSnapshot, 'posterUrl', 2000)
-          && optionalBoundedMapString(data.publicSnapshot, 'canonicalKey', 240)
-          && optionalBoundedMapString(data.publicSnapshot, 'updatedAt', 64)
-          && hasValidExternalRefs(data.publicSnapshot)
+          && (!('genres' in data.publicSnapshot) || (data.publicSnapshot.genres is list && data.publicSnapshot.genres.size() <= 64))
+          && (!('tags' in data.publicSnapshot) || (data.publicSnapshot.tags is list && data.publicSnapshot.tags.size() <= 64))
+          && (!('moodTags' in data.publicSnapshot) || (data.publicSnapshot.moodTags is list && data.publicSnapshot.moodTags.size() <= 64))
+          && (!('searchAliases' in data.publicSnapshot) || (data.publicSnapshot.searchAliases is list && data.publicSnapshot.searchAliases.size() <= 64))
+          && (!('externalRefs' in data.publicSnapshot) || data.publicSnapshot.externalRefs is map)
         );
     }
 
@@ -204,24 +192,6 @@ service cloud.firestore {
             + (!('later' in data.roadmap) ? 0 : data.roadmap.later.size())
             + (!('hidden' in data.roadmap) ? 0 : data.roadmap.hidden.size())
           ) <= 5000
-        );
-    }
-
-    function isValidPrivateDocument(collectionName, documentId) {
-      return documentId.size() <= 120
-        && request.resource.data.keys().size() <= 64
-        && (
-          collectionName == 'items'
-            ? isValidPrivateItem(documentId)
-            : collectionName == 'userSettings'
-              ? isValidPrivateSettings(documentId)
-              : collectionName == 'externalCandidates'
-                ? isValidPrivateCandidate(documentId)
-                : collectionName == 'activityEntries'
-                  ? isValidActivityEntry(documentId)
-                  : collectionName == 'recommendationRuns'
-                    ? isValidRecommendationRun()
-                    : collectionName == 'tags' && isValidTagDocument(documentId)
         );
     }
 
@@ -515,23 +485,58 @@ service cloud.firestore {
         && isValidUserProfile(userId);
     }
 
-    function isUserCollection(collectionName) {
-      return collectionName in [
-        'items',
-        'tags',
-        'recommendationRuns',
-        'activityEntries',
-        'externalCandidates',
-        'userSettings'
-      ];
+    match /users/{userId}/items/{documentId} {
+      allow read: if isOwner(userId);
+      allow create, update: if isOwner(userId)
+        && documentId.size() <= 120
+        && request.resource.data.keys().size() <= 64
+        && isValidPrivateItem(documentId);
+      allow delete: if isOwner(userId);
     }
 
-    match /users/{userId}/{collectionName}/{documentId} {
-      allow read: if isOwner(userId) && isUserCollection(collectionName);
+    match /users/{userId}/userSettings/{documentId} {
+      allow read: if isOwner(userId);
       allow create, update: if isOwner(userId)
-        && isUserCollection(collectionName)
-        && isValidPrivateDocument(collectionName, documentId);
-      allow delete: if isOwner(userId) && isUserCollection(collectionName);
+        && documentId.size() <= 120
+        && request.resource.data.keys().size() <= 64
+        && isValidPrivateSettings(documentId);
+      allow delete: if isOwner(userId);
+    }
+
+    match /users/{userId}/externalCandidates/{documentId} {
+      allow read: if isOwner(userId);
+      allow create, update: if isOwner(userId)
+        && documentId.size() <= 120
+        && request.resource.data.keys().size() <= 64
+        && isValidPrivateCandidate(documentId);
+      allow delete: if isOwner(userId);
+    }
+
+    match /users/{userId}/activityEntries/{documentId} {
+      allow read: if isOwner(userId);
+      allow create, update: if isOwner(userId)
+        && documentId.size() <= 120
+        && request.resource.data.keys().size() <= 64
+        && isValidActivityEntry(documentId);
+      allow delete: if isOwner(userId);
+    }
+
+    match /users/{userId}/recommendationRuns/{documentId} {
+      allow read: if isOwner(userId);
+      allow create, update: if isOwner(userId)
+        && documentId.size() <= 120
+        && request.resource.data.keys().size() <= 64
+        && isValidRecommendationRun();
+      allow delete: if isOwner(userId);
+    }
+
+    match /users/{userId}/tags/{documentId} {
+      allow read: if isOwner(userId);
+      allow create, update: if isOwner(userId)
+        && documentId.size() <= 120
+        && request.resource.data.keys().size() <= 64
+        && isValidTagDocument(documentId);
+      allow delete: if isOwner(userId);
     }
 
     match /publicItems/{publicItemId} {
