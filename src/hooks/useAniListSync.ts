@@ -1,6 +1,7 @@
 import type { AniListSyncIntegration, AniListSyncResult } from '../domain/types'
-import { configureAniListSync, runAniListSync, subscribeAniListSync } from '../services/anilistSync'
 import { useCallback, useEffect, useRef, useState } from 'react'
+
+const loadAniListSyncService = () => import('../services/anilistSync')
 
 export interface AniListSyncController {
   integration?: AniListSyncIntegration
@@ -31,18 +32,30 @@ export function useAniListSync(userId?: string, isAdmin = false): AniListSyncCon
     }
 
     const loadingTimeoutId = window.setTimeout(() => setLoading(true), 0)
-    const unsubscribe = subscribeAniListSync(
-      userId,
-      (nextIntegration) => {
-        setIntegration(nextIntegration)
+    let unsubscribe: () => void = () => undefined
+    let disposed = false
+    void loadAniListSyncService()
+      .then(({ subscribeAniListSync }) => {
+        if (disposed) return
+        unsubscribe = subscribeAniListSync(
+          userId,
+          (nextIntegration) => {
+            setIntegration(nextIntegration)
+            setLoading(false)
+          },
+          (reason) => {
+            setLoading(false)
+            setError(reason.message)
+          },
+        )
+      })
+      .catch((reason: unknown) => {
+        if (disposed) return
         setLoading(false)
-      },
-      (reason) => {
-        setLoading(false)
-        setError(reason.message)
-      },
-    )
+        setError(reason instanceof Error ? reason.message : 'AniList no esta disponible.')
+      })
     return () => {
+      disposed = true
       unsubscribe()
       window.clearTimeout(loadingTimeoutId)
       if (timerRef.current !== undefined) window.clearTimeout(timerRef.current)
@@ -62,6 +75,7 @@ export function useAniListSync(userId?: string, isAdmin = false): AniListSyncCon
     setPending(true)
     setError(undefined)
     try {
+      const { runAniListSync } = await loadAniListSyncService()
       await runAniListSync('automatic')
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'No se pudo sincronizar AniList.')
@@ -108,12 +122,11 @@ export function useAniListSync(userId?: string, isAdmin = false): AniListSyncCon
     setPending(true)
     setError(undefined)
     try {
+      const { configureAniListSync } = await loadAniListSyncService()
       const nextIntegration = await configureAniListSync(username, enabled)
       setIntegration(nextIntegration)
       attemptedAutomaticKeyRef.current = undefined
-      if (enabled) {
-        await runAniListSync('automatic')
-      }
+      if (enabled) await (await loadAniListSyncService()).runAniListSync('automatic')
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : 'No se pudo configurar AniList.'
       setError(message)
@@ -127,6 +140,7 @@ export function useAniListSync(userId?: string, isAdmin = false): AniListSyncCon
     setPending(true)
     setError(undefined)
     try {
+      const { runAniListSync } = await loadAniListSyncService()
       return await runAniListSync('manual')
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'No se pudo sincronizar AniList.')
