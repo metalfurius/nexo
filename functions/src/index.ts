@@ -11,6 +11,8 @@ import {
   type CatalogDemandItem,
   type SearchType,
 } from './catalogValidation.js'
+import { APP_VERSION, CALLABLE_OPTIONS, FUNCTION_CORS } from './functionConfig.js'
+export { configureAniListSync, syncAniList } from './anilistSync.js'
 
 initializeApp()
 
@@ -19,18 +21,6 @@ type ProgressUnit = 'episodes' | 'chapters' | 'pages' | 'hours' | 'volumes' | 'p
 
 const CATALOG_ITEM_TYPES: ItemType[] = ['game', 'book', 'movie', 'series', 'anime', 'manga', 'manhwa', 'comic', 'other']
 const WATCH_ITEM_TYPES: ItemType[] = ['movie', 'series', 'anime', 'manga', 'manhwa', 'comic']
-const DEFAULT_FUNCTION_ORIGINS = process.env.FUNCTIONS_EMULATOR === 'true'
-  ? 'http://localhost:5173,http://127.0.0.1:5173'
-  : 'https://nexo.codeoverdose.es'
-const FUNCTION_CORS = (process.env.NEXO_ALLOWED_ORIGINS ?? DEFAULT_FUNCTION_ORIGINS)
-  .split(',')
-  .map((origin) => origin.trim())
-  .filter(Boolean)
-const APP_VERSION = process.env.NEXO_VERSION ?? 'unknown'
-const CALLABLE_OPTIONS = {
-  cors: FUNCTION_CORS,
-  enforceAppCheck: process.env.NEXO_ENFORCE_APP_CHECK === 'true',
-}
 
 interface ExternalCandidate {
   id: string

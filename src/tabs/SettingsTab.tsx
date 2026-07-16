@@ -2,6 +2,7 @@ import './SettingsTab.css'
 
 import { catalogTaxonomyTemplates } from '../data/catalogPresets'
 import { type ExplorerSearchType, type ListItem, type RoadmapPreferences, type ThemeMode, type UserSettings } from '../domain/types'
+import type { AniListSyncController } from '../hooks/useAniListSync'
 import { assertLibraryImportFileLimit, assertLibraryImportItemLimit, getLibraryImportRollbackPlan, getLibraryImportSummary, type LibraryImportRollbackPlan, type ParsedLibraryImport, parseLibraryImportPayload } from '../lib/libraryBackup'
 import { clearLibraryImportRollback, persistLibraryImportRollback, readLibraryImportRollback } from '../lib/libraryImportRollbackStore'
 import { hasItemTaxonomy } from '../lib/libraryInsights'
@@ -21,6 +22,7 @@ interface DeletedPrivateItemsUndo {
 
 export default function SettingsTab({
   library,
+  aniListSync,
   onActivity,
   onNavigate,
   onRollDice,
@@ -36,6 +38,7 @@ export default function SettingsTab({
   theme,
   user,
 }: {
+  aniListSync: AniListSyncController
   library: LibrarySurface
   onActivity: ActivityRecorder
   onNavigate: (tab: AppTab) => void
@@ -74,6 +77,8 @@ export default function SettingsTab({
   const [notificationIntentState, setNotificationIntentState] = useState<NotificationIntentState>(() =>
     getNotificationIntentState('app_update_debug'),
   )
+  const [aniListUsernameDraft, setAniListUsernameDraft] = useState('')
+  const [aniListUsernameTouched, setAniListUsernameTouched] = useState(false)
   const [deletedPrivateItemsUndo, setDeletedPrivateItemsUndo] = useState<DeletedPrivateItemsUndo>()
   const handledSaveRequestId = useRef<number | undefined>(undefined)
   const handledTasteSuggestionsRequestId = useRef<number | undefined>(undefined)
@@ -113,6 +118,42 @@ export default function SettingsTab({
     return !currentValues.some((value) => normalizeKey(value) === suggestionKey)
   }), [draftFavoriteGenres, draftFavoriteTags, visibleTasteSuggestions])
   const draftThemeOption = themeOptions.find((option) => option.id === draft.theme) ?? themeOptions[0]
+  const aniListIntegration = aniListSync.integration
+  const aniListUsername = aniListUsernameTouched ? aniListUsernameDraft : (aniListIntegration?.username ?? aniListUsernameDraft)
+  const aniListNeedsEnable = !aniListIntegration?.enabled || aniListUsernameTouched
+
+  useEffect(() => {
+    if (aniListUsernameTouched) return undefined
+    const timeoutId = window.setTimeout(() => setAniListUsernameDraft(aniListIntegration?.username ?? ''), 0)
+    return () => window.clearTimeout(timeoutId)
+  }, [aniListIntegration?.username, aniListUsernameTouched])
+
+  async function configureAniList(enabled: boolean) {
+    try {
+      await aniListSync.configure(aniListUsername, enabled)
+      setAniListUsernameTouched(false)
+      setStatus(enabled ? 'AniList conectado. Sincronizacion iniciada.' : 'Sincronizacion de AniList desactivada.')
+      onActivity({
+        detail: enabled ? 'Sincronizacion diaria activada' : 'Sincronizacion diaria desactivada',
+        label: enabled ? 'AniList conectado' : 'AniList desconectado',
+        tab: 'settings',
+        tone: 'info',
+      })
+    } catch {
+      setStatus('No se pudo configurar AniList.')
+    }
+  }
+
+  async function syncAniListNow() {
+    try {
+      const result = await aniListSync.syncNow()
+      if (result?.status === 'cooldown') setStatus('AniList se sincronizara cuando termine el limite temporal.')
+      else if (result?.status === 'busy') setStatus('Ya hay una sincronizacion de AniList en curso.')
+      else setStatus(`AniList sincronizado: ${result?.added ?? 0} nuevas, ${result?.updated ?? 0} actualizadas.`)
+    } catch {
+      setStatus('No se pudo sincronizar AniList.')
+    }
+  }
   const syncStatusLabel = library.syncState.hasPendingWrites
     ? 'Pendiente'
     : library.syncState.fromCache
@@ -970,6 +1011,75 @@ export default function SettingsTab({
             </div>
           </div>
         </details>
+
+        {library.userRole === 'admin' && (
+          <details className="workspace-panel settings-drawer" data-close-on-outside data-testid="settings-anilist-drawer">
+            <summary>
+              <span>
+                <strong>AniList</strong>
+                <small>{aniListIntegration?.enabled ? `Sincronizacion activa · ${aniListIntegration.username}` : 'Sincronizacion diaria opcional'}</small>
+              </span>
+              <em>{aniListIntegration?.enabled ? 'Activo' : 'Desactivado'}</em>
+            </summary>
+            <div className="settings-drawer-body" aria-busy={aniListSync.pending}>
+              <div className="panel-heading compact">
+                <div>
+                  <h2>Sincronizar AniList</h2>
+                  <p className="muted-line">Perfil publico; Nexo añade novedades y actualiza estado, progreso y rating.</p>
+                </div>
+                <span className={aniListIntegration?.state === 'error' || aniListSync.error ? 'mode-pill warning' : 'mode-pill'}>
+                  {aniListIntegration?.state === 'syncing' || aniListSync.pending ? 'Sincronizando' : aniListIntegration?.enabled ? 'Activo' : 'Inactivo'}
+                </span>
+              </div>
+              <label>
+                Usuario o URL publica de AniList
+                <input
+                  value={aniListUsername}
+                  disabled={aniListSync.pending}
+                  placeholder="usuario o anilist.co/user/..."
+                  onChange={(event) => {
+                    setAniListUsernameDraft(event.target.value)
+                    setAniListUsernameTouched(true)
+                  }}
+                />
+              </label>
+              <div className="action-row end">
+                <button
+                  className={aniListNeedsEnable ? 'primary-button' : 'secondary-button'}
+                  disabled={aniListSync.pending || (aniListNeedsEnable && !aniListUsername.trim())}
+                  type="button"
+                  onClick={() => void configureAniList(aniListNeedsEnable)}
+                >
+                  <Sparkles size={16} />
+                  {aniListNeedsEnable ? (aniListIntegration?.enabled ? 'Actualizar usuario y sincronizar' : 'Activar y sincronizar') : 'Desactivar sincronizacion'}
+                </button>
+                {aniListIntegration?.enabled && (
+                  <button className="ghost-button" disabled={aniListSync.pending} type="button" onClick={() => void syncAniListNow()}>
+                    <RotateCcw size={16} />
+                    Sincronizar ahora
+                  </button>
+                )}
+              </div>
+              {aniListIntegration?.lastSuccessAt && (
+                <p className="muted-line">Ultimo exito: {aniListIntegration.lastSuccessAt.slice(0, 16).replace('T', ' · ')} · Proxima comprobacion automatica en 24 h.</p>
+              )}
+              {aniListIntegration?.lastResult && (
+                <div className="private-health-signals" aria-label="Resultado de AniList">
+                  <div><span>Nuevas</span><strong>{aniListIntegration.lastResult.added}</strong><small>entradas</small></div>
+                  <div><span>Actualizadas</span><strong>{aniListIntegration.lastResult.updated}</strong><small>entradas</small></div>
+                  <div><span>Remotas</span><strong>{aniListIntegration.lastResult.totalRemote}</strong><small>en AniList</small></div>
+                </div>
+              )}
+              {(aniListSync.error || aniListIntegration?.lastError) && (
+                <FeedbackMessage tone="danger">{aniListSync.error ?? aniListIntegration?.lastError?.message}</FeedbackMessage>
+              )}
+              <div className="data-safety-note">
+                <ShieldCheck size={17} />
+                <span>No se borran entradas de Nexo y las notas, tags, pesos y Tu ruta permanecen locales.</span>
+              </div>
+            </div>
+          </details>
+        )}
 
         {library.userRole === 'admin' && (
           <details className="workspace-panel settings-drawer settings-roles-drawer" data-close-on-outside data-testid="settings-roles-drawer">

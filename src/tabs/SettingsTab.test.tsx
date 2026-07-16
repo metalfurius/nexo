@@ -63,6 +63,7 @@ function settingsTabElement(
 ) {
   return (
     <SettingsTab
+      aniListSync={{ loading: false, pending: false, configure: vi.fn(async () => undefined), syncNow: vi.fn(async () => undefined) }}
       library={library}
       onActivity={vi.fn()}
       onNavigate={vi.fn()}

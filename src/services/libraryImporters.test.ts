@@ -4,7 +4,6 @@ import { DEFAULT_WEIGHTS, type ImportedLibraryItemDraft, type ListItem } from '.
 import {
   buildImportPreview,
   getImportPreviewNewItems,
-  importAniListLibrary,
   importGoodreadsCsv,
   importLetterboxdZip,
   importMyAnimeListLibrary,
@@ -349,75 +348,6 @@ describe('library importers', () => {
 
     expect(preview.duplicateItems).toBe(0)
     expect(preview.newItems).toBe(1)
-  })
-
-  it('imports AniList public collections for anime, manga and manhwa', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (_input: FetchInput, init?: RequestInit) => {
-        const requestBody = JSON.parse(String(init?.body))
-        const type = requestBody.variables.type
-        const entries =
-          type === 'ANIME'
-            ? [
-                {
-                  status: 'CURRENT',
-                  score: 86,
-                  progress: 7,
-                  media: {
-                    id: 21,
-                    idMal: 21,
-                    type: 'ANIME',
-                    format: 'TV',
-                    siteUrl: 'https://anilist.co/anime/21',
-                    episodes: 1000,
-                    title: { userPreferred: 'One Piece' },
-                    startDate: { year: 1999 },
-                    coverImage: { large: 'https://img.anili.st/media/21.jpg' },
-                    genres: ['Adventure'],
-                  },
-                },
-              ]
-            : [
-                {
-                  status: 'PLANNING',
-                  score: 0,
-                  media: {
-                    id: 119257,
-                    type: 'MANGA',
-                    format: 'MANGA',
-                    countryOfOrigin: 'KR',
-                    siteUrl: 'https://anilist.co/manga/119257',
-                    title: { english: 'Omniscient Reader' },
-                    startDate: { year: 2020 },
-                    coverImage: { large: 'https://img.anili.st/media/119257.jpg' },
-                    genres: ['Action'],
-                  },
-                },
-              ]
-
-        return new Response(JSON.stringify({ data: { MediaListCollection: { lists: [{ entries }] } } }), {
-          headers: { 'content-type': 'application/json' },
-        })
-      }),
-    )
-
-    const result = await importAniListLibrary('https://anilist.co/user/fran/')
-
-    expect(result.drafts).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          title: 'One Piece',
-          type: 'anime',
-          status: 'in_progress',
-          rating: 8.6,
-          progressCurrent: 7,
-          progressTotal: 1000,
-          progressUnit: 'episodes',
-        }),
-        expect.objectContaining({ title: 'Omniscient Reader', type: 'manhwa', status: 'wishlist' }),
-      ]),
-    )
   })
 
   it('imports MyAnimeList public lists through Jikan as best effort', async () => {

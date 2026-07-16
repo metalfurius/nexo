@@ -2,6 +2,7 @@ import './App.css'
 import { catalogTaxonomyTemplates } from './data/catalogPresets'
 import { type ActivityEntry, DEFAULT_RECOMMENDATION_PREFERENCES, DEFAULT_SETTINGS, type DiscoveryCandidate, ITEM_STATUSES, ITEM_TYPES, type ItemStatus, type ItemType, type ListItem, type ThemeMode } from './domain/types'
 import { useAuth } from './hooks/useAuth'
+import { useAniListSync } from './hooks/useAniListSync'
 import { useLibrary } from './hooks/useLibrary'
 import { getActivityDestinationTab } from './lib/activityInsights'
 import { discoverySourceLabels as sourceLabels } from './lib/explorerInsights'
@@ -40,6 +41,7 @@ function LazyTabFallback() {
 function App() {
   const auth = useAuth()
   const library = useLibrary(auth.user)
+  const aniListSync = useAniListSync(auth.user?.uid, library.userRole === 'admin')
   const [activeTab, setActiveTabState] = useState<AppTab>(() => readInitialAppTab())
   const explicitRouteRef = useRef(hasExplicitAppRoute())
   const [signInDialogOpen, setSignInDialogOpen] = useState(false)
@@ -1963,6 +1965,7 @@ function App() {
             <FeatureErrorBoundary key={`settings:${privateSessionKey ?? 'anonymous'}`} label="Ajustes">
               <SettingsTab
               library={library}
+              aniListSync={aniListSync}
               sessionKey={privateSessionKey}
               saveRequest={settingsSaveRequest}
               tasteSuggestionsRequest={settingsTasteSuggestionsRequest}
