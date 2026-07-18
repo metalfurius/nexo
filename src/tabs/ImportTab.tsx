@@ -5,7 +5,7 @@ import { assertLibraryImportItemLimit, getLibraryImportRollbackPlan, type Librar
 import { clearLibraryImportRollback, persistLibraryImportRollback, readLibraryImportRollback } from '../lib/libraryImportRollbackStore'
 import { normalizeKey, uniqueValues } from '../lib/strings'
 import { importSourceLabels } from '../services/importSourceLabels'
-import { BookOpen, FileArchive, Film, HelpCircle, Library, LoaderCircle, RotateCcw, Search, ShieldCheck, Sparkles, Upload, UserRound } from 'lucide-react'
+import { BookOpen, FileArchive, Film, HelpCircle, Library, LoaderCircle, RotateCcw, Search, ShieldCheck, Upload, UserRound } from 'lucide-react'
 import { type DragEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { FeedbackMessage, ServiceImportDialog, feedbackToneFromText, formatLibraryImportRollbackDetail, formatLibraryImportRollbackStatus, getImportPreviewNewItems, serviceImportPreviewRenderLimit, type ActivityRecorder, type AppTab, type LibrarySurface, type ServiceImportApplyProgress, type ServiceImportDialogPhase } from '../app/shared'
 
@@ -36,7 +36,6 @@ export default function ImportTab({
   const [serviceImportUndo, setServiceImportUndo] = useState<LibraryImportRollbackPlan | undefined>(() =>
     readLibraryImportRollback('service', sessionKey),
   )
-  const [anilistImportInput, setAnilistImportInput] = useState('')
   const [myAnimeListImportInput, setMyAnimeListImportInput] = useState('')
   const importRequestId = useRef(0)
   const mountedRef = useRef(true)
@@ -107,8 +106,8 @@ export default function ImportTab({
     setStatus(undefined)
   }
 
-  async function preparePublicProfileImport(sourceId: 'anilist' | 'myanimelist') {
-    const input = sourceId === 'anilist' ? anilistImportInput : myAnimeListImportInput
+  async function preparePublicProfileImport(sourceId: 'myanimelist') {
+    const input = myAnimeListImportInput
     const requestId = importRequestId.current + 1
     importRequestId.current = requestId
     serviceImportFeedbackRunId.current += 1
@@ -119,8 +118,8 @@ export default function ImportTab({
     setServiceImportMessage(`Leyendo perfil de ${importSourceLabels[sourceId]}...`)
     resetServiceImportPreview()
     try {
-      const { buildImportPreview, importAniListLibrary, importMyAnimeListLibrary } = await import('../services/libraryImporters')
-      const result = sourceId === 'anilist' ? await importAniListLibrary(input) : await importMyAnimeListLibrary(input)
+      const { buildImportPreview, importMyAnimeListLibrary } = await import('../services/libraryImporters')
+      const result = await importMyAnimeListLibrary(input)
       if (importRequestId.current !== requestId) return
       setPreparedServiceImport(buildImportPreview(result, library.items))
     } catch (reason) {
@@ -397,36 +396,6 @@ export default function ImportTab({
                 <p>Solo necesitamos el usuario o la URL pública.</p>
               </div>
             </div>
-            <div className="service-import-grid import-provider-grid">
-          <form
-            className="service-import-card service-profile-card"
-            aria-busy={serviceImportLoading === 'anilist'}
-            onSubmit={(event) => {
-              event.preventDefault()
-              void preparePublicProfileImport('anilist')
-            }}
-          >
-            <div className="service-import-card-heading">
-              <Sparkles size={17} />
-              <div>
-                <strong>AniList</strong>
-                <small>Anime, manga y manhwa</small>
-              </div>
-            </div>
-            <label>
-              Usuario o URL pública
-              <input
-                value={anilistImportInput}
-                onChange={(event) => setAnilistImportInput(event.target.value)}
-                placeholder="usuario o anilist.co/user/..."
-              />
-            </label>
-            <button className="secondary-button" disabled={serviceImportLoading === 'anilist'} type="submit">
-              {serviceImportLoading === 'anilist' ? <LoaderCircle className="import-spinner" size={16} /> : <Search size={16} />}
-              {serviceImportLoading === 'anilist' ? 'Leyendo perfil...' : 'Leer perfil'}
-            </button>
-          </form>
-
           <form
             className="service-import-card service-profile-card"
             aria-busy={serviceImportLoading === 'myanimelist'}
@@ -456,8 +425,6 @@ export default function ImportTab({
               {serviceImportLoading === 'myanimelist' ? 'Leyendo perfil...' : 'Leer perfil'}
             </button>
           </form>
-
-            </div>
           </section>
 
           <section className="import-method-section" aria-labelledby="import-file-title">

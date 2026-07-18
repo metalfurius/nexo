@@ -306,6 +306,39 @@ export interface LibrarySyncState {
   remote: boolean
 }
 
+export type AniListSyncState = 'disabled' | 'idle' | 'syncing' | 'error'
+
+export interface AniListSyncIntegration {
+  enabled: boolean
+  username: string
+  state: AniListSyncState
+  updatedAt?: string
+  lastAttemptAt?: string
+  lastSuccessAt?: string
+  nextAutomaticSyncAt?: string
+  retryAfter?: string
+  lastResult?: {
+    added: number
+    updated: number
+    unchanged: number
+    totalRemote: number
+  }
+  lastError?: {
+    code: string
+    message: string
+    at: string
+  }
+}
+
+export interface AniListSyncResult {
+  status: 'synced' | 'cooldown' | 'busy' | 'disabled'
+  added?: number
+  updated?: number
+  unchanged?: number
+  totalRemote?: number
+  lastSuccessAt?: string
+}
+
 export interface UserProfile {
   uid: string
   role: UserRole

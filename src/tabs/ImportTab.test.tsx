@@ -199,8 +199,8 @@ function createLibrarySurface(overrides: Partial<LibrarySurface> = {}) {
 
 async function prepareAniListImport(expectedPreviewTitle = 'Frieren: Beyond Journey End') {
   const user = userEvent.setup()
-  await user.type(screen.getByPlaceholderText('usuario o anilist.co/user/...'), 'fran')
-  await user.click(screen.getAllByRole('button', { name: 'Leer perfil' })[0])
+  await user.type(screen.getByPlaceholderText('usuario o myanimelist.net/profile/...'), 'fran')
+  await user.click(screen.getByRole('button', { name: 'Leer perfil' }))
   await screen.findByText(expectedPreviewTitle)
   return user
 }
@@ -208,6 +208,7 @@ async function prepareAniListImport(expectedPreviewTitle = 'Frieren: Beyond Jour
 describe('ImportTab', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    importerMocks.importMyAnimeListLibrary.mockImplementation(() => importerMocks.importAniListLibrary())
     window.sessionStorage.clear()
     Object.defineProperty(window, 'scrollTo', {
       value: vi.fn(),

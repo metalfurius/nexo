@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4.0 - 2026-07-16
+
+- Added an admin-only AniList profile sync for anime, manga and manhwa with daily login/foreground checks and a manual retry.
+- Updated AniList-owned status, score, progress and external references without deleting entries or overwriting local notes, tags, weights or roadmap data.
+- Removed the manual AniList importer and added Firestore privacy rules, lease/cooldown protection, conflict-safe merging and sync coverage.
+
 ## 1.3.1 - 2026-07-14
 
 - Stabilized authenticated catalog searches with a single cancelable controller, a ten-second global deadline and at most one public-catalog plus one gateway request per query.

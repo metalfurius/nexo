@@ -28,7 +28,6 @@ export interface LibraryImportProviderResult {
 type CsvRow = Record<string, string | undefined>
 type UnknownRecord = Record<string, unknown>
 
-const anilistGraphqlUrl = 'https://graphql.anilist.co'
 const jikanBaseUrl = 'https://api.jikan.moe/v4'
 const maxJikanPages = 20
 const letterboxdMaxZipBytes = 10 * 1024 * 1024
@@ -65,22 +64,6 @@ const externalDuplicateKeys: Array<keyof ExternalRefs> = [
   'rawgId',
   'wikidataId',
 ]
-
-export async function importAniListLibrary(input: string): Promise<LibraryImportProviderResult> {
-  const username = readPublicProfileUsername(input, 'anilist')
-  const [animeResult, mangaResult] = await Promise.all([
-    fetchAniListCollection(username, 'ANIME'),
-    fetchAniListCollection(username, 'MANGA'),
-  ])
-
-  const drafts = [...animeResult.drafts, ...mangaResult.drafts]
-  assertLibraryImportItemLimit(drafts.length)
-  return {
-    sourceId: 'anilist',
-    drafts,
-    warnings: [...animeResult.warnings, ...mangaResult.warnings],
-  }
-}
 
 export async function importMyAnimeListLibrary(input: string): Promise<LibraryImportProviderResult> {
   const username = readPublicProfileUsername(input, 'myanimelist')
@@ -395,128 +378,6 @@ function createImportedItemId(draft: ImportedLibraryItemDraft) {
   return `${draft.type}-${slugify(draft.title)}-${draft.sourceId}-${sourceKey}`.slice(0, 120)
 }
 
-async function fetchAniListCollection(
-  username: string,
-  mediaType: 'ANIME' | 'MANGA',
-): Promise<Pick<LibraryImportProviderResult, 'drafts' | 'warnings'>> {
-  const query = `
-    query NexoImportAniList($userName: String, $type: MediaType) {
-      MediaListCollection(userName: $userName, type: $type) {
-        lists {
-          entries {
-            status
-            score
-            progress
-            notes
-            media {
-              id
-              idMal
-              type
-              format
-              countryOfOrigin
-              siteUrl
-              episodes
-              chapters
-              volumes
-              title {
-                romaji
-                english
-                native
-                userPreferred
-              }
-              startDate {
-                year
-              }
-              coverImage {
-                large
-              }
-              genres
-            }
-          }
-        }
-      }
-    }
-  `
-
-  const response = await fetch(anilistGraphqlUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ query, variables: { userName: username, type: mediaType } }),
-  })
-
-  if (!response.ok) {
-    throw new Error(`AniList no respondio correctamente (${response.status}).`)
-  }
-
-  const body = (await response.json()) as UnknownRecord
-  const errors = Array.isArray(body.errors) ? body.errors : []
-  if (errors.length) {
-    throw new Error(readGraphqlError(errors[0]) ?? 'AniList no pudo leer ese perfil publico.')
-  }
-
-  const collection = asRecord(asRecord(body.data)?.MediaListCollection)
-  const lists = Array.isArray(collection?.lists) ? collection.lists : []
-  const warnings: ImportWarning[] = []
-  const drafts = lists.flatMap((list) => {
-    const listRecord = asRecord(list)
-    const entries = Array.isArray(listRecord?.entries) ? listRecord.entries : []
-    return entries.flatMap((entry) => {
-      const draft = anilistEntryToDraft(asRecord(entry))
-      if (draft) return [draft]
-      warnings.push({
-        code: 'invalid-entry',
-        message: `AniList devolvio una entrada ${mediaType} sin titulo o tipo compatible.`,
-        sourceId: 'anilist',
-      })
-      return []
-    })
-  })
-
-  return { drafts, warnings }
-}
-
-function anilistEntryToDraft(entry?: UnknownRecord): ImportedLibraryItemDraft | undefined {
-  const media = asRecord(entry?.media)
-  const titleRecord = asRecord(media?.title)
-  const title = firstString(titleRecord?.userPreferred, titleRecord?.english, titleRecord?.romaji, titleRecord?.native)
-  const sourceItemId = readString(media?.id)
-  const type = anilistMediaTypeToItemType(readString(media?.type), readString(media?.countryOfOrigin))
-
-  if (!title || !sourceItemId || !type) return undefined
-
-  const malId = readString(media?.idMal)
-  const format = readString(media?.format)
-  const releaseYear = readNumber(asRecord(media?.startDate)?.year)
-  const progressMeta = anilistProgressMeta(entry?.progress, media, type)
-
-  return {
-    sourceId: 'anilist',
-    sourceItemId,
-    title,
-    type,
-    status: anilistStatusToItemStatus(readString(entry?.status)),
-    rating: normalizeTenPointRating(readNumber(entry?.score), 100),
-    progress: readProgress(entry?.progress, type),
-    progressCurrent: progressMeta?.current,
-    progressTotal: progressMeta?.total,
-    progressUnit: progressMeta?.unit,
-    genres: stringList(media?.genres),
-    tags: uniqueValues(['AniList', format, type]),
-    moodTags: [],
-    notes: readString(entry?.notes),
-    importNotes: malId ? [`MAL: ${malId}`] : undefined,
-    externalRefs: {
-      anilistId: sourceItemId,
-      malId,
-      sourceUrl: readString(media?.siteUrl),
-    },
-    posterUrl: readString(asRecord(media?.coverImage)?.large),
-    releaseYear,
-  }
-}
-
 async function fetchJikanList(
   username: string,
   listKind: 'animelist' | 'mangalist',
@@ -799,20 +660,6 @@ function countBy<Value extends string>(values: Value[]) {
   }, {})
 }
 
-function anilistMediaTypeToItemType(type: string | undefined, countryOfOrigin: string | undefined): ItemType | undefined {
-  if (type === 'ANIME') return 'anime'
-  if (type === 'MANGA') return countryOfOrigin === 'KR' ? 'manhwa' : 'manga'
-  return undefined
-}
-
-function anilistStatusToItemStatus(status: string | undefined): ItemStatus {
-  if (status === 'CURRENT' || status === 'REPEATING') return 'in_progress'
-  if (status === 'COMPLETED') return 'completed'
-  if (status === 'PAUSED') return 'paused'
-  if (status === 'DROPPED') return 'dropped'
-  return 'wishlist'
-}
-
 function malStatusToItemStatus(status: string | undefined, listKind: 'animelist' | 'mangalist'): ItemStatus {
   const key = normalizeKey(status ?? '')
   if (key.includes('completed')) return 'completed'
@@ -862,41 +709,12 @@ function jikanStructuredProgress(entry: UnknownRecord | undefined, media: Unknow
   return { current, total, unit }
 }
 
-function readProgress(value: unknown, type: ItemType) {
-  const progress = readNumber(value)
-  if (!progress) return undefined
-  const unit = type === 'anime' ? 'episodios' : 'capitulos'
-  return `${progress} ${unit}`
-}
-
-function anilistProgressMeta(value: unknown, media: UnknownRecord | undefined, type: ItemType) {
-  const current = readNumber(value)
-  const unit: ProgressUnit =
-    type === 'anime'
-      ? 'episodes'
-      : readNumber(media?.volumes) && !readNumber(media?.chapters)
-        ? 'volumes'
-        : 'chapters'
-  const total = unit === 'episodes'
-    ? readNumber(media?.episodes)
-    : unit === 'volumes'
-      ? readNumber(media?.volumes)
-      : readNumber(media?.chapters) ?? readNumber(media?.volumes)
-
-  if (!current && !total) return undefined
-  return { current, total, unit }
-}
-
 function readJikanNamedList(value: unknown) {
   if (!Array.isArray(value)) return []
   return value.flatMap((entry) => {
     const name = readString(asRecord(entry)?.name)
     return name ? [name] : []
   })
-}
-
-function readGraphqlError(error: unknown) {
-  return readString(asRecord(error)?.message)
 }
 
 function normalizeTenPointRating(value: number | undefined, scale: 10 | 100) {
@@ -970,11 +788,6 @@ function readString(value: unknown) {
   if (typeof value !== 'string') return undefined
   const text = value.trim()
   return text || undefined
-}
-
-function stringList(value: unknown) {
-  if (!Array.isArray(value)) return []
-  return uniqueValues(value.flatMap((entry) => (typeof entry === 'string' && entry.trim() ? [entry.trim()] : [])))
 }
 
 function asRecord(value: unknown): UnknownRecord | undefined {

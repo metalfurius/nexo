@@ -646,4 +646,33 @@ maybeDescribe('firestore.rules emulator', () => {
     await expect(getDoc(doc(ownerDb, 'users', 'admin'))).rejects.toThrow()
     await expect(setDoc(doc(adminDb, 'users', 'owner'), { role: 'moderator', updatedAt: '2026-01-02T00:00:00.000Z' }, { merge: true })).resolves.toBeUndefined()
   })
+
+  it('keeps the AniList integration private and server-write only', async () => {
+    await env.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'users', 'admin'), {
+        uid: 'admin',
+        role: 'admin',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      })
+      await setDoc(doc(context.firestore(), 'users', 'owner'), {
+        uid: 'owner',
+        role: 'user',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      })
+      await setDoc(doc(context.firestore(), 'users', 'admin', 'integrations', 'anilist'), {
+        enabled: true,
+        username: 'fran',
+      })
+    })
+
+    const adminDb = env.authenticatedContext('admin').firestore()
+    const ownerDb = env.authenticatedContext('owner').firestore()
+    const integrationRef = doc(adminDb, 'users', 'admin', 'integrations', 'anilist')
+
+    await expect(getDoc(integrationRef)).resolves.toBeTruthy()
+    await expect(getDoc(doc(ownerDb, 'users', 'admin', 'integrations', 'anilist'))).rejects.toThrow()
+    await expect(setDoc(integrationRef, { enabled: false }, { merge: true })).rejects.toThrow()
+  })
 })
