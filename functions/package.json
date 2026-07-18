@@ -17,14 +17,14 @@
   },
   "dependencies": {
     "firebase-admin": "^13.6.0",
-    "firebase-functions": "^7.1.0"
+    "firebase-functions": "^7.1.0",
+    "websocket-driver": "^0.7.5"
   },
   "devDependencies": {
     "typescript": "~6.0.2",
     "vitest": "^4.1.7"
   },
   "overrides": {
-    "form-data": "2.5.6",
-    "websocket-driver": "0.7.5"
+    "form-data": "2.5.6"
   }
 }
