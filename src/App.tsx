@@ -49,7 +49,11 @@ function LazyTabFallback() {
 function App() {
   const auth = useAuth()
   const library = useLibrary(auth.user)
-  const [aniListSync, setAniListSync] = useState<AniListSyncController>(EMPTY_ANI_LIST_SYNC_CONTROLLER)
+  const [aniListSyncState, setAniListSyncState] = useState<{ userId?: string; controller: AniListSyncController }>({ controller: EMPTY_ANI_LIST_SYNC_CONTROLLER })
+  const activeAniListSync = auth.user?.uid === aniListSyncState.userId ? aniListSyncState.controller : EMPTY_ANI_LIST_SYNC_CONTROLLER
+  const handleAniListSyncChange = useCallback((controller: AniListSyncController) => {
+    setAniListSyncState({ userId: auth.user?.uid, controller })
+  }, [auth.user?.uid])
   const [activeTab, setActiveTabState] = useState<AppTab>(() => readInitialAppTab())
   const explicitRouteRef = useRef(hasExplicitAppRoute())
   const [signInDialogOpen, setSignInDialogOpen] = useState(false)
@@ -1776,7 +1780,7 @@ function App() {
         <Suspense fallback={null}>
           <AniListSyncRuntime
             isAdmin={library.userRole === 'admin'}
-            onChange={setAniListSync}
+            onChange={handleAniListSyncChange}
             userId={auth.user.uid}
           />
         </Suspense>
@@ -1982,7 +1986,7 @@ function App() {
             <FeatureErrorBoundary key={`settings:${privateSessionKey ?? 'anonymous'}`} label="Ajustes">
               <SettingsTab
               library={library}
-              aniListSync={aniListSync}
+              aniListSync={activeAniListSync}
               sessionKey={privateSessionKey}
               saveRequest={settingsSaveRequest}
               tasteSuggestionsRequest={settingsTasteSuggestionsRequest}
