@@ -1,5 +1,5 @@
 import type { AniListSyncIntegration, AniListSyncResult } from '../domain/types'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 const loadAniListSyncService = () => import('../services/anilistSync')
 
@@ -150,5 +150,5 @@ export function useAniListSync(userId?: string, isAdmin = false): AniListSyncCon
     }
   }, [])
 
-  return { integration, loading, pending, error, configure, syncNow }
+  return useMemo(() => ({ integration, loading, pending, error, configure, syncNow }), [configure, error, integration, loading, pending, syncNow])
 }
