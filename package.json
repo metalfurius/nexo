@@ -50,10 +50,10 @@
     "@fontsource-variable/inter": "5.2.8",
     "fflate": "^0.8.3",
     "firebase": "^12.14.0",
-    "lucide-react": "^1.17.0",
+    "lucide-react": "^1.26.0",
     "papaparse": "^5.5.3",
-    "react": "^19.2.6",
-    "react-dom": "^19.2.6"
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.11.3",
@@ -67,7 +67,7 @@
     "@testing-library/user-event": "^14.6.1",
     "@types/node": "^24.12.3",
     "@types/papaparse": "^5.5.2",
-    "@types/react": "^19.2.14",
+    "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
     "@vitest/coverage-v8": "4.1.7",
