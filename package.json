@@ -90,7 +90,7 @@
     "workbox-precaching": "7.4.1",
     "workbox-routing": "7.4.1",
     "workbox-strategies": "7.4.1",
-    "wrangler": "4.110.0",
+    "wrangler": "4.114.0",
     "yaml": "2.9.0"
   }
 }
