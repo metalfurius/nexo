@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4.2 - 2026-07-25
+
+- Added an immutable production preflight that validates frontend, Functions, Worker, release metadata, budgets, security and end-to-end gates before any provider mutation.
+- Published exact Pages, Functions and Worker artifacts with revision metadata, SHA-256 provenance, rerun-safe deployment ordering and cross-service revision/version agreement checks.
+- Documented the 1.4.0 partial-deploy regression scenario and distributed recovery behavior without claiming transactional provider atomicity.
+
 ## 1.4.0 - 2026-07-16
 
 - Added an admin-only AniList profile sync for anime, manga and manhwa with daily login/foreground checks and a manual retry.
