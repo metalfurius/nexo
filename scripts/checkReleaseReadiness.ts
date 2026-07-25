@@ -47,6 +47,8 @@ const requiredFiles = [
   '.github/dependabot.yml',
   'scripts/bumpVersion.mjs',
   'scripts/checkArchitecture.ts',
+  'scripts/releasePreflight.mjs',
+  'scripts/releasePreflight.test.mjs',
   'scripts/releaseTools.test.mjs',
   'scripts/resolveVersionBump.mjs',
 ]
@@ -139,6 +141,7 @@ check(rootPackage.scripts?.check?.includes('check:architecture'), 'npm run check
 check(rootPackage.scripts?.check?.includes('check:build-output'), 'npm run check must include check:build-output.')
 check(rootPackage.scripts?.['check:release-files'], 'package.json must expose check:release-files.')
 check(rootPackage.scripts?.['check:release-tools'], 'package.json must expose check:release-tools.')
+check(rootPackage.scripts?.['check:release-tools']?.includes('releasePreflight.test.mjs'), 'check:release-tools must cover release preflight safety tests.')
 check(rootPackage.scripts?.check?.includes('check:release-tools'), 'npm run check must include check:release-tools.')
 check(rootPackage.scripts?.['check:functions']?.includes('functions run typecheck'), 'check:functions must typecheck Functions tests.')
 check(rootPackage.scripts?.['check:functions']?.includes('functions run test'), 'check:functions must run Functions unit tests.')
@@ -281,27 +284,65 @@ check(asObject(dispatchInputs.ref).required === true, 'Production redeploys must
 check(Boolean(dispatchInputs.skip_seed), 'Production deploy dispatch must accept skip_seed.')
 
 const prepareJob = workflowJob(deployWorkflow, 'prepare')
+const preflightJob = workflowJob(deployWorkflow, 'preflight')
 const firebaseJob = workflowJob(deployWorkflow, 'deploy-firebase')
 const workerJob = workflowJob(deployWorkflow, 'deploy-worker')
-const buildPagesJob = workflowJob(deployWorkflow, 'build-pages')
 const deployPagesJob = workflowJob(deployWorkflow, 'deploy-pages')
 const smokeJob = workflowJob(deployWorkflow, 'production-smoke')
 const releaseJob = workflowJob(deployWorkflow, 'publish-release')
 
-check(normalizedNeeds(firebaseJob).includes('prepare'), 'Firebase must deploy from the prepared immutable revision.')
+check(normalizedNeeds(preflightJob).includes('prepare'), 'Immutable preflight must wait for the prepared revision.')
+check(normalizedNeeds(firebaseJob).includes('preflight'), 'Firebase must wait for the complete immutable preflight.')
 check(
-  normalizedNeeds(workerJob).includes('deploy-firebase'),
-  'Worker deploy must wait for Functions, Firestore rules and indexes.',
+  normalizedNeeds(workerJob).includes('preflight') && normalizedNeeds(workerJob).includes('deploy-firebase'),
+  'Worker deploy must wait for Functions, Firestore rules and indexes and consume the preflight.',
 )
-check(normalizedNeeds(buildPagesJob).includes('deploy-worker'), 'Pages build must wait for the Worker deploy.')
-check(normalizedNeeds(deployPagesJob).includes('build-pages'), 'Pages deploy must use the verified Pages artifact.')
-check(normalizedNeeds(smokeJob).includes('deploy-pages'), 'Production smoke must wait for Pages deployment.')
+check(
+  normalizedNeeds(deployPagesJob).includes('preflight') && normalizedNeeds(deployPagesJob).includes('deploy-worker'),
+  'Pages deploy must wait for the Worker and use the verified Pages artifact.',
+)
+check(
+  normalizedNeeds(smokeJob).includes('deploy-firebase') &&
+    normalizedNeeds(smokeJob).includes('deploy-worker') &&
+    normalizedNeeds(smokeJob).includes('deploy-pages'),
+  'Production smoke must wait for every production deployment job.',
+)
 check(normalizedNeeds(releaseJob).includes('production-smoke'), 'Release publication must wait for the production smoke.')
 check(includesRun(prepareJob, 'git rev-parse HEAD'), 'Production deploy must resolve an immutable SHA.')
+check(includesRun(prepareJob, 'create-metadata'), 'Production deploy must publish immutable revision metadata.')
+check(
+  stepUses(prepareJob).some((uses) => uses.startsWith('actions/upload-artifact@')),
+  'Production deploy must publish the immutable metadata artifact before preflight.',
+)
 check(
   includesRun(prepareJob, 'refs/tags/$REDEPLOY_REF') && includesRun(prepareJob, 'git merge-base --is-ancestor HEAD origin/main'),
   'Manual production redeploys must validate an existing SemVer tag reachable from main.',
 )
+check(includesRun(preflightJob, 'verify-metadata'), 'Preflight must verify immutable release metadata before any mutation.')
+check(includesRun(preflightJob, 'npm run release:check'), 'Preflight must run the complete release gate.')
+for (const gate of ['check:release-tools', 'check:release-files', 'build', 'check:build-output', 'build:functions', 'worker:check']) {
+  check(
+    rootPackage.scripts?.check?.includes(`npm run ${gate}`) ||
+      rootPackage.scripts?.['check:functions']?.includes(`npm run ${gate}`) ||
+      rootPackage.scripts?.['release:check']?.includes(`npm run ${gate}`),
+    `release:check must include the ${gate} gate before production mutation.`,
+  )
+}
+check(includesRun(preflightJob, '--dry-run'), 'Worker artifact generation must remain a non-mutating dry run.')
+check(includesRun(preflightJob, 'create-manifest'), 'Preflight must generate an artifact provenance manifest.')
+check(
+  stepUses(preflightJob).some((uses) => uses.startsWith('actions/upload-artifact@')) &&
+    stepUses(preflightJob).some((uses) => uses.startsWith('actions/upload-pages-artifact@')),
+  'Preflight must publish the exact deployment and Pages artifacts.',
+)
+for (const jobName of ['deploy-firebase', 'deploy-worker', 'deploy-pages']) {
+  const job = workflowJob(deployWorkflow, jobName)
+  check(
+    stepUses(job).some((uses) => uses.startsWith('actions/download-artifact@')) && includesRun(job, 'verify-manifest'),
+    `${jobName} must download and verify the exact preflight artifact provenance.`,
+  )
+}
+check(!Object.prototype.hasOwnProperty.call(asObject(deployWorkflow.jobs), 'build-pages'), 'Pages must not be rebuilt after a production mutation.')
 check(
   stepUses(firebaseJob).some((uses) => uses.startsWith('google-github-actions/auth@')),
   'Firebase deploy must authenticate through Google Workload Identity Federation.',
@@ -318,18 +359,18 @@ check(
   workflowSteps(firebaseJob).some((step) => step.if === 'failure()' && String(step.uses ?? '').startsWith('actions/upload-artifact@')),
   'Firebase deploy must upload the data audit report when compatibility validation fails.',
 )
-check(includesRun(workerJob, 'npm run worker:check'), 'Worker job must validate its bundle before deploy.')
+check(rootPackage.scripts?.['release:check']?.includes('npm run worker:check'), 'Immutable preflight must validate the Worker bundle before deploy.')
 check(includesRun(workerJob, 'wrangler deploy'), 'Worker job must deploy with Wrangler.')
+check(includesRun(workerJob, '--no-bundle'), 'Worker job must deploy the exact preflighted bundle without rebuilding it.')
 check(includesRun(workerJob, 'NEXO_VERSION'), 'Worker deploy must stamp the package version dynamically.')
 check(includesRun(firebaseJob, 'NEXO_VERSION'), 'Functions deploy must stamp the package version dynamically.')
 check(includesRun(firebaseJob, 'NEXO_ALLOWED_ORIGINS'), 'Functions deploy must restrict production CORS explicitly.')
 check(includesRun(firebaseJob, 'NEXO_ENFORCE_APP_CHECK=false'), 'Functions App Check enforcement must remain explicit during observation.')
-check(includesRun(buildPagesJob, 'npm run check:build-output'), 'Pages build must validate the production artifact.')
-check(includesRun(buildPagesJob, 'npm run check:release-files'), 'Pages build must validate release files.')
 check(stepUses(deployPagesJob).some((uses) => uses.startsWith('actions/deploy-pages@')), 'Production workflow must deploy GitHub Pages.')
 check(includesRun(smokeJob, 'E2E_BACKEND_HEALTH_URL'), 'Production smoke must wait for the Functions revision.')
 check(includesRun(smokeJob, 'E2E_CATALOG_API_URL'), 'Production smoke must wait for the Worker revision.')
 check(includesRun(smokeJob, 'version.json'), 'Production smoke must wait for the Pages revision.')
+check(includesRun(smokeJob, 'E2E_EXPECTED_VERSION'), 'Production smoke must verify version agreement as well as revision agreement.')
 check(
   includesRun(smokeJob, 'curl --connect-timeout 3 --max-time 8'),
   'Production revision probes must have bounded connection and transfer timeouts.',

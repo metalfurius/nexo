@@ -63,16 +63,21 @@ An untagged release may receive a deployment-blocker PR with the same `release:x
 
 ## Ordered production deployment
 
-`.github/workflows/deploy-production.yml` runs only after successful `CI` on a push to `main`, or via `workflow_dispatch(ref, skip_seed)`. It deploys one immutable SHA in this order:
+`.github/workflows/deploy-production.yml` runs only after successful `CI` on a push to `main`, or via `workflow_dispatch(ref, skip_seed)`. It first creates one immutable release metadata record and runs the complete preflight with no Firebase, Cloudflare or Pages mutation. The preflight publishes a Pages artifact, compiled Functions output, a Worker bundle and a SHA-256 provenance manifest. Every mutation job downloads and verifies those exact artifacts before continuing.
 
-1. Functions, Firestore rules and indexes; optionally write the idempotent normalized catalog seed.
-2. The Cloudflare Worker.
-3. The verified GitHub Pages artifact.
-4. Wait until `/version.json`, Worker `/health` and Functions `backendHealth` all expose the approved SHA.
-5. Run anonymous catalog and authenticated moderator production smoke tests.
-6. Create `v<version>` and its GitHub Release only after the smoke succeeds.
+The controlled order is:
 
-Any backend, credential, revision or smoke failure stops the chain and prevents tagging. A manual redeploy must be launched from `main`, must target an existing SemVer release tag reachable from `main`, and may set `skip_seed`; arbitrary branches and commit SHAs are rejected, and the workflow never performs a destructive catalog rollback.
+1. Immutable release metadata, frontend build/budget, Functions build/tests, Worker dry run, security audits, release metadata checks and local/E2E release checks.
+2. Functions, Firestore rules and indexes; optionally write the idempotent normalized catalog seed.
+3. The exact preflighted Cloudflare Worker bundle.
+4. The exact preflighted GitHub Pages artifact.
+5. Wait until `/version.json`, Worker `/health` and Functions `backendHealth` all expose the approved SHA and package version.
+6. Run anonymous catalog and authenticated moderator production smoke tests.
+7. Create `v<version>` and its GitHub Release only after the smoke succeeds.
+
+Any preflight, backend, credential, revision or smoke failure stops the chain and prevents tagging. A simulated failure of the last preflight gate is covered by `scripts/releasePreflight.test.mjs` and leaves all production mutation jobs blocked, preserving the 1.4.0 partial-deploy regression scenario. A manual redeploy must be launched from `main`, must target an existing SemVer release tag reachable from `main`, and may set `skip_seed`; arbitrary branches and commit SHAs are rejected, and the workflow never performs a destructive catalog rollback.
+
+Rerunning the same approved release is safe: the artifact names are keyed by the immutable commit, Firebase catalog writes remain idempotent, Wrangler uses strict mode, and tag/release publication verifies an existing tag before creating anything. The deployment is still distributed rather than transactionally atomic: if a provider fails after an earlier provider has changed, stop the run, preserve the evidence artifacts, and rerun the same release after recovery. Do not deploy a different revision to repair a partial release. If recovery is not possible, restore the provider that changed first using its documented provider rollback/version controls, then rerun the approved revision and repeat the cross-service smoke; no destructive catalog rollback is automated.
 
 Before restrictive rules are deployed, the Firebase job runs the idempotent Firestore normalizer and then the read-only compatibility auditor. The normalizer only fills a missing user `createdAt` from Firestore document metadata and removes the explicitly allowlisted legacy fields `repairedAt`, `repairedBy`, `genresText`, `moodText` and `tagsText`; it uses batches of at most 400 writes and never deletes documents. Any remaining incompatibility still stops the release and uploads redacted reports containing hashed paths rather than private data.
 
