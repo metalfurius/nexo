@@ -6,6 +6,11 @@
 - Published exact Pages, Functions and Worker artifacts with revision metadata, SHA-256 provenance, rerun-safe deployment ordering and cross-service revision/version agreement checks.
 - Documented the 1.4.0 partial-deploy regression scenario and distributed recovery behavior without claiming transactional provider atomicity.
 
+## 1.4.1 - 2026-07-21
+
+- Deferred the authenticated AniList synchronization runtime until sign-in while keeping the Settings controller and automatic sync behavior available for authenticated users.
+- Reduced the public initial JavaScript bundle below the strict 200 KiB production budget.
+
 ## 1.4.0 - 2026-07-16
 
 - Added an admin-only AniList profile sync for anime, manga and manhwa with daily login/foreground checks and a manual retry.
