@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import test from 'node:test'
 
@@ -22,7 +22,7 @@ test('release metadata is immutable and rejects revision or version drift', () =
 })
 
 test('artifact manifest detects tampering, added files, and unsafe paths', async () => {
-  const rootDir = await mkdtemp(join(process.env.TEMP ?? process.env.TMP ?? '.', 'nexo-preflight-test-'))
+  const rootDir = await mkdtemp(join(process.env.TMPDIR ?? process.env.TEMP ?? process.env.TMP ?? '.', 'nexo-preflight-test-'))
   const outsidePath = join(rootDir, '..', 'nexo-preflight-test-outside.txt')
   try {
     await mkdir(join(rootDir, 'dist'), { recursive: true })
@@ -69,6 +69,21 @@ test('artifact manifest detects tampering, added files, and unsafe paths', async
       metadata,
       expected: { revision, version },
     })).join('\n'), /must remain under the release artifact root/)
+
+    if (process.platform !== 'win32') {
+      const symlinkPath = join(rootDir, 'worker', 'worker-link.js')
+      try {
+        await symlink(join(rootDir, 'worker', 'worker.js'), symlinkPath)
+        assert.match((await verifyArtifactManifest({
+          rootDir,
+          manifest,
+          metadata,
+          expected: { revision, version },
+        })).join('\n'), /unsupported entry: worker\/worker-link\.js/)
+      } finally {
+        await rm(symlinkPath, { force: true })
+      }
+    }
   } finally {
     await rm(rootDir, { recursive: true, force: true })
     await rm(outsidePath, { force: true })

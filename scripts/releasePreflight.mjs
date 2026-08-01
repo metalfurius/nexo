@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { readFile, readdir, writeFile } from 'node:fs/promises'
+import { readFile, readdir, symlink, writeFile } from 'node:fs/promises'
 import { join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -88,6 +88,7 @@ async function listFiles(rootDir, includes) {
       const entryRelativePath = join(relativePath, entry.name)
       if (entry.isDirectory()) await visit(entryPath, entryRelativePath)
       else if (entry.isFile()) files.push(entryRelativePath.replaceAll('\\', '/'))
+      else throw new Error(`Preflight artifact contains unsupported entry: ${entryRelativePath.replaceAll('\\', '/')}.`)
     }
   }
 

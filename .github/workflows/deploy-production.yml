@@ -391,6 +391,7 @@ jobs:
     permissions:
       contents: read
       actions: read
+      id-token: write
       pages: write
     environment:
       name: github-pages
