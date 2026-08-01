@@ -112,6 +112,6 @@ App Check is loaded in observational mode when its public reCAPTCHA Enterprise s
 
 `npm run release:check` runs the launch gate used before tagging a release. It gates high severity audit findings; the current moderate Firebase-tooling transitive `uuid` advisories are documented in `docs/release-checklist.md`.
 
-GitHub Actions runs the same gate for pull requests and pushes to `main`. A successful `main` gate deploys Firebase, the catalog Worker and Pages in order, then verifies their shared revision before publishing the tag/release.
+GitHub Actions runs the same gate for pull requests and pushes to `main`. A production run first completes an immutable preflight and publishes the exact Pages, Functions and Worker artifacts with revision metadata and provenance; only then does it deploy Firebase, the catalog Worker and Pages in order, verify their shared revision and package version, and publish the tag/release. A preflight failure skips every production mutation job.
 
 A release PR must use exactly one increasing SemVer label, `release:x.y.z`. The version script synchronizes the root and Functions packages and lockfiles; Workbox derives service-worker cache names from that package version at build time.

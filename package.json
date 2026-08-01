@@ -1,7 +1,7 @@
 {
   "name": "nexo",
   "private": true,
-  "version": "1.4.1",
+  "version": "1.4.2",
   "type": "module",
   "scripts": {
     "dev": "vite --host localhost",
@@ -22,7 +22,7 @@
     "check:functions": "npm run build:functions && npm --prefix functions run typecheck && npm --prefix functions run test",
     "check:build-output": "tsx scripts/checkBuildOutput.ts",
     "check:release-files": "tsx scripts/checkReleaseReadiness.ts",
-    "check:release-tools": "node --test scripts/releaseTools.test.mjs",
+    "check:release-tools": "node --test scripts/releaseTools.test.mjs scripts/releasePreflight.test.mjs",
     "version:bump": "node scripts/bumpVersion.mjs",
     "release:check": "npm run check && npm run worker:check && npm run test:e2e && npm run test:e2e:pwa && npm run test:e2e:firebase && npm run check:release-files && npm audit --audit-level=high && npm run audit:functions",
     "test:rules": "tsx scripts/runFirestoreRulesTests.ts",

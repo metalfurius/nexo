@@ -18,7 +18,6 @@ on:
 
 permissions:
   contents: read
-  id-token: write
   pages: write
 
 env:
@@ -37,6 +36,8 @@ jobs:
         github.event.workflow_run.event == 'push' &&
         github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       sha: ${{ steps.revision.outputs.sha }}
       version: ${{ steps.revision.outputs.version }}
@@ -67,21 +68,202 @@ jobs:
             exit 1
           }
 
-      - name: Resolve immutable revision
+      - name: Resolve immutable revision and release metadata
         id: revision
+        env:
+          REPOSITORY: ${{ github.repository }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
-          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-          node -e "console.log('version=' + require('./package.json').version)" >> "$GITHUB_OUTPUT"
+          sha="$(git rev-parse HEAD)"
+          version="$(node -p "require('./package.json').version")"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          node scripts/releasePreflight.mjs create-metadata \
+            --revision "$sha" \
+            --version "$version" \
+            --repository "$REPOSITORY" \
+            --run-id "$WORKFLOW_RUN_ID" \
+            --event "$EVENT_NAME" \
+            --output "$RUNNER_TEMP/release-metadata.json"
 
-  deploy-firebase:
+      - name: Publish immutable release metadata artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: nexo-release-metadata-${{ steps.revision.outputs.sha }}
+          path: ${{ runner.temp }}/release-metadata.json
+          if-no-files-found: error
+          retention-days: 30
+
+  preflight:
     needs: prepare
     runs-on: ubuntu-latest
     environment: production
+    permissions:
+      contents: read
+      actions: read
+      pages: write
+    env:
+      GITHUB_PAGES: 'true'
+      GITHUB_PAGES_BASE: '/'
+      VITE_BUILD_SHA: ${{ needs.prepare.outputs.sha }}
+      VITE_FIREBASE_API_KEY: ${{ vars.VITE_FIREBASE_API_KEY }}
+      VITE_FIREBASE_AUTH_DOMAIN: ${{ vars.VITE_FIREBASE_AUTH_DOMAIN }}
+      VITE_FIREBASE_PROJECT_ID: ${{ vars.VITE_FIREBASE_PROJECT_ID }}
+      VITE_FIREBASE_STORAGE_BUCKET: ${{ vars.VITE_FIREBASE_STORAGE_BUCKET }}
+      VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ vars.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+      VITE_FIREBASE_APP_ID: ${{ vars.VITE_FIREBASE_APP_ID }}
+      VITE_FIREBASE_MEASUREMENT_ID: ${{ vars.VITE_FIREBASE_MEASUREMENT_ID }}
+      VITE_RECAPTCHA_ENTERPRISE_SITE_KEY: ${{ vars.VITE_RECAPTCHA_ENTERPRISE_SITE_KEY }}
+      VITE_CATALOG_API_URL: ${{ vars.VITE_CATALOG_API_URL }}
+      VITE_CATALOG_PROXY_URL: ${{ vars.VITE_CATALOG_PROXY_URL }}
+      VITE_PUBLIC_CATALOG_URL: ${{ vars.VITE_PUBLIC_CATALOG_URL }}
+      VITE_DEMO_MODE: 'false'
+      VITE_USE_FIREBASE_EMULATORS: 'false'
+      RELEASE_ARTIFACT_ROOT: ${{ runner.temp }}/nexo-release-artifact
     steps:
       - name: Checkout approved revision
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           ref: ${{ needs.prepare.outputs.sha }}
+
+      - name: Download immutable release metadata
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: nexo-release-metadata-${{ needs.prepare.outputs.sha }}
+          path: ${{ runner.temp }}/nexo-release-metadata
+
+      - name: Verify immutable release metadata
+        run: >-
+          node scripts/releasePreflight.mjs verify-metadata
+          --file "${{ runner.temp }}/nexo-release-metadata/release-metadata.json"
+          --revision "${{ needs.prepare.outputs.sha }}"
+          --version "${{ needs.prepare.outputs.version }}"
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Setup Java for Firebase emulators
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Functions dependencies
+        run: npm --prefix functions ci
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Require production frontend configuration
+        shell: bash
+        run: |
+          for name in \
+            VITE_FIREBASE_API_KEY VITE_FIREBASE_AUTH_DOMAIN VITE_FIREBASE_PROJECT_ID \
+            VITE_FIREBASE_STORAGE_BUCKET VITE_FIREBASE_MESSAGING_SENDER_ID VITE_FIREBASE_APP_ID \
+            VITE_FIREBASE_MEASUREMENT_ID VITE_CATALOG_API_URL VITE_CATALOG_PROXY_URL VITE_PUBLIC_CATALOG_URL; do
+            test -n "${!name}" || { echo "$name is required."; exit 1; }
+          done
+
+      - name: Run complete immutable release preflight
+        run: npm run release:check
+
+      - name: Build exact Worker preflight bundle
+        shell: bash
+        run: |
+          worker_dir="$RUNNER_TEMP/nexo-worker-bundle"
+          rm -rf "$worker_dir"
+          mkdir -p "$worker_dir"
+          npx --no-install wrangler deploy workers/catalog-proxy/src/index.js \
+            --dry-run \
+            --env="" \
+            --config workers/catalog-proxy/wrangler.jsonc \
+            --var "BUILD_SHA:${{ needs.prepare.outputs.sha }}" \
+            --var "NEXO_VERSION:${{ needs.prepare.outputs.version }}" \
+            --outdir "$worker_dir" \
+            --metafile "$worker_dir/bundle-meta.json"
+
+      - name: Stage and verify exact preflight artifacts
+        shell: bash
+        run: |
+          rm -rf "$RELEASE_ARTIFACT_ROOT"
+          mkdir -p "$RELEASE_ARTIFACT_ROOT/functions" "$RELEASE_ARTIFACT_ROOT/worker"
+          cp "${{ runner.temp }}/nexo-release-metadata/release-metadata.json" "$RELEASE_ARTIFACT_ROOT/release-metadata.json"
+          cp -R dist "$RELEASE_ARTIFACT_ROOT/dist"
+          cp -R functions/lib "$RELEASE_ARTIFACT_ROOT/functions/lib"
+          cp -R "$RUNNER_TEMP/nexo-worker-bundle/." "$RELEASE_ARTIFACT_ROOT/worker/"
+          node scripts/releasePreflight.mjs create-manifest \
+            --root "$RELEASE_ARTIFACT_ROOT" \
+            --metadata "$RELEASE_ARTIFACT_ROOT/release-metadata.json" \
+            --output "$RELEASE_ARTIFACT_ROOT/preflight-manifest.json" \
+            --include dist \
+            --include functions/lib \
+            --include worker
+          node scripts/releasePreflight.mjs verify-manifest \
+            --root "$RELEASE_ARTIFACT_ROOT" \
+            --metadata "$RELEASE_ARTIFACT_ROOT/release-metadata.json" \
+            --manifest "$RELEASE_ARTIFACT_ROOT/preflight-manifest.json" \
+            --revision "${{ needs.prepare.outputs.sha }}" \
+            --version "${{ needs.prepare.outputs.version }}"
+
+      - name: Upload immutable deployment artifacts and provenance
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: nexo-preflight-${{ needs.prepare.outputs.sha }}
+          path: ${{ runner.temp }}/nexo-release-artifact
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Configure Pages
+        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
+
+      - name: Upload exact Pages artifact
+        uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
+        with:
+          path: ${{ env.RELEASE_ARTIFACT_ROOT }}/dist
+
+  deploy-firebase:
+    needs: [prepare, preflight]
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    env:
+      RELEASE_ARTIFACT_ROOT: ${{ runner.temp }}/nexo-release-artifact
+    steps:
+      - name: Checkout approved revision
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+
+      - name: Download exact preflight artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: nexo-preflight-${{ needs.prepare.outputs.sha }}
+          path: ${{ runner.temp }}/nexo-release-artifact
+
+      - name: Verify artifact provenance and immutable revision
+        run: >-
+          node scripts/releasePreflight.mjs verify-manifest
+          --root "$RELEASE_ARTIFACT_ROOT"
+          --metadata "$RELEASE_ARTIFACT_ROOT/release-metadata.json"
+          --manifest "$RELEASE_ARTIFACT_ROOT/preflight-manifest.json"
+          --revision "${{ needs.prepare.outputs.sha }}"
+          --version "${{ needs.prepare.outputs.version }}"
+
+      - name: Install exact preflighted Functions output
+        shell: bash
+        run: |
+          rm -rf functions/lib
+          cp -R "$RELEASE_ARTIFACT_ROOT/functions/lib" functions/lib
 
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -105,18 +287,12 @@ jobs:
           project_id: ${{ env.FIREBASE_PROJECT_ID }}
           create_credentials_file: true
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Install deployment dependencies
+        run: |
+          npm ci
+          npm --prefix functions ci
 
-      - name: Install Functions dependencies
-        run: npm --prefix functions ci
-
-      - name: Build Functions
-        env:
-          BUILD_SHA: ${{ needs.prepare.outputs.sha }}
-        run: npm run build:functions
-
-      - name: Stamp Functions revision
+      - name: Stamp exact Functions revision
         run: |
           printf 'BUILD_SHA=%s\nNEXO_VERSION=%s\nNEXO_ALLOWED_ORIGINS=%s\nNEXO_ENFORCE_APP_CHECK=false\n' \
             '${{ needs.prepare.outputs.sha }}' \
@@ -141,7 +317,7 @@ jobs:
           retention-days: 30
 
       - name: Deploy Functions, Firestore rules and indexes
-        run: npx firebase-tools deploy --only functions,firestore --project "$FIREBASE_PROJECT_ID" --non-interactive
+        run: npx --no-install firebase-tools deploy --only functions,firestore --project "$FIREBASE_PROJECT_ID" --non-interactive
 
       - name: Normalize catalog seed
         if: github.event_name != 'workflow_dispatch' || inputs.skip_seed != true
@@ -152,61 +328,76 @@ jobs:
         run: npm run catalog:write:prod
 
   deploy-worker:
-    needs: [prepare, deploy-firebase]
+    needs: [prepare, preflight, deploy-firebase]
     runs-on: ubuntu-latest
     environment: production
+    permissions:
+      contents: read
+      actions: read
     env:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      RELEASE_ARTIFACT_ROOT: ${{ runner.temp }}/nexo-release-artifact
     steps:
       - name: Checkout approved revision
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           ref: ${{ needs.prepare.outputs.sha }}
 
+      - name: Download exact preflight artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: nexo-preflight-${{ needs.prepare.outputs.sha }}
+          path: ${{ runner.temp }}/nexo-release-artifact
+
+      - name: Verify artifact provenance and immutable revision
+        run: >-
+          node scripts/releasePreflight.mjs verify-manifest
+          --root "$RELEASE_ARTIFACT_ROOT"
+          --metadata "$RELEASE_ARTIFACT_ROOT/release-metadata.json"
+          --manifest "$RELEASE_ARTIFACT_ROOT/preflight-manifest.json"
+          --revision "${{ needs.prepare.outputs.sha }}"
+          --version "${{ needs.prepare.outputs.version }}"
+
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
           cache: npm
-
-      - name: Install dependencies
-        run: npm ci
 
       - name: Require scoped Cloudflare credentials
         run: |
           test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo 'CLOUDFLARE_ACCOUNT_ID is required.'; exit 1; }
           test -n "$CLOUDFLARE_API_TOKEN" || { echo 'CLOUDFLARE_API_TOKEN is required.'; exit 1; }
 
-      - name: Validate Worker bundle
-        run: npm run worker:check
+      - name: Install deployment dependencies
+        run: npm ci
 
-      - name: Deploy catalog Worker
-        run: >-
-          npx wrangler deploy --env="" --config workers/catalog-proxy/wrangler.jsonc
-          --var BUILD_SHA:${{ needs.prepare.outputs.sha }}
-          --var NEXO_VERSION:${{ needs.prepare.outputs.version }}
+      - name: Deploy exact preflighted Worker bundle
+        shell: bash
+        run: |
+          cp "$RELEASE_ARTIFACT_ROOT/worker/index.js" workers/catalog-proxy/preflight-worker.js
+          npx --no-install wrangler deploy workers/catalog-proxy/preflight-worker.js \
+            --no-bundle \
+            --env="" \
+            --config workers/catalog-proxy/wrangler.jsonc \
+            --var "BUILD_SHA:${{ needs.prepare.outputs.sha }}" \
+            --var "NEXO_VERSION:${{ needs.prepare.outputs.version }}" \
+            --strict
 
-  build-pages:
-    needs: [prepare, deploy-firebase, deploy-worker]
+  deploy-pages:
+    needs: [prepare, preflight, deploy-firebase, deploy-worker]
     runs-on: ubuntu-latest
-    environment: production
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+      pages: write
     env:
-      GITHUB_PAGES: 'true'
-      GITHUB_PAGES_BASE: '/'
-      VITE_BUILD_SHA: ${{ needs.prepare.outputs.sha }}
-      VITE_FIREBASE_API_KEY: ${{ vars.VITE_FIREBASE_API_KEY }}
-      VITE_FIREBASE_AUTH_DOMAIN: ${{ vars.VITE_FIREBASE_AUTH_DOMAIN }}
-      VITE_FIREBASE_PROJECT_ID: ${{ vars.VITE_FIREBASE_PROJECT_ID }}
-      VITE_FIREBASE_STORAGE_BUCKET: ${{ vars.VITE_FIREBASE_STORAGE_BUCKET }}
-      VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ vars.VITE_FIREBASE_MESSAGING_SENDER_ID }}
-      VITE_FIREBASE_APP_ID: ${{ vars.VITE_FIREBASE_APP_ID }}
-      VITE_FIREBASE_MEASUREMENT_ID: ${{ vars.VITE_FIREBASE_MEASUREMENT_ID }}
-      VITE_RECAPTCHA_ENTERPRISE_SITE_KEY: ${{ vars.VITE_RECAPTCHA_ENTERPRISE_SITE_KEY }}
-      VITE_CATALOG_API_URL: ${{ vars.VITE_CATALOG_API_URL }}
-      VITE_CATALOG_PROXY_URL: ${{ vars.VITE_CATALOG_PROXY_URL }}
-      VITE_PUBLIC_CATALOG_URL: ${{ vars.VITE_PUBLIC_CATALOG_URL }}
-      VITE_DEMO_MODE: 'false'
+      RELEASE_ARTIFACT_ROOT: ${{ runner.temp }}/nexo-release-artifact
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Checkout approved revision
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -217,55 +408,38 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
-          cache: npm
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Require production frontend configuration
-        run: |
-          for name in \
-            VITE_FIREBASE_API_KEY VITE_FIREBASE_AUTH_DOMAIN VITE_FIREBASE_PROJECT_ID \
-            VITE_FIREBASE_STORAGE_BUCKET VITE_FIREBASE_MESSAGING_SENDER_ID VITE_FIREBASE_APP_ID \
-            VITE_FIREBASE_MEASUREMENT_ID VITE_CATALOG_API_URL VITE_PUBLIC_CATALOG_URL; do
-            test -n "${!name}" || { echo "$name is required."; exit 1; }
-          done
-
-      - name: Build production artifact
-        run: npm run build
-
-      - name: Verify production artifact
-        run: npm run check:build-output
-
-      - name: Verify release files
-        run: npm run check:release-files
-
-      - name: Configure Pages
-        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
+      - name: Download and verify exact preflight artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          path: dist
+          name: nexo-preflight-${{ needs.prepare.outputs.sha }}
+          path: ${{ runner.temp }}/nexo-release-artifact
 
-  deploy-pages:
-    needs: build-pages
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Deploy GitHub Pages
+      - name: Verify Pages provenance and immutable revision
+        env:
+          RELEASE_ARTIFACT_ROOT: ${{ runner.temp }}/nexo-release-artifact
+        run: >-
+          node scripts/releasePreflight.mjs verify-manifest
+          --root "$RELEASE_ARTIFACT_ROOT"
+          --metadata "$RELEASE_ARTIFACT_ROOT/release-metadata.json"
+          --manifest "$RELEASE_ARTIFACT_ROOT/preflight-manifest.json"
+          --revision "${{ needs.prepare.outputs.sha }}"
+          --version "${{ needs.prepare.outputs.version }}"
+
+      - name: Deploy exact Pages artifact
         id: deployment
         uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
 
   production-smoke:
-    needs: [prepare, deploy-pages]
+    needs: [prepare, deploy-firebase, deploy-worker, deploy-pages]
     runs-on: ubuntu-latest
     environment: production
+    permissions:
+      contents: read
     env:
       E2E_PROD_BASE_URL: https://nexo.codeoverdose.es
       E2E_EXPECTED_REVISION: ${{ needs.prepare.outputs.sha }}
+      E2E_EXPECTED_VERSION: ${{ needs.prepare.outputs.version }}
       E2E_PUBLIC_CATALOG_URL: ${{ vars.VITE_PUBLIC_CATALOG_URL }}
       E2E_CATALOG_API_URL: ${{ vars.VITE_CATALOG_API_URL }}
       E2E_CATALOG_PROXY_URL: ${{ vars.VITE_CATALOG_PROXY_URL }}
@@ -293,47 +467,52 @@ jobs:
 
       - name: Require production smoke credentials
         run: |
-          for name in E2E_EXPECTED_REVISION E2E_PUBLIC_CATALOG_URL E2E_CATALOG_API_URL \
+          for name in E2E_EXPECTED_REVISION E2E_EXPECTED_VERSION E2E_PUBLIC_CATALOG_URL E2E_CATALOG_API_URL \
             E2E_BACKEND_HEALTH_URL E2E_PROD_MOD_EMAIL E2E_PROD_MOD_PASSWORD; do
             test -n "${!name}" || { echo "$name is required."; exit 1; }
           done
 
-      - name: Wait for the approved revision on every production surface
+      - name: Wait for the approved revision and version on every production surface
         shell: bash
         run: |
           worker_health="${E2E_CATALOG_API_URL%/}/health"
-          wait_for_revision() {
+          wait_for_metadata() {
             endpoint="$1"
             for attempt in {1..30}; do
-              revision="$(curl --connect-timeout 3 --max-time 8 --fail --silent --show-error \
-                --header 'Cache-Control: no-cache' "$endpoint" \
-                | node -e "let body='';process.stdin.on('data',c=>body+=c);process.stdin.on('end',()=>console.log(JSON.parse(body).revision||''))" \
-                || true)"
-              if [ "$revision" = "$E2E_EXPECTED_REVISION" ]; then
-                return 0
+              if payload="$(curl --connect-timeout 3 --max-time 8 --fail --silent --show-error \
+                --header 'Cache-Control: no-cache' "$endpoint" || true)"; then
+                if printf '%s' "$payload" | EXPECTED_REVISION="$E2E_EXPECTED_REVISION" EXPECTED_VERSION="$E2E_EXPECTED_VERSION" \
+                  node -e "let body='';process.stdin.on('data',c=>body+=c);process.stdin.on('end',()=>{try{const value=JSON.parse(body);process.exit(value.revision===process.env.EXPECTED_REVISION&&value.version===process.env.EXPECTED_VERSION?0:1)}catch{process.exit(1)}})"; then
+                  return 0
+                fi
               fi
               sleep 5
             done
-            echo "$endpoint never exposed revision $E2E_EXPECTED_REVISION."
+            echo "$endpoint never exposed revision $E2E_EXPECTED_REVISION and version $E2E_EXPECTED_VERSION."
             return 1
           }
-          wait_for_revision "$E2E_PROD_BASE_URL/version.json?revision=$E2E_EXPECTED_REVISION"
-          wait_for_revision "$worker_health"
-          wait_for_revision "$E2E_BACKEND_HEALTH_URL"
+          wait_for_metadata "$E2E_PROD_BASE_URL/version.json?revision=$E2E_EXPECTED_REVISION"
+          wait_for_metadata "$worker_health"
+          wait_for_metadata "$E2E_BACKEND_HEALTH_URL"
+
+      - name: Record cross-service revision agreement evidence
+        run: |
+          node -e "require('node:fs').writeFileSync(process.env.RUNNER_TEMP + '/nexo-production-release-evidence.json', JSON.stringify({schemaVersion:1,revision:process.env.E2E_EXPECTED_REVISION,version:process.env.E2E_EXPECTED_VERSION,jobOrder:['preflight','deploy-firebase','deploy-worker','deploy-pages','production-smoke'],surfaces:{pages:'version.json',worker:process.env.E2E_CATALOG_API_URL.replace(/\\/$/,'')+'/health',functions:process.env.E2E_BACKEND_HEALTH_URL},releaseTag:'v'+process.env.E2E_EXPECTED_VERSION},null,2)+'\\n')"
 
       - name: Production smoke
         run: npm run test:e2e:prod
 
-      - name: Upload production diagnostics
-        if: failure()
+      - name: Upload production revision evidence and diagnostics
+        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: production-smoke-${{ github.run_id }}
+          name: production-release-evidence-${{ github.run_id }}
           path: |
+            ${{ runner.temp }}/nexo-production-release-evidence.json
             playwright-report
             test-results
           if-no-files-found: ignore
-          retention-days: 14
+          retention-days: 30
 
   publish-release:
     if: github.event_name == 'workflow_run'
@@ -348,7 +527,7 @@ jobs:
           ref: ${{ needs.prepare.outputs.sha }}
           fetch-depth: 0
 
-      - name: Publish tag and GitHub release
+      - name: Publish tag and GitHub release idempotently
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_SHA: ${{ needs.prepare.outputs.sha }}
