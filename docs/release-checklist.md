@@ -63,7 +63,7 @@ An untagged release may receive a deployment-blocker PR with the same `release:x
 
 ## Ordered production deployment
 
-`.github/workflows/deploy-production.yml` runs only after successful `CI` on a push to `main`, or via `workflow_dispatch(ref, skip_seed)`. It first creates one immutable release metadata record and runs the complete preflight with no Firebase, Cloudflare or Pages mutation. The preflight publishes a Pages artifact, compiled Functions output, a Worker bundle and a SHA-256 provenance manifest. Every mutation job downloads and verifies those exact artifacts before continuing.
+`.github/workflows/deploy-production.yml` runs only after successful `CI` on a push to `main`, or via `workflow_dispatch(ref, skip_seed)`. On a main push, its prepare gate waits for the matching successful CI run by commit SHA; a failed or missing CI run stops before preflight and leaves every mutation job skipped. It first creates one immutable release metadata record and runs the complete preflight with no Firebase, Cloudflare or Pages mutation. The preflight publishes a Pages artifact, compiled Functions output, a Worker bundle and a SHA-256 provenance manifest. Every mutation job downloads and verifies those exact artifacts before continuing.
 
 The controlled order is:
 
