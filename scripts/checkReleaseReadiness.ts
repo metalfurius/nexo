@@ -89,6 +89,10 @@ function workflowSteps(job: StructuredObject) {
   return asArray(job.steps).map(asObject)
 }
 
+function workflowStep(job: StructuredObject, name: string) {
+  return workflowSteps(job).find((step) => step.name === name) ?? {}
+}
+
 function stepRuns(job: StructuredObject) {
   return workflowSteps(job).map((step) => step.run).filter((run): run is string => typeof run === 'string')
 }
@@ -335,11 +339,20 @@ check(
     stepUses(preflightJob).some((uses) => uses.startsWith('actions/upload-pages-artifact@')),
   'Preflight must publish the exact deployment and Pages artifacts.',
 )
+check(
+  asObject(workflowStep(preflightJob, 'Upload immutable deployment artifacts and provenance').with).path === '${{ env.RELEASE_ARTIFACT_ROOT }}',
+  'Preflight artifact upload must use the staged immutable artifact root.',
+)
 for (const jobName of ['deploy-firebase', 'deploy-worker', 'deploy-pages']) {
   const job = workflowJob(deployWorkflow, jobName)
   check(
     stepUses(job).some((uses) => uses.startsWith('actions/download-artifact@')) && includesRun(job, 'verify-manifest'),
     `${jobName} must download and verify the exact preflight artifact provenance.`,
+  )
+  const downloadStep = workflowSteps(job).find((step) => String(step.uses ?? '').startsWith('actions/download-artifact@')) ?? {}
+  check(
+    asObject(downloadStep.with).path === '${{ env.RELEASE_ARTIFACT_ROOT }}',
+    `${jobName} must download the preflight artifact into the verified immutable artifact root.`,
   )
 }
 check(!Object.prototype.hasOwnProperty.call(asObject(deployWorkflow.jobs), 'build-pages'), 'Pages must not be rebuilt after a production mutation.')
