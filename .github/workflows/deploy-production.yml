@@ -65,7 +65,7 @@ jobs:
           COMMIT_SHA: ${{ github.sha }}
         shell: bash
         run: |
-          for attempt in {1..60}; do
+          for attempt in {1..180}; do
             result="$(gh api \
               --header 'Accept: application/vnd.github+json' \
               "/repos/${GITHUB_REPOSITORY}/actions/runs?event=push&branch=main&head_sha=${COMMIT_SHA}&per_page=100" \
@@ -83,7 +83,7 @@ jobs:
             fi
             sleep 5
           done
-          echo "No successful CI run completed for $COMMIT_SHA before the release gate timeout."
+          echo "No successful CI run completed for $COMMIT_SHA before the 15-minute release gate timeout."
           exit 1
 
       - name: Require an existing immutable release tag for manual redeploys
