@@ -6,6 +6,7 @@ import test from 'node:test'
 import {
   createArtifactManifest,
   createReleaseMetadata,
+  assertVersion,
   resolveProductionPlan,
   verifyArtifactManifest,
   verifyReleaseMetadata,
@@ -13,6 +14,10 @@ import {
 
 const revision = '0123456789abcdef0123456789abcdef01234567'
 const version = '1.4.1'
+
+test('assertVersion reports an actionable SemVer error', () => {
+  assert.throws(() => assertVersion('release-latest'), /semantic version \(SemVer\) string/)
+})
 
 test('release metadata is immutable and rejects revision or version drift', () => {
   const metadata = createReleaseMetadata({ revision, version, repository: 'metalfurius/nexo', workflowRunId: 42 })

@@ -52,7 +52,7 @@ export function assertRevision(revision) {
 }
 
 export function assertVersion(version) {
-  if (!SEMVER_PATTERN.test(String(version ?? ''))) throw new Error('Release version must be semantic version metadata.')
+  if (!SEMVER_PATTERN.test(String(version ?? ''))) throw new Error('Release version must be a semantic version (SemVer) string.')
 }
 
 export function resolveProductionPlan(gateResults) {
