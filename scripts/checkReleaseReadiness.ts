@@ -295,8 +295,16 @@ const workerJob = workflowJob(deployWorkflow, 'deploy-worker')
 const deployPagesJob = workflowJob(deployWorkflow, 'deploy-pages')
 const smokeJob = workflowJob(deployWorkflow, 'production-smoke')
 const releaseJob = workflowJob(deployWorkflow, 'publish-release')
+const prepareCondition = typeof prepareJob.if === 'string' ? prepareJob.if : ''
+const releaseCondition = typeof releaseJob.if === 'string' ? releaseJob.if : ''
 
 check(normalizedNeeds(preflightJob).includes('prepare'), 'Immutable preflight must wait for the prepared revision.')
+check(
+  prepareCondition.includes("github.event_name == 'push'") &&
+    prepareCondition.includes("github.event_name == 'workflow_dispatch'") &&
+    !prepareCondition.includes('workflow_run'),
+  'Production provider jobs must run only from the CI-gated main push or an explicit dispatch, not from workflow_run.',
+)
 check(normalizedNeeds(firebaseJob).includes('preflight'), 'Firebase must wait for the complete immutable preflight.')
 check(
   normalizedNeeds(workerJob).includes('preflight') && normalizedNeeds(workerJob).includes('deploy-firebase'),
@@ -313,6 +321,7 @@ check(
   'Production smoke must wait for every production deployment job.',
 )
 check(normalizedNeeds(releaseJob).includes('production-smoke'), 'Release publication must wait for the production smoke.')
+check(releaseCondition.includes("github.event_name == 'push'"), 'Release publication must remain on the single main-push path.')
 check(includesRun(prepareJob, 'git rev-parse HEAD'), 'Production deploy must resolve an immutable SHA.')
 check(includesRun(prepareJob, 'create-metadata'), 'Production deploy must publish immutable revision metadata.')
 check(
