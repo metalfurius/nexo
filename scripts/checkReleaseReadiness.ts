@@ -54,6 +54,7 @@ const requiredFiles = [
 ]
 
 const failures: string[] = []
+const releaseArtifactRootExpression = '${{ github.workspace }}/nexo-release-artifact'
 
 function check(condition: unknown, message: string) {
   if (!condition) failures.push(message)
@@ -343,6 +344,10 @@ check(
   asObject(workflowStep(preflightJob, 'Upload immutable deployment artifacts and provenance').with).path === '${{ env.RELEASE_ARTIFACT_ROOT }}',
   'Preflight artifact upload must use the staged immutable artifact root.',
 )
+check(
+  asObject(preflightJob.env).RELEASE_ARTIFACT_ROOT === releaseArtifactRootExpression,
+  'Preflight must use a non-hidden immutable artifact root so artifact upload cannot silently omit it.',
+)
 for (const jobName of ['deploy-firebase', 'deploy-worker', 'deploy-pages']) {
   const job = workflowJob(deployWorkflow, jobName)
   check(
@@ -353,6 +358,10 @@ for (const jobName of ['deploy-firebase', 'deploy-worker', 'deploy-pages']) {
   check(
     asObject(downloadStep.with).path === '${{ env.RELEASE_ARTIFACT_ROOT }}',
     `${jobName} must download the preflight artifact into the verified immutable artifact root.`,
+  )
+  check(
+    asObject(job.env).RELEASE_ARTIFACT_ROOT === releaseArtifactRootExpression,
+    `${jobName} must use the same non-hidden immutable artifact root as preflight.`,
   )
 }
 check(!Object.prototype.hasOwnProperty.call(asObject(deployWorkflow.jobs), 'build-pages'), 'Pages must not be rebuilt after a production mutation.')
