@@ -21,8 +21,9 @@ test('release metadata is immutable and rejects revision or version drift', () =
   assert.match(verifyReleaseMetadata(metadata, { revision, version: '1.4.2' }).join('\n'), /version/)
 })
 
-test('artifact manifest detects tampering after preflight', async () => {
+test('artifact manifest detects tampering, added files, and unsafe paths', async () => {
   const rootDir = await mkdtemp(join(process.env.TEMP ?? process.env.TMP ?? '.', 'nexo-preflight-test-'))
+  const outsidePath = join(rootDir, '..', 'nexo-preflight-test-outside.txt')
   try {
     await mkdir(join(rootDir, 'dist'), { recursive: true })
     await mkdir(join(rootDir, 'functions', 'lib'), { recursive: true })
@@ -44,6 +45,15 @@ test('artifact manifest detects tampering after preflight', async () => {
       expected: { revision, version },
     }), [])
 
+    await writeFile(join(rootDir, 'worker', 'extra.js'), 'export default { added: true }\n')
+    assert.match((await verifyArtifactManifest({
+      rootDir,
+      manifest,
+      metadata,
+      expected: { revision, version },
+    })).join('\n'), /missing file: worker\/extra\.js/)
+    await rm(join(rootDir, 'worker', 'extra.js'))
+
     await writeFile(join(rootDir, 'worker', 'worker.js'), 'export default { tampered: true }\n')
     assert.match((await verifyArtifactManifest({
       rootDir,
@@ -51,8 +61,17 @@ test('artifact manifest detects tampering after preflight', async () => {
       metadata,
       expected: { revision, version },
     })).join('\n'), /digest mismatch/)
+
+    await writeFile(outsidePath, 'must not be read\n')
+    assert.match((await verifyArtifactManifest({
+      rootDir,
+      manifest: { ...manifest, files: [...manifest.files, { path: '../nexo-preflight-test-outside.txt', bytes: 15, sha256: '0'.repeat(64) }] },
+      metadata,
+      expected: { revision, version },
+    })).join('\n'), /must remain under the release artifact root/)
   } finally {
     await rm(rootDir, { recursive: true, force: true })
+    await rm(outsidePath, { force: true })
   }
 })
 

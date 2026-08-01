@@ -474,7 +474,7 @@ jobs:
               if payload="$(curl --connect-timeout 3 --max-time 8 --fail --silent --show-error \
                 --header 'Cache-Control: no-cache' "$endpoint" || true)"; then
                 if printf '%s' "$payload" | EXPECTED_REVISION="$E2E_EXPECTED_REVISION" EXPECTED_VERSION="$E2E_EXPECTED_VERSION" \
-                  node -e "let body='';process.stdin.on('data',c=>body+=c);process.stdin.on('end',()=>{try{const value=JSON.parse(body);process.exit(value.revision===process.env.EXPECTED_REVISION&&value.version===process.env.EXPECTED_VERSION?0:1)}catch{process.exit(1)}}"; then
+                  node -e "let body='';process.stdin.on('data',c=>body+=c);process.stdin.on('end',()=>{try{const value=JSON.parse(body);process.exit(value.revision===process.env.EXPECTED_REVISION&&value.version===process.env.EXPECTED_VERSION?0:1)}catch{process.exit(1)}})"; then
                   return 0
                 fi
               fi

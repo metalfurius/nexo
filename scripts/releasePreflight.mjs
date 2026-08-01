@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { readFile, readdir, writeFile } from 'node:fs/promises'
-import { join, resolve } from 'node:path'
+import { join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const SHA_PATTERN = /^[0-9a-f]{40}$/
@@ -62,8 +62,25 @@ export function resolveProductionPlan(gateResults) {
     : { blocked: false, failedGate: undefined, mutations: [...PRODUCTION_MUTATION_JOBS] }
 }
 
+function resolveWithinRoot(rootDir, candidate, label) {
+  if (typeof candidate !== 'string' || !candidate || candidate.includes('\0')) {
+    throw new Error(`${label} must be a non-empty relative path.`)
+  }
+  const root = resolve(rootDir)
+  const absolute = resolve(root, candidate.replaceAll('\\', '/'))
+  const relativePath = relative(root, absolute).replaceAll('\\', '/')
+  if (!relativePath || relativePath === '..' || relativePath.startsWith('../') || relativePath.startsWith('/')) {
+    throw new Error(`${label} must remain under the release artifact root.`)
+  }
+  return { absolute, relative: relativePath }
+}
+
 async function listFiles(rootDir, includes) {
+  if (!Array.isArray(includes) || includes.length === 0) {
+    throw new Error('Preflight artifact manifest must declare at least one include root.')
+  }
   const files = []
+  const normalizedIncludes = new Set()
   async function visit(path, relativePath) {
     const entries = await readdir(path, { withFileTypes: true })
     for (const entry of entries) {
@@ -74,8 +91,12 @@ async function listFiles(rootDir, includes) {
     }
   }
 
-  for (const include of includes) await visit(join(rootDir, include), include)
-  return files.sort()
+  for (const include of includes) {
+    const target = resolveWithinRoot(rootDir, include, 'Preflight artifact include')
+    normalizedIncludes.add(target.relative)
+    await visit(target.absolute, target.relative)
+  }
+  return { includes: [...normalizedIncludes].sort(), files: files.sort() }
 }
 
 async function digestFile(path) {
@@ -85,13 +106,15 @@ async function digestFile(path) {
 
 export async function createArtifactManifest({ rootDir, includes, metadata }) {
   const files = []
-  for (const path of await listFiles(rootDir, includes)) {
+  const listed = await listFiles(rootDir, includes)
+  for (const path of listed.files) {
     files.push({ path, ...(await digestFile(join(rootDir, path))) })
   }
   return {
     schemaVersion: 1,
     revision: metadata.revision,
     version: metadata.version,
+    includes: listed.includes,
     files,
   }
 }
@@ -102,16 +125,51 @@ export async function verifyArtifactManifest({ rootDir, manifest, metadata, expe
   if (manifest?.revision !== expected.revision) failures.push(`Preflight artifact manifest revision must be ${expected.revision}.`)
   if (manifest?.version !== expected.version) failures.push(`Preflight artifact manifest version must be ${expected.version}.`)
 
-  for (const entry of manifest?.files ?? []) {
-    const path = join(rootDir, entry.path)
+  let listed
+  try {
+    listed = await listFiles(rootDir, manifest?.includes)
+  } catch (error) {
+    failures.push(error instanceof Error ? error.message : 'Preflight artifact include roots are invalid.')
+    return failures
+  }
+
+  if (!Array.isArray(manifest?.files)) {
+    failures.push('Preflight artifact manifest files must be an array.')
+    return failures
+  }
+
+  const manifestPaths = []
+  for (const entry of manifest.files) {
+    if (!entry || typeof entry !== 'object' || typeof entry.path !== 'string') {
+      failures.push('Preflight artifact manifest contains an invalid file entry.')
+      continue
+    }
+    let resolvedEntry
     try {
-      const actual = await digestFile(path)
+      resolvedEntry = resolveWithinRoot(rootDir, entry.path, 'Preflight artifact manifest path')
+    } catch (error) {
+      failures.push(error instanceof Error ? error.message : `Preflight artifact path is invalid: ${entry.path}.`)
+      continue
+    }
+    manifestPaths.push(resolvedEntry.relative)
+    try {
+      const actual = await digestFile(resolvedEntry.absolute)
       if (actual.bytes !== entry.bytes || actual.sha256 !== entry.sha256) {
-        failures.push(`Preflight artifact digest mismatch: ${entry.path}.`)
+        failures.push(`Preflight artifact digest mismatch: ${resolvedEntry.relative}.`)
       }
     } catch {
-      failures.push(`Preflight artifact is missing: ${entry.path}.`)
+      failures.push(`Preflight artifact is missing: ${resolvedEntry.relative}.`)
     }
+  }
+
+  const manifestPathSet = new Set(manifestPaths)
+  if (manifestPathSet.size !== manifestPaths.length) failures.push('Preflight artifact manifest contains duplicate file paths.')
+  const listedPathSet = new Set(listed.files)
+  for (const path of listed.files) {
+    if (!manifestPathSet.has(path)) failures.push(`Preflight artifact manifest is missing file: ${path}.`)
+  }
+  for (const path of manifestPathSet) {
+    if (!listedPathSet.has(path)) failures.push(`Preflight artifact manifest lists unexpected file: ${path}.`)
   }
   return failures
 }
