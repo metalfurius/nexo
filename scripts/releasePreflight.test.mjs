@@ -35,9 +35,10 @@ test('artifact manifest detects tampering, added files, and unsafe paths', async
     await writeFile(join(rootDir, 'worker', 'worker.js'), 'export default {}\n')
     const manifest = await createArtifactManifest({
       rootDir,
-      includes: ['dist', 'functions/lib', 'worker'],
+      includes: ['dist', 'dist', 'functions/lib', 'worker'],
       metadata,
     })
+    assert.equal(new Set(manifest.files.map(({ path }) => path)).size, manifest.files.length)
     assert.deepEqual(await verifyArtifactManifest({
       rootDir,
       manifest,

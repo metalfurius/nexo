@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { readFile, readdir, symlink, writeFile } from 'node:fs/promises'
+import { readFile, readdir, writeFile } from 'node:fs/promises'
 import { join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -94,6 +94,7 @@ async function listFiles(rootDir, includes) {
 
   for (const include of includes) {
     const target = resolveWithinRoot(rootDir, include, 'Preflight artifact include')
+    if (normalizedIncludes.has(target.relative)) continue
     normalizedIncludes.add(target.relative)
     await visit(target.absolute, target.relative)
   }
