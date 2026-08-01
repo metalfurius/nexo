@@ -134,6 +134,11 @@ async function checkInitialJsBudget(indexHtml: string) {
 }
 
 async function checkApplicationRuntimeMarkers(assets: string[]) {
+  const isExplicitEmulatorBuild =
+    String(process.env.VITE_DEMO_MODE ?? '').trim() === 'true' &&
+    String(process.env.VITE_USE_FIREBASE_EMULATORS ?? '').trim() === 'true'
+  if (isExplicitEmulatorBuild) return
+
   for (const asset of assets.filter((candidate) => candidate.endsWith('.js') && isApplicationChunk(`/${candidate}`))) {
     const path = join(distDir, 'assets', asset)
     if (!(await exists(path))) continue
