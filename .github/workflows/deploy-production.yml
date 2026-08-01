@@ -35,10 +35,7 @@ jobs:
   prepare:
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
-      (github.event.workflow_run.conclusion == 'success' &&
-        github.event.workflow_run.event == 'push' &&
-        github.event.workflow_run.head_branch == 'main')
+      (github.event_name == 'push' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -50,7 +47,7 @@ jobs:
       - name: Checkout approved revision
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha || inputs.ref || github.sha }}
+          ref: ${{ inputs.ref || github.sha }}
           fetch-depth: 0
 
       - name: Setup Node
@@ -553,7 +550,7 @@ jobs:
           retention-days: 30
 
   publish-release:
-    if: github.event_name == 'workflow_run'
+    if: github.event_name == 'push'
     needs: [prepare, production-smoke]
     runs-on: ubuntu-latest
     permissions:
