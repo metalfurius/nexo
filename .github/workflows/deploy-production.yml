@@ -45,7 +45,7 @@ jobs:
       version: ${{ steps.revision.outputs.version }}
     steps:
       - name: Checkout approved revision
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
         with:
           ref: ${{ inputs.ref || github.sha }}
           fetch-depth: 0
@@ -158,7 +158,7 @@ jobs:
       RELEASE_ARTIFACT_ROOT: ${{ github.workspace }}/nexo-release-artifact
     steps:
       - name: Checkout approved revision
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
         with:
           ref: ${{ needs.prepare.outputs.sha }}
 
@@ -281,7 +281,7 @@ jobs:
       RELEASE_ARTIFACT_ROOT: ${{ github.workspace }}/nexo-release-artifact
     steps:
       - name: Checkout approved revision
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
         with:
           ref: ${{ needs.prepare.outputs.sha }}
 
@@ -381,7 +381,7 @@ jobs:
       RELEASE_ARTIFACT_ROOT: ${{ github.workspace }}/nexo-release-artifact
     steps:
       - name: Checkout approved revision
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
         with:
           ref: ${{ needs.prepare.outputs.sha }}
 
@@ -441,7 +441,7 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Checkout approved revision
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
         with:
           ref: ${{ needs.prepare.outputs.sha }}
 
@@ -490,7 +490,7 @@ jobs:
       VITE_PUBLIC_CATALOG_URL: ${{ vars.VITE_PUBLIC_CATALOG_URL }}
     steps:
       - name: Checkout approved revision
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
         with:
           ref: ${{ needs.prepare.outputs.sha }}
 
@@ -563,7 +563,7 @@ jobs:
       contents: write
     steps:
       - name: Checkout deployed revision with tags
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
         with:
           ref: ${{ needs.prepare.outputs.sha }}
           fetch-depth: 0
