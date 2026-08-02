@@ -209,6 +209,12 @@ jobs:
       - name: Run complete immutable release preflight
         run: npm run release:check
 
+      - name: Rebuild exact production frontend after E2E preflight
+        run: npm run build
+
+      - name: Verify exact production frontend output
+        run: npm run check:build-output
+
       - name: Build exact Worker preflight bundle
         shell: bash
         run: |

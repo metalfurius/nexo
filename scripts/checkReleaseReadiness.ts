@@ -334,6 +334,18 @@ check(
 )
 check(includesRun(preflightJob, 'verify-metadata'), 'Preflight must verify immutable release metadata before any mutation.')
 check(includesRun(preflightJob, 'npm run release:check'), 'Preflight must run the complete release gate.')
+const preflightSteps = workflowSteps(preflightJob)
+const releaseCheckStepIndex = preflightSteps.findIndex((step) => String(step.run ?? '').includes('npm run release:check'))
+const finalFrontendBuildStepIndex = preflightSteps.findIndex((step) => String(step.run ?? '') === 'npm run build')
+const finalFrontendCheckStepIndex = preflightSteps.findIndex((step) => String(step.run ?? '') === 'npm run check:build-output')
+const artifactStageStepIndex = preflightSteps.findIndex((step) => String(step.name ?? '') === 'Stage and verify exact preflight artifacts')
+check(
+  releaseCheckStepIndex >= 0 &&
+    finalFrontendBuildStepIndex > releaseCheckStepIndex &&
+    finalFrontendCheckStepIndex > finalFrontendBuildStepIndex &&
+    artifactStageStepIndex > finalFrontendCheckStepIndex,
+  'Preflight must rebuild and revalidate the production frontend after E2E builds and before artifact staging.',
+)
 for (const gate of ['check:release-tools', 'check:release-files', 'build', 'check:build-output', 'build:functions', 'worker:check']) {
   check(
     rootPackage.scripts?.check?.includes(`npm run ${gate}`) ||

@@ -41,6 +41,17 @@ function isApplicationChunk(reference: string) {
   return !/-vendor-[^/]+\.js(?:[?#].*)?$/i.test(reference)
 }
 
+const forbiddenProductionRuntimeMarkers = [
+  { label: 'local runtime URL', pattern: /(?:127\.0\.0\.1|localhost)/i },
+  { label: 'Firebase emulator API key', pattern: /demo-api-key/i },
+] as const
+
+export function findForbiddenProductionRuntimeMarkers(contents: string) {
+  return forbiddenProductionRuntimeMarkers
+    .filter(({ pattern }) => pattern.test(contents))
+    .map(({ label }) => label)
+}
+
 export function collectInitialApplicationJsReferences(indexHtml: string) {
   const references = new Set<string>()
 
@@ -122,6 +133,22 @@ async function checkInitialJsBudget(indexHtml: string) {
   )
 }
 
+async function checkApplicationRuntimeMarkers(assets: string[]) {
+  const isExplicitEmulatorBuild =
+    String(process.env.VITE_DEMO_MODE ?? '').trim() === 'true' &&
+    String(process.env.VITE_USE_FIREBASE_EMULATORS ?? '').trim() === 'true'
+  if (isExplicitEmulatorBuild) return
+
+  for (const asset of assets.filter((candidate) => candidate.endsWith('.js') && isApplicationChunk(`/${candidate}`))) {
+    const path = join(distDir, 'assets', asset)
+    if (!(await exists(path))) continue
+
+    for (const marker of findForbiddenProductionRuntimeMarkers(await readText(path))) {
+      check(false, `Production JavaScript must not contain ${marker}: ${asset}.`)
+    }
+  }
+}
+
 async function checkVersionMetadata() {
   const versionPath = join(distDir, 'version.json')
   check(await exists(versionPath), 'dist/version.json must exist.')
@@ -158,6 +185,7 @@ async function main() {
   const assets = (await exists(assetsDir)) ? await readdir(assetsDir) : []
   check(assets.some((asset) => asset.endsWith('.js')), 'dist/assets must contain at least one JavaScript bundle.')
   check(assets.some((asset) => asset.endsWith('.css')), 'dist/assets must contain at least one CSS bundle.')
+  await checkApplicationRuntimeMarkers(assets)
 
   const cname = (await exists(join(distDir, 'CNAME'))) ? (await readText(join(distDir, 'CNAME'))).trim() : ''
   check(cname === 'nexo.codeoverdose.es', 'dist/CNAME must point to nexo.codeoverdose.es.')
